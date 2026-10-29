@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
 from src.settings import settings
+from src.workers.call_intel_worker import enqueue_call_analysis, enqueue_crm_sync
 
 router = APIRouter(tags=["amocrm"])
 logger = logging.getLogger(__name__)
@@ -169,6 +170,12 @@ async def amocrm_webhook(request: Request):
 
 async def _process_amocrm_event(data: Dict[str, Any]):
     try:
+        try:
+            from src.services.core.crm.amocrm_dialer_syncer import apply_amocrm_webhook_lead_event
+            apply_amocrm_webhook_lead_event(data)
+        except Exception:
+            pass
+
         # Check for task events in webhook payload
         from src.services.core.amocrm_task_notifier import (
             AmoCrmTaskNotifier,
@@ -261,15 +268,7 @@ async def _process_amocrm_event(data: Dict[str, Any]):
         except Exception as e:
             logger.error("[Webhook] Vilgood engine error: %s", e)
 
-        # Duplicate-note guard: only the enrichment/call-analysis
-        # side effects below are gated, so a status/Won-transition webhook that
-        # arrives within the window right after an add/responsible_user webhook
-        # for the same lead still runs pipeline enforcement and case publishing
-        # above — it just skips re-adding the same CRM notes/notifications.
-        # Keyed on (lead_id, new_status) so a status change that follows another
-        # status change for the same lead within the window (e.g. a Won
-        # transition right after a plain status update) is not swallowed by the
-        # earlier transition's dedup window.
+        # Duplicate-note guard: dedup on (lead_id, new_status)
         from src.services.core.crm.amocrm_webhook_dedup import is_duplicate_lead_event
         if is_duplicate_lead_event(lead_id, datetime.now(timezone.utc).timestamp(), status_id=new_status):
             logger.info("[Webhook] Duplicate AmoCRM note/notification pass for lead %s, skipping", lead_id)
@@ -286,18 +285,38 @@ async def _process_amocrm_event(data: Dict[str, Any]):
             except Exception as enrich_exc:
                 logger.error("[Webhook] AmoCRM enrichment failed for lead %s: %s", lead_id, enrich_exc, exc_info=True)
 
+        # Enqueue call analysis to Redis Streams instead of blocking webhook
         if getattr(settings, "ENABLE_AMOCRM_CALL_ANALYSIS", True) and getattr(settings, "AMOCRM_CALL_ANALYSIS_ON_WEBHOOK", True):
             try:
-                from src.services.core.call_analyzer import CallAnalyzer
-                call_analyzer = CallAnalyzer(amocrm=amocrm, db=runtime_db)
-                calls_processed = await call_analyzer.process_call_recordings_for_lead(
-                    lead_id=int(lead_id), caller_phone=phone or "",
-                    responsible_user_id=lead_data.get("responsible_user_id"),
-                    min_call_duration_seconds=settings.AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS,
-                )
-                logger.info("[Webhook] AmoCRM call analysis result: lead_id=%s processed=%s", lead_id, calls_processed)
+                call_id = None
+                for key, val in data.items():
+                    if "talks[" in key and "][id]" in key:
+                        try:
+                            call_id = int(val)
+                            break
+                        except (ValueError, TypeError):
+                            pass
+                
+                if call_id:
+                    # Get call recording URL from AmoCRM
+                    call_data = await amocrm.get_call(call_id)
+                    if call_data and call_data.get("recording_url"):
+                        await enqueue_call_analysis(
+                            call_id=str(call_id),
+                            audio_url=call_data["recording_url"],
+                            lead_id=str(lead_id)
+                        )
+                        logger.info("[Webhook] Enqueued call analysis: call_id=%s, lead_id=%s", call_id, lead_id)
             except Exception as call_exc:
-                logger.error("[Webhook] AmoCRM call analysis failed for lead %s: %s", lead_id, call_exc, exc_info=True)
+                logger.error("[Webhook] AmoCRM call analysis enqueue failed for lead %s: %s", lead_id, call_exc, exc_info=True)
+
+        # Enqueue CRM sync operations
+        if new_status:
+            await enqueue_crm_sync("status_change", {
+                "lead_id": int(lead_id),
+                "status_id": new_status,
+                "pipeline_id": lead_data.get("pipeline_id")
+            })
 
     except Exception as exc:
         logger.error("[Webhook] process_amocrm_event failed: %s", exc, exc_info=True)

@@ -8,10 +8,89 @@ from src.schedulers.background_monitor import BackgroundMonitor
 
 def test_generate_morning_boost():
     service = PsychologicalAutomationService()
-    boost = service.generate_morning_boost()
-    assert "OISHA KUNLIK PSIXOLOGIK IMPULS" in boost
-    assert "Mijozning rad javobi" in boost
-    assert "Jon Branding" in boost
+    day1 = datetime(2026, 10, 15, 9, 15)
+    day2 = datetime(2026, 10, 16, 9, 15)
+    boost1 = service.generate_morning_boost(now=day1)
+    boost2 = service.generate_morning_boost(now=day2)
+
+    assert "OISHA KUNLIK PSIXOLOGIK IMPULS" in boost1
+    assert "Jon Branding" in boost1
+    assert "Bugungi oltin qoida:" in boost1
+    assert "Bugungi 3 ta vazifangiz:" in boost1
+    # Har kuni bir xil motivatsiya ketmasligi shart
+    assert boost1 != boost2
+
+
+def test_generate_morning_boost_adapts_to_situational_metrics():
+    service = PsychologicalAutomationService()
+    now = datetime(2026, 10, 17, 9, 15)
+
+    stagnation_boost = service.generate_morning_boost(
+        context={
+            "stagnated_count": 6,
+            "top_stagnated_lead": "Akfa Medline",
+            "top_stagnated_value": "$4,500",
+            "active_leads_count": 18,
+            "pipeline_value": 45000,
+        },
+        now=now,
+    )
+    assert "Bugungi vaziyat va ko'rsatkichlar:" in stagnation_boost
+    assert "6 ta" in stagnation_boost
+    assert "Akfa Medline" in stagnation_boost
+    assert "Call Reluctance Breaker" in stagnation_boost
+
+    deadline_boost = service.generate_morning_boost(
+        context={
+            "overdue_projects_count": 2,
+            "top_overdue_project": "Payme Rebranding",
+            "overdue_tasks_count": 4,
+        },
+        now=now,
+    )
+    assert "Payme Rebranding" in deadline_boost
+    assert "PM & SLA Shield" in deadline_boost
+    assert deadline_boost != stagnation_boost
+
+    quality_boost = service.generate_morning_boost(
+        context={
+            "recent_calls_count": 15,
+            "solid_calls_count": 3,
+            "avg_call_score": 54.0,
+        },
+        now=now,
+    )
+    assert "54/100" in quality_boost
+    assert "3+ Daqiqa Standarti" in quality_boost
+    assert quality_boost != stagnation_boost
+
+
+@pytest.mark.asyncio
+async def test_build_morning_boost_collects_live_sources():
+    amocrm_mock = MagicMock()
+    amocrm_mock.get_stagnated_leads = MagicMock(
+        return_value=[
+            {"id": 501, "name": "Korzinka Branding", "price": 5000},
+            {"id": 502, "name": "Texnomart Pack", "price": 3000},
+            {"id": 503, "name": "Uzum Seller", "price": 1500},
+        ]
+    )
+    amocrm_mock.get_all_leads = MagicMock(
+        return_value=[
+            {"id": 501, "status_id": 100, "price": 5000},
+            {"id": 504, "status_id": 142, "price": 4000},
+        ]
+    )
+    airtable_mock = MagicMock()
+    airtable_mock.get_overdue_projects = MagicMock(return_value=[])
+
+    service = PsychologicalAutomationService(
+        amocrm=amocrm_mock, airtable=airtable_mock
+    )
+    boost = await service.build_morning_boost(now=datetime(2026, 10, 17, 9, 15))
+    assert "Korzinka Branding" in boost
+    assert "3 ta" in boost
+    assert "Yangi yopilgan bitimlar (Won): **1 ta**" in boost
 
 
 @pytest.mark.asyncio
@@ -87,6 +166,8 @@ async def test_background_monitor_psychological_jobs():
     now = datetime(2026, 8, 23, 9, 15)
     await monitor._job_psychological_mindset_boost(now)
     assert bot_client.send_message.await_count == 1
+    sent_boost_text = bot_client.send_message.await_args_list[0].args[1]
+    assert "Test Lead" in sent_boost_text
 
     # Idempotent
     await monitor._job_psychological_mindset_boost(now)

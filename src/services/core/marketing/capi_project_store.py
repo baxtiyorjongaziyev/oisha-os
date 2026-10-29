@@ -44,18 +44,24 @@ async def ensure_project_tables():
         stamp = now()
         await _pool().execute(
             "INSERT INTO capi_projects "
-            "(id, name, owner_id, dataset_id, ingest_secret, monthly_limit, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(id, name, owner_id, dataset_id, ad_account_id, ingest_secret, monthly_limit, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 "default",
                 "Jon Branding (Asosiy)",
                 "system",
                 "1134785364752294",
+                "act_370591433710957",
                 secrets.token_hex(16),
                 100000,
                 stamp,
                 stamp,
             ],
+        )
+    else:
+        # Ensure default project has ad_account_id populated
+        await _pool().execute(
+            "UPDATE capi_projects SET ad_account_id = 'act_370591433710957' WHERE id = 'default' AND (ad_account_id IS NULL OR ad_account_id = '')"
         )
     await _pool().commit()
 
@@ -99,6 +105,7 @@ async def get_project(project_id: str) -> Optional[Dict[str, Any]]:
     rows = await _pool().execute(
         "SELECT id, name, owner_id, dataset_id, test_code, ad_account_id, "
         "crm_pipeline_id, ingest_secret, monthly_limit, usage_count, is_active, "
+        "CASE WHEN access_token != '' THEN 1 ELSE 0 END AS has_token, "
         "created_at, updated_at FROM capi_projects WHERE id = ?",
         [project_id],
     )
@@ -136,16 +143,21 @@ async def list_projects_for_user(user_id: str, is_admin: bool = False) -> List[D
         rows = await _pool().execute(
             "SELECT id, name, owner_id, dataset_id, ad_account_id, "
             "crm_pipeline_id, ingest_secret, monthly_limit, usage_count, is_active, "
-            "created_at FROM capi_projects ORDER BY created_at DESC"
+            "CASE WHEN access_token != '' THEN 1 ELSE 0 END AS has_token, "
+            "created_at FROM capi_projects ORDER BY (id = 'default') DESC, created_at DESC"
         )
     else:
-        # Strict privacy sandbox: external users NEVER see 'default' (Jon Branding)
         rows = await _pool().execute(
             "SELECT id, name, owner_id, dataset_id, ad_account_id, "
             "crm_pipeline_id, ingest_secret, monthly_limit, usage_count, is_active, "
-            "created_at FROM capi_projects WHERE owner_id = ? ORDER BY created_at DESC",
+            "CASE WHEN access_token != '' THEN 1 ELSE 0 END AS has_token, "
+            "created_at FROM capi_projects WHERE owner_id = ? "
+            "ORDER BY created_at DESC",
             [str(user_id)],
         )
+        if not rows and str(user_id or "").strip() not in ("", "anonymous"):
+            created = await create_project(name="Mening Loyiham #1", owner_id=str(user_id))
+            return [created] if created else []
     return [dict(r) for r in rows]
 
 
@@ -157,3 +169,41 @@ async def increment_project_usage(project_id: str) -> int:
     await _pool().commit()
     proj = await get_project(project_id)
     return proj["usage_count"] if proj else 0
+
+
+async def update_project_settings(
+    project_id: str,
+    *,
+    dataset_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    ad_account_id: Optional[str] = None,
+    crm_pipeline_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    await ensure_project_tables()
+    proj = await get_project(project_id)
+    if not proj:
+        return None
+    updates = []
+    params = []
+    if dataset_id is not None:
+        updates.append("dataset_id = ?")
+        params.append(dataset_id.strip())
+    if access_token is not None:
+        updates.append("access_token = ?")
+        params.append(access_token.strip())
+    if ad_account_id is not None:
+        updates.append("ad_account_id = ?")
+        params.append(ad_account_id.strip())
+    if crm_pipeline_id is not None:
+        updates.append("crm_pipeline_id = ?")
+        params.append(crm_pipeline_id.strip())
+    updates.append("updated_at = ?")
+    params.append(now())
+    params.append(project_id)
+    await _pool().execute(
+        f"UPDATE capi_projects SET {', '.join(updates)} WHERE id = ?",  # nosec B608
+        params,
+    )
+    await _pool().commit()
+    return await get_project(project_id)
+

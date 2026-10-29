@@ -50,12 +50,18 @@ def is_enabled() -> bool:
     return bool(cfg["enabled"] and cfg["dataset_id"] and cfg["token"])
 
 
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def hash_phone(phone: str) -> str:
-    digits = re.sub(r"\D", "", phone or "")
+    clean = (phone or "").strip().lower()
+    if _SHA256_RE.match(clean):
+        return clean
+    digits = re.sub(r"\D", "", clean)
     # Meta E.164 kutadi (country code bilan): 901234567 -> 998901234567.
     if len(digits) == 9:
         digits = "998" + digits
@@ -64,6 +70,8 @@ def hash_phone(phone: str) -> str:
 
 def hash_email(email: str) -> str:
     clean = (email or "").strip().lower()
+    if _SHA256_RE.match(clean):
+        return clean
     return _sha256(clean) if clean else ""
 
 

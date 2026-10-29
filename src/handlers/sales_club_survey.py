@@ -40,10 +40,8 @@ def register_sales_club_survey_handlers(dispatcher: Any, *, owner_id: int) -> No
 
     Form = _build_states()
 
-    @dispatcher.message(CommandStart(deep_link=True))
+    @dispatcher.message(CommandStart(deep_link=True, magic=F.args == DEEP_LINK_PAYLOAD))
     async def _start_with_payload(message: Any, command: CommandObject, state: Any) -> None:
-        if (command.args or "").strip() != DEEP_LINK_PAYLOAD:
-            return
         await state.set_state(Form.name_role)
         await message.answer("Ismingiz, lavozimingiz?")
 

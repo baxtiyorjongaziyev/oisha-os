@@ -1,0 +1,24 @@
+[Unit]
+Description=Oisha-OS Call Intelligence Worker
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=baxti
+WorkingDirectory=/home/baxti/playground/oisha-os
+Environment=PATH=/home/baxti/playground/oisha-os/.venv/bin
+EnvironmentFile=/home/baxti/playground/oisha-os/.env
+ExecStart=/home/baxti/playground/oisha-os/.venv/bin/python -m src.workers.run_call_intel
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oisha-call-intel
+
+# Resource limits
+MemoryMax=2G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target

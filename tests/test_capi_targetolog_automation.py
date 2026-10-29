@@ -77,7 +77,7 @@ def test_targetolog_can_access_console(monkeypatch):
     # Targetolog gets 200 console
     res = client.get("/api/marketing/capi/console", cookies=_token("targetolog"))
     assert res.status_code == 200
-    assert "Targetolog CAPI Paneli" in res.text
+    assert "Conversions API va Sotuv Analitikasi" in res.text
 
 
 def test_targetolog_can_dispatch_queue(monkeypatch):

@@ -60,6 +60,20 @@ async def instagram_webhook(request: Request):
             return PlainTextResponse(status_code=403, content="Invalid signature")
 
         asyncio.create_task(process_instagram_webhook(body))
+
+        # Yagona O'zbekcha CRM (imBox) uchun xabarni to'g'ridan-to'g'ri qabul qilish
+        for entry in body.get("entry", []):
+            for messaging in entry.get("messaging", []):
+                sender_id = str(messaging.get("sender", {}).get("id") or "")
+                msg_text = messaging.get("message", {}).get("text", "")
+                if sender_id and msg_text:
+                    from src.services.core.crm.omnichannel_hub import OmnichannelHub
+                    OmnichannelHub().ingest_incoming_message(
+                        channel="Instagram Direct",
+                        external_user_id=sender_id,
+                        text=msg_text,
+                        sender_name=f"Instagram Mijoz ({sender_id[-4:]})",
+                    )
     except ImportError:
         logger.warning("[INSTAGRAM] instagram_agent not available")
     except Exception as exc:

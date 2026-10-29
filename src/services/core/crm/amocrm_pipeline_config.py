@@ -9,7 +9,8 @@ SALES_PIPELINE_ID = 11162698  # "Sotuv" (PRESALES + CLOSER + Target LEADs birlas
 SALES_NEW_STATUS_ID = 89067962  # Yangi LEads
 SALES_CONTACT_STATUS_ID = 87609518  # Aloqa
 SALES_QUALIFICATION_STATUS_ID = 87609522  # Kvalifikatsiya
-SALES_MEETING_STATUS_ID = 87609526  # Uchrashuv
+SALES_MEETING_STATUS_ID = 87609526  # Uchrashuv (belgilandi)
+SALES_MEETING_ATTENDED_STATUS_ID = 89380154  # Uchrashuvga keldi (sifatli lid CAPI triggeri)
 SALES_CLOSING_STATUS_ID = 88871066  # Kelishuv / Yopish
 
 # Backward-compatibility aliases for merged stages

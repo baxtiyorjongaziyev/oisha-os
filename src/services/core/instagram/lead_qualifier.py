@@ -25,31 +25,35 @@ DEFAULT_TRIGGER_KEYWORDS = (
     "narx", "нарх", "narxi", "нархи", "keys", "кейс", "кейслар",
     "dizayn", "дизайн", "start", "старт", "loyiha", "лойиха",
     "konsultatsiya", "консультация", "xizmat", "хизмат",
-    "hamkorlik", "хамкорлик", "qancha", "канча", "food", "fastfood"
+    "hamkorlik", "хамкорлик", "qancha", "канча", "food", "fastfood",
+    "patent", "патент", "patentlash", "патентлаш",
+    "brendbuk", "брендбук", "brandbook",
+    "qadoq", "кадок", "upakovka", "упаковка",
+    "aydentika", "айдентика", "identika",
+    "maslahat", "маслахат", "aloqa", "алока",
+    "bog'lanish", "богланиш", "telefon", "телефон",
+    "buyurtma", "буюртма", "zakaz", "заказ",
 )
 
 QUALIFICATION_SYSTEM_PROMPT = (
-    "Sen — Baxtiyor Gaziyevning O'ZISAN. Branding bo'yicha ekspert va art-direktor, "
+    "Sen — Baxtiyor Gaziyevning O'ZISAN. Art-direktor va brend dizayner, "
     "shaxsiy Instagram sahifangdan kelgan izohlarga javoban Direct (DM)da "
-    "mijozlar bilan 1-shaxsda, o'z nomingdan muloqot qilasan.\n"
-    "MUHIM QOIDA: O'zingni menejer yoki 'Oisha' deb tanishtirma. Doimo 'men', "
-    "'o'zim' deb, Baxtiyor Gaziyev sifatida gapir. 'Jon Branding' nomini SHAXSIY "
-    "DMda MUTLAQO ISHLATMA.\n"
-    "Maqsading: Mijoz bilan samimiy, do'stona va professional tarzda suhbatlashib, "
-    "lidni sifatli (kvalifikatsiyalangan) holatga keltirish.\n\n"
-    "Bosqichlar (Ketma-ket 1 tadan savol ber):\n"
-    "1. SOHA & LOYIHA: Biznes qaysi sohada va qanday loyiha rejalashtirilgan?\n"
-    "2. XIZMAT TURI: Noldan to'liq brendingmi, nomlash (naming), logo dizaynmi yoki rebrending?\n"
-    "3. BOSQICH & ALOQA: Yangi boshlanyaptimi yoki faoliyatdagi biznesmi? "
-    "Bog'lanishim uchun telefon raqamingizni qoldiring.\n\n"
-    "Qoidalar:\n"
-    "- 'Jon Branding' deb yozma. O'zingni 'Baxtiyor Gaziyev' deb, 1-shaxsda gapir.\n"
-    "- HECH QACHON bir xil nomlarni hammaga takrorlama! Agar nom so'ralsa, loyihaga mos "
-    "kamida 2-3 ta mutlaqo yangi, jarangdor va zamonaviy nom variantlarini ber.\n"
-    "- O'zbek tilida, iliq, samimiy va ishonchli ohangda yoz.\n"
-    "- Xabarlar qisqa (2-4 gap) bo'lsin, bir vaqtning o'zida savollarga ko'mib tashlama.\n"
-    "- Agar mijoz telefon raqamini bersa yoki aniq niyat bildirsa, javobing oxiriga "
-    "[LEAD_REPORT: QUALITY=sifatli] tegini qo'sh."
+    "mijozlar bilan 1-shaxsda, do'stona va professional tarzda muloqot qilasan.\n"
+    "QAT'IY KO'RSATMALAR (MUTLAQO BUZILMASIN):\n"
+    "1. SUN'IY INTELLEKT EKANING ASLO SEZILMASIN: Hech qachon o'zingni bot, AI, 'Oisha' yoki menejer deb tanishtirma. "
+    "Muloqot xuddi telefonda real odam (Baxtiyor) yozayotgandek iliq, samimiy, qisqa va jonli bo'lsin. Shablon gaplar, "
+    "raqamli ro'yxatlar (bulleted list) va rasmiyatchilik QAT'IYAN TAQIQLANADI.\n"
+    "2. 'Jon Branding' nomini shaxsiy DM suhbatida MUTLAQO ISHLATMA. Doimo 'men', 'o'zim', 'jamoamiz bilan' deb gapir.\n"
+    "3. MAQSAD — MULOQOT BOSQICHLARI (har xabarda aniq maqsad bo'lsin):\n"
+    "   - 1-bosqich (Brend nomi & Soha): Agar mijoz hali brend nomi va qaysi sohada ishlashini aytmagan bo'lsa, shuni so'ra.\n"
+    "   - 2-bosqich (Mijoz brend nomi yoki sohasini yozganda -> TELEFON RAQAM SO'RASH): Mijozning sohasini samimiy qo'llab-quvvatla, o'sha yo'nalishda to'g'ri brending qanchalik muhimligini 1 gapda ayt va SHU XABARNING O'ZIDA ALBATTA bog'lanish uchun telefon raqamini (+998...) yozib qoldirishini so'ra (o'xshash keyslarni tashlab berish va batafsil maslahatlashib olish uchun).\n"
+    "   - 3-bosqich (Mijoz telefon raqamini yozganda -> TASDIQLASH): Raqamni qabul qilganingni va tez orada aloqaga chiqib batafsil maslahatlashib olishingni iliq yoz.\n"
+    "4. MA'LUMOTLARNI SAQLASH TEGLARI:\n"
+    "   - Agar mijoz brend nomini aytsa, xabaring oxiriga [SAVE_INFO: brand=brend_nomi] tegini qo'sh.\n"
+    "   - Agar mijoz faoliyat sohasini aytsa, xabaring oxiriga [SAVE_INFO: industry=soha_nomi] tegini qo'sh.\n"
+    "   - Agar mijoz telefon raqamini bersa, xabaring oxiriga [SAVE_INFO: phone=raqam] va [LEAD_REPORT: QUALITY=sifatli] tegini qo'sh.\n"
+    "5. TILI VA USLUBI: O'zbek tilida, do'stona (sizlab), qisqa (2-3 ta qulay gap), tabiiy smayllar (🤝, ✨, 😊) bilan.\n"
+    "6. SALOMLASHISH VA ADABIY ME'YOR: Suhbat boshida 'Assalomu alaykum!' deb yoz ('Salom' deb yozma). 'Fikrlashib' kabi g'aliz so'zlarni MUTLAQO ISHLATMA — uning o'rniga 'maslahatlashib olamiz', 'gaplashib olamiz' yoki 'ko'rib chiqamiz' deb yoz."
 )
 
 
@@ -96,8 +100,8 @@ def _to_latin(text: str) -> str:
 QUESTION_MARKERS = {
     "qanday", "qanaqa", "qanaqasiga", "qachon", "necha", "nechta",
     "bormi", "bo'ladimi", "boladimi", "mumkinmi", "kerakmi", "qilasizmi",
-    "qilasizlarmi", "beresizmi", "ishlaysizmi", "kim", "qayer", "qayerda",
-    "nima", "nimaga", "chi", "narxi", "qancha"
+    "qilasizlarmi", "berasizmi", "beresizmi", "ishlaysizmi", "kim", "qayer", "qayerda",
+    "nima", "nimaga", "chi", "narxi", "qancha", "kerak", "shartmi", "?"
 }
 
 
@@ -132,7 +136,7 @@ def should_trigger_dm(comment_text: str, caption: str = "") -> Tuple[bool, str]:
 
     for qm in QUESTION_MARKERS:
         qm_lat = _to_latin(qm)
-        if qm_lat in words or qm_lat in clean_text:
+        if qm_lat in words or qm_lat in clean_text or clean_text.endswith("?"):
             return True, "savol"
 
     if len(word_tokens) >= 2 and clean_text not in _DISQUALIFIED_REACTIONS:
@@ -147,16 +151,20 @@ def generate_initial_dm_message(commenter_name: str, keyword: str = "", caption:
     kw_lower = keyword.lower()
     if kw_lower in {"nom", "naming", "nomlash"}:
         topic = "nomlash bo'yicha"
-    elif kw_lower in {"logo", "dizayn", "identika"}:
+    elif kw_lower in {"logo", "dizayn", "identika", "aydentika"}:
         topic = "logo yoki vizual uslub bo'yicha"
+    elif kw_lower in {"patent", "patentlash"}:
+        topic = "patentlash va tovar belgisini himoya qilish bo'yicha"
+    elif kw_lower in {"qadoq", "upakovka"}:
+        topic = "qadoq dizayni bo'yicha"
     elif kw_lower in {"rebrending"}:
         topic = "rebrending bo'yicha"
     elif kw_lower in {"narx", "narxi", "qancha"}:
-        topic = "narxlar bo'yicha"
+        topic = "narxlar va shartlar bo'yicha"
     else:
         topic = "brending bo'yicha"
     return (
-        f"Salom{name_greeting}! Bu Baxtiyor 🙂 Izohingizni ko'rib qoldim, "
+        f"Assalomu alaykum{name_greeting}! Bu Baxtiyor 🙂 Izohingizni ko'rib qoldim, "
         f"o'zim yozay dedim. {topic} nima rejalashtiryapsiz, qaysi sohada ish qilasiz?"
     )
 
@@ -210,14 +218,14 @@ async def generate_qualifying_dm_response(
     history = history or []
     history_lines = []
     for h in history[-6:]:
-        role = "Mijoz" if h.get("role") == "user" else "Oisha"
+        role = "Mijoz" if h.get("role") == "user" else "Baxtiyor Gaziyev"
         history_lines.append(f"{role}: {h.get('content', '')}")
     
     history_block = "\n".join(history_lines)
     prompt = (
         f"Muloqot tarixi:\n{history_block}\n\n"
         f"Mijoz ({commenter_name}): {user_message}\n\n"
-        f"Oisha javobi:"
+        f"Baxtiyor Gaziyev javobi:"
     )
 
     try:
@@ -234,9 +242,11 @@ async def generate_qualifying_dm_response(
     except Exception as exc:
         logger.warning("[QUALIFIER] generate_qualifying_dm_response fallback: %s", exc)
         
+    if re.search(r"(?:\+?998[\s\-]?)?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}", user_message or ""):
+        return "Qabul qildim, katta rahmat! Tez orada o'zim aloqaga chiqib, batafsil maslahatlashib olamiz 🤝"
     return (
-        "Qiziqishingiz uchun rahmat! Biznesingiz haqida qisqacha ma'lumot bersangiz, "
-        "sizga eng mos taklif va namunalarni taqdim etamiz 😊"
+        "Ma'lumot uchun rahmat! Yo'nalishingiz bo'yicha o'xshash keyslarni tashlab berishim va "
+        "batafsil maslahatlashib olishimiz uchun bog'lanish telefon raqamingizni (+998...) yozib qoldiring 🤝"
     )
 
 

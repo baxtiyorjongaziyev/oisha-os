@@ -141,7 +141,8 @@ async def backfill_unanswered_comments(
 
             already = any(
                 (r.get("from") or {}).get("id") == own_id
-                or (r.get("from") or {}).get("username") == "baxtiyorjongaziyev"
+                or (r.get("from") or {}).get("username") in ("baxtiyorjongaziyev", "jonbranding")
+                or r.get("username") in ("baxtiyorjongaziyev", "jonbranding")
                 for r in replies
             )
             if already:

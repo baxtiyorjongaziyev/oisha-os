@@ -168,29 +168,9 @@ class MetaAdsClient:
         """Reklama kreativining Instagram havolasini oladi."""
         if not ad_id:
             return None
-        if ad_id in KNOWN_CREATIVE_URLS:
-            return KNOWN_CREATIVE_URLS[ad_id]
-        if not self.access_token:
-            return None
-
-        url = f"https://graph.facebook.com/{self.api_version}/{ad_id}"
-        params = {
-            "access_token": self.access_token,
-            "fields": "name,creative{id,instagram_permalink_url,video_id}",
-        }
-        try:
-            response = requests.get(url, params=params, timeout=15)
-            payload = response.json()
-            creative = payload.get("creative") or {}
-            permalink = creative.get("instagram_permalink_url")
-            if permalink:
-                return str(permalink).strip()
-            video_id = creative.get("video_id")
-            if video_id:
-                return f"https://www.instagram.com/reel/{video_id}/"
-        except Exception as exc:
-            logger.warning("[META ADS] Creative URL olinmadi", error=str(exc))
-        return None
+        from src.services.core.marketing.ad_creative_service import resolve_ad_creative
+        details = resolve_ad_creative(ad_id, access_token=self.access_token)
+        return details.creative_url if details else None
 
     @staticmethod
     def extract_lead_actions(row: Dict[str, Any]) -> int:
@@ -218,9 +198,7 @@ def get_creative_url(ad_id_or_name: str) -> Optional[str]:
     clean = str(ad_id_or_name or "").strip()
     if not clean:
         return None
-    if clean in KNOWN_CREATIVE_URLS:
-        return KNOWN_CREATIVE_URLS[clean]
-    if clean.lower() in KNOWN_CREATIVE_URLS:
-        return KNOWN_CREATIVE_URLS[clean.lower()]
-    return None
+    from src.services.core.marketing.ad_creative_service import resolve_ad_creative
+    details = resolve_ad_creative(clean, ad_name=clean)
+    return details.creative_url if details else None
 

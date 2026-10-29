@@ -10,6 +10,30 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 from src.settings import settings
 from src.api.routes.state import api_state
 from src.services.core.agent_runtime import (
+    # existing imports ...
+)
+
+# ----------------------------------------------------------------------
+# amoCRM generic webhook registration endpoint
+# ----------------------------------------------------------------------
+from fastapi import Request, HTTPException
+from src.amocrm_sync import register_webhook
+
+@app.post("/amocrm/webhook")
+async def amocrm_register_webhook(request: Request):
+    """Register a webhook for a given amoCRM event.
+    Expected JSON body: {"event": "lead_added", "target_url": "https://example.com/hook"}
+    """
+    try:
+        payload = await request.json()
+        event = payload.get("event")
+        target_url = payload.get("target_url")
+        if not event or not target_url:
+            raise HTTPException(status_code=400, detail="'event' and 'target_url' required")
+        result = register_webhook(event, target_url)
+        return {"status": "registered", "result": result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     collect_legacy_runtime_inventory,
     get_runtime_context,
     get_storage_health,

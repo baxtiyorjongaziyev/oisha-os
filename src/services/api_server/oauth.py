@@ -124,6 +124,7 @@ _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
 @router.get("/login")
 @router.get("/api/auth/telegram/login")
 async def telegram_login(
+    request: Request,
     next: Optional[str] = None,
     magic: Optional[str] = None,
     sent: Optional[str] = None,
@@ -163,6 +164,7 @@ async def telegram_login(
     safe_bot_username = html.escape(str(bot_username).replace("@", "").strip() or "jonairobot", quote=True)
     html_content = web_auth_store.render_universal_login_html(
         safe_next=safe_next, safe_bot_username=safe_bot_username, auth_url=auth_url, sent=sent, err_msg=err,
+        google_login_uri=str(request.url_for("google_signin_callback")),
     )
     return HTMLResponse(content=html_content)
 
@@ -244,15 +246,25 @@ async def email_password_login(
 
 
 @router.post("/api/auth/google/callback")
-async def google_signin_callback(credential: str = Form(...), next: Optional[str] = None):
+async def google_signin_callback(
+    request: Request, credential: str = Form(...), next: Optional[str] = None,
+    g_csrf_token: str = Form(""),
+):
     """Handle Google Identity Services Sign-In callback."""
     from src.api import web_auth_store
     from src.api.security import _session_secret
 
     safe_next = next if next in _ALLOWED_LOGIN_REDIRECTS else "/api/marketing/capi/console"
-    user = web_auth_store.verify_google_credential(credential)
+    cookie_csrf = request.cookies.get("g_csrf_token", "")
+    if not cookie_csrf or not g_csrf_token or not hmac.compare_digest(
+        cookie_csrf.encode(), g_csrf_token.encode(),
+    ):
+        raise HTTPException(400, "Invalid Google CSRF token")
     jwt_secret = _session_secret()
-    if not user or not jwt_secret:
+    if not jwt_secret:
+        raise HTTPException(503, "Session signing secret is not configured")
+    user = await asyncio.to_thread(web_auth_store.verify_google_credential, credential)
+    if not user:
         return RedirectResponse(url=f"/login?next={safe_next}&err=Google+avtorizatsiya+xatosi", status_code=303)
     return _set_session_redirect(int(user["id"]), str(user["email"]), str(user["name"]), str(user.get("role") or "targetolog"), jwt_secret, safe_next)
 

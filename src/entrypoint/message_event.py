@@ -143,6 +143,26 @@ async def handle_new_message(event):
     sender, sender_name, msg_text = await _broadcast_incoming_message(event)
     await advance_checkpoint(event, app_ctx.msg_controller)
 
+    if getattr(event, "is_private", False):
+        from src.services.core.delayed_dm_responder import get_delayed_dm_responder
+        delayed_responder = get_delayed_dm_responder()
+        if getattr(event, "out", False):
+            delayed_responder.on_owner_reply(event.chat_id)
+        else:
+            asyncio.create_task(
+                delayed_responder.register_incoming_dm(
+                    event,
+                    client=client,
+                    db=getattr(app_ctx.msg_controller, "db", None) if app_ctx.msg_controller else None,
+                    admin_bot=admin_bot,
+                    safe_responder=safe_responder,
+                )
+            )
+            # NEW: remind Shahnoza in the team group if the owner DM stays unanswered.
+            from src.services.core.delayed_dm_reminder import schedule_assistant_reminder
+
+            asyncio.create_task(schedule_assistant_reminder(event, client=client))
+
     if _should_block_private_userbot_reply(event) or (safe_responder and not await safe_responder.should_respond(event)):
         return
 

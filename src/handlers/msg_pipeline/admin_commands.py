@@ -187,6 +187,9 @@ async def process_admin_commands(
         return False
 
     text = event.message.text.strip()
+    from src.handlers.msg_pipeline.prospect_commands import handle_prospect_command
+    if await handle_prospect_command(event, text, client, is_owner=sender_id == owner_id):
+        return True
     if await _handle_voice_commands(event, text):
         return True
     if await _handle_sync_and_scraper(event, text, client, lead_scraper, TN5_GROUP_ID, TN5_TOPIC_ID):

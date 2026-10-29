@@ -116,14 +116,21 @@ async def _load_async() -> Optional[Dict[str, Any]]:
     return token_data or None
 
 
+_last_saved_signature: Optional[str] = None
+_tables_initialized: bool = False
+
+
 async def _save_async(token_data: Dict[str, Any]) -> None:
+    global _tables_initialized
     from src.db import get_db
 
     db = get_db()
-    try:
-        await db.oauth._init_tables()
-    except Exception:
-        logger.debug("[AMOCRM TOKEN STORE] _init_tables skip", exc_info=True)
+    if not _tables_initialized:
+        try:
+            await db.oauth._init_tables()
+            _tables_initialized = True
+        except Exception:
+            logger.debug("[AMOCRM TOKEN STORE] _init_tables skip", exc_info=True)
 
     access_token = str(token_data.get("access_token") or "")
     refresh_token = str(token_data.get("refresh_token") or "long_lived_token")
@@ -160,10 +167,27 @@ def load_token_from_db() -> Optional[Dict[str, Any]]:
 
 def save_token_to_db(token_data: Dict[str, Any]) -> None:
     """Token payload'ini DB'ga saqlaydi. Xato yutiladi (fayl fallback baribir bor)."""
+    global _last_saved_signature
     if not _db_persist_enabled():
         return
     if not isinstance(token_data, dict):
         return
+
+    access_token = str(token_data.get("access_token") or "")
+    refresh_token = str(token_data.get("refresh_token") or "")
+    expires_at = str(token_data.get("expires_at") or "")
+    signature = f"{access_token[:20]}:{refresh_token[:20]}:{expires_at}"
+    if signature == _last_saved_signature:
+        return
+    _last_saved_signature = signature
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_save_async(dict(token_data)))
+        return
+    except RuntimeError:
+        pass
+
     try:
         _run_coro_blocking(_save_async(dict(token_data)))
     except Exception as exc:

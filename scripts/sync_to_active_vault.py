@@ -96,6 +96,7 @@ print("[+] Updated graph.json in active JonBranding Second Brain vault!")
 
 # Also ensure 70-Telegram/00 Telegram Miya.md links to all telegram sources and project pages
 telegram_miya_path = os.path.join(DEST_VAULT, "70-Telegram", "00 Telegram Miya.md")
+os.makedirs(os.path.dirname(telegram_miya_path), exist_ok=True)
 with open(telegram_miya_path, "w", encoding="utf-8") as f:
     f.write("""---
 title: Telegram Miya

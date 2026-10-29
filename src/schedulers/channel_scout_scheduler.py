@@ -12,6 +12,14 @@ logger = logging.getLogger("ChannelScoutScheduler")
 
 
 async def channel_scout_loop() -> None:
+    from src.schedulers.prospect_discovery_scheduler import prospect_discovery_loop
+
+    async with asyncio.TaskGroup() as tasks:
+        tasks.create_task(prospect_discovery_loop(), name="prospect_discovery_loop")
+        tasks.create_task(_channel_scout_loop(), name="channel_scout_scan_loop")
+
+
+async def _channel_scout_loop() -> None:
     """Scan Telegram business trainer channels 3x daily (10:00, 14:00, 18:00 Tashkent) for leads."""
     from src.services.core.channel_scheduler import daily_channel_scout
 

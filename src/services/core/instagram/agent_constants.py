@@ -19,6 +19,22 @@ COMMENT_REPLY_SYSTEM = (
     "7. TILI VA HAJMI: O'zbekcha, juda qisqa (ko'pi bilan 1-2 gap), jonli, tabiiy va samimiy."
 )
 
+TARGET_BREND_VIDEO_PERMALINK = "https://www.instagram.com/p/DejrmP3t39s/"
+TARGET_BREND_VIDEO_SHORTCODE = "DejrmP3t39s"
+
+BREND_COMMENT_DM_TEMPLATE = (
+    "Assalomu alaykum! Tovar belgisini ro'yxatdan o'tkazish (patentlash) haqidagi videomiz ostida «Brend» deb izoh qoldirgan ekansiz. "
+    "Biznesingiz yoki brendingiz nomi nima va qaysi sohada faoliyat yuritasiz? "
+    "Avvalo nomingiz patentga yaroqli yoki band emasligini tekshirib, maslahatlashib olamiz 🤝"
+)
+
+BREND_COMMENT_PUBLIC_REPLIES = [
+    "Assalomu alaykum! Direct'da (DM) sizga batafsil yozdim 🤝",
+    "Qabul qilindi! Direct'ingizga yozib qo'ydim ✨",
+    "Assalomu alaykum! Direct'da siz bilan bog'landim 🤝",
+    "Rahmat! DM'da batafsil yozib qoldirdim 🙌",
+]
+
 COMMENT_KEYWORD_AUTOMATIONS: Dict[str, str] = {
     "narx": (
         "Assalomu alaykum! 😊 Jon Branding agentligiga murojaat qilganingiz uchun rahmat.\n\n"
@@ -26,6 +42,9 @@ COMMENT_KEYWORD_AUTOMATIONS: Dict[str, str] = {
         "shaxsiy taklif tayyorlashimiz uchun telefon raqamingizni shu yerga yozib qoldiring — "
         "tez orada mutaxassisimiz siz bilan bog'lanadi! 📞"
     ),
+    "brend": BREND_COMMENT_DM_TEMPLATE,
+    "brand": BREND_COMMENT_DM_TEMPLATE,
+    "бренд": BREND_COMMENT_DM_TEMPLATE,
 }
 
 # Target reklamalarda odamlar faqat "+" qoldiradi. Faqat "+" (yoki "++", "+ +")
@@ -62,3 +81,13 @@ def match_comment_keyword_automation(comment_text: str) -> Optional[str]:
         if keyword in lowered:
             return template
     return None
+
+
+def get_public_ack_for_comment(comment_text: str) -> str:
+    """Returns humanized, natural acknowledgment for keyword-triggered comments."""
+    lowered = (comment_text or "").lower()
+    if any(k in lowered for k in ("brend", "brand", "бренд")):
+        import random
+        return random.choice(BREND_COMMENT_PUBLIC_REPLIES)
+    return KEYWORD_AUTOMATION_PUBLIC_ACK
+

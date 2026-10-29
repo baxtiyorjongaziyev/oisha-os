@@ -203,13 +203,25 @@ def build_leadgen_note(
     fields: Dict[str, str],
     exclude_keys: Optional[set[str]] = None,
     ad_name: Optional[str] = None,
+    creative_url: Optional[str] = None,
+    creative_type: Optional[str] = None,
 ) -> str:
     """Build a detailed, human-readable AmoCRM lead note."""
     lines = [
         "Facebook Lead Ads orqali avtomatik tushdi.",
         f"Leadgen ID: {leadgen_id}",
     ]
-    if ad_name:
+    if ad_name or creative_url:
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append("🎬 REKLAMA KREATIVI (1-CLICK):")
+        if ad_name:
+            lines.append(f"• Nomi: {ad_name}")
+        if creative_type:
+            lines.append(f"• Turi: {creative_type}")
+        if creative_url:
+            lines.append(f"• Havola: {creative_url}")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+    elif ad_name:
         lines.append(f"Reklama/Aksiya: {ad_name}")
     for key in ("form_id", "ad_id", "adgroup_id", "campaign_id", "created_time"):
         if payload.get(key):
@@ -243,6 +255,8 @@ def build_telegram_message(
     pipeline_name: Optional[str] = None,
     destination_label: Optional[str] = None,
     repeat: bool = False,
+    creative_url: Optional[str] = None,
+    creative_type: Optional[str] = None,
 ) -> str:
     """One combined alert: sales info on top, compact marketing line at the bottom."""
     lead_link = (
@@ -264,6 +278,10 @@ def build_telegram_message(
     if pipeline_name:
         lines.append(f"🎯 <b>Voronka:</b> {html.escape(pipeline_name)}")
     lines.append(f"🧾 <b>AmoCRM:</b> {lead_link}")
+    if creative_url:
+        short_ad = short_ad_name(ad_name) or "Kreativni ochish"
+        icon = "🎬" if (creative_type or "").lower() == "video" else "🖼"
+        lines.append(f"{icon} <b>Kreativ:</b> <a href=\"{html.escape(creative_url)}\">{html.escape(short_ad)}</a>")
 
     ignored = exclude_keys or set()
     extras = [(k, v) for k, v in fields.items() if k not in ignored]

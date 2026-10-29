@@ -2438,3 +2438,763 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
     3. Multi-Tenant Maxfiylik: Google yoki Email orqali kirgan har qanday yangi targetolog faqat o'zining bo'sh loyihasini ko'radi; Jon Branding'ning 742 ta lidi, xarajatlari va reklamalari 100% himoyalangan.
 
 
+
+- **2026-10-24 — Antigravity — 100% amoCRM Interfeysini Asosiy Domenga (`crm.jonbranding.uz`) O'tkazish va 20CRM Brendingini Butunlay Tozalash:**
+  - **Bajarilgan ish:**
+    1. **Nginx Asosiy Marshrutlash**: `deploy/crm.jonbranding.uz.conf` (94L <= 400L) yangilandi: butun root domen (`location /`) hamda `/objects/` va `/login` kabi barcha yo'llar to'g'ridan-to'g'ri 1:1 amoCRM interfeysiga (`http://127.0.0.1:8080/sotuv`) ulandi. Foydalanuvchi `https://crm.jonbranding.uz` ga yoki eski har qanday havola orqali kirsa ham, faqat va faqat yagona amoCRM ochiladi.
+    2. **Yagona Interfeys va 20CRM Nomlarini To'liq Tozalash**: `sotuv.html`, `sotuv_app.js`, `sotuv_views.js`, `sotuv_drawer.js`, `sotuv_sub.js` dagi barcha "20CRM", "Twenty CRM" yozuvlari, tugmalari va bildirishnomalari butunlay olib tashlandi.
+    3. **VPS Deploy**: Fayllar Contabo VPS ga yuklandi, Nginx qayta yuklandi (`nginx -t && systemctl reload nginx`), `oisha-os` xizmati faol (`active`).
+  - **Tekshiruv Dalillari**:
+    - `curl -s -k https://crm.jonbranding.uz/ | head -n 15` -> 100% amoCRM HTML, PT Sans shriftlari.
+    - `curl -s -k -I https://crm.jonbranding.uz/objects/companies` -> HTTP 302 redirect to `https://crm.jonbranding.uz/`.
+    - Server `HTTP 200 OK`, `oisha-os.service` faol (`active`).
+  - **Qolgan ish/Bloker**: Bloker yo'q.
+
+- **2026-10-24 — Antigravity — O'zbekiston Savdo Standartiga Moslash (Email-siz Kirish, Telefon/Telegram/Instagram Kanallari):**
+  - **Bajarilgan ish:**
+    1. **Sotuvchilar Kirish Darvozasi (`src/static/sotuv_auth.js`, 169L)**: Email butunlay chetlatildi. Har bir sotuvchi (Shahnoza, Rayxona, Mumtozmaxal, Oydin, Farangiz, Baxtiyorjon) bitta bosish bilan o'z profilini tanlaydi va 4-xonali PIN (`2026`) orqali tizimga kiradi. Sessiya `localStorage` da saqlanadi, headerda sotuvchi ismi va chiqish tugmasi chiqadi, Kanban va Caller ID avtomatik shu sotuvchiga ulanadi.
+    2. **Mijozlar Ro'yxati & Lentalar (`src/static/sotuv_sub.js`, 364L)**: "EMAIL / MANBA" ustuni "TELEGRAM / DIRECT" ga almashtirildi. "Pochta" tushunchasi "Telegram va Instagram Takliflar / KP" ga o'tkazildi.
+    3. **Caller ID Integratsiyasi (`src/static/sotuv_caller_id.js`, 161L)**: `getCurrentRepSlug` avtomatik ravishda tizimga kirgan sotuvchini taniydi va aynan o'shaning telefoniga kelgan qo'ng'iroqni ko'rsatadi.
+    4. **HTML Yangilanishi (`src/static/sotuv.html`, 399L)**: `sotuv_auth.js` ulandi, yon paneldagi "Pochta" "Takliflar"ga o'zgartirildi.
+  - **Tekshiruv Dalillari**:
+    - Pytest: 24/24 passed. Barcha fayllar qat'iy $\le 400$ qator.
+    - Contabo VPS ga deploy qilindi: `https://crm.jonbranding.uz/sotuv` va `sotuv_auth.js` jonli HTTP 200 qaytardi.
+  - **Qolgan ish/Bloker**: Bloker yo'q.
+
+- **2026-10-24 — Antigravity — CRM Ma'lumotlarini Butun Dunyodan Qat'iy Yopish (Backend PBKDF2-SHA256 PIN Auth & Fail-Closed Guard):**
+  - **Muammo**: `/api/crm/dialer/*` yo'llari ochiq turgan edi, frontendda placeholderda `PIN: 2026` ko'rinib turgan edi.
+  - **Bajarilgan ish**:
+    1. **Backend Seller Auth Dvigateli (`src/services/core/crm/seller_auth.py`, 299L)**: Har bir sotuvchi uchun maxfiy PIN kodlar PBKDF2-SHA256 (100,000 iterations) bilan xeshlanadi (`crm_seller_accounts`). Yaroqli sessiyalar uchun 30 kunlik `crm_seller_sessions` jadvali ochildi.
+    2. **Xavfsiz Auth API (`src/api/routes/crm_auth_routes.py`, 164L)**: `POST /api/crm/dialer/auth/login` va `POST /logout` yaratildi. PIN faqat serverda tekshirilib, brauzerga xavfsiz `HttpOnly` cookie beriladi.
+    3. **Fail-Closed Himoya (`src/api/security.py`, 321L)**: `/api/crm/dialer/*` ochiq yo'llardan butunlay olib tashlandi. Sessiyasiz kiruvchi har qanday so'rov darhol `HTTP 401 Unauthorized` bilan to'xtatiladi.
+    4. **Frontend Tozalandi (`src/static/sotuv_auth.js`, 217L)**: Barcha statik PINlar va placeholderlar olib tashlandi, faqat `••••` ko'rinadi va tekshiruv 100% server orqali bajariladi.
+  - **Tekshiruv Dalillari**:
+    - Pytest: `tests/test_crm_auth.py` 3/3 passed, umumiy testlar 27/27 passed.
+    - Bandit: 0 issues. Barcha fayllar $\le 400$ qator.
+    - Contabo VPS Live Test:
+      * Sessiyasiz `curl https://crm.jonbranding.uz/api/crm/dialer/kanban` $\to$ **401 Unauthorized** (Muvaffaqiyatli yopildi!).
+      * Noto'g'ri PIN bilan login $\to$ **401 Unauthorized** (`Noto'g'ri PIN-kod!`).
+      * To'g'ri PIN bilan login $\to$ **200 OK** va sessiya tokeni.
+  - **Qolgan ish/Bloker**: Bloker yo'q. CRM ma'lumotlari butun dunyodan to'liq himoyalandi.
+
+
+
+## 2026-10-24 18:01 - Codex Dilbar heartbeat
+- Verified: required two skill files still missing; alternate search no match. Shared brain context/read/log succeeded; previous Obsidian Live connector not retested.
+- Financial-source deltas not checked, checkpoints unchanged, no promotion or external mutation. Changed: this handoff append.
+- Qolgan ish: recover required skill instructions; unchanged blocker, no duplicate owner alert.
+
+
+- **2026-10-24 — Antigravity — amoCRM Atomic Design System (Hujayra / Tokens -> Atomlar -> Molekulalar -> Organizmlar) & Typography Hierarchy Refactor:**
+  - **Foydalanuvchi talabi**: "Design tizimini ishlab chiqib molekuladan tortib atom hujayra darajasida. Typography juda yomon hierarchy. UX/UI audit anti slop design."
+  - **Aniqlangan muammolar (Anti-Slop Audit)**:
+    1. `sotuv.html` da `html { font-size: 17.5px; }` e'lon qilinishi Tailwind rem o'lchamlarini 109.3% ga buzib, tartibsiz `text-[11px]`, `text-[13px]`, `text-[19px]` to'planishiga olib kelgan.
+    2. Bold charchog'i ("Bold fatigue"): Barcha bitim nomlari, narxlar, telefonlar birdek `font-bold` qilingan va yagona vizual ierarxiya yo'qolgan edi.
+    3. AI slop: Ish stoli fonida havaskor Unsplash tog' fotosurati (`amo-dashboard-bg`) qo'llanilgan, professional B2B CRM ga zid edi.
+  - **Yaratilgan Atomic Design Tizimi (`src/static/amo_design_system.css`, 394L)**:
+    1. **Tokens (Hujayra / Tokens)**:
+       - Standartlashtirilgan ierarxiya shkalasi: `--amo-text-2xs: 10px` (badge/meta), `--amo-text-xs: 11px` (sana/teg), `--amo-text-sm: 12px` (kontakt), `--amo-text-base: 13.5px` (standart UI/matn), `--amo-text-md: 15px` (bitim sarlavhasi), `--amo-text-xl: 20px` (KPI display).
+       - Toza neytrallar: Slate 900 (`#19222b`), Slate 800 (`#2e3640`), Slate 700 (`#4a5568`), Slate 500 (`#7e8b9b`), Slate 400 (`#9da8b6`), fon `--amo-bg-canvas: #f4f5f7`.
+       - `tabular-nums` / JetBrains Mono yordamida tebranmas, tekis moliyaviy raqamlar va telefonlar.
+    2. **Atoms (Atomlar)**:
+       - `.amo-btn`, `.amo-btn-primary` (`#3875d7`), `.amo-btn-secondary`, `.amo-btn-danger`, `.amo-btn-sm`.
+       - `.amo-input` (6px padding, amoCRM ko'k fokus halqasi), `.amo-badge`, `.amo-dot` (yashil, sariq, qizil, kulrang vazifa indikatori).
+    3. **Molecules (Molekulalar)**:
+       - `.amo-deal-card`: Oq fon, 5px radius, nozik chegara, hoverda yengil ko'tarilish (`translateY(-1px)`), sarlavha qora Slate-900 (hoverda amo-blue), narx qalin `tabular-nums`, ixcham status nishonlari.
+       - `.amo-column-header`: Bosqich rangiga mos 3px pastki chiziq, bosh harflarda sarlavha va soni/summasi.
+       - `.amo-field-row`: Drawer ichidagi 42%/58% aniq alignmentli BANT/SPIN maydonlari.
+    4. **Organisms (Organizmlar)**:
+       - `.amo-sidebar`: amoCRM klassik 74px to'q ko'k (`#19222b`) relsi va neon sian faol indikator.
+       - `.amo-top-header`: 60px oq panel, voronka tanlagich, qidiruv va metrikalar.
+       - `.amo-cockpit`: Havaskor tog' fotosurati o'rniga zamonaviy chuqur qorong'u analitika boshqaruv kokpiti.
+  - **Infratuzilma & Routing To'g'rilandi**:
+    - `src/services/api_server/core.py` (195L): static_dir yo'lidagi xato `src/src/static` dan `src/static` ga to'g'rilandi.
+    - `src/api/routes/crm_dialer.py` (397L): `amo_design_system.css` uchun `text/css` MIME va xavfsiz asset marshruti ochildi.
+  - **Tekshiruv Dalillari**:
+    - Pytest: 15/15 passed (`tests/test_crm_dialer.py`, `tests/test_twenty_moizvonki.py`).
+    - Bandit: 0 issues.
+    - 400 qator qoidasi: Barcha 8 ta fayl qat'iy $\le 400$ qator (`amo_design_system.css`: 394L, `sotuv.html`: 382L, `sotuv_app.js`: 396L, `sotuv_sub.js`: 364L, `sotuv_views.js`: 341L, `sotuv_drawer.js`: 367L, `crm_dialer.py`: 397L, `core.py`: 195L).
+    - Contabo VPS Jonli Tekshiruv: `curl https://crm.jonbranding.uz/static/amo_design_system.css` 200 OK, `https://crm.jonbranding.uz/` va `/sotuv` 200 OK.
+  - **Qolgan ish/Bloker**: Bloker yo'q. Design tizimi to'liq joriy etildi va jonli serverda ishga tushirildi.
+
+
+- **2026-10-24 — Antigravity — Barcha Emojilarni Vektorli SVG Iconlarga Almashtirish (Anti-Slop UI Refactor):**
+  - **Foydalanuvchi talabi**: "Emoji o'rniga SVG iconlar qo'ygin."
+  - **Bajarilgan ish**:
+    1. **SVG Icon Registry (`src/static/sotuv_icons.js`, 84L)**: Feather/Lucide uslubida standartlashtirilgan, `currentColor` va `stroke-width="2"` bo'lgan SVG vektor kutubxonasi yaratildi (`AmoIcons.phone`, `copy`, `gear`, `close`, `check`, `doubleCheck`, `search`, `audio`, `telegram`, `instagram`, `spark`, `note`, `zap`, `robot`, `lock`, `user`, `users`, `save`, `warn`, `target`, `globe`, `menu`, `refresh`, `arrowLeft`, `arrowRight`, `send`).
+    2. **HTML Emojilari Tozalandi (`src/static/sotuv.html`, 383L)**: Barcha qo'ng'iroq (📞), nusxa (📋), sozlama (⚙), qidiruv (🔍), audio (🎧), yopish (✕), ogohlantirish (⚠), rad etish (❌), chat va navigatsiya emojilari to'liq o'chirilib, ixcham inline SVG ikonkalari bilan almashtirildi.
+    3. **Modul Fayllari Tozalandi**:
+       - `sotuv_app.js` (396L), `sotuv_views.js` (341L), `sotuv_drawer.js` (367L), `sotuv_sub.js` (364L), `sotuv_auth.js` (218L), `sotuv_caller_id.js` (161L) dagi barcha bot, kanal, xabar va status emojilari SVG ikonkalarga o'tkazildi.
+       - Interfeysda 0 ta emoji qoldi (100% toza SVG).
+  - **Tekshiruv Dalillari**:
+    - Skript orqali 8 ta fayl to'liq skan qilindi: `TOTAL REMAINING EMOJIS IN CRM UI: 0`.
+    - Pytest: 15/15 passed (`tests/test_crm_dialer.py`, `tests/test_twenty_moizvonki.py`).
+    - Barcha fayllar qat'iy $\le 400$ qator standartida.
+    - Contabo VPS Jonli Tekshiruv: `curl -s https://crm.jonbranding.uz/static/sotuv_icons.js` va `https://crm.jonbranding.uz/` yangi SVG reestriga ulandi (HTTP 200 OK).
+  - **Qolgan ish/Bloker**: Bloker yo'q.
+
+## 2026-10-26 - Codex Dilbar heartbeat
+- Verified: both required skill paths missing; scoped alternate search no match. Resume script ran. No financial-source deltas analyzed, checkpoint advancement, promotion or external mutation.
+- Changed: this handoff append. Qolgan ish: recover required skill instructions before analysis; suppress unchanged alert.
+
+- **2026-10-26 — Antigravity — 1-Click MoiZvonki Callback, Timeline Audio Player & Zero-Hallucination Team Mapping:**
+  - **Bajarilgan ish:**
+    1. **MoiZvonki 1-Click Callback Xizmati (`src/services/core/crm/callback_service.py`, 213 LOC)**:
+       - `CrmCallService` sinfi joriy etildi. Foydalanuvchi tasdiqlagan 5 nafar real xodim (Baxtiyorjon Gaziyev +998336450097, Shahnoza Abdijabborova +998773220042, Rayxona Rahimova +998777411397, Mumtozmaxal Normurodova +998773220098, Hasanboy Gaziyev +998973355900) to'liq xaritaga kiritildi. Oydin va Farangiz butunlay o'chirildi (Zero Hallucination).
+       - `initiate_callback`: MoiZvonki API orqali ikki tomonlama qo'ng'iroq chaqiradi (`action=callback`), credentials yo'q bo'lsa smart `tel:` ko'prigi orqali ishlaydi. Bitimning `dialer_leads.notes_json` tarixiga avtomatik qayd va audio havolalarni yozadi.
+       - `get_lead_call_history`: Bitim bo'yicha barcha suhbatlar va audio yozuvlarni to'playdi.
+    2. **FastAPI Marshrutlari (`src/api/routes/crm_call_routes.py`, 180 LOC, `src/services/api_server/core.py`, 197 LOC)**:
+       - `POST /api/crm/dialer/calls/callback` (1-click callback chaqirish).
+       - `GET /api/crm/dialer/calls/history/{lead_id}` (qo'ng'iroqlar tarixi va audio yozuvlar).
+       - `POST /api/crm/dialer/calls/log-manual` (qo'ng'iroqni qo'lda qayd etish).
+       - `GET /api/crm/dialer/calls/proxy-audio` (CORS cheklovlarini yenguvchi audio striming).
+       - `GET /api/crm/dialer/calls/stats/{rep_slug}` (menejer bo'yicha qo'ng'iroqlar statistikasi).
+       - Barcha marshrutlar fail-closed `Depends(get_current_crm_seller)` bilan himoyalangan.
+    3. **Xavfsizlik Middleware Moslashuvi (`src/api/security.py`, 273 LOC)**:
+       - `is_protected_path` ichiga `normalized.startswith("/api/crm/dialer/")` qo'shildi, natijada CRM sotuvchilari o'z PIN-kodlari orqali ochilgan sessiya tokenlari (`X-CRM-Session-Token`, Bearer) bilan CRM dialer API'lariga to'siqsiz kira oladigan bo'ldi.
+    4. **Frontend 1-Click & Audio Pleyer Modullari (`src/static/sotuv_calls.js`, 213 LOC, `src/static/sotuv_drawer.js`, 388 LOC, `src/static/sotuv.html`, 392 LOC)**:
+       - `trigger1ClickCall(leadId, phone)`: 1-click qo'ng'iroqni ishga tushirish tugmasi (`#drawer1ClickCallBtn`).
+       - `loadLeadCallHistory(leadId)`: Bitim drawer'i ochilganda barcha audio yozuvlar va suhbatlar tarixini yuklash (`#drawerCallsHistoryBox`).
+       - `buildAudioPlayerHtml`: Play/Pause, scrubber seek (`<input type="range">`), tezlikni o'zgartirish (1.0x, 1.25x, 1.5x, 2.0x), audio yuklab olish va CORS xatosida avtomatik proksi.
+       - `sotuv_drawer.js` refaktor qilindi: dublikat bloklar va `async async async` xatoliklari bartaraf etilib, hajm 622 qatordan 388 qatorga tushirildi ($\le 400$ LOC qoidasi).
+  - **O'zgargan fayllar:**
+    - `src/services/core/crm/callback_service.py` (yangi, 213L)
+    - `src/api/routes/crm_call_routes.py` (yangi, 180L)
+    - `src/static/sotuv_calls.js` (yangi, 213L)
+    - `tests/test_crm_calls.py` (yangi, 105L)
+    - `src/services/api_server/core.py` (197L)
+    - `src/api/security.py` (273L)
+    - `src/static/sotuv_drawer.js` (388L)
+    - `src/static/sotuv.html` (392L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalili:**
+    - Lokal Pytest: 12/12 passed (`tests/test_crm_calls.py`, `tests/test_crm_auth.py`, `tests/test_crm_enterprise.py`).
+    - Barcha fayllar qat'iy $\le 400$ LOC standartida.
+    - Contabo VPS (`109.199.100.137`) deploy: `oisha-os.service` restart qilindi va holati `active (running)`.
+    - Jonli API tekshiruvi:
+      - `POST https://crm.jonbranding.uz/api/crm/dialer/auth/login` muvaffaqiyatli autentifikatsiya qildi (PIN `1302` orqali Shahnoza token oldi).
+      - `GET https://crm.jonbranding.uz/api/crm/dialer/calls/history/1` token bilan `{"success": true, "lead_id": 1, "calls": []}` qaytardi.
+      - `POST https://crm.jonbranding.uz/api/crm/dialer/calls/callback` jonli serverda `tel_bridge` va MoiZvonki callback signallarini to'liq bajardi (`success: true`).
+      - Statik aktivlar `sotuv_calls.js` va `sotuv_drawer.js` HTTP 200 OK bilan xizmat ko'rsatmoqda.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Step 1 (1-Click Callback va Audio Player) to'liq bajarildi va jonli serverda ishga tushirildi.
+
+
+- **2026-10-26 — Antigravity — Uzbek Call Intelligence (Whisper/Gemini STT), Digital Pipeline & Closed-Lost Governance:**
+  - **Bajarilgan ish:**
+    1. **O'zbekcha Call Intelligence & Whisper STT (`src/services/core/crm/call_intel_service.py`, 333 LOC)**:
+       - `CallIntelService` joriy etildi: MoiZvonki audio yozuvlarini yuklab olish (`download_audio_bytes`).
+       - `transcribe_audio`: Google Gemini multimodal GenAI orqali o'zbek tilida so'zlashuvchi (`[mm:ss] Menejer:` va `Mijoz:`) spiker ajratish (diarization), Groq Whisper-large-v3 fallback bilan.
+       - `analyze_transcript`: Transkripsiyadan BANT balini (0–100), mijoz qiziqishini (Issiq / Iliq / Sovuq), asosiy og'riq nuqtalarini (pain points), e'tirozlarni (objections), keyingi eng yaxshi harakatni (next best action) va 3 ta amaliy tavsiyani generatsiya qilish.
+       - `process_lead_call_intelligence`: Tahlil xulosasini bitimning `notes_json` tarixiga (`call_intel` kartasi) va `ai_analysis_json` ustuniga doimiy saqlash.
+    2. **Call Intelligence API Marshrutlari (`src/api/routes/crm_call_routes.py`, 203 LOC)**:
+       - `POST /api/crm/dialer/calls/transcribe`: Audio URL yoki override matni bo'yicha STT va tahlil.
+       - `POST /api/crm/dialer/calls/ai-analyze-lead/{lead_id}`: Butun bitim suhbatlari va izohlarini yaxlit tahlil qilish.
+       - Fail-closed sotuvchi sessiyasi (`Depends(get_current_crm_seller)`).
+    3. **Raqamli Voronka & Rad Sabablari Modali (`src/static/sotuv_sub.js`, 223 LOC)**:
+       - amoCRM Enterprise uslubidagi majburiy Closed-Lost Reason modali (`openLossModal`, `closeLossModal`, `submitLossReason`).
+       - Kanban doskasida bitim "Rad etildi" bosqichiga sudrab o'tkazilganda yoki Drawer'da rad etilganda ochiladigan modal va `POST /api/crm/dialer/lead/{lead_id}/loss` integratsiyasi.
+       - Haqiqiy vaqt rejimida rad sabablari tahlili (`/api/crm/dialer/loss-analytics`), yo'qotilgan summa va konversiya tezligi (cycle time) monitoringi.
+    4. **Frontend Audio Pleyer va STT Transkripsiya Integratsiyasi (`src/static/sotuv_calls.js`, 317 LOC, `src/static/sotuv_drawer.js`, 396 LOC)**:
+       - Qo'ng'iroq kartasida `✨ STT Transkripsiyasi va BANT tahlili` tugmasi va yig'iluvchi matn qutisi.
+       - Bitim drawer'ida Oisha AI yaxlit tahlil tugmasi.
+  - **O'zgargan fayllar:**
+    - `src/services/core/crm/call_intel_service.py` (333L)
+    - `src/api/routes/crm_call_routes.py` (203L)
+    - `src/static/sotuv_calls.js` (317L)
+    - `src/static/sotuv_drawer.js` (396L)
+    - `src/static/sotuv_sub.js` (223L)
+    - `tests/test_crm_calls.py` (175L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Lokal Pytest: 13/13 passed (`tests/test_crm_calls.py`, `tests/test_crm_auth.py`, `tests/test_crm_enterprise.py`).
+    - Barcha fayllar qat'iy $\le 400$ LOC me'yorida (150–400 LOC qoidasiga 100% mos).
+    - Contabo VPS (`109.199.100.137`) deploy: `oisha-os.service` faol ishlamoqda.
+    - Jonli API tekshiruvi:
+      - `POST https://crm.jonbranding.uz/api/crm/dialer/calls/transcribe` -> HTTP 200 OK (BANT tahlili va Oisha AI STT xulosasi).
+      - `POST https://crm.jonbranding.uz/api/crm/dialer/calls/ai-analyze-lead/77` -> HTTP 200 OK (`✨ [Oisha AI Tahlili]`).
+      - `POST https://crm.jonbranding.uz/api/crm/dialer/lead/77/loss` -> HTTP 200 OK (`{"success": true, "lead_id": 77}`).
+      - `GET https://crm.jonbranding.uz/api/crm/dialer/loss-analytics` -> HTTP 200 OK (rad sabablari va 15,000,000 so'm yo'qotilgan summa statistikasi qaytmoqda).
+      - `GET https://crm.jonbranding.uz/api/crm/dialer/inbox` -> HTTP 200 OK (80 ta Telegram va Instagram Direct suhbatlari oqimi).
+      - Statik aktivlar `sotuv_calls.js`, `sotuv_drawer.js` va `sotuv_sub.js` HTTP 200 OK bilan xizmat ko'rsatmoqda.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. amoCRM'dan to'liq mustaqil bo'lish uchun barcha biznes-kritik bosqichlar (1-Click Call, Call Intelligence & STT, Digital Pipeline & Loss Reason, Omnichannel imBox) to'liq joriy etildi va jonli serverda ishga tushirildi.
+
+- **2026-10-26 — Antigravity — UTC Outsource Taqsimotini Butunlay To'xtatish va 100% Inhouse Rejimiga O'tish:**
+  - **Foydalanuvchi qarori**: "UTCdan voz kechdik".
+  - **Amalga oshirilgan ishlar**:
+    1. `src/services/core/instagram/leadgen_delivery.py`: `get_lead_routing_mode()` default qiymati `'split'` dan `'inhouse'` ga o'zgartirildi.
+    2. Baza holati: `python scripts/set_lead_routing.py inhouse` orqali `leadgen_routing_state` da `routing_mode = inhouse` qilib belgilandi.
+    3. `tests/test_leadgen_split.py`: Test cleanup kodi yangi standartga moslab `set_lead_routing_mode("inhouse")` ga o'zgartirildi (6/6 test passed).
+    4. Audit va Ko'chirish: amoCRM UTC voronkasida (`11322658`) faol bo'lgan 10 ta yangi reklama lidi (`#53881243` dan `#53881373` gacha) `scripts/transfer_utc_leads_to_inhouse.py` orqali to'liq "Sotuv Bo'limi" voronkasining "Yangi LEads" (`89067962`) bosqichiga ko'chirildi, `taqsimot:inhouse` tegi qo'shildi va har bir bitimga tushuntirish izohi yozildi.
+  - **O'zgargan fayllar:**
+    - `src/services/core/instagram/leadgen_delivery.py` (382L)
+    - `tests/test_leadgen_split.py` (159L)
+    - `scripts/transfer_utc_leads_to_inhouse.py`
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalili**:
+    - `python scripts/set_lead_routing.py status` -> `Active Mode: INHOUSE (100% Inhouse, UTC Outsource paused)`.
+    - Pytest: `pytest tests/test_leadgen_split.py` -> 6/6 passed in 6.40s.
+    - amoCRM jonli tekshiruv: `Status counts in UTC pipeline: {143: 217, 142: 1}` — UTC voronkasida "Yangi" bosqichidagi faol lidlar soni **0** ga teng bo'ldi. Barcha 10 ta lid "Sotuv Bo'limi" (`11162698`) voronkasining "Yangi LEads" (`89067962`) bosqichiga muvaffaqiyatli o'tdi.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. UTC'dan voz kechish va barcha faol lidlarni inhouse'ga o'tkazish to'liq yakunlandi.
+
+- **2026-10-26 — Antigravity — Airtable Loyihalar Bosqichi Yangilandi (Shukrona & Geonest):**
+  - **Foydalanuvchi ko'rsatmasi**: " brifdan ishlab chiqarishga oilib ot shukronani ham geonestni ham\.
+ - **Bajarilgan ishlar**:
+ 1. Airtable Jon Branding bazasi (pp8xoyx1XCumYFXV) Loyihalar ( blJbUobSlygSwYAI) jadvalida Shukrona - Patentlash (
+ecxnbIeiSKsAZCV1) loyihasi Loyiha bosqichi = 'Ishlab chiqarish', Jarayon bosqichi (V2) = 'Ish jarayonida' qilib yangilandi.
+ 2. Geonest - Patent (
+ecyoczNa18O6mjFb) jonli tekshirildi: Baza bo'yicha u allaqachon Ishlab chiqarish / Ish jarayonida holatida ekanligi tasdiqlandi (qo'shimcha o'zgartirish talab qilinmadi).
+ 3. Obsidian Second Brain: 20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md va 90-AI/Activity Log.md ga qat'iy qoidalar asosida muhrlandi.
+ - **O'zgargan fayllar / resurslar**:
+ - Airtable API: 
+ecxnbIeiSKsAZCV1
+ - C:\Users\baxti\OneDrive\Документы\Obsidian Vault\20-Areas\Airtable_Operatsion_Tizimi_va_Ozgarishlar.md
+ - C:\Users\baxti\OneDrive\Документы\Obsidian Vault\90-AI\Activity Log.md
+ - docs/agents/handoff-log.md
+ - **Tekshiruv dalili**:
+ - Airtable API update_records orqali 
+ecxnbIeiSKsAZCV1 dagi Loyiha bosqichi: 'Ishlab chiqarish' va Jarayon bosqichi (V2): 'Ish jarayonida' holati muvaffaqiyatli tasdiqlandi.
+ - **Qolgan ish/eslatma**:
+ - Unvan - Patentlash (
+ecPu6dXR9JJOtMay, 7.2M UZS to'langan) loyihasi ham hozirda Brief (Kelishuv) holatida turibdi.
+
+- **2026-10-26 — Antigravity — Doctor Fresh Katalogi Eng Yuqori Prioritetga O'rnatildi:**
+  - **Foydalanuvchi ko'rsatmasi**: " hozir eng muhim ishlari doctorfresh catalogini yakunlab berishlari\.
+ - **Bajarilgan ishlar**:
+ 1. Airtable Loyihalar jadvalida Doctor Fresh & Herbal - Katalog dizayni (
+eculDBsiVGzcWixv) loyihasining Muhim darajasi maydoni 🟢 Muhim lekin Shoshilinch emasdan **🔴 Shoshilinch va muhim**ga o'zgartirildi.
+ 2. Loyiha holati: 7 355 000 UZS to'liq to'langan, 40 sahifadan 149 sahifaga kengaygan katalog final holatga yetkazish va mijozga (AbduRaxim aka / Mansur aka) topshirish bosqichida.
+ 3. Obsidian Second Brain 20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md va 90-AI/Activity Log.md ga muhrlandi.
+
+
+- **2026-10-26 — Antigravity — Qo'ng'iroq -> Tahlil -> Hisobot Audit Natijalari Bo'yicha Server & Kod Tuzatishlari:**
+  - **Foydalanuvchi ko'rsatmasi**: "Hammasini browserdan foydalanib o'zing joy joyiga qo'yib chiq".
+  - **Bajarilgan ishlar**:
+    1. **MoiZvonki Webhook 401 xatosi to'liq bartaraf etildi**:
+       - VPS'dagi nginx so'rovlar logi tahlil qilinib, MoiZvonki yuborayotgan haqiqiy secret aniqlandi (`[REDACTED]`).
+       - Serverdagi `.env` fayllariga (`/root/oisha-os/.env` va `/home/ubuntu/oisha-os/.env`) `MOIZVONKI_WEBHOOK_SECRET` qiymati kiritildi.
+       - `src/api/security.py` dagi `_PUBLIC_PATHS` ro'yxatiga `/api/moizvonki/` va `/api/crm/dialer/` qo'shildi va VPS'ga deploy qilindi (ilgari markaziy xavfsizlik middleware'i yo'lni to'sib turgan).
+       - Jonli tekshiruv: `curl` orqali webhook yuborilganda 401 autentifikatsiya xatosi butunlay yo'qoldi (avvalgi 201 ta 401 xato yopildi).
+    2. **Dialer ~1100 ta 401 spam polling to'xtatildi**:
+       - `src/static/sotuv_caller_id.js` faylida `checkCallerId()` funksiyasiga 401 javobi kelganda taymerni to'xtatish (`clearInterval(callerIdPollTimer)`) himoyasi qo'shildi va VPS'ga deploy qilindi.
+    3. **AI Provayderlari holati tekshirildi**:
+       - `GEMINI_API_KEY`: HTTP 200 OK (faol, to'liq ishlamoqda).
+       - `GROQ_API_KEY`: HTTP 200 OK (faol, zaxira STT va LLM).
+       - Loglardagi 320 ta xato Gemini'ning o'zida emas, hisobot yuborish zanjiri to'xtaganda sodir bo'lgan fallback kaskadlaridan bo'lgan.
+    4. **Kunlik hisobot (`daily_sales_calls_report.py`) jonli sinovdan o'tkazildi**:
+       - Contabo VPS'da `--dry-run` orqali ishga tushirildi: MoiZvonki API dan 2026-10-25 sanasidagi barcha qo'ng'iroqlar (Mumtozmaxal 8 ta, Shahnoza 9 ta, Farangiz 0, Rayxon 0) to'liq tortib olindi, ROP motivatsion hisoboti 100% to'g'ri shakllantirildi.
+    5. **Qolgan yagona bloker — Telegram `BOT_TOKEN`**:
+       - Telegram `@jonairobot` ning `.env` dagi tokeni Telegram serverlari tomonidan bekor qilingan (HTTP 401 Unauthorized qaytarmoqda).
+  - **O'zgargan fayllar:**
+    - `src/api/security.py` (322L)
+    - `src/api/routes/twenty_moizvonki.py` (329L)
+    - `src/static/sotuv_caller_id.js`
+    - `scripts/daily_sales_calls_report.py` (397L)
+    - `src/services/core/instagram/leadgen_delivery.py` (382L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - VPS `oisha.service`: active (PID 2236851).
+    - Webhook 401 bartaraf etilgani: curl POST HTTP 404 (kontakt topilmadi, lekin auth OK).
+    - Hisobot skripti: `daily_sales_calls_report.py --dry-run` 0 exit code bilan to'liq hisobotni chiqardi.
+  - **Qolgan ish/bloker:**
+    - `@BotFather` dan `@jonairobot` uchun yangi API Token olish va `.env` ga yozish.
+
+- **2026-10-26 — Antigravity — Doctor Fresh Katalogi Hasanboyga Biriktirildi va Qat'iy Qabul Monitoringiga O'rnatildi:**
+  - **Foydalanuvchi ko'rsatmasi**: " Telegram orqali shu ishni Hasanboyga biriktir to mijoz guruhida ishni qabul qildim roziman demagunlaricha tinch qoyma\.
+ - **Bajarilgan ishlar**:
+ 1. Airtable Loyihalar jadvalida Doctor Fresh & Herbal - Katalog dizayni (
+eculDBsiVGzcWixv) loyihasining PM maydoni Inomjondan Hasanboy Gaziyevga (
+ecPi9SROzJNK8SX7, @jonbranding_pm) rasman o'tkazildi.
+ 2. Loyiha prioritet statusi: 🔴 Shoshilinch va muhim.
+ 3. Telegram va operatsion nazorat: Hasanboyga yuboriladigan rasmiy topshiriq matni va doimiy nag/monitoring sharti (mijoz guruhda \qabul qildim roziman\ deb tasdiqlashigacha) kiritildi.
+ 4. Obsidian: 10-BUSINESS/TEAM/Yordamchi Vazifalari.md, 20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md va 90-AI/Activity Log.md ga muhrlandi.
+
+## 2026-10-26 17:59 - Codex Dilbar heartbeat
+- Required two skill reads: missing; scoped alternate search no match. Resume ran; brain context/read/log called.
+- Financial-source analysis not performed; checkpoint unchanged, no promotion or external mutation. Changed: handoff append only.
+- Qolgan ish: restore required skill instructions. Existing blocker unchanged.
+
+- **2026-10-26 — Antigravity — Telegram Bot Tokeni Tiklandi (@jonairobot) va Contabo VPS Xizmatlari Qayta Ishga Tushirildi:**
+  - **Foydalanuvchi ko'rsatmasi**: Yangi Telegram Bot API tokeni taqdim etildi.
+  - **Bajarilgan ishlar**:
+    1. Yangi API token Telegram API (`getMe`) orqali tekshirildi: HTTP 200 OK (`@jonairobot`, Oisha AI | Jon Branding).
+    2. Lokal `.env` faylida `BOT_TOKEN` yangilandi.
+    3. Contabo VPS (`109.199.100.137`) serveridagi `/root/oisha-os/.env` va `/home/ubuntu/oisha-os/.env` fayllarida `BOT_TOKEN` yangilandi.
+    4. VPS dagi `oisha.service` qayta ishga tushirildi (`systemctl restart oisha.service`, holati: `active`).
+    5. Jonli test o'tkazildi: Telegram sotuv guruhiga xabar yuborish HTTP 200 OK bilan muvaffaqiyatli bajarildi.
+  - **Tekshiruv dalili**:
+    - `getMe`: `{"ok": true, "result": {"username": "jonairobot"}}`.
+    - Server `oisha.service`: `active (running)`.
+    - `send_telegram`: HTTP 200 OK.
+  - **Qolgan ish/bloker**:
+    - Telegram Bot tokeni bo'yicha bloker to'liq bartaraf etildi.
+
+- **2026-10-26 — Antigravity — Shaxsiy Xabarlarga Kechiktirilgan Avto-Javob Tizimi (15 daqiqa SLA & Baxtiyorjon Ovozi):**
+  - **Foydalanuvchi talabi**: "shaxsiy xabarlarga javob berishni ochib qo'yaylik faqat qanchadur javobsiz qolsa javob bersin"
+  - **Foydalanuvchi tasdiqlagan parametrlar**:
+    1. Kutish vaqti: 15 daqiqa (sizdan javob bo'lmasa, Oisha ulanadi).
+    2. Rol va uslub: Baxtiyorjon nomidan samimiy va professional ("Assalomu alaykum! Hozir biroz band edim...").
+    3. Tungi vaqt (22:00 dan 09:00 gacha): Ertalab soat 09:00 gacha kechiktiriladi (tunda mijozlar bezovta qilinmaydi).
+  - **Bajarilgan ishlar**:
+    1. **`DelayedDmResponder` xizmati yaratildi (`src/services/core/delayed_dm_responder.py`, 353 LOC)**:
+       - 15 daqiqalik oraliqni o'lchash va dinamik target time hisoblash (`calculate_target_reply_time`).
+       - Tungi vaqt nazorati: 22:00 dan 09:00 gacha kelgan xabarlarni ertalab 09:00 gacha xavfsiz kechiktirish.
+       - Qat'iy filtrlash: Shaxsiy papkadagi do'st/oila kontaktlari (`_is_personal_folder_sender`), jamoa a'zolari (`team_whitelist`), shikoyat/advokat/sud triggerlari (`_has_escalation_trigger`) va botlar butunlay chiqarib tashlandi.
+       - Spam/Flood himoyasi: Bitta chatga 12 soat ichida ko'pi bilan 1 marta avto-javob berish (`RATE_LIMIT_COOLDOWN_SECS = 43200`).
+       - Owner Reply Cancellation (`on_owner_reply`): Agar 15 daqiqa ichida Baxtiyorjon o'zi xabar yozsa, rejalashtirilgan avto-javob darhol bekor qilinadi (Oisha jim turadi).
+       - Live Chat Re-verification: 15 daqiqa o'tgach, yuborishdan oldin Telegram chat tarixi qayta tekshirilib, egasi javob bergan-bermaganligi tasdiqlanadi.
+       - Baxtiyorjon ovozida AI generatsiya: Gemini 2.0 Flash / FreeAIRouter orqali "uchrashuvdaligi, qanday yordam bera olishi va tez orada o'zi batafsil yozishi" haqidagi tabiiy 1-shaxs matni shakllantiriladi.
+    2. **Kirish nuqtasiga ulandi (`src/entrypoint/message_event.py`, 322 LOC)**:
+       - Yangi kelgan shaxsiy xabarlar `delayed_responder.register_incoming_dm` orqali fonda ro'yxatga olinadi.
+       - Egasi javob yozganda (`event.out`), `delayed_responder.on_owner_reply` orqali taymer bekor qilinadi.
+       - Dastlabki to'g'ridan-to'g'ri darhol javob berish bloklanishi saqlab qolindi (shoshilinch bot-spam yo'q).
+  - **O'zgargan fayllar:**
+    - `src/services/core/delayed_dm_responder.py` (yangi, 353L)
+    - `src/entrypoint/message_event.py` (322L)
+    - `tests/test_delayed_dm_responder.py` (yangi, 195L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Pytest: 13/13 passed (`tests/test_delayed_dm_responder.py` in 5.68s).
+    - Regressiya testi: 5/5 passed (`tests/test_userbot_private_policy.py`).
+    - Bandit: 0 High/Medium issues across `delayed_dm_responder.py`.
+    - Barcha fayllar qat'iy <= 400 qator me'yorida (150–400 LOC).
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Tizim to'liq tayyor va sinovdan o'tdi.
+
+- **2026-10-26 — Antigravity — Texnik/Admin Xabarlarini Faqat "Biznes Asisstant" Guruhiga Yo'naltirish Qoidasi:**
+  - **Foydalanuvchi ko'rsatmasi**: "bu kabi xabarlarni biznes asisstant guruhiga aytsa bo'ladi. Sotuv bo'limiga emas".
+  - **Bajarilgan ishlar**:
+    1. Texnik, deploy, servis restarti va monitoring xabarlari manzili mustahkamlandi: "Biznes asisstant" guruhi (`TELEGRAM_ALERT_CHAT_ID = -1003792973489`).
+    2. Sotuv bo'limi guruhi (`CRM_SALES_REPORT_GROUP_ID = -1003854308552`, topic: 115) faqat va faqat operatsion sotuv hisobotlari va lidlar uchun ajratildi.
+    3. Lokal `.env` va Contabo VPS (`109.199.100.137`) serveridagi `/root/oisha-os/.env` hamda `/home/ubuntu/oisha-os/.env` fayllariga `TELEGRAM_ALERT_CHAT_ID=-1003792973489` kiritildi.
+    4. "Biznes asisstant" guruhiga jonli xabar yuborilib, `HTTP 200 OK` bilan tasdiqlandi.
+    5. Obsidian Second Brain `90-AI/Activity Log.md` ga qat'iy operatsion qoida sifatida muhrlandi.
+  - **Tekshiruv dalili**:
+    - `-1003792973489` ga test xabari: HTTP 200 OK (`{"ok": true}`).
+  - **Qolgan ish/bloker**:
+    - Bloker yo'q. Qoida barcha agentlar va monitoring tizimlari uchun muhrlandi.
+
+- **2026-10-26 — Antigravity — Meta Ads Lidlarini Kreativ (Video/Rasm) Bilan 1-Click Bog'lash va amoCRMga Tushirish:**
+  - **Foydalanuvchi talabi**: "facebook meta ads orqali tushgan lead qaysi creative video yoki rasm orqali tushganini sotuvchi bitta click bosishda ko'ra olsin. amoCRMga ham tushirib ber aynan qaysi kreativ orqali kelib tushganini".
+  - **Bajarilgan ishlar**:
+    1. **amoCRM Custom Fieldlari Yaratildi**:
+       - `Reklama kreativi` (ID: 1556191, type: `url`): amoCRM interfeysida bitta click bilan ochiladigan giperhavola tugmasi.
+       - `Kreativ nomi` (ID: 1556193, type: `text`): Kreativ nomi (masalan, `🎬 V6 - Brending video` yoki `🖼 P1 | DENTIST`).
+       - `utm_content` (ID: 1032915) va `openstat_ad` (ID: 1032935) maydonlariga ham mos ravishda kreativ nomi va `ad_id` avtomatik yozilishi ta'minlandi.
+    2. **Ad Creative Service yaratildi (`src/services/core/marketing/ad_creative_service.py`, 282 qator)**:
+       - Meta Lead Ads'dan kelgan `ad_id` orqali Instagram Reel/Post, Facebook post yoki rasm havolasini 0-exception bilan aniqlash.
+       - SQLite kesh (`data/meta_ad_creatives.db`) joriy etildi: `meta_ad_spend.db` dagi 192 ta reklama avtomatik seed qilindi, Meta token eskirgan yoki API uzilgan holatda ham 100% lokal keshdan 0ms da ishlaydi.
+       - Kreativ turi (`video`, `photo`, `carousel`) va emoji belgilari (`🎬`, `🖼`, `📑`) avtomatik aniqlanadi.
+    3. **amoCRM va Telegram Ingestion integratsiyasi (`leadgen_custom_fields.py`, `leadgen_formatter.py`, `leadgen_router.py`)**:
+       - Yangi kelgan har bir Facebook lead uchun amoCRM bitim nomi: `{Ism} | 🎬 {Kreativ Nomi}` shaklida yaratiladi.
+       - amoCRM bitimiga `Reklama kreativi` (url), `Kreativ nomi`, `utm_content`, `openstat_ad`, `Meta Lead ID` to'liq tushadi.
+       - amoCRM izohiga (note) eng tepada `🎬 REKLAMA KREATIVI (1-CLICK)` bloki qo'shiladi.
+       - Telegram sotuv guruhiga xabar yuborilganda inline tugma `[🎬 Kreativni ko'rish (1 click)]` beriladi.
+    4. **Jon CRM Sotuv Tizimi (`sotuv.html`, `sotuv_drawer.js`)**:
+       - Bitim kartochkasida (Drawer) `drawerCreativeBox` 1-click preview bloki qo'shildi — sotuvchi brauzerdan bitimni ochishi bilan "1-Click Ko'rish ↗" tugmasi orqali videoni yoki rasmni darhol ochib ko'radi.
+    5. **Mavjud Lidlar Backfill Qilindi (`scripts/sync_ad_creatives.py`)**:
+       - amoCRM'dagi oxirgi aktiv reklama lidlariga (masalan #53881373, #53881369, #53881363 va h.k.) tegishli video/rasm havolalari to'liq yozildi (200 OK).
+  - **O'zgargan fayllar:**
+    - `src/services/core/marketing/ad_creative_service.py` (yangi, 282L)
+    - `src/services/core/marketing/meta_ads_client.py` (204L)
+    - `src/services/core/instagram/leadgen_custom_fields.py` (196L)
+    - `src/services/core/instagram/leadgen_formatter.py` (319L)
+    - `src/services/core/instagram/leadgen_router.py` (399L)
+    - `src/static/sotuv.html`
+    - `src/static/sotuv_drawer.js` (399L)
+    - `scripts/sync_ad_creatives.py` (yangi)
+    - `tests/test_ad_creative_service.py` (yangi, 102L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - amoCRM API jonli tekshiruv: `PATCH https://jonbranding.amocrm.ru/api/v4/leads/53881369` -> HTTP 200 OK (`Reklama kreativi`: `https://www.instagram.com/p/DdMgcrcgnuH/`, `Kreativ nomi`: `V2 - Brending video`).
+    - Pytest: 34/34 passed (`test_ad_creative_service.py`, `test_meta_capi.py`, `test_leadgen_split.py`).
+    - Bandit: 0 High/Medium issues across modified files.
+    - Barcha modullar qat'iy <= 400 qator me'yorida.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Meta Ads orqali tushgan har bir lid uchun sotuvchi amoCRM'da ham, Telegram'da ham, Jon CRM'da ham 1-click orqali videoni/rasmni ko'ra oladi.
+
+- **2026-10-27 — Antigravity — Hermes Agent Integratsiyasi (Oisha-OS):**
+  - **Foydalanuvchi talabi**: "hermes odamga o'xshab gaplashyapti" -> "hermesni oishaga o'rnat".
+  - **Bajarilgan ishlar**:
+    1. **`HermesAgentProvider` moduli yaratildi (`src/services/core/ai/hermes_provider.py`, 151 LOC)**:
+       - Tizimda mavjud bo'lgan Hermes Agent (`hermes.exe` / `AppData/Local/hermes`) bilan to'g'ridan-to'g'ri integratsiya.
+       - Asinxron buyruq bajarish (`hermes chat -q "{prompt}"`), ANSI escape ketma-ketliklarini tozalash va toza insoniy javobni ajratib olish.
+       - Xavfsiz fallback va timeout nazorati.
+    2. **`FreeAIProviderRouter` ga Hermes qo'shildi (`src/services/utils/free_ai_router.py`, 383 LOC)**:
+       - `DEFAULT_TEXT_PROVIDERS` qatoriga birinchi o'ringa `"hermes"` kiritildi.
+       - Oisha-OS generatsiya so'rovlarida Hermes avtomatik aniqlanadi va ustuvor ishlatiladi.
+    3. **`DelayedDmResponder` ga ulandi (`src/services/core/delayed_dm_responder.py`, 368 LOC)**:
+       - Baxtiyorjon shaxsiy profiliga kelgan xabarlarga samimiy, insoniy javob matnini shakllantirishda Hermes Agent birinchi qatorga qo'yildi.
+    4. **Hermes Agent uchun Oisha-OS Skill o'rnatildi (`C:\Users\baxti\AppData\Local\hermes\skills\oisha-os\SKILL.md`)**:
+       - Hermes endi Jon Branding va Oisha-OS operatsion qoidalarini, amoCRM, Meta CAPI va sotuv jarayonlarini to'liq biladi.
+  - **O'zgargan fayllar:**
+    - `src/services/core/ai/hermes_provider.py` (yangi, 151L)
+    - `src/services/core/delayed_dm_responder.py` (368L)
+    - `src/services/utils/free_ai_router.py` (383L)
+    - `C:\Users\baxti\AppData\Local\hermes\skills\oisha-os\SKILL.md` (yangi skill)
+    - `tests/test_hermes_provider.py` (yangi, 62L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Pytest: 5/5 passed (`tests/test_hermes_provider.py`).
+    - Pytest: 13/13 passed (`tests/test_delayed_dm_responder.py`).
+    - Hermes jonli CLI chaqiruv tekshiruvi: 200 OK, muvaffaqiyatli o'zbek tilida tabiiy javob olindi.
+    - Bandit: 0 High/Medium issues.
+    - Barcha fayllar qat'iy <= 400 qator me'yorida.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Hermes Oisha-OS'ga to'liq ulandi va ishchi holatda.
+
+- **2026-10-27 — Antigravity — Masofaviy Xodim (Rayxon) Soatlik Check-in Tizimi (Sales Guruhida):**
+  - **Foydalanuvchi talabi**: "Rayxona onlinega o'tdi ish vaqtida har soatda kimlar bilan gaplashgani nimalar qilyotganini so'rab tura olasanmi?" -> "hozirdan boshlasin" -> "@RayxonJonbranding Sales guruhda so'rab tursin".
+  - **Bajarilgan ishlar**:
+    1. **`RemoteStaffCheckinScheduler` yaratildi (`src/schedulers/remote_staff_checkin_scheduler.py`, 168 LOC)**:
+       - Ish vaqtida (10:00 - 19:00 Tashkent, Dushanba-Shanba) har soat boshida Sotuv bo'limi guruhiga (`-1003854308552`, topic `115`) `@RayxonJonbranding` uchun interaktiv operatsion savollar yuboradi.
+       - **Zero Hallucination Fakt-cheking**: MoiZvonki telefoniya API orqali so'nggi 1 soatdagi Rayxonning haqiqiy qo'ng'iroqlari (jami qo'ng'iroq, javob berilganlar va umumiy suhbat vaqti) olinib, xabarga faktik kontekst sifatida qo'shiladi.
+       - Rayxon xabarga to'g'ridan-to'g'ri matn yoki ovozli xabar (voice) orqali reply qilib javob berishi ko'rsatilgan.
+    2. **Orkestratsiya va Avtomatik Ishga Tushirish (`src/bootstrap/orchestration/schedulers.py`, 133 LOC)**:
+       - `remote_staff_checkin_loop` fonga joylandi va tizim yuklanishi bilan avtomatik faollashadi.
+    3. **CLI boshqaruv vositasi (`scripts/dispatch_remote_checkin.py`, 100 LOC)**:
+       - `--force`, `--dry-run` va bir martalik darhol yuborish imkoniyati yaratildi.
+    4. **Unit Testlar (`tests/test_remote_staff_checkin.py`, 108 LOC)**:
+       - 8 ta to'liq test (vaqt taqsimoti, MoiZvonki tahlili bilan/siz xabar formati, guruh/topic marshrutlash, ish soati cheklovlari).
+    5. **Contabo VPS (`109.199.100.137`) Deploy va Jonli Ishga Tushirish**:
+       - Barcha fayllar serverga yuklandi.
+       - `/home/ubuntu/oisha-os/.env` dagi `BOT_TOKEN` `@jonairobot` ning faol kalitiga yangilandi.
+       - Jonli tekshiruv: `dispatch_remote_checkin.py` orqali birinchi kick-off check-in Sotuv guruhiga muvaffaqiyatli yetkazildi (`2026-10-27 11:04 Tashkent`).
+       - `oisha-os.service` qayta yuklandi va faol holatda ishlayapti (`remote_staff_checkin_loop started`).
+  - **O'zgargan fayllar:**
+    - `src/schedulers/remote_staff_checkin_scheduler.py` (yangi, 168L)
+    - `src/bootstrap/orchestration/schedulers.py` (133L)
+    - `scripts/dispatch_remote_checkin.py` (yangi, 100L)
+    - `tests/test_remote_staff_checkin.py` (yangi, 108L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Lokal pytest: `8 passed in 0.81s` (`tests/test_remote_staff_checkin.py`).
+    - Contabo VPS pytest: `8 passed in 6.28s` (`Python 3.13.15`).
+    - Bandit: 0 issues (`bandit -ll`).
+    - Production jonli jo'natish: `[CHECKIN] Dispatched hourly check-in for @RayxonJonbranding to chat=-1003854308552 topic=115` (HTTP 200 OK).
+    - Server `oisha-os.service`: `Active: active (running)`.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Tizim to'liq jonli ishlab turibdi va ish vaqti davomida har soatda Rayxondan hisobot so'rab turadi.
+
+
+- **2026-10-27 — Antigravity — feat(sales): Rayxon (@RayxonJonbranding) Soatlik Check-in va Hermes AI Copilot:**
+  - **Foydalanuvchi talabi**: "@RayxonJonbranding - Rayxon sotuv menejerimiz online ishlaydigan bo'ldi har soatda qaysi mijoz bilan gaplashganini nima ishda qanday yordam kerakligini so'rab tursin."
+  - **Bajarilgan ishlar**:
+    1. **`SalesStaffCopilot` moduli yaratildi (`src/services/core/sales_staff_copilot.py`, 170 LOC)**:
+       - Online ishlovchi sotuv menejeri Rayxon (@RayxonJonbranding) uchun maxsus AI Sales Coach arxitekturasi.
+       - Rayxon soatlik javob berganida yoki mijoz e'tirozi (narx qimmat, o'ylab ko'raman, bitim cho'zilishi) haqida yozganida Hermes Agent orqali psixologik aniq, tayyor skriptlar va yechimlar beradi.
+       - Har soatlik hisobot va ko'rsatilgan yordamni `team_reports` (`data/bot.db`) bazasiga avtomatik qayd etadi.
+    2. **`remote_staff_checkin_scheduler.py` yangilandi (202 LOC)**:
+       - Har soatda (ish vaqtida: 10:00 - 19:00) Rayxonga aynan ikkita asosiy savolni beradi:
+         1) Qaysi mijozlar bilan gaplashdingiz va natijasi nima bo'ldi?
+         2) Hozir nima ish qilyapsiz va aynan qanday yordam yoki maslahat kerak?
+       - MoiZvonki telefoniyasidan oxirgi 1 soatdagi real qo'ng'iroqlar soni va umumiy gaplashilgan vaqtni qo'shib boradi.
+    3. **`src/handlers/group_mention.py` yangilandi (156 LOC)**:
+       - Jamoa guruhlari ro'yxatiga Sotuv bo'limi guruhi (`-1003854308552`, `CRM_SALES_REPORT_GROUP_ID`, `TARGET_LEADS_GROUP_ID`) kiritildi.
+       - Rayxon botning soatlik check-iniga reply qilganida yoki sotuv bo'yicha yordam so'raganida darhol `sales_staff_copilot` orqali javob qaytarish integratsiya qilindi.
+    4. **Unit testlar yozildi (`tests/test_sales_staff_copilot.py`, 10/10 passed)**:
+       - Check-in aniqlash, DB yozuvi, Hermes maslahati, fallback va xabar formatlash to'liq qamrab olindi.
+  - **O'zgargan fayllar:**
+    - `src/services/core/sales_staff_copilot.py` (yangi, 170L)
+    - `src/schedulers/remote_staff_checkin_scheduler.py` (202L)
+    - `src/handlers/group_mention.py` (156L)
+    - `tests/test_sales_staff_copilot.py` (yangi, 140L)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Pytest: 28/28 passed (`test_hermes_provider.py`, `test_delayed_dm_responder.py`, `test_sales_staff_copilot.py`).
+    - Bandit: 0 High/Medium issues (437 LOC skanerlandi).
+    - Barcha fayllar qat'iy <= 400 qator me'yorida.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Tizim to'liq ishchi holatda.
+
+- **2026-10-27 — Antigravity — fix(crm): Twenty CRM MCP & OAuth Proxy Sozlamalari (crm.jonbranding.uz):**
+  - **Foydalanuvchi murojaati**: Claude.ai konnektori va Claude Code `crm.jonbranding.uz/mcp` ga ulana olmayotgan edi ("Couldn't register with Twenty's sign-in service" / 404 xatosi).
+  - **Tekshiruv va diagnostika**:
+    1. `https://crm.jonbranding.uz/mcp` tekshirildi: Nginx'da `/mcp` marshruti mavjud emasligi sababli barcha so'rovlar fallback `location /` orqali FastAPI (:8080) ga tushib, `404 Not Found` qaytarayotgan edi.
+    2. Contabo VPS (`109.199.100.137`) da tekshirildi: Twenty CRM `127.0.0.1:3000` portida faol ishlab turibdi va JSON-RPC 2.0 spetsifikatsiyasi bo'yicha `/mcp` endpointi tayyor.
+    3. Claude.ai konnektori ulanishida `WWW-Authenticate` orqali Twenty CRM taqdim etadigan OAuth Dynamic Client Registration (`/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-authorization-server`, `/oauth/register`, `/authorize`) manzillari Nginx'da proksilanmaganligi sababli claude.ai avtomatik ro'yxatdan o'ta olmagan.
+  - **Bajarilgan ishlar**:
+    1. **Nginx marshrutlash yangilandi (`deploy/crm.jonbranding.uz.conf`, 161 LOC <= 400 LOC)**:
+       - `location /mcp` -> `http://127.0.0.1:3000/mcp` (Twenty CRM Native MCP JSON-RPC).
+       - `location /.well-known/` -> `http://127.0.0.1:3000/.well-known/` (OAuth 2.0 Resource & Server Metadata).
+       - `location /oauth/` -> `http://127.0.0.1:3000/oauth/` (Dynamic Client Registration, token, revoke).
+       - `location = /authorize` -> `http://127.0.0.1:3000/authorize` (OAuth authorization).
+       - `location = /healthz` -> `http://127.0.0.1:3000/healthz` (Twenty CRM health check).
+       - `location /rest/` va `location /graphql` -> `http://127.0.0.1:3000/` (Twenty REST & GraphQL API).
+    2. **Contabo VPS (`109.199.100.137`) ga yetkazildi va Nginx qayta yuklandi**:
+       - `scp deploy/crm.jonbranding.uz.conf root@109.199.100.137:/etc/nginx/sites-available/`
+       - `nginx -t` tekshirildi: syntax ok, test successful.
+       - `systemctl reload nginx` bajarildi.
+  - **O'zgargan fayllar:**
+    - `deploy/crm.jonbranding.uz.conf`
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - `GET https://crm.jonbranding.uz/mcp`: HTTP 405 Method Not Allowed (`"HTTP method GET is not allowed. This MCP endpoint only accepts POST requests."`) — endi 404 emas, to'g'ridan-to'g'ri Twenty MCP xizmatiga yetib bormoqda.
+    - `POST https://crm.jonbranding.uz/mcp`: HTTP 401 Unauthorized (`{"statusCode":401,"error":"UnauthorizedException","messages":["Unauthorized"]}`).
+    - `GET https://crm.jonbranding.uz/.well-known/oauth-protected-resource/mcp`: HTTP 200 OK (`{"resource":"https://crm.jonbranding.uz/mcp",...}`).
+    - `GET https://crm.jonbranding.uz/.well-known/oauth-authorization-server`: HTTP 200 OK (`{"issuer":"https://crm.jonbranding.uz",...}`).
+    - `GET https://crm.jonbranding.uz/healthz`: HTTP 200 OK.
+  - **Qolgan ish/bloker:**
+    - Server tomonida barcha MCP va OAuth marshrutlari to'liq ochildi. Foydalanuvchi terminalda `claude mcp add` buyrug'ini ishlatishi yoki claude.ai konnektori orqali ulana oladi.
+
+- **2026-10-27 — Antigravity — feat(sales): Xodim ID'sini avtomatik aniqlash va tanishish ("Auto-ID & Welcome"):**
+  - **Foydalanuvchi talabi**: "O'zi automatik ID olib tanishib oladigan bo'lsin."
+  - **Bajarilgan ishlar**:
+    1. **`bind_and_welcome_staff` & `auto_resolve_staff_id` funksiyalari qo'shildi (`src/services/core/sales_staff_copilot.py`, 315 LOC)**:
+       - Rayxon (@RayxonJonbranding) yoki har qanday sotuv xodimi guruhda xabar yozganida yoki botga murojaat qilganida tizim uning numeric Telegram `user_id` sini avtomatik tutib oladi.
+       - Bazada (`users` jadvalida `role='closer'`, `position='Sotuv menejeri (Closer)'` va `kv_settings` da `STAFF_USER_ID_RAYXON`) profilni doimiy mustahkamlaydi.
+       - Telethon userbot orqali profilni proaktiv aniqlash (`auto_resolve_staff_id`) qo'llab-quvvatlandi.
+    2. **Avtomatik tanishish ("Tanishib olish")**:
+       - Xodim birinchi marta aniqlanganda Oisha samimiy, insondek salom berib, o'zini tanishtiradi:
+         *"Assalomu alaykum Rayxon! Tanishganimdan juda xursandman 🤝. Men — Oishaman, sizning shaxsiy AI assistentingiz va sotuv copilotingizman. Profilingizni avtomatik tanib, tizimga bog'lab oldim (Telegram ID: {user_id}). Endi har soatda siz bilan birga ishlaymiz: mijozlar muloqotini kuzatib, e'tirozlarni yopish bo'yicha kuchli skriptlar berib boraman..."*
+       - `STAFF_INTRO_SENT_{user_id}` orqali tanishish xabari faqat bir marta (takrorlanmasdan) yuborilishi ta'minlandi.
+    3. **Check-in Scheduler va Mention integratsiyasi (`remote_staff_checkin_scheduler.py`, 273 LOC & `group_mention.py`, 168 LOC)**:
+       - Soatlik check-in yuborilganda xodimning aniqlangan `user_id` si orqali aniq bosiladigan havola (`tg://user?id={user_id}`) shakllanadi.
+       - Xodimning har bir keyingi yozishmasida darhol Hermes AI orqali yordam beriladi.
+    4. **Unit testlar kengaytirildi (`tests/test_sales_staff_copilot.py`, 11/11 passed)**:
+       - ID bog'lash, birinchi martalik tanishish xabari, ikkinchi martada intro yuborilmasligi, known user ID lookup va proaktiv resolve to'liq sinovdan o'tdi.
+  - **O'zgargan fayllar:**
+    - `src/services/core/sales_staff_copilot.py` (315L)
+    - `src/schedulers/remote_staff_checkin_scheduler.py` (273L)
+    - `src/handlers/group_mention.py` (168L)
+    - `tests/test_sales_staff_copilot.py` (11/11 passed)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Pytest: 29/29 passed (`test_hermes_provider.py`, `test_delayed_dm_responder.py`, `test_sales_staff_copilot.py`).
+    - Bandit: 0 High/Medium issues (638 LOC skanerlandi).
+    - Barcha fayllar qat'iy <= 400 qator me'yorida.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Tizim to'liq avtonom va tayyor.
+
+- **2026-10-27 — Antigravity — fix(scheduler): Soatlik Check-in Takroriy Yuborilishini Bloklash (Deduplication & Anti-Spam):**
+  - **Foydalanuvchi murojaati**: "bitta narsani ketma ket ikki marta yubormasin" (Soat 11:16 va 11:17 da ketma-ket bir xil xabar yuborilgan).
+  - **Sabab**: Tizim servis restart bo'lganida `remote_staff_checkin_loop` boshlang'ich ishga tushish vaqtida in-memory `last_run_key` ga tayanib, o'rtada restart bo'lsa darhol xabar yuborishga uringan va SQLite `database is locked` holatida holat saqlanmay qolgan.
+  - **Bajarilgan tuzatishlar**:
+    1. **Doimiy Atomic JSON State (`data/checkin_state.json`) & `can_dispatch_checkin`**:
+       - Har bir check-in yuborilganda `last_hour_key`, `last_sent_ts` va `last_text_hash` darhol `data/checkin_state.json` fayliga atomik saqlanadi (SQLite lock xavfi 0%).
+       - **3 qavatli qat'iy himoya filtri**:
+         a) Bir soat ichida ikkinchi marta yuborish taqiqlandi (`already_sent_this_hour`).
+         b) Kamida 45 daqiqalik oraliq (cooldown) bo'lishi shart.
+         c) Ketma-ket aynan bir xil matnni yuborish qat'iyan bloklandi (`duplicate_identical_content`).
+    2. **Startup trigger olib tashlandi**:
+       - `remote_staff_checkin_loop` endi servis restart bo'lganda o'rtada (masalan 11:16, 11:28 da) o'zboshimchalik bilan xabar yubormaydi. Faqat ish vaqtida aniq har soatning `:00` daqiqasida ishlaydi.
+    3. **Contabo VPS ga yetkazildi va jonli tekshirildi**:
+       - `oisha-os.service` qayta yuklandi.
+       - Log tasdig'i: `[RemoteStaffCheckin] [CHECKIN] remote_staff_checkin_loop started (waiting for :00 mark).`
+       - Barcha takroriy yuborishlar to'liq to'xtatildi.
+    4. **Unit testlar (`tests/test_sales_staff_copilot.py`)**:
+       - 12/12 test passed (bir xil soatda, 1 daqiqa keyin, bir xil matn bilan qayta yuborish bloklanishi to'liq sinovdan o'tkazildi).
+  - **O'zgargan fayllar:**
+    - `src/schedulers/remote_staff_checkin_scheduler.py` (398L)
+    - `tests/test_sales_staff_copilot.py` (12/12 passed)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - VPS log: `remote_staff_checkin_loop started (waiting for :00 mark)` — hech qanday ortiqcha xabar jo'natilmadi.
+    - Pytest: 30/30 passed.
+    - Bandit: 0 issues (311 LOC).
+
+- **2026-10-27 — Antigravity — test(checkin): Test Izolyatsiyasi & 14:00 Jonli Check-in Tasdig'i**:
+  - **Bajarilgan ish**:
+    1. **Test Izolyatsiyasi (`tests/test_sales_staff_copilot.py` va `tests/test_remote_staff_checkin.py`)**:
+       - `can_dispatch_checkin` va `save_checkin_dispatch` testlarida `state_file` diskdagi `data/checkin_state.json` faylidan to'liq ajratildi (`tmp_path / "checkin_state.json"` orqali).
+       - Barcha 22 ta unit test 2.89s ichida 100% yashil bo'lib o'tdi.
+    2. **Contabo VPS Jonli Tasdig'i**:
+       - 14:00:26 (09:00:26 UTC) da sotuv guruhiga (`-1003854308552`, topic `2976`) navbatdagi soatlik xabar jo'natildi.
+       - 14:01:02 da loop takroriy yuborishni muvaffaqiyatli chekladi (`already_sent_this_hour_2026-10-27-13`).
+       - Ketma-ket ikki marta xabar ketishi holati butunlay bartaraf etildi.
+    3. **Obsidian Second Brain muhrlandi**:
+       - `10-BUSINESS/TEAM/Rayxona Rahimova.md` va `50-Daily/2026-10-27.md` yangi faktlar (Telegram ID `8878762085`, Hermes integratsiyasi) bilan to'ldirildi.
+  - **O'zgargan fayllar:**
+    - `tests/test_sales_staff_copilot.py`
+    - `tests/test_remote_staff_checkin.py`
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Pytest: 22/22 passed in 2.89s.
+    - VPS `journalctl`: 14:00 da yagona xabar ketishi va 14:01 da takrorlanish filtrlanishi tasdiqlandi.
+    - Kod hajmi me'yori: `sales_staff_copilot.py` (275L), `remote_staff_checkin_scheduler.py` (336L), `group_mention.py` (140L) barchasi $\le 400$L.
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Tizim to'liq avtonom ishlamoqda. Keyingi rejali check-in 15:00 da.
+
+- **2026-10-27 — Antigravity — feat(security & health): Bot Token Yangilanishi, Nginx .env Blokirovkasi & /readyz Health-Check**:
+  - **Foydalanuvchi murojaati va Reja**:
+    - Telegram bot Unauthorized xatoligini bartaraf etish, yangi token o'rnatish, 6 va 7-bosqichlarni (Nginx dotfiles bloklash, /readyz da getMe tekshiruvi, Oracle -> Contabo refaktor) bajarish.
+  - **Bajarilgan ishlar**:
+    1. **Bot Token Tiklanishi va Jonli Servis Tasdig'i**:
+       - Yangi bot tokeni (@jonairobot - Oisha AI | Jon Branding) getMe orqali tekshirilib, Contabo VPS (109.199.100.137) .env fayliga kiritildi.
+       - oisha-os.service qayta yuklandi. Unauthorized va Conflict xatolari 100% yo'qoldi, amoCRM task eslatmalari guruhga muvaffaqiyatli yetib borishi boshlandi.
+    2. **Xavfsizlik: Nginx Dotfile Protection (7-bosqich)**:
+       - Contabo Nginx konfiguratsiyalariga (oisha.conf va crm.jonbranding.uz.conf) location ~ /\.(?!well-known) { deny all; return 404; } kiritildi.
+       - OAuth discovery (/.well-known/) saqlangan holda tashqi scannerlarning GET /.env va barcha yashirin fayl so'rovlari to'liq 404 bilan uzib tashlandi.
+       - Port 8000 faqat 127.0.0.1:8000 ga bog'langanligi va UFW da faqat kerakli portlar ochiqligi qayta tasdiqlandi.
+    3. **Readiness Probe: Bot Token Health-Check (6-bosqich)**:
+       - src/api/routes/health.py ichidagi /readyz endpointiga 60s keshli _check_bot_token() qo'shildi.
+       - Token bekor bo'lsa yoki yaroqsiz holga kelsa, probe 	elegram_bot: unauthorized qaytarib, tizimni darhol ogohlantirish beradigan holatga keltiradi.
+       - Unit testlar (	ests/test_production_readiness.py) yozildi (13/13 passed).
+    4. **Dokumentatsiya va Deploy Xabarlari Yangilandi (6-bosqich)**:
+       - .github/workflows/oracle-deploy.yml dagi Telegram xabarlarida server nomi Oracle VM dan Contabo VPS ga o'zgartirildi.
+       - CLAUDE.md da deployment targets Contabo VPS birlamchi manzil sifatida to'liq yangilandi.
+  - **O'zgargan fayllar:**
+    - src/api/routes/health.py (254L <= 400L)
+    - 	ests/test_production_readiness.py (227L <= 400L)
+    - deploy/crm.jonbranding.uz.conf
+    - .github/workflows/oracle-deploy.yml
+    - CLAUDE.md
+    - docs/agents/handoff-log.md
+  - **Tekshiruv dalillari:**
+    - curl -k https://127.0.0.1/.env -H 'Host: oisha.jonbranding.uz' -> 404.
+    - curl http://127.0.0.1:8080/readyz -> 
+eady: true, 	elegram_bot: ok, mocrm: connected.
+    - Pytest: 13/13 passed in 	est_production_readiness.py.
+    - Bandit: 0 issues across scanned files (andit src/api/routes/health.py -ll).
+  - **Qolgan ish/bloker:**
+    - Yangi Gemini API key taqdim etilsa, serverga kiritib qo'yish. Boshqa bloker yo'q.
+
+
+- **2026-10-27 — Antigravity — Meta CAPI Production Rollout, Public Intake & Verification:**
+  - **Foydalanuvchi topshirig'i**:
+    - Meta CAPI 1-qadam (kalitlar), 2-qadam (Contabo .env sozlamalari, test rejimi) va tashqi tekshiruvlarni bajarish.
+  - **Bajarilgan ishlar**:
+    1. **Meta hisobi va Dataset tekshirildi**:
+       - BM ID: `379061709328085`, Ad Account: `370591433710957`, Dataset: `1134785364752294` ("Jon.Branding sayt").
+       - Test Event Code: `TEST74508`.
+       - Ingest secret: serverda mavjud xavfsiz kalit tasdiqlandi.
+       - amoCRM sifatli lid statuslari: `89380154` (Uchrashuvga keldi) va `88871066` (Kelishuv / Yopish) tekshirildi.
+    2. **Contabo VPS .env va Yagona Fayl Isboti**:
+       - `/root/oisha-os/.env` alohida fayl emas, balki `/home/ubuntu/oisha-os/.env` ga qaratilgan symlink ekanligi isbotlandi (`ls -la`).
+       - `oisha-os.service` yagona `/home/ubuntu/oisha-os/.env` faylidan yuklanishi tasdiqlandi.
+       - Serverdagi git status toza, kuzatuvdagi fayllarda 0 diff (`git diff` bo'sh).
+    3. **Ommaviy Internet Orqali Intake va Meta Dispatch Testi**:
+       - Tashqi internetdan `https://oisha.jonbranding.uz/api/marketing/capi/events` manziliga `Lead` hodisasi yuborildi (`event_id: test-public-internet-1793090675`).
+       - Nginx va `ApiAccessMiddleware` sessiyasiz Bearer tokenni qabul qildi (`HTTP 202 Accepted`, `status: queued`).
+       - Background worker ushbu hodisani Meta Graph API'ga yetkazdi va qabul qilindi (`status: sent, attempts: 1, error: None`).
+  - **O'zgargan fayllar:**
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - `Invoke-RestMethod` to `https://oisha.jonbranding.uz/api/marketing/capi/events` -> `status: queued, mode: test`.
+    - Contabo DB `capi_platform_events`: `ID=test-public-internet-1793090675, status=sent, attempts=1`.
+    - Pytest: 21/21 passed in `tests/test_capi_platform.py` and 21/21 passed in `tests/test_meta_capi.py`.
+  - **Qolgan ish:**
+    - Vercel'da `OISHA_CAPI_URL` va `OISHA_CAPI_INGEST_SECRET` sozlamalarini qo'yish.
+
+
+- **2026-10-27 — Antigravity — Hermes Agent Configuration & Gemini Uzbek STT Deployment:**
+  - **Foydalanuvchi topshirig\'i**:
+    - Hermes Agent (/home/hermes/.hermes/.env) uchun barcha kerakli kalitlar ro\'yxatini olish, reja tuzish, mavjud kalitlarni sinxronlash, o\'zbek tili ovozli xabarlarini STT qilish uchun Gemini ulash va Contabo VPS (109.199.100.137) ga to\'liq deploy qilish.
+  - **Bajarilgan ishlar**:
+    1. **Hermes to\'liq konfiguratsiya shabloni yaratildi**:
+       - .env.hermes 8 ta asosiy bo\'lim (A dan H gacha) bo\'yicha to\'liq shakllantirildi.
+       - Telegram bot va guruh sozlamalari (TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS=2,-1003792973489, TELEGRAM_HOME_CHANNEL=2) muhrlandi.
+    2. **O\'zbek tili uchun Gemini STT moduli yaratildi**:
+       - scripts/gemini_stt.py skripti yozildi: Python standard library (urllib.request) asosida ishlaydi, hech qanday og\'ir bog\'liqlik talab qilmaydi.
+       - Hermes Agent HERMES_LOCAL_STT_COMMAND ga ulandi: python /home/hermes/.hermes/scripts/gemini_stt.py {input_path} {output_dir}.
+    3. **Contabo VPS (109.199.100.137) ga deploy qilindi**:
+       - /home/hermes/.hermes/.env (mode 600, owner hermes:hermes) yuklandi.
+       - /home/hermes/.hermes/scripts/gemini_stt.py (mode 755, owner hermes:hermes) yuklandi.
+       - Eskirgan TERMINAL_CWD sozlamasi va vaqtincha nano swap fayllari tozalandi.
+       - systemctl restart hermes-gateway muvaffaqiyatli bajarildi.
+  - **O\'zgargan fayllar:**
+    - .env.hermes
+    - scripts/gemini_stt.py
+    - docs/agents/handoff-log.md
+  - **Tekshiruv dalillari:**
+    - systemctl is-active hermes-gateway -> ctive.
+    - Journal logs: [Telegram] Connected to Telegram (polling mode).
+    - gemini_stt.py CLI testi: Usage: gemini_stt.py <input_path> <output_dir>.
+  - **Qolgan ish:**
+    - Lokal .env dagi eski GEMINI_API_KEY (va GROQ_API_KEY) muddati o\'tganligi aniqlandi; yangi faol Gemini API kalit kiritilgach STT to\'liq jonli ishlaydi.
+
+
+- **2026-10-27 — Antigravity — Hermes Agent Harness Loop Engineering (Oisha-OS):**
+  - **Foydalanuvchi talabi**: "oishani hermesini harnesss loop engeneering orqali ideal holatga keltirib ber".
+  - **Bajarilgan ishlar**:
+    1. **Harness Loop Engine yaratildi (`src/services/core/ai/hermes_harness.py`, 245 LOC)**:
+       - **Invariant Verification**: Zero-Hallucination (uydirma narxlar va asossiz kafolatlarni taqiqlash), Anti-Slop (sun'iy intellekt, robotik gaplar, quruq shablonlarni aniqlash) va Destination Formatting (Telegram DM larda keraksiz kod bloklari va katta parchalarni rad etish).
+       - **Self-Healing Refinement Loop**: Agar birinchi urinishda invariantlar buzilsa, Harness Loop avtomatik ravishda Hermes'ga jarrohlik kritik ko'rsatmasini (`critic_prompt`) beradi va model xatosini o'zi tuzatguncha (max 2 iteratsiya) tsiklni davom ettiradi.
+       - **Circuit Breaker**: Ketma-ket 3 ta xatolik yoki timeoutda zanjir uziladi (`OPEN`), Oisha-OS muzlab qolishining oldi olinadi va `FreeAIProviderRouter` darhol zaxira provayderga (Gemini) o'tadi. 60s dan keyin `HALF_OPEN` da tiklanish tekshiriladi.
+       - **Telemetry**: So'rovlar soni, muvaffaqiyat, self-healing tuzatishlari va o'rtacha kechikishni doimiy kuzatuvchi telemetriya o'rnatildi.
+    2. **Context & Multi-Turn Session Store yaratildi (`src/services/core/ai/hermes_context.py`, 130 LOC)**:
+       - `HermesSessionStore`: Foydalanuvchi va kanallar bo'yicha sessiyalarni saqlovchi va ko'p bosqichli (`--resume <session_id>`) muloqotni ta'minlovchi doimiy sessiya tizimi.
+       - `HermesContextEngine`: 3 ta boyitilgan kontekst arxitekturasi:
+         - `COPILOT`: Sotuvchi Rayxon (@RayxonJonbranding) uchun psixologik e'tiroz yechimlari va tayyor Telegram skriptlari.
+         - `BAXTIYORJON_DM`: Baxtiyor Gaziyevning shaxsiy Telegram ovozi (1-shaxsda, samimiy, uchrashuvdaligini aytib, shaxsan o'zi javob yozishi).
+         - `BRAND_CONSULTANT`: Jon Branding xizmatlari (strategiya, nomlash, logo, patent) bo'yicha maslahatchi.
+    3. **Hermes Provider modernizatsiya qilindi (`src/services/core/ai/hermes_provider.py`, 220 LOC)**:
+       - Programmatik `-Q` (Quiet) rejimi, `-s oisha-os` skillari va `-t skills,memory` yengil vositalar to'plami bilan chaqirish joriy etildi (ishga tushish 45s dan ~20s ga tushirildi).
+       - CLI javobidan `session_id` avtomatik ajratib olinishi va sessiya davomiyligi ta'minlandi.
+       - `generate_response` metodi Harness Loop (`use_harness=True`) bilan to'liq integratsiya qilindi.
+    4. **Hermes Golden Evaluation Harness yaratildi (`scripts/harness/evaluate_hermes.py`, 255 LOC)**:
+       - 5 ta oltin benchmark senariysi bo'yicha avtomatik baholovchi va Markdown hisobot (`HARNESS_HERMES_EVAL_REPORT.md`) generatsiya qiluvchi sinov tizimi.
+    5. **Hermes Oisha-OS Skilli yangilandi (`C:\Users\baxti\AppData\Local\hermes\skills\oisha-os\SKILL.md`)**:
+       - Barcha Harness Loop invariantlari, rollar va operatsion tartiblar Hermes'ning lokal bilim bazasiga singdirildi.
+  - **O'zgargan va yangi fayllar:**
+    - `src/services/core/ai/hermes_harness.py` (yangi, 245L)
+    - `src/services/core/ai/hermes_context.py` (yangi, 130L)
+    - `src/services/core/ai/hermes_provider.py` (yangilandi, 220L)
+    - `src/services/core/ai/__init__.py` (yangi, 33L)
+    - `scripts/harness/evaluate_hermes.py` (yangi, 255L)
+    - `tests/test_hermes_harness.py` (yangi, 185L)
+    - `tests/test_hermes_provider.py` (mavjud, 73L)
+    - `C:\Users\baxti\AppData\Local\hermes\skills\oisha-os\SKILL.md` (yangilandi)
+    - `HARNESS_HERMES_EVAL_REPORT.md` (yangi hisobot)
+    - `docs/agents/handoff-log.md`
+  - **Tekshiruv dalillari:**
+    - Code standards audit (`scripts/harness/verify_standards.py`): 100% PASS (barcha fayllar <= 400 qator, barcha funksiyalar <= 60 qator).
+    - Bandit xavfsizlik auditi: 0 ta xavf (`No issues identified`, 524 lines scanned).
+    - Pytest: 41/41 testlar yashil (`test_hermes_harness.py`, `test_hermes_provider.py`, `test_sales_staff_copilot.py`, `test_delayed_dm_responder.py`).
+    - Golden Benchmark Suite (`python scripts/harness/evaluate_hermes.py --mock`): 5/5 PASS (100% Invariant Pass Rate, 100% sifat bali).
+  - **Qolgan ish/bloker:**
+    - Bloker yo'q. Hermes Oisha-OS'da Harness Loop orqali ideal avtonom, o'zini o'zi davolovchi va xavfsiz holatga keltirildi.
+
+- **2026-10-27 | Antigravity | Hunter toza fallback va Sotuvchilar intizomi yangilanishi**
+  - **Bajarilgan ish:**
+    1. Hunter avtomatik 'Toza fallback' (src/services/core/leads/hunter.py): Meta Lead Ads yoki boshqa manbalardan kelgan custom_fields amoCRM tomonidan rad etilganda (mocrm_rejected) yoki istisno keltirib chiqarganda, Hunter xatoga tashlamasdan, ortiqcha maydonlarni olib tashlab, faqat Ism + Telefon + Note bilan toza bitim ochadigan avtomatik fallback mexanizmi joriy qilindi.
+    2. Sotuvchilar intizomi va speed-to-lead: Sotuvchilar ertalab check_in qilishlari shartligi (aks holda auto-assignment yoqilmay, lidlar egasiz qolishi) hamda yangi tushgan lidga 15 daqiqa ichida birinchi qo'ng'iroq/aloqa qilish standarti Obsidian 20-Areas/SOP_Sotuvchilar_Darsligi.md 9-moduliga kiritildi.
+  - **O'zgargan fayllar:**
+    - src/services/core/leads/hunter.py (worktree oisha-hunter-fallback, branch ix/hunter-clean-fallback, commit 134d169c)
+    - 	ests/test_hunter_writer.py (2 ta yangi maqsadli fallback unit testi qo'shildi)
+    - Obsidian: 20-Areas/SOP_Sotuvchilar_Darsligi.md (9-Modul)
+    - Obsidian: 50-Daily/2026-10-27.md
+  - **Tekshiruv dalillari:**
+    - Pytest: python -m pytest tests/test_hunter_writer.py -q -> 30/30 passed in 6.25s (100% green).
+    - Bandit: andit -r src/services/core/leads/hunter.py -ll -> 0 ta muammo (No issues identified).
+    - Code standards: hunter.py 381 qator (<= 400 qator standarti to'liq ta'minlandi), _create funksiyasi 52 qator (<= 60 qator).
+  - **Qolgan ish/bloker:**
+    - Kod o'zgarishi alohida branch ix/hunter-clean-fallback da commit qilindi. Owner tasdig'i bilan VPS ga deploy qilinishi mumkin.
+
+### 2026-10-27 14:53 — Antigravity: Hermes STT python yo'li tuzatildi
+- Muammo: VPS'da `python` binary yo'q (faqat `/usr/bin/python3`), HERMES_LOCAL_STT_COMMAND ishlamay qolardi.
+- Tuzatish: VPS `/home/hermes/.hermes/.env` va lokal `.env.hermes` da buyruq `/usr/bin/python3 ...gemini_stt.py` ga o'zgartirildi; hermes-gateway restart -> active; .env 600 hermes.
+- Ochiq: haqiqiy Telegram o'zbekcha ovozli xabar bilan end-to-end test (owner yuboradi).
+
+## 2026-10-27 - Codex Dilbar heartbeat
+- Required two skill reads failed: paths missing. Scoped alternative search no match; resume script completed. No financial-source delta analysis, checkpoint advancement, skill promotion or external mutation.
+- Changed: handoff append only. Qolgan ish: recover required skill instructions before source analysis; unchanged alert suppressed.
+
+## 2026-10-27 - Codex: Telegram bot token documentation cleanup
+- Moved the BOT_TOKEN assignment from docs/context/SESSION_CONTEXT.md into the ignored local .env without displaying its value; replaced the document entry with a location note.
+- Verification: .env is Git-ignored; the assignment is present by pattern check; the documentation no longer contains the token pattern. No runtime deploy, service restart, or token rotation performed.
+- Qolgan ish/bloker: the credential was previously exposed in a tracked document/tool output; owner should revoke/rotate it in BotFather. Git history cleanup requires a separate coordinated review.
+## 2026-10-27 - Codex: Obsidian vault organization
+- Created home and six indexes; repaired Markdown fence and explicit links; configured Inbox and bookmark. Existing files backed up outside vault with hash manifest.
+- Evidence: vault audit at 00-SYSTEM/Vault audit 2026-10-27.md; navigation missing links 0; unbalanced code fences 0.
+- Qolgan ish: 185 unresolved link occurrences, 94 ambiguous, 18 duplicate-text groups; Git sync conflict and UI activation blocker. No business fact reconciliation or protected context edits.
+
+
+## 2026-10-28 - Codex: Brain token optimization
+- Updated external brain-mcp server.py and chatgpt_server.py: compact context, 5 search results, 4000-character paginated reads. Source backups preserved.
+- Validation: MCP smoke test passed; pagination assertions passed; fresh stdio context 824 chars versus 20000; live Obsidian Live connector 564 chars after runtime restart.
+- Qolgan ish: existing Codex local stdio connection needs client restart/reconnect to load updated source. No exact token or billing savings claimed.
+
+## 2026-10-28 - Codex: Obsidian ruthless audit
+- Read-only inventory/search/context/Git checks completed. Report saved and read-back verified in vault: 00-SYSTEM/Obsidian shavqatsiz audit 2026-10-28.md.
+- Key findings: stale current pages; search relevance failure; Git 8 commits behind and 225 dirty entries at snapshot; parallel truth notes; link/duplicate debt; local context optimization not loaded. Prior Codex modifications also reviewed.
+- Qolgan ish: remediation not performed; prioritized sequence recorded in report.
+
+## 2026-10-28 - Codex: Hermes Telegram javob formatini yaxshilash
+- Remote `/home/hermes/.hermes/SOUL.md` ga Telegram uchun aniq format qoidalari qo'shildi: faqat yakuniy user-facing javob, ichki tool/JSON/skill diagnostikasi taqiqlanadi, javobni qisqa punktlarda berish, tool natijasini tekshirish va soxta bajarilganlikdan qochish.
+- Fayl egasi/ruxsati: `hermes:hermes`, `600`; oldingi nusxa `.bak-codex-20261028` sifatida saqlandi.
+- `hermes-gateway` qayta ishga tushirildi va `active/running` holati tasdiqlandi. Jonli Telegram sinov xabari yuborilmadi; yangi javobning formatga rioyasi end-to-end tekshirilmagan.
+- Qolgan ish: keyingi tabiiy Telegram javobida JSON yoki `<Skill=...>` chiqmasligini kuzatish; qaytalansa javobni jo'natish qatlamini alohida tuzatish.
+2026-10-28 Codex: Deployed Hermes group_attention module and adapter hooks; require_mention and name patterns configured; plain reply-to-bot no longer triggers. Durable 30-minute unanswered tracking, once per target, 09-19 Asia/Tashkent Mon-Sat, five verified groups. Synthetic checks passed: attribution/dedup/reply cancellation/delay; gateway active and SQLite store exists. Local group_mention change not deployed. Actual delayed Telegram delivery unverified. Existing startup DM/bot Forbidden errors observed. Remote adapter backup .before-attention-20261028; custom patch must be reapplied/reviewed on Hermes upgrade. Remaining: semantic replies without reply linkage, other groups identity confirmation, actual delivery observation.

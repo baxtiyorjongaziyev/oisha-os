@@ -104,6 +104,7 @@ def _get_active_form_ids(token: str, version: str) -> list[str]:
         logger.warning("[META LEADGEN POLL] Form listing failed: %s", type(exc).__name__)
 
     return [
+        "1905224000448408",
         "1973180183373812",
         "24790817803944095",
         "1165829001516157",

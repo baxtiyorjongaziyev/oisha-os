@@ -130,7 +130,26 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[ADS ATTRIBUTION] scheduler unavailable: %s", exc)
 
     try:
+        from src.schedulers.meta_lead_optimizer_scheduler import meta_lead_optimizer_loop
+        asyncio.create_task(meta_lead_optimizer_loop(bot_runtime), name="meta_lead_optimizer_loop")
+    except ImportError as exc:
+        logger.warning("[META OPTIMIZER] scheduler unavailable: %s", exc)
+
+    try:
         from src.services.core.finance.income_supervisor import income_supervisor_loop
         asyncio.create_task(income_supervisor_loop(), name="income_supervisor_loop")
     except ImportError as exc:
         logger.warning("[INCOME SUPERVISOR] scheduler unavailable: %s", exc)
+
+
+    try:
+        from src.schedulers.daily_lead_engine_scheduler import daily_lead_engine_loop
+        asyncio.create_task(daily_lead_engine_loop(), name="daily_lead_engine_loop")
+    except ImportError as exc:
+        logger.warning("[DAILY LEAD ENGINE] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.remote_staff_checkin_scheduler import remote_staff_checkin_loop
+        asyncio.create_task(remote_staff_checkin_loop(bot_runtime), name="remote_staff_checkin_loop")
+    except ImportError as exc:
+        logger.warning("[REMOTE CHECKIN] scheduler unavailable: %s", exc)

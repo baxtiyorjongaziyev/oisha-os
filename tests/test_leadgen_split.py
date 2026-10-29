@@ -155,5 +155,5 @@ def test_saved_leadgen_checkpoint_retains_destination():
     assert adv is False
 
     # Clean up back to split
-    set_lead_routing_mode("split")
+    set_lead_routing_mode("inhouse")
 

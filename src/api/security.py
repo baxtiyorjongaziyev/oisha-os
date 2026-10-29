@@ -82,6 +82,12 @@ _PUBLIC_PATHS = frozenset(
         # Payme Merchant API endpoints (authenticated via Basic Auth in handler)
         "/payme",
         "/api/payme",
+        # CRM Seller Auth & Webhooks (Public login & webhook verification)
+        "/api/crm/dialer/auth/login",
+        "/api/crm/dialer/auth/login-by-phone",
+        "/api/crm/dialer/auth/sellers",
+        "/api/crm/dialer/auth/logout",
+        "/api/moizvonki/webhook",
     }
 )
 
@@ -210,6 +216,17 @@ def authorize_request_values(
 
 
 def authorize_connection(connection: HTTPConnection) -> Optional[Principal]:
+    crm_token = connection.cookies.get("crm_session_token", "") or connection.headers.get("X-CRM-Session-Token", "")
+    if crm_token:
+        try:
+            from src.services.core.crm.seller_auth import seller_auth_service
+            seller = seller_auth_service.validate_session(crm_token)
+            if seller:
+                role = Role.ADMIN if seller.get("role") == "admin" else Role.SELLER
+                return Principal(subject=seller.get("slug", "seller"), role=role, auth_type="crm_session")
+        except Exception:
+            pass
+
     client_host = connection.client.host if connection.client else ""
     return authorize_request_values(
         authorization=connection.headers.get("Authorization", ""),
@@ -232,7 +249,11 @@ def require_admin_access(connection: HTTPConnection) -> Principal:
 
 def is_protected_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
-    if normalized in _PUBLIC_PATHS:
+    if (
+        normalized in _PUBLIC_PATHS
+        or normalized.startswith("/api/moizvonki/")
+        or normalized.startswith("/api/crm/dialer/")
+    ):
         return False
     return any(
         normalized == prefix.rstrip("/") or normalized.startswith(prefix)

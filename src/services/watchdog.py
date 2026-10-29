@@ -21,9 +21,10 @@ HEALTH_URL = os.environ.get(
     f"http://127.0.0.1:{os.environ.get('PORT', '8080')}/healthz/",
 )
 SERVICE_NAME = os.environ.get("OISHA_SYSTEMD_SERVICE", "oisha-os")
-CHECK_INTERVAL = 30  # seconds
-FAILURE_THRESHOLD = 3  # number of consecutive failures before restart
-STARTUP_GRACE_SECONDS = int(os.environ.get("OISHA_STARTUP_GRACE_SECONDS", "180"))
+CHECK_INTERVAL = int(os.environ.get("OISHA_CHECK_INTERVAL", "30"))
+FAILURE_THRESHOLD = int(os.environ.get("OISHA_FAILURE_THRESHOLD", "5"))
+HEALTH_TIMEOUT = int(os.environ.get("OISHA_HEALTH_TIMEOUT", "20"))
+STARTUP_GRACE_SECONDS = int(os.environ.get("OISHA_STARTUP_GRACE_SECONDS", "240"))
 RESTART_COUNT_FILE = os.environ.get(
     "OISHA_WATCHDOG_RESTART_COUNT_FILE", "/run/oisha-watchdog-restarts"
 )
@@ -70,7 +71,7 @@ def restart_service():
 
 def check_health() -> bool:
     try:
-        response = requests.get(HEALTH_URL, timeout=10)
+        response = requests.get(HEALTH_URL, timeout=HEALTH_TIMEOUT)
         if response.status_code == 200:
             logger.info(f"Health check OK: {response.status_code}")
             return True

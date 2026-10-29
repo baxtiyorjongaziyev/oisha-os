@@ -1,0 +1,64 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: OISHA / JONBRANDING
+      - heading "Conversions API" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Sayt va CRM signallari → Meta. Har bir yuborishning holati ko‘rinadi.
+    - button "Yangilash" [ref=e8] [cursor=pointer]
+  - paragraph [ref=e9]:
+    - text: Sozlangan credential Meta eventni qabul qilganini anglatmaydi. “Qabul qilindi” faqat Meta
+    - code [ref=e10]: events_received=1
+    - text: qaytarganda yoziladi.
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]: Meta ulanishi
+      - generic [ref=e14]: Tekshirib bo‘lmadi
+      - paragraph
+    - generic [ref=e15]:
+      - generic [ref=e16]: Yuborish rejimi
+      - generic [ref=e17]: Noma’lum
+      - paragraph
+    - generic [ref=e18]:
+      - generic [ref=e19]: Sayt serveridan qabul qilish
+      - generic [ref=e20]: Noma’lum
+      - paragraph [ref=e21]: Credential faqat sayt serverida saqlanadi.
+  - status [ref=e22]: Ma’lumot olinmadi / amal bajarilmadi (404).
+  - generic [ref=e23]:
+    - generic [ref=e24]:
+      - heading "Sayt va server eventlari" [level=2] [ref=e25]
+      - button "Navbatni yuborish / qayta urinish" [ref=e26] [cursor=pointer]
+    - paragraph [ref=e27]: Avtomatik tekshiruv har 30 soniyada. Xatodan keyin kutish muddati oshadi. Test va haqiqiy eventlar alohida saqlanadi.
+    - table [ref=e29]:
+      - rowgroup [ref=e30]:
+        - row [ref=e31]:
+          - columnheader "Event" [ref=e32]
+          - columnheader "ID / manba" [ref=e33]
+          - columnheader "Rejim" [ref=e34]
+          - columnheader "Holat" [ref=e35]
+          - columnheader "Urinish" [ref=e36]
+          - columnheader "Yangilandi (Toshkent)" [ref=e37]
+      - rowgroup
+  - generic [ref=e38]:
+    - heading "amoCRM bosqichlari" [level=2] [ref=e39]
+    - paragraph
+    - paragraph [ref=e40]: Eski CRM yozuvlarida Dataset va test rejimi tarixi saqlanmagan. Ular bugungi production ulanishining isboti emas.
+    - table [ref=e42]:
+      - rowgroup [ref=e43]:
+        - row [ref=e44]:
+          - columnheader "Event" [ref=e45]
+          - columnheader "Lead Ads ID" [ref=e46]
+          - columnheader "amoCRM ID" [ref=e47]
+          - columnheader "Holat" [ref=e48]
+          - columnheader "Yangilandi (Toshkent)" [ref=e49]
+          - columnheader "Amal" [ref=e50]
+      - rowgroup
+  - generic [ref=e51]:
+    - heading "Ulash tartibi" [level=2] [ref=e52]
+    - paragraph [ref=e53]:
+      - text: Server administrator Meta Dataset va credentialni maxfiy konfiguratsiyada ulaydi. Sayt backend’i
+      - code [ref=e54]: POST /api/marketing/capi/events
+      - text: ga yuboradi. Browser Pixel bilan bir xil
+      - code [ref=e55]: event_id
+      - text: ishlating. Sotuv uchun haqiqiy summa va valyuta shart.
+    - paragraph [ref=e56]: Avval Meta Test Events rejimida tekshiring; keyin owner tasdig‘i bilan haqiqiy yuborishni yoqing. Telefon va email saqlashdan oldin hash qilinadi; panelda ko‘rsatilmaydi.
+  - paragraph

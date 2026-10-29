@@ -197,7 +197,7 @@ class JobsAnalyticsMixin:
             logger.error("[SMART_TASKS] Error: %s", exc)
 
     async def _job_psychological_mindset_boost(self, now: datetime) -> None:
-        """Ertalabki 09:15 jamoaviy psixologik impuls."""
+        """Ertalabki 09:15 jamoaviy psixologik impuls (holat va ko'rsatkichlar asosida)."""
         key = self._job_key("psych_mindset_boost", now)
         if self._already_sent(key):
             return
@@ -205,8 +205,13 @@ class JobsAnalyticsMixin:
         try:
             from src.services.core.psychological_automation import PsychologicalAutomationService
 
-            service = PsychologicalAutomationService(bot_client=self.bot_client)
-            boost_text = service.generate_morning_boost()
+            service = PsychologicalAutomationService(
+                db=self._get_db(),
+                amocrm=self._get_amocrm_client(),
+                airtable=self._get_airtable_client() if hasattr(self, "_get_airtable_client") else None,
+                bot_client=self.bot_client,
+            )
+            boost_text = await service.build_morning_boost(now=now)
             send_kwargs = {}
             if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
                 send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID

@@ -8,11 +8,28 @@ from src.services.core.instagram.graph_version import graph_base
 logger = structlog.get_logger("InstagramAPIHelpers")
 
 
-def send_ig_message_payload(recipient_payload: dict, text: str, access_token: str, log_tag: str) -> bool:
+def send_ig_message_payload(
+    recipient_payload: dict,
+    text: str,
+    access_token: str,
+    log_tag: str,
+    target_id: str | None = None,
+) -> bool:
     if not access_token or not recipient_payload:
         logger.warning("[META] %s skipped: access_token or recipient missing", log_tag)
         return False
-    url = f"{graph_base()}/me/messages"
+
+    tid = target_id
+    if not tid:
+        if access_token.startswith("IG"):
+            try:
+                from src.config import settings
+                tid = getattr(settings, "META_INSTAGRAM_USER_ID", "")
+            except Exception:
+                tid = ""
+        tid = tid or "me"
+
+    url = f"{graph_base()}/{tid}/messages"
     try:
         resp = requests.post(
             url,
@@ -28,6 +45,17 @@ def send_ig_message_payload(recipient_payload: dict, text: str, access_token: st
     except Exception as exc:
         logger.error("[META] %s exception", log_tag, error=str(exc))
     return False
+
+
+def send_ig_reply(recipient_id: str, text: str, access_token: str, target_id: str | None = None) -> bool:
+    """Sends a Direct Message to the user using the Meta Graph API."""
+    return send_ig_message_payload({"id": recipient_id}, text, access_token, f"DM to {recipient_id}", target_id=target_id)
+
+
+def send_ig_private_reply(comment_id: str, text: str, access_token: str, target_id: str | None = None) -> bool:
+    """Sends a Private Direct Message in response to an Instagram comment."""
+    return send_ig_message_payload({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}", target_id=target_id)
+
 
 
 def like_comment(comment_id: str, access_token: str) -> bool:

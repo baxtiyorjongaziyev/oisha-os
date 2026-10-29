@@ -67,22 +67,20 @@ from src.services.core.instagram.leadgen_parser import (  # noqa: F401
 
 
 def build_leadgen_note(
-    leadgen_id: str, payload: Dict[str, Any], fields: Dict[str, str], ad_name: Optional[str] = None,
+    leadgen_id: str, payload: Dict[str, Any], fields: Dict[str, str], **kwargs: Any
 ) -> str:
     """Format leadgen note using leadgen_formatter with excluded contact keys."""
-    return _fmt_build_note(leadgen_id, payload, fields, _excluded_leadgen_keys(fields), ad_name=ad_name)
+    return _fmt_build_note(leadgen_id, payload, fields, _excluded_leadgen_keys(fields), **kwargs)
 
 
 def build_telegram_message(
     leadgen_id: str, lead_id: Optional[int], name: str, phone: str, email: str,
-    fields: Dict[str, str], cost_per_lead: Optional[float] = None, ad_name: Optional[str] = None,
-    pipeline_name: Optional[str] = None, destination_label: Optional[str] = None, repeat: bool = False,
+    fields: Dict[str, str], **kwargs: Any
 ) -> str:
     """Format clean Telegram alert using leadgen_formatter."""
     return _fmt_build_tg(
         leadgen_id, lead_id, name, phone, email, fields,
-        _excluded_leadgen_keys(fields), cost_per_lead=cost_per_lead, ad_name=ad_name,
-        pipeline_name=pipeline_name, destination_label=destination_label, repeat=repeat,
+        _excluded_leadgen_keys(fields), **kwargs
     )
 
 
@@ -206,13 +204,29 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
 
     merged_payload = {**value, **payload}
     ad_id = str(merged_payload.get("ad_id") or "")
-    ad_name = await asyncio.to_thread(resolve_ad_name, ad_id)
+    campaign_name = str(merged_payload.get("campaign_name") or "")
 
-    note = build_leadgen_note(leadgen_id, merged_payload, fields, ad_name=ad_name)
+    from src.services.core.marketing.ad_creative_service import resolve_ad_creative
+    cr_det = await asyncio.to_thread(resolve_ad_creative, ad_id, campaign_name=campaign_name, access_token=token)
+    ad_name = cr_det.ad_name or await asyncio.to_thread(resolve_ad_name, ad_id)
+    creative_url = cr_det.creative_url
+    creative_type = cr_det.creative_type
+    type_icon = cr_det.type_icon
 
-    custom_fields = extract_lead_custom_fields(fields, leadgen_id=leadgen_id)
+    note = build_leadgen_note(
+        leadgen_id, merged_payload, fields,
+        ad_name=ad_name, creative_url=creative_url, creative_type=creative_type,
+    )
+
+    custom_fields = extract_lead_custom_fields(
+        fields,
+        leadgen_id=leadgen_id,
+        creative_url=creative_url,
+        creative_name=ad_name,
+        ad_id=ad_id,
+    )
     amocrm = _amocrm_instance()
-    deal_name = f"{name} | 🎬 {ad_name}" if ad_name else name
+    deal_name = f"{name} | {type_icon} {ad_name}" if ad_name else name
 
     checkpoint = None if force else await asyncio.to_thread(get_crm_checkpoint, leadgen_id)
     # Mavjud aktiv bitim bo'lsa (masalan Muzokarada), uni "Yangi"ga qaytarmaymiz — faqat note/teg qo'shiladi.
@@ -295,19 +309,37 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
         for t in tags:
             await amocrm.add_lead_tag(int(lead_id), t)
 
-    from src.services.core.marketing.meta_ads_client import MetaAdsClient, get_creative_url
-    creative_url = None
-    if ad_id:
-        meta_ads = MetaAdsClient()
-        creative_url = await asyncio.to_thread(meta_ads.get_ad_creative_url, str(ad_id))
-    if not creative_url and ad_name:
-        creative_url = get_creative_url(ad_name)
+        try:
+            from src.services.core.crm.dialer_store import DialerStore
+            DialerStore().upsert_lead({
+                "id": int(lead_id),
+                "pipeline_id": target_pipeline_id,
+                "name": deal_name,
+                "contact_name": name,
+                "phone": phone or "",
+                "price": 0.0,
+                "status_id": target_status_id,
+                "status_slug": "yangi",
+                "responsible_name": "Jon Branding Sotuvchisi",
+                "source": f"Instagram Lead Ads ({ad_name or 'Meta'})",
+                "custom_fields": {
+                    "Reklama kreativi": creative_url,
+                    "Kreativ nomi": ad_name,
+                },
+                "is_active": True,
+            })
+        except Exception as exc:
+            logger.warning("[leadgen-dialer] Could not upsert to dialer store: %s", exc)
 
     if not checkpoint:
         if email:
             await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), f"Email: {email}")
         if creative_url:
-            await asyncio.to_thread(amocrm.add_lead_note, int(lead_id), f"🎬 Reklama videosi: {creative_url}")
+            await asyncio.to_thread(
+                amocrm.add_lead_note,
+                int(lead_id),
+                f"{type_icon} Reklama kreativi ({creative_type}): {creative_url}",
+            )
 
     campaign_id = str(merged_payload.get("campaign_id") or "")
     cost_per_lead = await asyncio.to_thread(estimate_cost_per_lead, campaign_id)
@@ -320,11 +352,13 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
             cost_per_lead=cost_per_lead, ad_name=ad_name,
             pipeline_name=PIPELINE_LABELS[destination], destination_label=dest_label,
             repeat=bool(existing_lead),
+            creative_url=creative_url, creative_type=creative_type,
         )
         buttons = []
         if creative_url:
-            buttons.append({"text": "🎬 Kreativ", "url": creative_url})
+            buttons.append({"text": f"{type_icon} Kreativni ko'rish (1 click)", "url": creative_url})
         if lead_id:
+            buttons.append({"text": "⚡️ Jon CRM bitimi", "url": f"https://crm.jonbranding.uz/sotuv?lead_id={lead_id}"})
             buttons.append({"text": "🧾 AmoCRM bitimi", "url": f"https://jonbranding.amocrm.ru/leads/detail/{lead_id}"})
         reply_markup = lead_card_markup(buttons, leadgen_id)
         telegram_ok = await asyncio.to_thread(_notify_telegram, telegram_text, reply_markup=reply_markup)
