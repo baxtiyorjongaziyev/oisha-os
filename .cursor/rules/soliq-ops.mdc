@@ -1,0 +1,28 @@
+---
+description: O'zbekiston soliq hisobotlari (JShDS 11101_20, Aylanma soliq 10104_36), my.soliq.uz va oldmy.soliq.uz operatsiyalari.
+globs:
+alwaysApply: false
+---
+
+# Soliq-Ops (Oisha-OS)
+
+To'liq qo'llanma (yagona manba): @.agents/skills/soliq-ops/SKILL.md
+
+O'zbekiston soliq majburiyatlari, my.soliq.uz va oldmy.soliq.uz bilan ishlash standarti:
+
+1. **JShDS va Ijtimoiy soliq (`11101_20`):**
+   - Muddat: har oyning 15-sanasi (harakat: **1-sanasi**, oy boshlanishi bilan).
+   - Kumulyativ zanjir qoidasi: `Joriy oy daromadi >= Oldingi oy daromadi` (233-kodli xatoni oldini olish).
+   - Topshirish: Portalning o'z JavaScript funksiyasi `showFinancePackageClickAlert(...)` orqali imzolash.
+
+2. **Aylanmadan olinadigan soliq (`10104_36`):**
+   - Muddat: har oyning 16-sanasi (harakat: **5-sanasi**, erta nazorat va yuborish).
+   - Avtomatik qoralama tekshiruvi: 010 (tushum), 060 (4%), 070 (soliq). E-IMZO bilan imzolash.
+
+3. **KLS va Ortiqcha to'lovlar:**
+   - Kod 36 (Ijtimoiy) va Kod 46 (JShDS) ortiqcha to'lovlarini TBC hisobraqamiga qaytarish (Arizalar №657).
+   - Qaytgan mablag' hisobiga Kartoteka-2 (INPS 101 va penya) bank tomonidan avtomatik yopiladi.
+
+4. **Ijro mexanizmi:**
+   - Chrome Remote Debugging port 9222 orqali CDP yordamida brauzer sessiyasi boshqariladi.
+   - Har bir soliq harakati tugagach `brain_log` ga qayd etiladi.

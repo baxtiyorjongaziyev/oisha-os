@@ -24,13 +24,19 @@ class LeadOperatingSystem:
         return agent if isinstance(agent, SalesAgent) else None
 
     @staticmethod
-    def _parse_dt(value: Optional[str]) -> Optional[datetime.datetime]:
+    def _parse_dt(value: Any) -> Optional[datetime.datetime]:
         if not value:
             return None
-        try:
-            return datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        except ValueError:
-            return None
+        if isinstance(value, datetime.datetime):
+            dt = value
+        else:
+            try:
+                dt = datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        if dt.tzinfo is not None:
+            return dt.astimezone(datetime.timezone.utc)
+        return dt.replace(tzinfo=datetime.timezone.utc)
 
     async def review_recent_active_leads(
         self,

@@ -72,6 +72,8 @@ class BaseMonitorHelpersMixin:
         await self._notify_admin(text, parse_mode=kwargs.get("parse_mode"))
 
     def _get_amocrm_client(self) -> Any:
+        if getattr(self, "amocrm", None):
+            return self.amocrm
         if self.msg_controller and getattr(self.msg_controller, "crm", None):
             client = getattr(self.msg_controller.crm, "amocrm", None)
             if client:
@@ -81,6 +83,15 @@ class BaseMonitorHelpersMixin:
         return None
 
     def _get_db(self) -> Any:
+        if getattr(self, "db", None):
+            return self.db
         if self.msg_controller:
             return getattr(self.msg_controller, "db", None)
+        return None
+
+    def _get_airtable_client(self) -> Any:
+        if getattr(self, "airtable", None):
+            return self.airtable
+        if self.msg_controller:
+            return getattr(self.msg_controller, "airtable", None)
         return None

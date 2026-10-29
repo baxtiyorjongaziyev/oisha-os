@@ -204,7 +204,93 @@ def test_operator_rbac_status_no_store_and_intake_token_is_scoped(isolated, monk
             assert response.status_code == 200
             assert response.headers["cache-control"] == "no-store"
             assert "synthetic-token" not in response.text
+            body = response.json()
+            assert "analytics" in body
+            assert len(body["analytics"]["funnel_stages"]) == 7
         if role != "owner":
             assert http.post("/api/marketing/capi/dispatch").status_code == 403
+    console_res = http.get("/api/marketing/capi/console")
+    assert console_res.status_code == 200
+    for forbidden_demo in ("$162", "4.2x", "Ramazon", "Lookalike 2%"):
+        assert forbidden_demo not in console_res.text
     assert http.post("/api/marketing/capi/dispatch", headers={"Origin": "https://evil.test"}).status_code == 403
     assert http.post("/api/marketing/capi/dispatch", headers={"Origin": "http://testserver"}).status_code == 200
+
+    # Drilldown test
+    drill_res = http.get("/api/marketing/capi/drilldown?metric=total_leads")
+    assert drill_res.status_code == 200
+    drill_data = drill_res.json()
+    assert "metric" in drill_data
+    assert "count" in drill_data
+    assert "leads" in drill_data
+
+    # Project patch test
+    patch_res = http.patch(
+        "/api/marketing/capi/projects/default",
+        json={"crm_pipeline_id": "11162698"},
+        headers={"Origin": "http://testserver"},
+    )
+    assert patch_res.status_code == 200
+    assert patch_res.json()["crm_pipeline_id"] == "11162698"
+
+
+def test_prehashed_pii_beacon_intake_and_drilldown_metrics(isolated, monkeypatch):
+    from src.services.core.marketing.meta_capi import hash_email, hash_phone
+    from src.services.core.marketing.capi_drilldown import _match_metric
+
+    ph_hash = hash_phone("+998 90 123 45 67")
+    assert ph_hash is not None and len(ph_hash) == 64
+    assert hash_phone(ph_hash) == ph_hash
+    assert hash_phone(ph_hash.upper()) == ph_hash
+
+    em_hash = hash_email("Test@JonBranding.uz")
+    assert em_hash is not None and len(em_hash) == 64
+    assert hash_email(em_hash) == em_hash
+
+    monkeypatch.setenv("OISHA_CAPI_INGEST_SECRET", "beacon-secret-token")
+    http = client()
+    beacon_res = http.post(
+        "/api/marketing/capi/events?token=beacon-secret-token",
+        json=payload(event_id="beacon-evt-001", phone=ph_hash, email=em_hash),
+    )
+    assert beacon_res.status_code == 202
+    assert beacon_res.json()["status"] in ("queued", "sent", "failed")
+
+    assert _match_metric({"status_id": 89067962, "lead_won": None}, "new_contact", None) is True
+    assert _match_metric({"status_id": 87609522, "lead_won": None}, "new_contact", None) is False
+    assert _match_metric({"status_id": 87609522, "lead_won": None}, "contacted", None) is True
+    assert _match_metric({"status_id": 143, "lead_won": 0}, "contacted", None) is False
+
+
+def test_universal_web_auth_methods(tmp_path, monkeypatch):
+    import src.api.web_auth_store as auth_store
+
+    monkeypatch.setattr(auth_store, "_DB_PATH", tmp_path / "test_web_auth.db")
+    state = auth_store.create_tg_login_state("/api/marketing/capi/console")
+    assert auth_store.poll_tg_login_state(state) == {"status": "pending"}
+
+    approved_next = auth_store.approve_tg_login_state(state, 12345678, "baxtiyorjon", "Baxtiyorjon", "owner")
+    assert approved_next == "/api/marketing/capi/console"
+
+    polled = auth_store.poll_tg_login_state(state)
+    assert polled["status"] == "approved"
+    assert polled["user_id"] == 12345678
+    assert polled["role"] == "owner"
+
+    reg = auth_store.register_or_login_email("test@jonbranding.uz", "SecurePass123", "Test User", is_register=True)
+    assert reg is not None
+    assert reg["email"] == "test@jonbranding.uz"
+
+    login_ok = auth_store.register_or_login_email("test@jonbranding.uz", "SecurePass123", is_register=False)
+    assert login_ok is not None
+    assert login_ok["email"] == "test@jonbranding.uz"
+
+    login_bad = auth_store.register_or_login_email("test@jonbranding.uz", "WrongPass999", is_register=False)
+    assert login_bad is None
+
+    html = auth_store.render_universal_login_html("/api/marketing/capi/console")
+    assert "Google orqali kirish hali sozlanmagan" in html
+    assert "/api/auth/email/login" in html
+    assert "jonairobot" not in html.lower()
+
+

@@ -86,6 +86,7 @@ _OPENAI_COMPATIBLE: dict[str, dict[str, str]] = {
 # Default free-first fallback order: Gemini first (1M TPM), fast hardware next, hosted
 # free tiers next, local Ollama last.
 DEFAULT_TEXT_PROVIDERS: tuple[str, ...] = (
+    "hermes",
     "gemini",
     "groq",
     "cerebras",
@@ -114,6 +115,12 @@ class FreeAIProviderRouter:
     def available(self, provider: str) -> bool:
         if self.blocked_until.get(provider, 0) > time.time():
             return False
+        if provider == "hermes":
+            try:
+                from src.services.core.ai.hermes_provider import get_hermes_provider
+                return get_hermes_provider().is_available()
+            except Exception:
+                return False
         if provider == "groq":
             return bool(_text(getattr(self.settings, "GROQ_API_KEY", None)))
         if provider == "cloudflare":
@@ -157,6 +164,8 @@ class FreeAIProviderRouter:
             if not self.available(provider):
                 continue
             try:
+                if provider == "hermes":
+                    return await self._hermes_text(prompt, system, max_tokens, temperature)
                 if provider == "groq":
                     return await self._groq_text(prompt, system, max_tokens, temperature)
                 if provider == "cloudflare":
@@ -198,6 +207,22 @@ class FreeAIProviderRouter:
                     detail,
                 )
         return None
+
+    async def _hermes_text(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        max_tokens: int = 2048,
+        temperature: float = 0.3,
+    ) -> ProviderResult:
+        from src.services.core.ai.hermes_provider import get_hermes_provider
+        hermes = get_hermes_provider()
+        res = await hermes.generate_response(
+            prompt, system_instruction=system, timeout=int(self.timeout)
+        )
+        if not res:
+            raise RuntimeError("Hermes generation returned empty response")
+        return ProviderResult(res, "hermes", "hermes-agent")
 
     async def _groq_text(
         self, prompt: str, system: Optional[str], max_tokens: int, temperature: float

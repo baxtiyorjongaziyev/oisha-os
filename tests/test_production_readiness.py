@@ -169,3 +169,59 @@ async def test_readiness_rejects_cached_unauthorized_userbot_on_vm_service(monke
     assert b'"userbot":"unauthorized"' in response.body
     assert b'"userbot_unauthorized"' in response.body
     user_client.is_user_authorized.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_readiness_detects_unauthorized_bot_token(monkeypatch):
+    monkeypatch.setattr(api_state, "db_instance", _Database())
+    monkeypatch.setattr(
+        api_state,
+        "user_client",
+        SimpleNamespace(is_user_authorized=AsyncMock(return_value=True)),
+    )
+    mock_amocrm = SimpleNamespace(check_connection=AsyncMock(return_value=True), last_error=None)
+    monkeypatch.setattr(
+        "src.api.routes.amocrm_integration._get_amocrm_instance",
+        lambda: mock_amocrm,
+    )
+    monkeypatch.setattr(
+        "src.api.routes.health._check_bot_token",
+        AsyncMock(return_value=(False, "unauthorized")),
+    )
+    from src.services.core.agent_runtime import set_runtime_context
+
+    set_runtime_context(runtime_source="cloud_run", userbot_authorized=True)
+    response = await api_server.production_readiness_probe()
+
+    assert response.status_code == 200
+    body = response.body.decode()
+    assert '"status":"degraded"' in body
+    assert "telegram_bot_unauthorized" in body
+    assert '"telegram_bot":"unauthorized"' in body
+
+
+@pytest.mark.asyncio
+async def test_readiness_strict_mode_blocks_on_unauthorized_bot_token(monkeypatch):
+    monkeypatch.setenv("READYZ_STRICT_DEPS", "1")
+    monkeypatch.setattr(api_state, "db_instance", _Database())
+    monkeypatch.setattr(
+        api_state,
+        "user_client",
+        SimpleNamespace(is_user_authorized=AsyncMock(return_value=True)),
+    )
+    mock_amocrm = SimpleNamespace(check_connection=AsyncMock(return_value=True), last_error=None)
+    monkeypatch.setattr(
+        "src.api.routes.amocrm_integration._get_amocrm_instance",
+        lambda: mock_amocrm,
+    )
+    monkeypatch.setattr(
+        "src.api.routes.health._check_bot_token",
+        AsyncMock(return_value=(False, "unauthorized")),
+    )
+    from src.services.core.agent_runtime import set_runtime_context
+
+    set_runtime_context(runtime_source="cloud_run", userbot_authorized=True)
+    response = await api_server.production_readiness_probe()
+
+    assert response.status_code == 503
+    assert b"telegram_bot_unauthorized" in response.body

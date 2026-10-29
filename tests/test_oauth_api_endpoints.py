@@ -70,7 +70,7 @@ def test_telegram_callback_fails_without_strong_jwt_secret(client, monkeypatch):
     }
     res = client.get("/api/auth/telegram/callback", params=params)
     assert res.status_code == 503
-    assert "JWT_SECRET" in res.json().get("detail", "")
+    assert "Session signing secret" in res.json().get("detail", "")
 
 
 def test_telegram_callback_success_with_strong_jwt_secret(client, monkeypatch):
@@ -94,7 +94,7 @@ def test_telegram_callback_success_with_strong_jwt_secret(client, monkeypatch):
         "hash": "validhash",
     }
     res = client.get("/api/auth/telegram/callback", params=params, follow_redirects=False)
-    assert res.status_code == 307
+    assert res.status_code == 303
     cookie = res.headers.get("set-cookie", "")
     assert "oisha_token=" in cookie
     assert "Max-Age=" in cookie or "max-age=" in cookie.lower()
@@ -104,12 +104,12 @@ def test_telegram_login_redirect_sanitization(client):
     # Valid next in whitelist
     res = client.get("/api/auth/telegram/login?next=/api/marketing/capi/console")
     assert res.status_code == 200
-    assert 'data-auth-url="/api/auth/telegram/callback?next=/api/marketing/capi/console"' in res.text
+    assert 'name="next" value="/api/marketing/capi/console"' in res.text
 
     # Malicious next not in whitelist
     res_bad = client.get('/api/auth/telegram/login?next=https://evil.com"><script>alert(1)</script>')
     assert res_bad.status_code == 200
-    assert 'data-auth-url="/api/auth/telegram/callback"' in res_bad.text
+    assert 'name="next" value="/api/marketing/capi/console"' in res_bad.text
     assert "<script>alert(1)</script>" not in res_bad.text
 
 
@@ -136,14 +136,14 @@ def test_telegram_callback_redirect_sanitization(client, monkeypatch):
     }
     # Whitelisted next
     res = client.get("/api/auth/telegram/callback", params=params, follow_redirects=False)
-    assert res.status_code == 307
+    assert res.status_code == 303
     assert res.headers.get("location") == "/api/marketing/capi/console"
 
     # Malicious next not in whitelist
     params["next"] = "https://attacker.com/steal"
     res_malicious = client.get("/api/auth/telegram/callback", params=params, follow_redirects=False)
-    assert res_malicious.status_code == 307
-    assert res_malicious.headers.get("location") == "/"
+    assert res_malicious.status_code == 303
+    assert res_malicious.headers.get("location") == "/api/marketing/capi/console"
 
 
 def test_token_login_success(client, monkeypatch):

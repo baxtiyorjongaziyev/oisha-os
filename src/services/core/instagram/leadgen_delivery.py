@@ -81,7 +81,7 @@ def get_lead_routing_mode() -> str:
     Priority:
     1. Environment variable: LEADGEN_ROUTING_MODE or LEADGEN_FORCE_DESTINATION
     2. Persistent database key: 'routing_mode' in leadgen_routing_state
-    3. Default: 'split'
+    3. Default: 'inhouse'
     """
     env_mode = (
         os.getenv("LEADGEN_ROUTING_MODE") or os.getenv("LEADGEN_FORCE_DESTINATION") or ""
@@ -101,7 +101,7 @@ def get_lead_routing_mode() -> str:
     except Exception:
         pass
 
-    return "split"
+    return "inhouse"
 
 
 def set_lead_routing_mode(mode: str) -> str:

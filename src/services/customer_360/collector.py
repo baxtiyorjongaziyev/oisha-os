@@ -88,13 +88,15 @@ class Customer360Collector:
         lead_data: Optional[Dict[str, Any]] = None
         try:
             if profile.amocrm_lead_id:
-                lead_data = await asyncio.to_thread(
-                    self.amocrm.get_lead, profile.amocrm_lead_id
-                )
+                getter = getattr(self.amocrm, "get_lead", None)
+                if callable(getter):
+                    res = getter(profile.amocrm_lead_id)
+                    lead_data = await res if asyncio.iscoroutine(res) else res
             elif profile.phone:
-                lead_data = await asyncio.to_thread(
-                    self.amocrm.find_active_lead_by_phone, profile.phone
-                )
+                getter = getattr(self.amocrm, "find_active_lead_by_phone", None)
+                if callable(getter):
+                    res = getter(profile.phone)
+                    lead_data = await res if asyncio.iscoroutine(res) else res
         except Exception as ex:
             logger.warning(f"[C360] AmoCRM fetch error: {ex}")
 

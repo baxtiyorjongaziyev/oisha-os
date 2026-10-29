@@ -23,14 +23,15 @@
 
 ## Asosiy qoidalar
 
-1. **Bir faylga bir vaqtda bitta agent yozadi.** Ish boshida `## Locks
-` ga yoziladi, tugagach o'chiriladi.
+1. **Bir faylga bir vaqtda bitta agent yozadi.** Ish boshida `## Locks` ga yoziladi, tugagach o'chiriladi.
 2. **Shared fayllar** (`settings.py`, `context.py`, `boot.py`, shu `AGENTS.md`) — faqat Coordinator.
 3. **Pre-flight har PR dan oldin** (pastga qarang). Qizil bo'lsa — PR yo'q.
 4. **git:** commit → push → keyingi agent `pull --rebase`. `main` ga to'g'ridan-to'g'ri push yo'q.
 5. **Kod hajmi:** production fayl ≤ 400 qator, funksiya ≤ 60 qator → `docs/agents/code-standards.md`.
 6. **Handoff majburiy:** ish tugagach `docs/agents/handoff-log.md` OXIRIGA yozing:
    sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker.
+   **Davom ettirish avtomatik:** har vazifa boshida `.agents/rules/agent-handoff-resume.md` ni o'qing va
+   `powershell -NoProfile -File scripts/agent_resume.ps1` ni ishga tushiring (limit tugagan agent ishini davom ettirish).
 7. **Airtable o'zgarishi** → darhol Obsidian `20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md`
    va `brain_log` ga muhrlanadi (Owner qoidasi, 2026-09-15).
 8. **Sirlar hech qayerga yozilmaydi:** token, parol, session string, API key.
@@ -81,6 +82,7 @@
 | **Code Quality** | dead code, naming, type hints | — |
 
 ## Locks
+- Codex: Google sign-in flow, web auth store, OAuth routes, focused auth tests (2026-10-17).
 - Codex: prospect discovery modules, admin command hook, channel scout scheduler hook, focused tests (2026-10-13).
  
 

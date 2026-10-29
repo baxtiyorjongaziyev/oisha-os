@@ -1,0 +1,23 @@
+[Unit]
+Description=Oisha-OS CRM Sync Worker
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=baxti
+WorkingDirectory=/home/baxti/playground/oisha-os
+Environment=PATH=/home/baxti/playground/oisha-os/.venv/bin
+EnvironmentFile=/home/baxti/playground/oisha-os/.env
+ExecStart=/home/baxti/playground/oisha-os/.venv/bin/python -m src.workers.run_crm_sync
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oisha-crm-sync
+
+MemoryMax=1G
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

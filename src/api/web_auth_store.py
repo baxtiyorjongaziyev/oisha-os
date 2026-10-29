@@ -4,20 +4,17 @@ Supports:
 1. Universal Telegram Deep-Link Login (`t.me/jonairobot?start=weblogin_<state>`)
    for ANY Telegram account without requiring @BotFather domain setup.
 2. Email + Password login and self-registration (PBKDF2-HMAC-SHA256).
-3. Google Sign-In (ID token verification via Google tokeninfo).
+3. Google Sign-In (signature, audience, issuer and expiry verification).
 """
 from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import os
 import pathlib
 import secrets
 import sqlite3
 import time
-import urllib.parse
-import urllib.request
 from typing import Any, Dict, Optional
 
 _DB_PATH = pathlib.Path("data/web_auth_sessions.db")
@@ -175,7 +172,6 @@ def register_or_login_email(
     clean_email = str(email or "").strip().lower()
     if not clean_email or "@" not in clean_email or len(password or "") < 4:
         return None
-    owner_email = os.getenv("OWNER_EMAIL", "baxtiyorjon@jonbranding.uz").strip().lower()
     with _conn() as c:
         row = c.execute("SELECT * FROM web_users WHERE email = ?", (clean_email,)).fetchone()
         if is_register:
@@ -183,7 +179,7 @@ def register_or_login_email(
                 if _verify_password(password, str(row["password_hash"])):
                     return dict(row)
                 return None
-            role = "owner" if clean_email == owner_email else "targetolog"
+            role = "targetolog"
             display = (name or clean_email.split("@")[0]).strip()
             pw_hash = _hash_password(password)
             cur = c.execute(
@@ -207,22 +203,20 @@ def register_or_login_email(
 
 
 def verify_google_credential(id_token: str) -> Optional[Dict[str, Any]]:
-    """Verify Google ID token via Google's official tokeninfo endpoint."""
+    """Verify Google ID tokens with Google's certificate-backed verifier."""
     tok = str(id_token or "").strip()
-    if not tok:
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    if not tok or not client_id:
         return None
-    url = "https://oauth2.googleapis.com/tokeninfo?" + urllib.parse.urlencode({"id_token": tok})
     try:
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310
-            data = json.loads(resp.read().decode("utf-8"))
+        from google.auth.transport.requests import Request
+        from google.oauth2.id_token import verify_oauth2_token
+
+        data = verify_oauth2_token(tok, Request(), audience=client_id)
         if data.get("email_verified") not in ("true", True):
             return None
         email = str(data.get("email") or "").strip().lower()
         if not email:
-            return None
-        client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
-        if client_id and data.get("aud") != client_id:
             return None
         owner_email = os.getenv("OWNER_EMAIL", "baxtiyorjon@jonbranding.uz").strip().lower()
         role = "owner" if email == owner_email else "targetolog"
@@ -261,6 +255,7 @@ def render_universal_login_html(
     auth_url: str = "",
     sent: Optional[str] = None,
     err_msg: Optional[str] = None,
+    google_login_uri: str = "",
 ) -> str:
     """Render pure SaaS login page (Google, Email/Password, and Admin Access)."""
     import html
@@ -273,9 +268,9 @@ def render_universal_login_html(
 
     google_block = (
         f'<script src="https://accounts.google.com/gsi/client" async defer></script>'
-        f'<div id="g_id_onload" data-client_id="{google_client_id}" data-login_uri="/api/auth/google/callback?next={safe_next}" data-auto_prompt="false"></div>'
+        f'<div id="g_id_onload" data-client_id="{google_client_id}" data-ux_mode="redirect" data-login_uri="{html.escape(google_login_uri, quote=True)}" data-auto_prompt="false"></div>'
         f'<div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="signin_with" data-shape="rectangular" data-logo_alignment="left" data-width="360"></div>'
-        if google_client_id else _GOOGLE_FALLBACK_BTN
+        if google_client_id and google_login_uri else '<p>Google orqali kirish hali sozlanmagan. Email orqali kiring.</p>'
     )
     return _LOGIN_HTML_TEMPLATE.format(
         banner=banner,

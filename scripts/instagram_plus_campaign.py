@@ -33,21 +33,24 @@ PUBLIC_INVITE_TEXT = (
 )
 
 
-def _get_paged(url: str, params: Dict, max_pages: int = 50) -> Iterable[Dict]:
+def _get_paged(url: str, params: Dict, max_pages: Optional[int] = None) -> Iterable[Dict]:
     pages = 0
-    while url and pages < max_pages:
-        resp = requests.get(url, params=params, timeout=20)
+    while url and (max_pages is None or pages < max_pages):
         try:
+            resp = requests.get(url, params=params, timeout=20)
             body = resp.json()
-        except ValueError:
-            body = {}
+        except (requests.RequestException, ValueError) as exc:
+            raise RuntimeError(type(exc).__name__) from None
+        if not isinstance(body, dict):
+            raise RuntimeError("invalid Meta response")
         if resp.status_code != 200 or body.get("error"):
-            err = (body.get("error") or {}).get("message") or f"HTTP {resp.status_code}"
-            raise RuntimeError(err)
+            raise RuntimeError(f"Meta HTTP {resp.status_code}")
         yield from body.get("data", []) or []
         url = (body.get("paging") or {}).get("next", "")
         params = {}
         pages += 1
+    if url:
+        raise RuntimeError("Meta pagination incomplete")
 
 
 def _parse_ts(value: str) -> Optional[datetime]:
@@ -92,14 +95,14 @@ def discover_ad_accounts(token: str, errors: List[str]) -> List[Dict]:
 
 def collect_media_ids(token: str, ig_user_id: str, ad_account_id: str,
                       media_since: datetime, report: Dict) -> List[str]:
-    """Profil postlari (media_since dan yangi) + reklama kreativlaridagi IG media."""
+    """Barcha profil postlari + reklama IG media; oyna komment sanasiga tegishli.
+
+    media_since eski callerlar bilan moslik uchun saqlanadi, postni cheklamaydi.
+    """
     ids: List[str] = []
     try:
         for media in _get_paged(f"{GRAPH}/{ig_user_id}/media",
                                 {"fields": "id,timestamp", "limit": 100, "access_token": token}):
-            ts = _parse_ts(media.get("timestamp", ""))
-            if ts and ts < media_since:
-                break
             ids.append(str(media["id"]))
     except RuntimeError as exc:
         report["errors"].append(f"profil postlari: {exc}")
@@ -173,15 +176,18 @@ def execute(plan: List[Dict], token: str, send_dm: Callable, reply: Callable,
     stats = {"dm_sent": 0, "invite_sent": 0, "failed": 0}
     for item in plan:
         cid = item["comment_id"]
-        if item["action"] == "dm":
-            ok = send_dm(cid, dm_text, token)
-            if ok:
-                reply(cid, ack_text, token)
-                stats["dm_sent"] += 1
-        else:
-            ok = reply(cid, PUBLIC_INVITE_TEXT, token)
-            if ok:
-                stats["invite_sent"] += 1
+        try:
+            if item["action"] == "dm":
+                ok = send_dm(cid, dm_text, token)
+                if ok:
+                    stats["dm_sent"] += 1
+                    ok = reply(cid, ack_text, token)
+            else:
+                ok = reply(cid, PUBLIC_INVITE_TEXT, token)
+                if ok:
+                    stats["invite_sent"] += 1
+        except (requests.RequestException, RuntimeError):
+            ok = False
         if not ok:
             stats["failed"] += 1
         if throttle:
@@ -213,8 +219,9 @@ def _notify_owner(text: str) -> bool:
     try:
         resp = requests.post(f"https://api.telegram.org/bot{bot}/sendMessage",
                              json={"chat_id": owner, "text": text}, timeout=15)
-        return resp.status_code == 200
-    except requests.RequestException:
+        body = resp.json()
+        return resp.status_code == 200 and isinstance(body, dict) and body.get("ok") is True
+    except (requests.RequestException, ValueError):
         return False
 
 
@@ -243,6 +250,21 @@ def _load_env() -> None:
         if os.path.exists(path):
             load_dotenv(path)
             return
+
+
+def _finish_report(report: Dict) -> int:
+    failed = bool(report["errors"] or report.get("failed", 0))
+    if failed or (report["mode"] == "live" and report.get("dm_sent")):
+        text = ("Instagram '+': " + ("XATO — run muvaffaqiyatsiz." if failed else "Yuborildi.")
+                + f" DM: {report.get('dm_sent', 0)}; "
+                + f"yuborish xatosi: {report.get('failed', 0)}; "
+                + f"Meta o'qish xatosi: {len(report['errors'])}.")
+        report["owner_notified"] = _notify_owner(text)
+        if not report["owner_notified"]:
+            failed = True
+    for key, value in report.items():
+        print(f"{key}: {value}")
+    return 1 if failed else 0
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -278,7 +300,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=args.days)
     report: Dict = {"errors": []}
-    media_ids = collect_media_ids(token, own_id, ad_account, since - timedelta(days=120), report)
+    media_ids = collect_media_ids(token, own_id, ad_account, since, report)
     comments = fetch_comments(token, media_ids, report)
     markers = [KEYWORD_AUTOMATION_PUBLIC_ACK, PUBLIC_INVITE_TEXT]
     plan = plan_actions(comments, own_id, now, since, markers, is_plus_only_comment)
@@ -296,9 +318,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             _notify_owner(f"Instagram '+': {report['dm_sent']} ta yangi kommentga DM yuborildi"
                           f" (xato: {report.get('failed', 0)}).")
     report["mode"] = "live" if args.live else "dry-run"
-    for key, value in report.items():
-        print(f"{key}: {value}")
-    return 0
+    return _finish_report(report)
 
 
 if __name__ == "__main__":

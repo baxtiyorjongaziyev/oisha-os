@@ -1,0 +1,79 @@
+/*
+  Oisha‑OS Design System – Atoms
+  =============================
+  This file defines the fundamental design tokens used across the UI.
+  All values are defined as CSS custom properties (variables) for easy theming.
+*/
+
+:root {
+  /* ---- Color Palette ---- */
+  --color-primary: #1e3a8a;        /* Indigo 800 */
+  --color-primary-light: #3b82f6;  /* Indigo 500 */
+  --color-primary-dark: #1e40af;   /* Indigo 900 */
+  --color-success: #10b981;        /* Emerald 500 */
+  --color-danger: #ef4444;         /* Red 500 */
+  --color-warning: #f59e0b;        /* Amber 500 */
+  --color-neutral-100: #f9fafb;    /* Gray 50 */
+  --color-neutral-200: #f3f4f6;    /* Gray 100 */
+  --color-neutral-300: #e5e7eb;    /* Gray 200 */
+  --color-neutral-400: #d1d5db;    /* Gray 300 */
+  --color-neutral-500: #9ca3af;    /* Gray 500 */
+  --color-neutral-600: #6b7280;    /* Gray 600 */
+  --color-neutral-700: #4b5563;    /* Gray 700 */
+  --color-neutral-800: #374151;    /* Gray 800 */
+  --color-neutral-900: #1f2937;    /* Gray 900 */
+
+  /* ---- Typography ---- */
+  --font-family-base: "Inter", system-ui, sans-serif;
+  --font-size-base: 0.875rem;          /* 14 px */
+  --font-size-sm: 0.75rem;            /* 12 px */
+  --font-size-lg: 1rem;               /* 16 px */
+  --font-size-h6: 1rem;               /* 16 px */
+  --font-size-h5: 1.125rem;           /* 18 px */
+  --font-size-h4: 1.25rem;            /* 20 px */
+  --font-size-h3: 1.5rem;             /* 24 px */
+  --font-size-h2: 1.75rem;            /* 28 px */
+  --font-size-h1: 2rem;               /* 32 px */
+  --line-height-base: 1.5;
+  --letter-spacing-normal: 0;
+
+  /* ---- Spacing Scale ---- */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4 px */
+  --space-2: 0.5rem;    /* 8 px */
+  --space-3: 0.75rem;   /* 12 px */
+  --space-4: 1rem;      /* 16 px */
+  --space-5: 1.25rem;   /* 20 px */
+  --space-6: 1.5rem;    /* 24 px */
+  --space-8: 2rem;      /* 32 px */
+  --space-10: 2.5rem;   /* 40 px */
+  --space-12: 3rem;     /* 48 px */
+
+  /* ---- Border Radius ---- */
+  --radius-sm: 0.125rem;   /* 2 px */
+  --radius-md: 0.25rem;    /* 4 px */
+  --radius-lg: 0.5rem;     /* 8 px */
+
+  /* ---- Shadows ---- */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.15);
+}
+
+/* Utility classes (optional) */
+.font-base { font-family: var(--font-family-base); font-size: var(--font-size-base); line-height: var(--line-height-base); }
+.font-h1   { font-size: var(--font-size-h1); line-height: 1.2; }
+.font-h2   { font-size: var(--font-size-h2); line-height: 1.25; }
+.font-h3   { font-size: var(--font-size-h3); line-height: 1.3; }
+.font-h4   { font-size: var(--font-size-h4); line-height: 1.35; }
+.font-h5   { font-size: var(--font-size-h5); line-height: 1.4; }
+.font-h6   { font-size: var(--font-size-h6); line-height: 1.45; }
+
+.mt-1 { margin-top: var(--space-1); }
+.mb-1 { margin-bottom: var(--space-1); }
+.p-2  { padding: var(--space-2); }
+.rounded-md { border-radius: var(--radius-md); }
+.shadow-sm { box-shadow: var(--shadow-sm); }
+
+/* Ensure SVG icons inherit the current text color */
+svg.icon { width: 1em; height: 1em; fill: currentColor; vertical-align: middle; }

@@ -24,7 +24,10 @@ router = APIRouter(tags=["health"])
 # Set READYZ_STRICT_DEPS=1 to restore the old gate, which blocked on the
 # userbot; AmoCRM has never blocked readiness and stays soft in both modes.
 SOFT_DEPENDENCY_PROBLEMS = frozenset({
-    "userbot_unauthorized", "amocrm_unavailable", "instagram_not_configured",
+    "userbot_unauthorized",
+    "amocrm_unavailable",
+    "instagram_not_configured",
+    "telegram_bot_unauthorized",
 })
 STRICT_SOFT_DEPENDENCY_PROBLEMS = frozenset({
     "amocrm_unavailable", "instagram_not_configured",
@@ -38,6 +41,54 @@ def _strict_dependencies() -> bool:
         "yes",
         "on",
     }
+
+
+_bot_token_cache: Dict[str, Any] = {"status": None, "checked_at": 0.0, "detail": None}
+_BOT_CACHE_TTL_SEC: float = 60.0
+
+
+async def _check_bot_token(timeout: float = 3.0) -> tuple[bool, str]:
+    """Check Telegram Bot Token health via getMe; cached for 60s."""
+    import time
+    now_ts = time.time()
+    if (
+        _bot_token_cache["status"] is not None
+        and (now_ts - _bot_token_cache["checked_at"]) < _BOT_CACHE_TTL_SEC
+    ):
+        return bool(_bot_token_cache["status"]), str(_bot_token_cache["detail"])
+
+    token = os.getenv("BOT_TOKEN") or ""
+    if not token or os.getenv("SKIP_LIVE", "0") == "1":
+        return True, "ok"
+
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("ok"):
+                    username = data.get("result", {}).get("username", "bot")
+                    _bot_token_cache.update(
+                        {"status": True, "checked_at": now_ts, "detail": username}
+                    )
+                    return True, username
+            elif resp.status_code == 401:
+                _bot_token_cache.update(
+                    {"status": False, "checked_at": now_ts, "detail": "unauthorized"}
+                )
+                return False, "unauthorized"
+            desc = f"http_{resp.status_code}"
+            _bot_token_cache.update(
+                {"status": False, "checked_at": now_ts, "detail": desc}
+            )
+            return False, desc
+    except asyncio.TimeoutError:
+        return True, "probe_timeout"
+    except Exception as exc:
+        logger.debug("[HEALTH] Bot getMe probe error: %s", exc)
+        return True, "network_error"
 
 
 @router.get("/health")
@@ -167,6 +218,12 @@ async def production_readiness_probe():
             checks["amocrm_detail"] = detail
         if not control_plane_mode:
             problems.append("amocrm_unavailable")
+
+    bot_ok, bot_detail = await _check_bot_token()
+    checks["telegram_bot"] = "ok" if bot_ok else bot_detail
+    if not bot_ok:
+        problems.append("telegram_bot_unauthorized")
+
     checks["runtime"] = runtime_source
 
     soft = (

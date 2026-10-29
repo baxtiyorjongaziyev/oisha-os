@@ -71,6 +71,17 @@ async def crm_capacity_archiver_loop() -> None:
                         )
                     else:
                         logger.info("[ARCHIVER_LOOP] No stagnant leads found.")
+
+                try:
+                    from src.services.core.crm.amocrm_nocodb_syncer import AmoCRMNocoDBSyncer
+
+                    nocodb_syncer = AmoCRMNocoDBSyncer(amocrm=app_ctx.msg_controller.crm.amocrm)
+                    nocodb_syncer.init_tables()
+                    synced = await nocodb_syncer.sync_closed_leads(max_pages=3)
+                    logger.info("[ARCHIVER_LOOP] Synced %s closed leads to NocoDB/Postgres", synced)
+                except Exception as sync_err:
+                    logger.warning("[ARCHIVER_LOOP] NocoDB/Postgres sync warning: %s", sync_err)
         except Exception as e:
             logger.error("[ARCHIVER_LOOP] Error in capacity archiver loop: %s", e)
         await asyncio.sleep(21600)
+

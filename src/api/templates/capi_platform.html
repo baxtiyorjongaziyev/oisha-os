@@ -22,10 +22,15 @@
       <div class="project-selector-wrap">
         <label for="projectSelect" class="sr-only">Faol loyiha</label>
         <select id="projectSelect" class="project-select" aria-label="Loyiha tanlash"><option value="">Loyiha tanlang...</option></select>
-        <button type="button" class="btn-new-project" id="openNewProjectBtn" title="Yangi loyiha ulash">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span>Yangi loyiha</span>
-        </button>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn-new-project" id="openNewProjectBtn" title="Yangi loyiha ulash" style="flex:1;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Yangi loyiha</span>
+          </button>
+          <button type="button" class="btn-new-project" id="editProjectBtn" title="Faol loyihani sozlash" style="padding:6px 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
       </div>
       <nav class="sidebar-nav" id="mainNavTabs" aria-label="Asosiy navigatsiya">
         <button type="button" class="nav-item is-active" data-section="sec-overview">
@@ -101,7 +106,8 @@
         <div class="auth-panel-inner">
           <div class="auth-copy"><h2>Operator avtorizatsiyasi talab qilinadi</h2><p id="authBannerDesc">Real vaqtdagi voronka va Meta CAPI ma'lumotlarini ko'rish uchun tizimga kiring.</p></div>
           <div class="auth-controls">
-            <button type="button" class="btn-telegram" id="sendTelegramMagicBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg><span>Telegram orqali kirish</span></button>
+            <a href="/login?next=/api/marketing/capi/console" class="btn-telegram" style="text-decoration:none"><span>⚡ Tizimga kirish (Google / Email)</span></a>
+            <button type="button" class="btn-secondary" id="sendTelegramMagicBtn" hidden><span>📲 Botga Havola Yuborish</span></button>
             <div id="telegramWidgetMount" class="telegram-widget-mount"></div>
             <form id="tokenLoginForm" class="token-form"><input type="password" id="tokenInput" class="input-control" placeholder="API Secret yoki Bearer token" autocomplete="current-password" /><button type="submit" class="btn-secondary">Kirish</button></form>
           </div>
@@ -158,25 +164,25 @@
                 <div><h2 class="block-title">Reklamadan Tushumgacha Voronka</h2><p class="block-desc">Mijozning reklama arizasidan xaridigacha bo'lgan yo'li</p></div>
               </div>
               <div class="overview-funnel-steps">
-                <div class="funnel-step-item">
+                <div class="funnel-step-item" id="ovFunnelStep1">
                   <div class="step-num-badge">1</div>
                   <div class="step-info"><span class="step-title">Reklama Lidi</span><span class="step-sub">Instagram / FB forma arizalari</span></div>
                   <div class="step-metrics"><span class="step-val mono" id="ovStepLeads">0</span><span class="step-pct">100%</span></div>
                 </div>
                 <div class="funnel-step-arrow">&darr;</div>
-                <div class="funnel-step-item">
+                <div class="funnel-step-item" id="ovFunnelStep2">
                   <div class="step-num-badge">2</div>
                   <div class="step-info"><span class="step-title">Aloqaga Chiqildi</span><span class="step-sub">Menejer gaplashgan va qiziqqan mijozlar</span></div>
                   <div class="step-metrics"><span class="step-val mono" id="ovStepContact">0</span><span class="step-pct mono" id="ovStepContactPct">0%</span></div>
                 </div>
                 <div class="funnel-step-arrow">&darr;</div>
-                <div class="funnel-step-item is-highlight">
+                <div class="funnel-step-item is-highlight" id="ovFunnelStep3">
                   <div class="step-num-badge badge-c">3</div>
                   <div class="step-info"><span class="step-title">Sifatli Mijoz (QualifiedLead)</span><span class="step-sub">CAPI orqali Meta algoritmiga yuborildi</span></div>
                   <div class="step-metrics"><span class="step-val mono stat-accent" id="ovStepQualified">0</span><span class="step-pct mono" id="ovStepQualPct">0%</span></div>
                 </div>
                 <div class="funnel-step-arrow">&darr;</div>
-                <div class="funnel-step-item is-success">
+                <div class="funnel-step-item is-success" id="ovFunnelStep4">
                   <div class="step-num-badge badge-s">4</div>
                   <div class="step-info"><span class="step-title">Sotuv Bo'ldi (Purchase)</span><span class="step-sub">Real xarid qilgan va pul to'lagan mijozlar</span></div>
                   <div class="step-metrics"><span class="step-val mono stat-green" id="ovStepWon">0</span><span class="step-pct mono stat-green" id="ovStepWonSum">0 UZS</span></div>
@@ -190,7 +196,7 @@
                 <div><h2 class="block-title">Top Reklama Kreativlari</h2><p class="block-desc">Eng ko'p sifatli xaridor va tushum olib kelgan reklamalar</p></div>
               </div>
               <div class="top-creatives-list" id="ovTopCreativesMount"></div>
-              <div class="block-footer"><button type="button" class="btn-link" id="ovGoToCreativesBtn">Barcha 15 ta kreativ tahlilini ko'rish &rarr;</button></div>
+              <div class="block-footer"><button type="button" class="btn-link" id="ovGoToCreativesBtn"><span id="ovGoToCreativesText">Barcha kreativlar tahlilini ko'rish</span> &rarr;</button></div>
             </div>
           </div>
 
@@ -232,9 +238,9 @@
               <div class="surface-block">
                 <div class="block-header"><div><h2 class="block-title">Yo'qotish sabablari diagnostikasi</h2><p class="block-desc">Yopilgan lidlarning reklama va sotuv bo'yicha tahlili</p></div><span class="meta-tag mono" id="lossTotalBadge">0 ta</span></div>
                 <div class="loss-summary-grid">
-                  <div class="loss-stat"><span class="loss-stat-label"><span class="status-dot is-err"></span>Reklama sifati</span><strong class="loss-stat-val mono" id="lossMarketingVal">0</strong><span class="loss-stat-sub" id="lossMarketingPct">0%</span></div>
-                  <div class="loss-stat"><span class="loss-stat-label"><span class="status-dot is-warn"></span>Sotuv jarayoni</span><strong class="loss-stat-val mono" id="lossSalesVal">0</strong><span class="loss-stat-sub" id="lossSalesPct">0%</span></div>
-                  <div class="loss-stat"><span class="loss-stat-label"><span class="status-dot is-muted"></span>Sababsiz yopilgan</span><strong class="loss-stat-val mono" id="lossUnknownVal">0</strong><span class="loss-stat-sub" id="lossUnknownPct">0%</span></div>
+                  <div class="loss-stat" id="lossCardMarketing"><span class="loss-stat-label"><span class="status-dot is-err"></span>Reklama sifati</span><strong class="loss-stat-val mono" id="lossMarketingVal">0</strong><span class="loss-stat-sub" id="lossMarketingPct">0%</span></div>
+                  <div class="loss-stat" id="lossCardSales"><span class="loss-stat-label"><span class="status-dot is-warn"></span>Sotuv jarayoni</span><strong class="loss-stat-val mono" id="lossSalesVal">0</strong><span class="loss-stat-sub" id="lossSalesPct">0%</span></div>
+                  <div class="loss-stat" id="lossCardUnknown"><span class="loss-stat-label"><span class="status-dot is-muted"></span>Sababsiz yopilgan</span><strong class="loss-stat-val mono" id="lossUnknownVal">0</strong><span class="loss-stat-sub" id="lossUnknownPct">0%</span></div>
                 </div>
                 <div class="loss-bar-track" aria-hidden="true"><div class="loss-bar-seg is-err" id="barLossMarketing" style="width: 0%"></div><div class="loss-bar-seg is-warn" id="barLossSales" style="width: 0%"></div><div class="loss-bar-seg is-muted" id="barLossUnknown" style="width: 0%"></div></div>
                 <div class="compact-list" id="lossReasonsMount"></div>
@@ -302,23 +308,60 @@
     </div>
   </div>
 
-  <!-- New Project Modal Dialog -->
+  <!-- New/Edit Project Modal Dialog -->
   <dialog id="newProjectModal" class="project-modal">
     <div class="modal-box">
-      <div class="modal-header"><h3 class="modal-title">Yangi loyiha ulash (Meta CAPI)</h3><button type="button" class="modal-close-btn" id="closeProjectModalBtn">&times;</button></div>
+      <div class="modal-header"><h3 class="modal-title" id="projectModalTitle">Yangi loyiha ulash (Meta CAPI)</h3><button type="button" class="modal-close-btn" id="closeProjectModalBtn">&times;</button></div>
       <form id="newProjectForm" class="modal-form">
         <div class="form-group"><label for="projNameInput">Loyiha nomi *</label><input type="text" id="projNameInput" class="input-control" placeholder="Masalan: Mebel Saloni Toshkent" required /></div>
         <div class="form-group"><label for="projDatasetInput">Meta Pixel / Dataset ID</label><input type="text" id="projDatasetInput" class="input-control mono" placeholder="16 xonali Pixel ID (ixtiyoriy)" /></div>
         <div class="form-group"><label for="projTokenInput">Meta CAPI Access Token</label><input type="password" id="projTokenInput" class="input-control mono" placeholder="EAAB... doimiy token (ixtiyoriy)" /></div>
+        <div class="form-group"><label for="projAdAccountInput">Meta Ad Account ID (Reklama hisobi)</label><input type="text" id="projAdAccountInput" class="input-control mono" placeholder="Masalan: act_370591433710957 (ixtiyoriy)" /></div>
         <div class="form-group"><label for="projPipelineInput">amoCRM Voronka ID</label><input type="text" id="projPipelineInput" class="input-control mono" placeholder="Masalan: 11162698 (ixtiyoriy)" /></div>
-        <div class="modal-footer"><button type="button" class="btn-secondary" id="cancelProjectModalBtn">Bekor qilish</button><button type="submit" class="btn-primary" id="saveProjectBtn">Loyihani yaratish</button></div>
+        <div class="modal-footer"><button type="button" class="btn-secondary" id="cancelProjectModalBtn">Bekor qilish</button><button type="submit" class="btn-primary" id="saveProjectBtn">Saqlash</button></div>
       </form>
     </div>
   </dialog>
 
+  <!-- DrillDown Drawer Component -->
+  <aside id="drilldownDrawer" class="drilldown-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-header-left">
+        <h3 class="drawer-title" id="drawerTitle">Mijozlar ro'yxati</h3>
+        <p class="drawer-subtitle" id="drawerSubtitle">Yuklanmoqda...</p>
+      </div>
+      <button type="button" class="drawer-close-btn" id="closeDrawerBtn" aria-label="Yopish">&times;</button>
+    </div>
+    <div class="drawer-toolbar">
+      <input type="text" id="drawerSearchInput" class="input-control input-sm" placeholder="Qidirish (telefon, ID, holat, kreativ)..." />
+      <span class="meta-tag mono" id="drawerCountBadge">0 ta</span>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-loading" id="drawerLoading" style="display:none;padding:24px;text-align:center;color:var(--text-secondary);font-size:13px;">Ma'lumotlar yuklanmoqda...</div>
+      <div class="drawer-empty" id="drawerEmpty" style="display:none;padding:24px;text-align:center;color:var(--text-secondary);font-size:13px;">Ushbu parametrlar bo'yicha ma'lumot topilmadi.</div>
+      <div class="drawer-table-wrap" id="drawerTableWrap">
+        <table class="data-table drawer-table">
+          <thead>
+            <tr>
+              <th>Vaqt</th>
+              <th>Bitim ID</th>
+              <th>Kreativ</th>
+              <th>CRM Holat</th>
+              <th class="num-col">Summa</th>
+              <th>Harakat</th>
+            </tr>
+          </thead>
+          <tbody id="drawerTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </aside>
+  <div id="drawerBackdrop" class="drawer-backdrop" style="display:none;"></div>
+
   <script>
 window.__CAPI_CAN_MANAGE__ = __CAPI_CAN_MANAGE__;
 /* CAPI_MODEL */
+/* CAPI_DRILLDOWN */
 /* CAPI_UI */
   </script>
 </body>

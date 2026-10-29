@@ -64,8 +64,8 @@ async def instagram_comment_backfill_loop(db=None) -> None:
                         summary.get("scanned_comments", 0),
                         summary.get("scanned_media", 0),
                     )
-            elif summary.get("error") != "instagram_not_configured":
-                logger.info("[IG-BACKFILL] Skipped: %s", summary.get("error"))
+            from src.services.core.instagram.brend_comment_scanner import scan_and_process_brend_comments
+            await scan_and_process_brend_comments(db=db)
         except Exception as exc:
             logger.error("[IG-BACKFILL] Loop error: %s", exc)
         await asyncio.sleep(_INTERVAL_SEC)

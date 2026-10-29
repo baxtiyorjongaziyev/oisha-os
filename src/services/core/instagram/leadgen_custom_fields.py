@@ -14,6 +14,10 @@ FIELD_BUSINESS_STAGE = 1551697     # Tadbirkorlik holati [Select]
 FIELD_TIMELINE = 1551699           # Boshlash muddati [Select]
 FIELD_BRAND_NAME = 1551701         # Brend / Biznes nomi [Text]
 FIELD_META_LEAD_ID = 1554007       # Meta Lead ID (leadgen_id) [Text] — CAPI Conversion Leads
+FIELD_CREATIVE_URL = 1556191       # Reklama kreativi [URL] — 1-click preview
+FIELD_CREATIVE_NAME = 1556193      # Kreativ nomi [Text]
+FIELD_UTM_CONTENT = 1032915        # utm_content [tracking_data]
+FIELD_OPENSTAT_AD = 1032935        # openstat_ad [tracking_data]
 
 # Existing System Field IDs
 FIELD_LEAD_SOURCE = 1034663        # Lead manbasi [Select]
@@ -56,7 +60,13 @@ def _find_field_val(fields: Dict[str, str], keywords: List[str]) -> str:
     return ""
 
 
-def extract_lead_custom_fields(fields: Dict[str, str], leadgen_id: str = "") -> List[Dict[str, Any]]:
+def extract_lead_custom_fields(
+    fields: Dict[str, str],
+    leadgen_id: str = "",
+    creative_url: str = "",
+    creative_name: str = "",
+    ad_id: str = "",
+) -> List[Dict[str, Any]]:
     """
     Extracts structured AmoCRM custom fields from Meta Lead Ads question-answer dict.
     Returns list of custom field payload dictionaries compatible with AmoCRM API v4.
@@ -74,6 +84,31 @@ def extract_lead_custom_fields(fields: Dict[str, str], leadgen_id: str = "") -> 
         custom_fields.append({
             "field_id": FIELD_META_LEAD_ID,
             "values": [{"value": str(leadgen_id).strip()}],
+        })
+
+    # 1c. Reklama kreativi (1-Click URL)
+    if str(creative_url or "").strip():
+        custom_fields.append({
+            "field_id": FIELD_CREATIVE_URL,
+            "values": [{"value": str(creative_url).strip()}],
+        })
+
+    # 1d. Kreativ nomi va UTM Content
+    if str(creative_name or "").strip():
+        custom_fields.append({
+            "field_id": FIELD_CREATIVE_NAME,
+            "values": [{"value": str(creative_name).strip()}],
+        })
+        custom_fields.append({
+            "field_id": FIELD_UTM_CONTENT,
+            "values": [{"value": str(creative_name).strip()}],
+        })
+
+    # 1e. Ad ID (openstat_ad)
+    if str(ad_id or "").strip():
+        custom_fields.append({
+            "field_id": FIELD_OPENSTAT_AD,
+            "values": [{"value": str(ad_id).strip()}],
         })
 
     # 2. Brend / Biznes nomi

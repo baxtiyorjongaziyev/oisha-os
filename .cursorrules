@@ -1,0 +1,12 @@
+# Cursor Rules for Oisha-OS Monorepo
+
+Read `AGENTS.md` and `docs/agents/three-agent-workflow.md` before making changes.
+
+## Skills & Operations:
+- Tax operations & compliance: `.cursor/rules/soliq-ops.mdc` -> `.agents/skills/soliq-ops/SKILL.md`
+- Preflight & test verification: `.cursor/rules/preflight.mdc` -> `.agents/skills/preflight/SKILL.md`
+- PR steward & CI: `.cursor/rules/steward.mdc` -> `.agents/skills/steward/SKILL.md`
+- Telegram lead sync: `.agents/skills/community-lead-sync/SKILL.md`
+
+All reusable agent skills are located in `.agents/skills/` (mirrored from `.claude/skills/`).
+Always follow the modular code standard (150-400 lines) and zero fabrication rules in `AGENTS.md`.

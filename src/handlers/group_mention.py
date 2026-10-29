@@ -3,7 +3,7 @@
 Oisha answers in team groups when:
   * her name is written in free text ("oisha", "oyisha", "оиша", "ойша", "oishaxon"),
   * @jonairobot is tagged, or
-  * a message replies to one of the bot's own messages.
+  * unanswered questions are handled by the separate attention worker.
 
 Plain group chatter without any of the above is ignored.
 """
@@ -33,7 +33,7 @@ def is_name_called(text: str, bot_username: Optional[str] = None) -> bool:
         return False
     if bot_username:
         uname = bot_username.lstrip("@").lower()
-        if f"@{uname}" in text.lower():
+        if re.search(r"@" + re.escape(uname) + r"(?![a-z0-9_])", text, re.I):
             return True
     return bool(_NAME_RE.search(text))
 
@@ -68,6 +68,9 @@ def _team_chat_ids() -> set[int]:
             _s.CRM_GROUP_ID,
             _s.PROJECTS_GROUP_ID,
             _s.TASKS_GROUP_ID,
+            getattr(_s, "CRM_SALES_REPORT_GROUP_ID", None),
+            getattr(_s, "TARGET_LEADS_GROUP_ID", None),
+            -1003854308552,
         }
         return {i for i in ids if i}
     except Exception:
@@ -97,15 +100,48 @@ def register_group_mention_handler(dispatcher: Any, *, msg_controller: Any) -> N
             return
 
         bot_username, bot_id = await _bot_identity(message)
-        reply_from = getattr(getattr(message, "reply_to_message", None), "from_user", None)
+        reply_msg = getattr(message, "reply_to_message", None)
+        reply_from = getattr(reply_msg, "from_user", None)
+        reply_to_text = getattr(reply_msg, "text", "") or getattr(reply_msg, "caption", "") or ""
         replied_to_bot = bool(reply_from and bot_id and reply_from.id == bot_id)
-        called = is_name_called(text, bot_username) or replied_to_bot
+        called = is_name_called(text, bot_username)
         if not called:
             return
 
         chat = message.chat
         if not is_team_chat(chat.id, getattr(chat, "title", None), _team_chat_ids()):
             return
+
+        # Intercept sales staff check-in reply or client closing assistance
+        try:
+            from src.services.core.sales_staff_copilot import (
+                is_checkin_interaction,
+                bind_and_welcome_staff,
+                handle_sales_staff_interaction,
+            )
+            if is_checkin_interaction(text, reply_to_text=reply_to_text, username=user.username):
+                logger.info("[COPILOT] Handling sales staff interaction for user=%s (@%s)", user.id, user.username)
+
+                # 1. Automatik ID olib tanishib olish (agar birinchi marta bo'lsa)
+                is_new_intro, intro_msg = bind_and_welcome_staff(
+                    user_id=user.id,
+                    username=user.username or "RayxonJonbranding",
+                    first_name=user.first_name or "Rayxon",
+                )
+                if is_new_intro and intro_msg:
+                    await message.reply(intro_msg, parse_mode="HTML")
+
+                # 2. Sotuv bo'yicha maslahat va yordam berish
+                copilot_reply = await handle_sales_staff_interaction(
+                    rep_name=user.first_name or "Rayxon",
+                    rep_username=f"@{user.username}" if user.username else "@RayxonJonbranding",
+                    message_text=text,
+                )
+                if copilot_reply:
+                    await message.reply(copilot_reply, parse_mode="HTML")
+                    return
+        except Exception as exc:
+            logger.error("[COPILOT] Sales copilot processing error: %s", exc, exc_info=True)
 
         question = strip_call(text, bot_username) or text
         logger.info(

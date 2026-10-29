@@ -379,7 +379,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(text)
         return 0
 
-    bot_token = os.environ.get("BOT_TOKEN", "")
+    from src.settings import settings
+    bot_token = os.environ.get("BOT_TOKEN", "") or getattr(getattr(settings, "BOT_TOKEN", None), "get_secret_value", lambda: "")()
     # oracle-deploy .env ga bu qiymatlarni yozmaydi -> settings.py defaultlari
     chat_id = os.environ.get("CRM_SALES_REPORT_GROUP_ID") or str(DEFAULT_REPORT_GROUP_ID)
     topic_id = os.environ.get("CRM_SALES_REPORT_TOPIC_ID") or str(DEFAULT_REPORT_TOPIC_ID)

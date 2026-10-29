@@ -48,6 +48,8 @@ def _load_ad_names() -> Dict[str, str]:
 
 
 def _load_attribution_rows(days: Optional[int] = None, project: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    if project and project.get("id") != "default":
+        return []
     try:
         with attribution_store._connection() as conn:
             if days and int(days) > 0:
@@ -58,21 +60,16 @@ def _load_attribution_rows(days: Optional[int] = None, project: Optional[Dict[st
                 ).fetchall()
             else:
                 rows = conn.execute("SELECT * FROM lead_attribution ORDER BY created_at DESC").fetchall()
-        result = [dict(r) for r in rows]
-        # If project specifies a custom crm_pipeline_id, we can scope if stored, or if default keep all
-        if project and project.get("id") != "default":
-            # For non-default projects without linked attribution yet, return project-scoped empty/dataset list
-            p_dataset = str(project.get("dataset_id") or "").strip()
-            if not p_dataset:
-                return []
-        return result
+        return [dict(r) for r in rows]
     except Exception:
         return []
 
 
 def _load_spend_summary(days: Optional[int] = None, project: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    is_default = not project or project.get("id") in ("default", "")
     account_id = (project.get("ad_account_id") if project else "") or os.getenv("META_AD_ACCOUNT_ID", "").strip()
-    is_default = not project or project.get("id") == "default"
+    if not account_id and is_default:
+        account_id = "act_370591433710957"
     try:
         with ad_spend_store._connection() as conn:
             if days and int(days) > 0:
@@ -90,114 +87,42 @@ def _load_spend_summary(days: Optional[int] = None, project: Optional[Dict[str, 
             spend = float(row["spend"]) if (row and row["spend"] is not None and cnt > 0 and is_default) else None
             currency = str(row["currency"] or "") if (row and is_default) else ""
             return {"connected": bool(account_id and cnt > 0), "account_configured": bool(account_id),
-                    "rows_count": cnt, "total_spend": spend, "currency": currency or None}
+                    "rows_count": cnt, "total_spend": spend, "currency": currency or "USD"}
     except Exception:
         return {"connected": False, "account_configured": bool(account_id),
                 "rows_count": 0, "total_spend": None, "currency": None}
 
 
-def build_dashboard_analytics(
-    crm_events: List[Dict[str, Any]],
-    site_events: List[Dict[str, Any]],
-    days: Optional[int] = None,
-    project: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Compute real end-to-end funnel, creative attribution, loss analysis, and enriched CAPI events."""
-    ad_names = _load_ad_names()
-    attr_rows = _load_attribution_rows(days=days, project=project)
-    spend_info = _load_spend_summary(days=days, project=project)
-
-    # Index attribution by leadgen_id and lead_id for fast enrichment
-    by_leadgen: Dict[str, Dict[str, Any]] = {}
-    by_lead_id: Dict[int, Dict[str, Any]] = {}
-    for r in attr_rows:
-        lg = str(r.get("leadgen_id") or "")
-        if lg:
-            by_leadgen[lg] = r
-        lid = r.get("lead_id")
-        if lid:
-            by_lead_id[int(lid)] = r
-
-    # Also index all-time attribution for CAPI event enrichment when days filter is active
-    all_by_leadgen = by_leadgen if not days else {str(r.get("leadgen_id") or ""): r for r in _load_attribution_rows(None)}
-
-    total_leads = len(attr_rows)
-    new_contact_cnt = qual_cnt = meet_sched_cnt = meet_attend_cnt = closing_cnt = won_cnt = lost_cnt = 0
-    qual_val = meet_sched_val = closing_val = won_revenue = active_pipeline_val = 0.0
-    won_deals: List[Dict[str, Any]] = []
-    creative_map: Dict[str, Dict[str, Any]] = {}
-    loss_cat: Dict[str, int] = {"reklama": 0, "sotuv": 0, "noma'lum": 0}
-    loss_reasons_map: Dict[str, Dict[str, Any]] = {}
-
-    for r in attr_rows:
-        sid = int(r["status_id"]) if r.get("status_id") is not None else 0
-        won = r.get("lead_won")
-        price = float(r["lead_price"] or 0.0)
-        ad_id = str(r.get("ad_id") or "").strip()
-        ad_label = ad_names.get(ad_id) or (f"Reklama #{ad_id[-6:]}" if ad_id else "Sayt / Organik / Eski")
-
-        c_key = ad_id or "unattributed"
-        c_bucket = creative_map.setdefault(c_key, {
-            "ad_id": ad_id or None,
-            "ad_name": ad_label,
-            "total_leads": 0,
-            "qualification": 0,
-            "meeting_scheduled": 0,
-            "quality_attended": 0,
-            "won": 0,
-            "lost": 0,
-            "active": 0,
-            "revenue_won": 0.0,
-            "pipeline_value": 0.0,
-        })
-        c_bucket["total_leads"] += 1
-
-        if won == 1 or sid == 142:
-            won_cnt += 1
-            won_revenue += price
-            c_bucket["won"] += 1
-            c_bucket["quality_attended"] += 1
-            c_bucket["revenue_won"] += price
-            won_deals.append({
-                "lead_id": r.get("lead_id"),
-                "leadgen_id": r.get("leadgen_id"),
-                "ad_name": ad_label,
-                "price": price,
-                "created_at": r.get("created_at"),
-            })
-        elif won == 0 or sid == 143:
-            lost_cnt += 1
-            c_bucket["lost"] += 1
-            lrid = r.get("loss_reason_id")
-            cat = classify(lrid)
-            rname = reason_name(lrid) if lrid else "Sabab ko'rsatilmagan"
-            loss_cat[cat] = loss_cat.get(cat, 0) + 1
-            rb = loss_reasons_map.setdefault(rname, {"name": rname, "category": cat, "count": 0})
-            rb["count"] += 1
-        else:
-            c_bucket["active"] += 1
-            active_pipeline_val += price
-            c_bucket["pipeline_value"] += price
-            if sid in QUALIFICATION_IDS:
-                qual_cnt += 1
-                qual_val += price
-                c_bucket["qualification"] += 1
-            elif sid in MEETING_SCHEDULED_IDS:
-                meet_sched_cnt += 1
-                meet_sched_val += price
-                c_bucket["meeting_scheduled"] += 1
-            elif sid == 89380154:
-                meet_attend_cnt += 1
-                closing_val += price
-                c_bucket["quality_attended"] += 1
-            elif sid == 88871066:
-                closing_cnt += 1
-                closing_val += price
-                c_bucket["quality_attended"] += 1
+def _load_ad_spend_by_ad(days: Optional[int] = None, project: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+    is_default = not project or project.get("id") in ("default", "")
+    if not is_default:
+        return {}
+    try:
+        with ad_spend_store._connection() as conn:
+            if days and int(days) > 0:
+                cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=int(days))).strftime("%Y-%m-%d")
+                rows = conn.execute(
+                    "SELECT ad_id, SUM(spend) AS spend FROM meta_ad_spend_by_ad WHERE date >= ? GROUP BY ad_id",
+                    (cutoff,),
+                ).fetchall()
             else:
-                new_contact_cnt += 1
+                rows = conn.execute(
+                    "SELECT ad_id, SUM(spend) AS spend FROM meta_ad_spend_by_ad GROUP BY ad_id"
+                ).fetchall()
+            return {
+                str(r["ad_id"]).strip(): round(float(r["spend"] or 0.0), 2)
+                for r in rows
+                if r["ad_id"] and r["spend"] is not None
+            }
+    except Exception:
+        return {}
 
-    # Enrich CRM CAPI events with creative name, status, and price
+
+def _enrich_crm_events(
+    crm_events: List[Dict[str, Any]],
+    all_by_leadgen: Dict[str, Dict[str, Any]],
+    ad_names: Dict[str, str],
+) -> tuple[int, int, int, int]:
     capi_qual_sent = capi_purch_sent = capi_lead_sent = capi_failed = 0
     for ev in crm_events:
         st = str(ev.get("status") or "")
@@ -213,23 +138,31 @@ def build_dashboard_analytics(
             capi_failed += 1
 
         attr = all_by_leadgen.get(str(ev.get("leadgen_id") or ""))
+        ev["lead_id"] = ev.get("lead_id") or ev.get("amo_lead_id") or (attr.get("lead_id") if attr else None)
         if attr:
             aid = str(attr.get("ad_id") or "").strip()
+            ev["ad_id"] = aid or None
             ev["ad_name"] = ad_names.get(aid) or (f"Reklama #{aid[-6:]}" if aid else "Meta Lead Ads")
             ev["lead_price"] = float(attr["lead_price"]) if attr.get("lead_price") is not None else None
             sid = int(attr["status_id"]) if attr.get("status_id") is not None else None
             ev["amo_status_id"] = sid
             ev["amo_status_name"] = AMO_STATUS_LABELS.get(sid or 0, f"Status #{sid}" if sid else "Yangi")
         else:
+            ev["ad_id"] = None
             ev["ad_name"] = "Meta Lead Ads"
             ev["lead_price"] = None
             ev["amo_status_id"] = None
             ev["amo_status_name"] = "amoCRM"
+    return capi_qual_sent, capi_purch_sent, capi_lead_sent, capi_failed
 
+
+def _build_funnel_stages(
+    total_leads: int, new_contact_cnt: int, qual_cnt: int, qual_val: float,
+    meet_sched_cnt: int, meet_sched_val: float, quality_total: int, closing_val: float,
+    won_cnt: int, won_revenue: float, lost_cnt: int, loss_cat: Dict[str, int],
+) -> List[Dict[str, Any]]:
     pct = lambda n: round((n * 100.0 / total_leads), 1) if total_leads > 0 else 0.0
-    quality_total = meet_attend_cnt + closing_cnt + won_cnt
-
-    funnel_stages = [
+    return [
         {"key": "meta_leads", "step": "1. Meta Reklama Jami Lidlari", "count": total_leads,
          "pct": 100.0 if total_leads else 0.0, "amount_uzs": None, "capi_event": "Lead",
          "stage_hint": "Instagram / Facebook Lead Ads formasi"},
@@ -253,12 +186,85 @@ def build_dashboard_analytics(
          "stage_hint": f"amoCRM #143 (Reklama sababli: {loss_cat['reklama']} ta, Sotuv: {loss_cat['sotuv']} ta)"},
     ]
 
-    creatives_sorted = sorted(
-        creative_map.values(),
-        key=lambda x: (x["won"], x["total_leads"]),
-        reverse=True,
-    )[:15]
 
+def build_dashboard_analytics(
+    crm_events: List[Dict[str, Any]],
+    site_events: List[Dict[str, Any]],
+    days: Optional[int] = None,
+    project: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Compute real end-to-end funnel, creative attribution, loss analysis, and enriched CAPI events."""
+    ad_names = _load_ad_names()
+    attr_rows = _load_attribution_rows(days=days, project=project)
+    spend_info = _load_spend_summary(days=days, project=project)
+    ad_spend_map = _load_ad_spend_by_ad(days=days, project=project)
+
+    by_leadgen = {str(r.get("leadgen_id") or ""): r for r in attr_rows if r.get("leadgen_id")}
+    all_by_leadgen = by_leadgen if not days else {str(r.get("leadgen_id") or ""): r for r in _load_attribution_rows(None)}
+
+    total_leads = len(attr_rows)
+    new_contact_cnt = qual_cnt = meet_sched_cnt = meet_attend_cnt = closing_cnt = won_cnt = lost_cnt = 0
+    qual_val = meet_sched_val = closing_val = won_revenue = active_pipeline_val = 0.0
+    won_deals: List[Dict[str, Any]] = []
+    creative_map: Dict[str, Dict[str, Any]] = {}
+    loss_cat: Dict[str, int] = {"reklama": 0, "sotuv": 0, "noma'lum": 0}
+    loss_reasons_map: Dict[str, Dict[str, Any]] = {}
+
+    for r in attr_rows:
+        sid = int(r["status_id"]) if r.get("status_id") is not None else 0
+        won = r.get("lead_won")
+        price = float(r["lead_price"] or 0.0)
+        ad_id = str(r.get("ad_id") or "").strip()
+        ad_label = ad_names.get(ad_id) or (f"Reklama #{ad_id[-6:]}" if ad_id else "Sayt / Organik / Eski")
+
+        c_key = ad_id or "unattributed"
+        c_bucket = creative_map.setdefault(c_key, {
+            "ad_id": ad_id or None, "ad_name": ad_label, "total_leads": 0, "qualification": 0,
+            "meeting_scheduled": 0, "quality_attended": 0, "won": 0, "lost": 0, "marketing_lost": 0,
+            "active": 0, "spend_usd": ad_spend_map.get(ad_id), "revenue_won": 0.0, "pipeline_value": 0.0,
+        })
+        c_bucket["total_leads"] += 1
+
+        if won == 1 or sid == 142:
+            won_cnt += 1
+            won_revenue += price
+            c_bucket["won"] += 1
+            c_bucket["quality_attended"] += 1
+            c_bucket["revenue_won"] += price
+            won_deals.append({"lead_id": r.get("lead_id"), "leadgen_id": r.get("leadgen_id"),
+                              "ad_id": ad_id or None, "ad_name": ad_label, "price": price, "created_at": r.get("created_at")})
+        elif won == 0 or sid == 143:
+            lost_cnt += 1
+            c_bucket["lost"] += 1
+            lrid = r.get("loss_reason_id")
+            cat = classify(lrid)
+            if cat == "reklama":
+                c_bucket["marketing_lost"] += 1
+            rname = reason_name(lrid) if lrid else "Sabab ko'rsatilmagan"
+            loss_cat[cat] = loss_cat.get(cat, 0) + 1
+            loss_reasons_map.setdefault(rname, {"name": rname, "category": cat, "count": 0})["count"] += 1
+        else:
+            c_bucket["active"] += 1
+            active_pipeline_val += price
+            c_bucket["pipeline_value"] += price
+            if sid in QUALIFICATION_IDS:
+                qual_cnt += 1; qual_val += price; c_bucket["qualification"] += 1
+            elif sid in MEETING_SCHEDULED_IDS:
+                meet_sched_cnt += 1; meet_sched_val += price; c_bucket["meeting_scheduled"] += 1
+            elif sid == 89380154:
+                meet_attend_cnt += 1; closing_val += price; c_bucket["quality_attended"] += 1
+            elif sid == 88871066:
+                closing_cnt += 1; closing_val += price; c_bucket["quality_attended"] += 1
+            else:
+                new_contact_cnt += 1
+
+    capi_qual_sent, capi_purch_sent, capi_lead_sent, capi_failed = _enrich_crm_events(crm_events, all_by_leadgen, ad_names)
+    quality_total = meet_attend_cnt + closing_cnt + won_cnt
+    funnel_stages = _build_funnel_stages(
+        total_leads, new_contact_cnt, qual_cnt, qual_val, meet_sched_cnt, meet_sched_val,
+        quality_total, closing_val, won_cnt, won_revenue, lost_cnt, loss_cat,
+    )
+    creatives_sorted = sorted(creative_map.values(), key=lambda x: (x["won"], x["quality_attended"], x["total_leads"]), reverse=True)[:100]
     reasons_sorted = sorted(loss_reasons_map.values(), key=lambda x: x["count"], reverse=True)
     for item in reasons_sorted:
         item["pct"] = round(item["count"] * 100.0 / lost_cnt, 1) if lost_cnt else 0.0
@@ -266,6 +272,7 @@ def build_dashboard_analytics(
     return {
         "cohort_days": days or "all",
         "overview": {
+            "total_leads": total_leads,
             "total_meta_leads": total_leads,
             "active_in_pipeline": total_leads - won_cnt - lost_cnt,
             "active_pipeline_value": active_pipeline_val,
@@ -281,6 +288,8 @@ def build_dashboard_analytics(
             "capi_lead_sent": capi_lead_sent,
             "capi_failed_count": capi_failed,
             "capi_website_events": len(site_events),
+            "spend_connected": bool(spend_info.get("connected")),
+            "total_spend_usd": spend_info.get("total_spend"),
             "spend": spend_info,
         },
         "funnel_stages": funnel_stages,

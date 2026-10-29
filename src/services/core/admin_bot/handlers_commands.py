@@ -265,68 +265,65 @@ def _register_basic_commands(self):
             )
             await event.respond(response.text, parse_mode=response.parse_mode)
 
+        async def _handle_weblogin(event, sender_id: int, is_owner: bool, force_otp: bool = False) -> bool:
+            raw_text = str(getattr(event, "raw_text", "") or "").strip()
+            if "weblogin_" not in raw_text and not force_otp:
+                return False
+            sender = await event.get_sender()
+            first_name = getattr(sender, "first_name", None) or "Foydalanuvchi"
+            username = getattr(sender, "username", None) or str(sender_id)
+            web_role = "owner" if is_owner else ("admin" if self.access_manager.is_admin(sender_id) else "targetolog")
+            from src.api.web_auth_store import approve_tg_login_state, issue_tg_otp_code
+            next_url = "/api/marketing/capi/console"
+            if "weblogin_" in raw_text:
+                state_code = raw_text.split("weblogin_", 1)[1].strip().split()[0]
+                next_url = approve_tg_login_state(state_code, int(sender_id), username, first_name, role=web_role) or next_url
+            otp_code = issue_tg_otp_code(int(sender_id), username, first_name, role=web_role, next_url=next_url)
+            from src.api.security import _session_secret
+            import jwt as pyjwt, time as _time
+            jwt_secret = _session_secret()
+            buttons = None
+            if jwt_secret:
+                m_jwt = pyjwt.encode(
+                    {"sub": username, "uid": int(sender_id), "name": first_name, "role": web_role, "purpose": "magic_login", "exp": int(_time.time()) + 86400},
+                    jwt_secret, algorithm="HS256",
+                )
+                m_url = f"https://oisha.jonbranding.uz/api/auth/telegram/login?magic={m_jwt}&next={next_url}"
+                buttons = [[Button.url("🚀 Shaxsiy Kabinetni Ochish", m_url)]]
+            await event.respond(
+                f"🔐 **Salom, {first_name}!**\n\n"
+                f"🔢 **6-xonali kirish kodi:** `{otp_code}`\n"
+                "*(Agar boshqa kompyuter/brauzerdan kirayotgan bo'lsangiz, ushbu 6 ta raqamni saytga yozing — yoki ochiq brauzeringiz avtomatik kirdi)*",
+                buttons=buttons,
+            )
+            return True
+
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/start"))
         async def start_handler(event):
             sender_id = event.sender_id
-            # [CRITICAL LOG]
-            logger.info("🚀" * 10)
             logger.info(f"🚀 [ADMIN_BOT] POINT A: /start received from {sender_id}")
-
             try:
-                # [AUDIT: ARCHITECT] Identity Check (Fail-safe)
-                is_owner = int(sender_id or 0) in {
-                    int(self.access_manager.owner_id or 0),
-                    150074828,
-                }
-                logger.info(
-                    f"🚀 [ADMIN_BOT] POINT B: is_owner={is_owner} (Config Owner: {self.access_manager.owner_id})"
-                )
-
+                is_owner = int(sender_id or 0) in {int(self.access_manager.owner_id or 0), 150074828}
+                if await _handle_weblogin(event, int(sender_id or 0), is_owner):
+                    return
                 role = resolve_start_role(
                     sender_id=sender_id,
                     owner_id=self.access_manager.owner_id,
                     get_role=self.access_manager.get_role,
                 )
+                if role == "GUEST":
+                    await _handle_weblogin(event, int(sender_id or 0), is_owner=False, force_otp=True)
+                    return
                 role_name = self.access_manager.get_role_name(role)
-                logger.info(
-                    f"🚀 [ADMIN_BOT] POINT C: role={role}, role_name={role_name}"
-                )
-
-                welcome_msg = (
-                    f"🌟 **Oisha-OS Enterprise v2.1**\n\n"
-                    f"Assalomu alaykum, **{role_name}**!\n"
-                    f"Tizimga muvaffaqiyatli kirdingiz. Boshqaruv pulti tayyor.\n\n"
-                    f"📅 Bugun: `{get_local_now().strftime('%d.%m.%Y %H:%M')}`"
-                )
-
                 response = build_start_response(
                     role_name=role_name,
                     now_text=get_local_now().strftime("%d.%m.%Y %H:%M"),
                 )
-
-                # Rollarga ko'ra tugmalar
                 buttons = self._get_buttons_for_role(role)
-
-                # AmoCRM link har doim pastda bo'lsin
-                if role != "GUEST":
-                    buttons.append(
-                        [
-                            Button.url(
-                                "🌐 AmoCRM-ga o'tish", "https://jonbranding.amocrm.ru"
-                            )
-                        ]
-                    )
-
-                logger.info(
-                    f"🚀 [ADMIN_BOT] POINT D: Responding to {sender_id} with {len(buttons)} buttons"
-                )
+                buttons.append([Button.url("🌐 AmoCRM-ga o'tish", "https://jonbranding.amocrm.ru")])
                 await event.respond(response.text, buttons=buttons)
-                logger.info(f"✅ [ADMIN_BOT] POINT E: Response SENT to {sender_id}")
-
             except Exception as e:
-                logger.error(
-                    f"❌ [ADMIN_BOT] START HANDLER ERROR: {str(e)}", exc_info=True
-                )
+                logger.error(f"❌ [ADMIN_BOT] START HANDLER ERROR: {str(e)}", exc_info=True)
                 await event.respond(f"⚠️ **Tizimda texnik xatolik:**\n`{str(e)}`")
 
         @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/vps_status"))

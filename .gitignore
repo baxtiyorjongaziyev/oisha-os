@@ -65,6 +65,7 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/income_supervisor_alerted.json
+data/utc_*
 
 # IDE & Editor
 .vscode/

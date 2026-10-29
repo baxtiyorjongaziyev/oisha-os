@@ -32,7 +32,7 @@
 |---|---|
 | `API_ID` | 30643078 |
 | `API_HASH` | ***REDACTED*** |
-| `BOT_TOKEN` | 8343217526:AAH0odkrzt9hF2xCIxbYped2OnYnP0Txe-4 |
+| BOT_TOKEN | Stored in ignored local .env |
 | `GEMINI_API_KEY` | `.env` da |
 | `OISHA_API_SECRET` | ***REDACTED*** |
 | `OPENCLAW_SECRET` | ***REDACTED*** |

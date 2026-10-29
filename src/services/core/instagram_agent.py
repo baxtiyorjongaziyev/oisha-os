@@ -23,6 +23,8 @@ from src.services.core.instagram.backfill import (
 from src.time_utils import get_local_now, is_quiet_hours
 from src.services.core.instagram.api_helpers import (
     send_ig_message_payload,
+    send_ig_reply,
+    send_ig_private_reply,
     like_comment,
     reply_to_comment,
     fetch_media_caption,
@@ -52,16 +54,6 @@ __all__ = [
     "notify_crm",
     "process_instagram_webhook",
 ]
-
-
-def send_ig_reply(recipient_id: str, text: str, access_token: str) -> bool:
-    """Sends a Direct Message to the user using the Meta Graph API."""
-    return send_ig_message_payload({"id": recipient_id}, text, access_token, f"DM to {recipient_id}")
-
-
-def send_ig_private_reply(comment_id: str, text: str, access_token: str) -> bool:
-    """Sends a Private Direct Message in response to an Instagram comment."""
-    return send_ig_message_payload({"comment_id": comment_id}, text, access_token, f"Private DM on comment {comment_id}")
 
 
 async def generate_comment_reply(comment_text: str, post_caption: str = "", commenter_name: str = "") -> str:
@@ -166,36 +158,11 @@ def notify_crm(source: str, user_name: str, user_id: str, message: str, reply: s
         logger.error("[CRM] Exception in notify_crm", error=str(exc))
 
 
-_UNSAFE_PUBLIC_REPLY = re.compile(
-    r"https?://|www\.|t\.me/|\b[\w-]+\.(?:com|uz|ru|net|org|io|me|link|app)\b|@\w{3,}|\+?\d[\d\s-]{7,}",
-    re.IGNORECASE,
+from src.services.core.instagram.webhook_verifier import (
+    is_safe_public_reply,
+    allow_auto_reply,
+    _auto_reply_log,
 )
-MAX_PUBLIC_REPLY_CHARS = 400
-AUTO_REPLY_LIMIT_PER_HOUR = 3
-_auto_reply_log: dict[str, deque] = defaultdict(deque)
-
-
-def is_safe_public_reply(text: str) -> bool:
-    """AI javobini brend nomidan ommaviy joylashdan oldin tekshiradi.
-
-    Izoh matni LLM'ga kiradi (prompt injection): hujumchi brend akkauntiga
-    havola, @mention yoki telefon raqami yozdirishi mumkin. Bunday javob
-    avtomatik joylanmaydi — jamoa CRM guruhida ko'rib chiqadi.
-    """
-    t = (text or "").strip()
-    return bool(t) and len(t) <= MAX_PUBLIC_REPLY_CHARS and not _UNSAFE_PUBLIC_REPLY.search(t)
-
-
-def allow_auto_reply(commenter_id: str, now: Optional[float] = None) -> bool:
-    """Bitta izohlovchiga soatiga ko'pi bilan AUTO_REPLY_LIMIT_PER_HOUR ta avto-javob."""
-    now = time.time() if now is None else now
-    log = _auto_reply_log[commenter_id]
-    while log and now - log[0] > 3600:
-        log.popleft()
-    if len(log) >= AUTO_REPLY_LIMIT_PER_HOUR:
-        return False
-    log.append(now)
-    return True
 
 
 async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> None:
@@ -233,6 +200,9 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
         for event in entry.get("messaging", []) or []:
             s = str(event.get("sender", {}).get("id") or "")
             t = (event.get("message", {}) or {}).get("text", "") or ""
+            if not t and event.get("postback"):
+                pb = event.get("postback") or {}
+                t = str(pb.get("title") or pb.get("payload") or "")
             if s and t:
                 dm_events.append((s, t))
 
@@ -278,38 +248,34 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 except Exception:  # noqa: BLE001 - history is best-effort
                     history = []
 
-            from src.services.core.instagram.lead_qualifier import (
-                generate_qualifying_dm_response,
+            from src.services.core.instagram.brend_lead_flow import process_brend_dm_conversation, format_customer_360_alert
+            from src.services.core.instagram.comment_store import InstagramCommentStore
+            lead_kws = ("brend", "patent", "loyiha", "maslahat")
+            is_brend = (
+                InstagramCommentStore().has_user_received_dm(sender_id)
+                or any(k in text.lower() for k in lead_kws)
+                or any(any(k in (h.get("content") or "").lower() for k in lead_kws) for h in history)
             )
-            ai_reply = await generate_qualifying_dm_response(
+            auto_dm = os.environ.get("IG_AUTO_DM_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+
+            brend_res = await process_brend_dm_conversation(
+                sender_id=sender_id,
                 user_message=text,
                 history=history,
-                commenter_name="",
+                commenter_name="Foydalanuvchi",
+                access_token=access_token if auto_dm else "",
+                db=db,
+                is_brend_lead=is_brend,
             )
 
-            info_updates: dict[str, str] = {}
-            for m in re.finditer(r"\[SAVE_INFO:\s*([^\[\]]+)\]", ai_reply, re.IGNORECASE):
-                parts = m.group(1).split("=", 1)
-                if len(parts) == 2:
-                    info_updates[parts[0].strip().lower()] = parts[1].strip()
-            if info_updates and db:
-                await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
-
-            clean_reply = strip_bracket_tags(ai_reply)
-            if db:
-                # Stored as a draft suggestion only — is_ai=True marks it as
-                # AI-authored text, but it is never sent to the customer.
-                await db.log_message(user_id_str, clean_reply, is_ai=True)
-
-            # NOTE: AmoCRM already ingests Instagram DMs via its own native
-            # integration and opens the deal itself. Do NOT create a second
-            # deal here — it produces junk "Instagram DM: <id>" duplicates.
-            #
-            # Policy: DM mijozlarga AI avtomatik javob YUBORMAYDI (faqat
-            # Telegram va Instagram kommentlarida AI javob berish ruxsat
-            # etilgan). AI javobi faqat taklif (draft) sifatida CRM guruhga
-            # yuboriladi — jamoa qo'lda javob beradi.
-            notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
+            profile_360 = brend_res.get("profile_360")
+            if profile_360:
+                alert_text = format_customer_360_alert(
+                    profile_360, brand_name=brend_res["info"].get("brand", ""), industry=brend_res["info"].get("industry", "")
+                )
+                notify_crm("Instagram Brend 360", "Mijoz", sender_id, text, alert_text)
+            else:
+                notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, brend_res.get("raw_reply", brend_res["reply"]))
 
         # Comment / Page Feed Change Handling
         changes = entry.get("changes", [])
@@ -344,42 +310,38 @@ async def process_instagram_webhook(payload: dict, db: Optional[Any] = None) -> 
                 if db:
                     await db.log_message(user_id_str, f"COMMENT: {comment_text}", is_ai=False)
 
-                keyword_template = _match_comment_keyword_automation(comment_text)
+                from src.services.core.instagram.brend_lead_flow import is_brend_keyword, handle_brend_comment_trigger, handle_need_comment_trigger
+                media_id = str((value.get("media") or {}).get("id") or "")
+                if field not in {"mentions", "mention"} and is_brend_keyword(comment_text):
+                    if await handle_brend_comment_trigger(comment_id, comment_text, commenter_name, commenter_id, access_token, media_id, db):
+                        notify_crm("Instagram Brend Comment", commenter_name, commenter_id, comment_text, "Brend Direct opener sent")
+                    continue
+
+                keyword_template = _match_comment_keyword_automation(comment_text) if field not in {"mentions", "mention"} else None
                 if keyword_template:
-                    sent = send_ig_private_reply(comment_id, keyword_template, access_token)
-                    if sent:
-                        reply_to_comment(comment_id, KEYWORD_AUTOMATION_PUBLIC_ACK, access_token)
+                    if send_ig_private_reply(comment_id, keyword_template, access_token):
+                        from src.services.core.instagram.agent_constants import get_public_ack_for_comment
+                        reply_to_comment(comment_id, get_public_ack_for_comment(comment_text), access_token)
                     if db:
                         await db.log_message(user_id_str, keyword_template, is_ai=False)
-                    source = "Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment"
                     ad_id = str((value.get("media") or {}).get("ad_id") or "")
-                    if ad_id:
-                        source = f"Instagram Reklama (ad_id: {ad_id})"
-                    notify_crm(
-                        f"{source} (keyword automation)",
-                        commenter_name,
-                        commenter_id,
-                        comment_text,
-                        keyword_template,
-                    )
-                    logger.info(
-                        "[META] Keyword automation DM sent",
-                        sent=sent,
-                        commenter=commenter_name,
-                        comment_id=comment_id,
-                    )
+                    src_tag = f"Instagram Reklama (ad_id: {ad_id})" if ad_id else ("Instagram Mention" if field in {"mentions", "mention"} else "Instagram Comment")
+                    notify_crm(f"{src_tag} (keyword automation)", commenter_name, commenter_id, comment_text, keyword_template)
                     continue
 
                 media_id = str((value.get("media") or {}).get("id") or "")
+                post_caption = ""
                 if media_id:
                     from src.services.core.instagram.video_analyzer import analyze_media_content
-                    # analyze_media_content fetches the caption itself and, for
-                    # VIDEO/REELS, downloads and has Gemini describe the actual
-                    # video content — so replies are grounded in what the video
-                    # really shows/says, not just the caption text.
                     post_caption = await analyze_media_content(media_id, access_token)
-                else:
-                    post_caption = ""
+
+                if field not in {"mentions", "mention"} and not _contains_sensitive_terms(comment_text):
+                    if await handle_need_comment_trigger(
+                        comment_id, comment_text, commenter_name, commenter_id,
+                        access_token, media_id, post_caption, db
+                    ):
+                        notify_crm("Instagram Savol/Ehtiyoj Comment", commenter_name, commenter_id, comment_text, "DM opener sent")
+                        continue
 
                 from src.services.core.instagram.emoji_utils import get_mirror_emoji_reply
                 emoji_mirror = get_mirror_emoji_reply(comment_text)

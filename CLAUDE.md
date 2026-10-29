@@ -300,10 +300,10 @@ Standalone Meta-OAuth app (independent of the pnpm workspaces): FastAPI `backend
 ### Deployment targets
 | Target | Use |
 |--------|-----|
-| Oracle Cloud VM (systemd) | **Primary production** (Python core + userbot) |
+| Contabo VPS (systemd, 109.199.100.137) | **Primary production** (Python core + userbot + CAPI) |
+| Oracle Cloud VM (163.192.10.104) | Decommissioned |
 | Google Cloud Run / Cloud Build (europe-west3) | Legacy fallback |
-| VPS | Legacy Telethon userbot |
-| Oracle web (`oisha.jonbranding.uz`) | Admin web UI |
+| Contabo web (oisha.jonbranding.uz, crm.jonbranding.uz) | Admin & CRM web UI |
 
 ## AI Providers
 

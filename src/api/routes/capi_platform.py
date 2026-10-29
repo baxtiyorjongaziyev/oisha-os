@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
@@ -70,7 +71,7 @@ async def console(request: Request):
     principal = authorize_connection(request)
     if principal is None:
         accept = request.headers.get("accept", "")
-        if "text/html" in accept and not request.headers.get("authorization"):
+        if not request.headers.get("authorization") and ("text/html" in accept or "*/*" in accept or not accept):
             return RedirectResponse(
                 url="/api/auth/telegram/login?next=/api/marketing/capi/console",
                 status_code=303,
@@ -193,11 +194,74 @@ async def create_new_project(request: Request):
     return JSONResponse(created, status_code=201)
 
 
+@router.patch("/projects/{project_id}", dependencies=[read_access])
+async def update_project(project_id: str, request: Request):
+    """Update settings and Meta credentials for a project."""
+    same_origin(request)
+    from src.api.security import authorize_connection
+    from src.services.core.marketing.capi_project_store import get_project, update_project_settings
+    principal = authorize_connection(request)
+    user_id = principal.subject if principal else "anonymous"
+    is_admin = principal.role.value in ("owner", "admin") if principal else False
+    existing = await get_project(project_id)
+    if not is_admin:
+        if project_id == "default" or not existing or str(existing.get("owner_id") or "") != str(user_id):
+            raise HTTPException(403, "Not authorized to modify this project")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    updated = await update_project_settings(
+        project_id,
+        dataset_id=body.get("dataset_id"),
+        access_token=body.get("access_token"),
+        ad_account_id=body.get("ad_account_id"),
+        crm_pipeline_id=body.get("crm_pipeline_id"),
+    )
+    if not updated:
+        raise HTTPException(404, "Project not found")
+    return JSONResponse(updated)
+
+
+@router.get("/drilldown", dependencies=[read_access])
+async def drilldown(
+    request: Request,
+    metric: str = "total_leads",
+    days: int | None = None,
+    filter_val: str | None = None,
+    project_id: str | None = None,
+):
+    """Atomic lead-level records for clicked metric, funnel stage, or creative."""
+    from src.api.security import authorize_connection
+    from src.services.core.marketing.capi_drilldown import get_drilldown_leads
+    from src.services.core.marketing.capi_project_store import get_project
+
+    principal = authorize_connection(request)
+    user_id = principal.subject if principal else "anonymous"
+    is_admin = principal.role.value in ("owner", "admin") if principal else False
+    if not is_admin:
+        if not project_id or project_id in ("default", "none"):
+            return JSONResponse({"metric": metric, "filter": filter_val, "count": 0, "total_value": 0, "leads": []})
+        proj = await get_project(project_id)
+        if not proj or str(proj.get("owner_id") or "") != str(user_id):
+            return JSONResponse({"metric": metric, "filter": filter_val, "count": 0, "total_value": 0, "leads": []})
+
+    safe_days = days if (days is not None and 1 <= int(days) <= 3650) else None
+    return JSONResponse(
+        get_drilldown_leads(metric, days=safe_days, filter_val=filter_val, project_id=project_id),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @router.post("/events", status_code=202)
 async def intake(request: Request):
     global_sec = os.getenv("OISHA_CAPI_INGEST_SECRET", "")
     bearer = request.headers.get("authorization", "")
-    token = bearer[7:].strip() if bearer.startswith("Bearer ") else ""
+    token = (
+        bearer[7:].strip()
+        if bearer.startswith("Bearer ")
+        else str(request.query_params.get("token") or "").strip()
+    )
     if not token and not global_sec:
         raise HTTPException(503, "CAPI intake not configured")
 
@@ -213,13 +277,32 @@ async def intake(request: Request):
         if len(body) > 16384:
             raise HTTPException(413, "Event too large")
     try:
-        conversion = Conversion.model_validate(json.loads(body))
+        raw = json.loads(body)
+        if isinstance(raw, dict) and ("user_data" in raw or "custom_data" in raw):
+            u_data = raw.get("user_data") or {}
+            c_data = raw.get("custom_data") or {}
+            raw_url = str(c_data.get("event_source_url") or raw.get("event_source_url") or "").strip()
+            clean_url = raw_url.split("?")[0].split("#")[0] if raw_url else None
+            raw = {
+                "source": raw.get("source", "website"),
+                "event_name": raw.get("event_name", "PageView"),
+                "event_id": raw.get("event_id"),
+                "event_time": raw.get("event_time") or int(time.time()),
+                "event_source_url": clean_url,
+                "client_user_agent": u_data.get("client_user_agent") or raw.get("client_user_agent"),
+                "fbp": u_data.get("fbp") or raw.get("fbp"),
+                "fbc": u_data.get("fbc") or raw.get("fbc"),
+                "phone": u_data.get("phone") or raw.get("phone", ""),
+                "email": u_data.get("email") or raw.get("email", ""),
+                "consent": True,
+            }
+        conversion = Conversion.model_validate(raw)
     except (ValidationError, ValueError, UnicodeDecodeError) as exc:
         raise HTTPException(422, "Invalid CAPI event; see integration contract") from exc
     if conversion.source != "website":
         raise HTTPException(403, "Website credential not authorized for non-website source")
     try:
-        res = await platform.accept(conversion)
+        res = await platform.accept(conversion, project=project)
         if project:
             await increment_project_usage(project["id"])
         return res
