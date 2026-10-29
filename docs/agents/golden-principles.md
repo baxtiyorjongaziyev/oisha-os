@@ -8,7 +8,7 @@ Qoida muhim bo'lsa → hook yoki test bilan majburlanadi (so'z — iltimos, hook
 
 ## Tekshiruv
 
-1. "Tayyor" degan qarorni model emas, `pytest` + `bandit` qiladi. Yashil bo'lmasa — commit yo'q.
+1. "Tayyor" degan qaror o'zgarishga mos tekshiruv daliliga tayanadi (`AGENTS.md`). Kod uchun tegishli testlar; hujjat uchun diff, havola va izchillik tekshiruvi. PR oldidan to'liq `pytest` + `bandit`, majburiy CI/xavfsizlik gate'lari saqlanadi; talab qilingan tekshiruv qizil bo'lsa — commit yo'q. Yangi sabab bo'lmasa o'tgan tekshiruvni takrorlama.
 2. Testni o'tkazish uchun testni o'chirish, `skip` qilish yoki assertni kuchsizlantirish taqiqlanadi.
 3. Har bug fix → avval uni qaytaradigan (failing) test, keyin fix.
 

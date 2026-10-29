@@ -31,11 +31,6 @@ MOIZVONKI_REP_MAP: Dict[str, Dict[str, Any]] = {
         "name": "Rayxona",
         "rep_id": 9000001,
     },
-    "farangiz@jonbranding.uz": {
-        "slug": "farangiz",
-        "name": "Farangiz",
-        "rep_id": 13838466,
-    },
     "oydin@jonbranding.uz": {
         "slug": "oydin",
         "name": "Oydin Ermuhammadova",
@@ -63,9 +58,9 @@ def resolve_rep(identifier: Optional[str]) -> Dict[str, Any]:
     if clean in MOIZVONKI_REP_MAP:
         return MOIZVONKI_REP_MAP[clean]
     for acc, info in MOIZVONKI_REP_MAP.items():
-        if info["slug"] in clean or info["name"].lower() in clean or acc.split("@")[0] in clean:
+        if clean == info["slug"] or clean == info["name"].lower() or clean.split("@")[0] == acc.split("@")[0]:
             return info
-    return {"slug": "shahnoza", "name": "Shahnoza Abdijabborova", "rep_id": 13021974}
+    return {"slug": "unknown", "name": "Noma'lum Moizvonki akkaunti", "rep_id": None}
 
 
 class CallerIdHub:

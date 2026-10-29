@@ -36,8 +36,16 @@ def attribution_db(monkeypatch):
             return "Video 9 - Sentabr" if ad_id == "999" else None
 
         def get_ad_creative_url(self, ad_id):
-            return "https://www.instagram.com/p/NEW/" if ad_id == "999" else None
+            return {
+                "999": "https://www.instagram.com/p/NEW/",
+                "120249419742870032": "https://www.instagram.com/p/DdMgcrcgnuH/",
+            }.get(ad_id)
 
+    # get_creative_url now resolves via ad_creative_service (fallback to Facebook
+    # Ads Manager preview). Stub it so _resolve_ad_url falls through to the
+    # FakeClient's get_ad_creative_url Instagram permalink.
+    from src.services.core.marketing import meta_ads_client
+    monkeypatch.setattr(meta_ads_client, "get_creative_url", lambda ad_id: None)
     monkeypatch.setattr(rep, "_meta_client", lambda: FakeClient())
     rep._AD_NAME_CACHE.clear()
     rep._AD_URL_CACHE.clear()

@@ -9,13 +9,15 @@ import os
 import time
 import httpx
 from pathlib import Path
-from .settings import (
-    AMOCRM_SUBDOMAIN,
-    AMOCRM_CLIENT_ID,
-    AMOCRM_CLIENT_SECRET,
-    AMOCRM_REDIRECT_URI,
-    AMOCRM_LONG_LIVED_TOKEN,
-)
+from .settings import settings
+
+AMOCRM_SUBDOMAIN = getattr(settings, "AMOCRM_SUBDOMAIN", "jonbranding")
+AMOCRM_CLIENT_ID = getattr(settings, "AMOCRM_CLIENT_ID", "")
+_secret = getattr(settings, "AMOCRM_CLIENT_SECRET", None)
+AMOCRM_CLIENT_SECRET = _secret.get_secret_value() if hasattr(_secret, "get_secret_value") else str(_secret or "")
+AMOCRM_REDIRECT_URI = getattr(settings, "AMOCRM_REDIRECT_URL", getattr(settings, "AMOCRM_REDIRECT_URI", ""))
+_long_token = getattr(settings, "AMOCRM_LONG_LIVED_TOKEN", getattr(settings, "AMOCRM_ACCESS_TOKEN", None))
+AMOCRM_LONG_LIVED_TOKEN = _long_token.get_secret_value() if hasattr(_long_token, "get_secret_value") else str(_long_token or "")
 
 BASE_URL = f"https://{AMOCRM_SUBDOMAIN}.amocrm.ru"
 TOKEN_URL = f"{BASE_URL}/oauth2/access_token"

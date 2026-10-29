@@ -1,8 +1,8 @@
 [Unit]
-Description=Run Oisha sales calls report daily at 06:00 Tashkent
+Description=Run Oisha sales calls report daily at 18:30 Tashkent
 
 [Timer]
-OnCalendar=*-*-* 06:00:00 Asia/Tashkent
+OnCalendar=*-*-* 18:30:00 Asia/Tashkent
 Persistent=true
 
 [Install]

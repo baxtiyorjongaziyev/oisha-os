@@ -204,6 +204,9 @@ def is_checkin_interaction(
         if f"@{uname}" in low_reply:
             return True
     return False
+
+
+def build_staff_intro_message(rep_name: str, user_id: int) -> str:
     """Warm introductory greeting from Oisha to the remote staff member."""
     clean_name = rep_name or "Rayxon"
     return (

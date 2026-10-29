@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import shutil
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.services.core.ai.hermes_harness import get_hermes_harness
 
@@ -148,6 +148,7 @@ class HermesAgentProvider:
         env["NO_COLOR"] = "1"
         env["TERM"] = "dumb"
 
+        proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -159,10 +160,6 @@ class HermesAgentProvider:
                 proc.communicate(), timeout=float(timeout)
             )
 
-            raw_text = stdout.decode("utf-8", errors="replace")
-            new_sess_id = extract_session_id(raw_text)
-            clean_reply = clean_hermes_output(raw_text)
-
             if proc.returncode != 0:
                 err_text = stderr.decode("utf-8", errors="replace")
                 logger.warning(
@@ -170,15 +167,32 @@ class HermesAgentProvider:
                     proc.returncode,
                     err_text[:200],
                 )
+                return None, None
 
+            raw_text = stdout.decode("utf-8", errors="replace")
+            new_sess_id = extract_session_id(raw_text)
+            clean_reply = clean_hermes_output(raw_text)
             return clean_reply or None, new_sess_id
 
         except asyncio.TimeoutError:
             logger.warning("[HERMES] Generation timed out after %ds", timeout)
+            await self._terminate(proc)
             return None, None
         except Exception as exc:
             logger.error("[HERMES] Subprocess execution failed: %s", exc)
+            await self._terminate(proc)
             return None, None
+
+    @staticmethod
+    async def _terminate(proc: Any) -> None:
+        """Kill a hung Hermes subprocess so it never outlives the request."""
+        if proc is None or proc.returncode is not None:
+            return
+        try:
+            proc.kill()
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[HERMES] Could not terminate subprocess: %s", exc)
 
     async def generate_response(
         self,

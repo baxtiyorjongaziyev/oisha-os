@@ -20,12 +20,12 @@ DEFAULT_FORWARD_GROUP_ID = -1003854308552
 DEFAULT_FORWARD_TOPIC_ID = 443
 
 def _is_working_hours() -> bool:
-    """Check if current time is within official working hours (10:00 - 18:00, Mon-Sat)."""
+    """Check working time: 10:00–19:00, excluding 13:00–14:00, Mon–Sat."""
     from src.time_utils import get_local_now
     now = get_local_now()
     if now.weekday() == 6:  # Sunday
         return False
-    return 10 <= now.hour < 18
+    return 10 <= now.hour < 19 and now.hour != 13
 
 
 class AmoCrmTaskNotifier:
@@ -199,7 +199,7 @@ class AmoCrmTaskNotifier:
         """Proactive check of open tasks from AmoCRM API."""
         stats = {"due_sent": 0, "overdue_sent": 0, "skipped": 0, "total_open": 0}
         if not _is_working_hours():
-            logger.debug("[TASK_NOTIFIER] Outside working hours (10:00-18:00 Mon-Sat). Skipping task notification loop.")
+            logger.debug("[TASK_NOTIFIER] Outside working hours (10:00-19:00, lunch 13:00-14:00 Mon-Sat). Skipping task notification loop.")
             return stats
         if not self.amocrm:
             logger.debug("[TASK_NOTIFIER] AmoCRM client not available for polling.")

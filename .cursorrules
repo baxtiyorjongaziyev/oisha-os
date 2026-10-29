@@ -1,6 +1,6 @@
 # Cursor Rules for Oisha-OS Monorepo
 
-Read `AGENTS.md` and `docs/agents/three-agent-workflow.md` before making changes.
+Read `AGENTS.md` and follow its scoped workflow. Read `docs/agents/three-agent-workflow.md` only when the owner requests multiple agents. Load skills only for the relevant task.
 
 ## Skills & Operations:
 - Tax operations & compliance: `.cursor/rules/soliq-ops.mdc` -> `.agents/skills/soliq-ops/SKILL.md`

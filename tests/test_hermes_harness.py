@@ -1,9 +1,10 @@
 """Unit tests for Hermes Harness Loop, Invariant Verification, and Context Engine."""
 from __future__ import annotations
 
+import asyncio
 import time
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.services.core.ai.hermes_context import (
     HermesContextEngine,
@@ -169,7 +170,14 @@ async def test_harness_loop_self_healing_flow():
 @pytest.mark.asyncio
 async def test_hermes_provider_with_harness():
     provider = HermesAgentProvider()
-    with patch.object(
+    # The suite exercises the global harness singleton (circuit breaker can be
+    # left OPEN by earlier tests), so isolate with a fresh harness instance.
+    from src.services.core.ai.hermes_harness import HermesHarnessLoop
+    fresh_harness = HermesHarnessLoop()
+    with patch(
+        "src.services.core.ai.hermes_provider.get_hermes_harness",
+        return_value=fresh_harness,
+    ), patch.object(
         provider,
         "execute_raw_turn",
         new_callable=AsyncMock,
@@ -181,3 +189,81 @@ async def test_hermes_provider_with_harness():
             use_harness=True,
         )
         assert reply == "Salom, loyiha bo'yicha gaplashamiz."
+
+
+@pytest.mark.asyncio
+async def test_harness_fails_closed_when_still_invalid():
+    harness = HermesHarnessLoop(max_refinements=1)
+
+    async def always_bad(p: str, s: str = None):
+        return "Biz logotipni $50 ga qilamiz va 100% kafolatli natija beramiz!"
+
+    result = await harness.execute_loop(
+        generate_fn=always_bad, prompt="Narx?", destination="general"
+    )
+
+    assert result is None
+    telemetry = harness.telemetry.as_dict()
+    assert telemetry["failed_requests"] == 1
+    assert telemetry["successful_requests"] == 0
+
+
+@pytest.mark.asyncio
+async def test_harness_returns_sanitized_text_only_if_it_passes():
+    harness = HermesHarnessLoop(max_refinements=1)
+
+    async def stubborn(p: str, s: str = None):
+        return "Loyiha bo'yicha ertaga gaplashamiz. Har qanday savolingiz bo'lsa yozing."
+
+    result = await harness.execute_loop(
+        generate_fn=stubborn, prompt="Salom", destination="general"
+    )
+
+    assert result is not None
+    assert "savolingiz" not in result.lower()
+    assert "Loyiha bo'yicha ertaga gaplashamiz." in result
+
+
+class _FakeProc:
+    def __init__(self, returncode, out=b"", err=b"", hang=False):
+        self.returncode = returncode
+        self._out, self._err, self._hang = out, err, hang
+        self.kill = MagicMock(side_effect=self._kill)
+
+    def _kill(self):
+        self.returncode = -9
+
+    async def communicate(self):
+        if self._hang:
+            await asyncio.sleep(30)
+        return self._out, self._err
+
+    async def wait(self):
+        return self.returncode
+
+
+@pytest.mark.asyncio
+async def test_provider_nonzero_exit_is_not_a_reply():
+    provider = HermesAgentProvider()
+    proc = _FakeProc(1, out=b"Traceback (most recent call last): boom", err=b"err")
+    with patch.object(provider, "find_executable", return_value="hermes"), patch(
+        "asyncio.create_subprocess_exec", AsyncMock(return_value=proc)
+    ):
+        reply, sess = await provider.execute_raw_turn("Salom", timeout=5)
+
+    assert reply is None
+    assert sess is None
+
+
+@pytest.mark.asyncio
+async def test_provider_timeout_kills_subprocess():
+    provider = HermesAgentProvider()
+    proc = _FakeProc(None, hang=True)
+    with patch.object(provider, "find_executable", return_value="hermes"), patch(
+        "asyncio.create_subprocess_exec", AsyncMock(return_value=proc)
+    ):
+        reply, sess = await provider.execute_raw_turn("Salom", timeout=0.05)
+
+    assert reply is None
+    assert sess is None
+    proc.kill.assert_called_once()

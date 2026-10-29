@@ -46,7 +46,9 @@ def test_google_session_reaches_console(auth, monkeypatch):
     projects = AsyncMock(return_value=[])
     monkeypatch.setattr(capi_project_store, "list_projects_for_user", projects)
     assert auth.get("/api/marketing/capi/projects").json() == []
-    projects.assert_awaited_once_with("synthetic@example.test", is_admin=False)
+    # Session JWT `sub` = user id (auth_service.issue_session_jwt str(user_id)),
+    # authorized principal.subject is read from that claim.
+    projects.assert_awaited_once_with("900000001", is_admin=False)
     auth.post("/api/auth/logout", follow_redirects=False)
     assert auth.get("/api/marketing/capi/console", follow_redirects=False).status_code == 303
 
