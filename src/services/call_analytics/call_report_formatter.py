@@ -8,6 +8,7 @@ Ushbu modul:
 """
 from __future__ import annotations
 
+import copy
 import html
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
@@ -210,19 +211,53 @@ def _get_display_name(account: str, names: Dict[str, str]) -> str:
     return normalize_name_spellings(val)
 
 
+def _merge_reps_by_name(reps: List[any], names: Dict[str, str]) -> List[any]:
+    """Bir xil ko'rsatiladigan ismli akkauntlarni birlashtiradi.
+
+    Sotuvchida ish va shaxsiy Moizvonki akkaunti bo'lishi mumkin (masalan
+    ``rayxona@jonbranding.uz`` + shaxsiy gmail). Hisobotda ular alohida
+    qator bo'lib chiqmasligi kerak — ko'rsatkichlar qo'shiladi.
+    """
+    merged: Dict[str, any] = {}
+    order: List[str] = []
+    sum_fields = (
+        "total", "outgoing", "outgoing_answered", "incoming",
+        "incoming_answered", "talk_seconds", "short_calls", "solid_calls",
+        "wait_seconds", "no_callback",
+    )
+    for rep in reps:
+        key = _get_display_name(rep.account, names).strip().lower()
+        target = merged.get(key)
+        if target is None:
+            target = copy.copy(rep)
+            target.clients = set(getattr(rep, "clients", set()) or set())
+            merged[key] = target
+            order.append(key)
+            continue
+        for field in sum_fields:
+            setattr(target, field, getattr(target, field, 0) + getattr(rep, field, 0))
+        target.longest = max(getattr(target, "longest", 0), getattr(rep, "longest", 0))
+        target.clients |= set(getattr(rep, "clients", set()) or set())
+        firsts = [t for t in (getattr(target, "first_ts", 0), getattr(rep, "first_ts", 0)) if t]
+        target.first_ts = min(firsts) if firsts else 0
+        target.last_ts = max(getattr(target, "last_ts", 0), getattr(rep, "last_ts", 0))
+    return [merged[key] for key in order]
+
+
 def format_report_rop(report: any, names: Optional[Dict[str, str]] = None) -> str:
     """Hisobotni emojilari kamaytirilgan, tartibli va ROP motivatsiyasi bilan formatlaydi."""
     names = names or {}
     e = html.escape
     lines = [f"📞 <b>Qo'ng'iroqlar hisoboti — {e(report.day)}</b>", ""]
 
-    active = [r for r in report.reps if r.total]
+    reps = _merge_reps_by_name(list(report.reps), names)
+    active = [r for r in reps if r.total]
     if not active:
         lines.append("Bu kunda qo'ng'iroq bo'lmagan.")
         return "\n".join(lines)
 
     # 1. Har bir sotuvchi ko'rsatkichlari
-    for i, r in enumerate(report.reps, 1):
+    for i, r in enumerate(reps, 1):
         name = e(_get_display_name(r.account, names))
         solid = getattr(r, "solid_calls", 0)
         badge = " [50+ SIFATLI MARRA]" if solid >= TARGET_SOLID_CALLS else ""
@@ -231,7 +266,7 @@ def format_report_rop(report: any, names: Optional[Dict[str, str]] = None) -> st
         lines.append("")
 
     # 2. Jamoa bo'yicha umumiy statistika
-    idle = len(report.reps) - len(active)
+    idle = len(reps) - len(active)
     team_label = f"{len(active)} sotuvchi" + (f", {idle} tasi qo'ng'iroqsiz" if idle else "")
     lines += _team_stats_lines(report.total, team_label)
 

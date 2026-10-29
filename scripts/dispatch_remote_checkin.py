@@ -88,7 +88,7 @@ async def main():
     if args.dry_run:
         end_ts = int(now.timestamp())
         start_ts = end_ts - 3600
-        calls = fetch_recent_calls_for_rep(["rayxona@jonbranding.uz", "xayrullayevna006@gmail.com"], start_ts, end_ts)
+        calls = fetch_recent_calls_for_rep(["rayxona@jonbranding.uz"], start_ts, end_ts)
         msg = build_checkin_message(args.rep, args.tg, now, calls)
         print("\n--- [DRY RUN MESSAGE PREVIEW] ---")
         print(msg)
