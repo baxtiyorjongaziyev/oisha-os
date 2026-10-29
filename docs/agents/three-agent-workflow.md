@@ -1,6 +1,6 @@
 # Uch agent bilan ishlash tartibi
 
-2026-10-02. Hozir VS Code ichida ochilgan Oisha OS uchun tayyorlandi.
+2026-10-02 da VS Code uchun tayyorlangan; 2026-10-28 da scope aniqlashtirildi. Faqat owner ko'p agentli ishni so'raganda qo'llanadi. Oddiy vazifani bitta agent bajaradi; asosiy tartib `AGENTS.md` da.
 
 ## Rollar
 
@@ -12,7 +12,7 @@ Rollar model sifati reytingi emas; taskga qarab almashtiriladi. Uchala agent avt
 
 ## Har bir task
 
-1. AGENTS.md, CLAUDE.md, docs/oisha-prd.md va tegishli docs/agents/ qoidalarini o'qi. GEMINI.md dagi eski stack/status uchun yangi manbalarni tekshir.
+1. AGENTS.md ni o'qi; CLAUDE.md, docs/oisha-prd.md va docs/agents/ dan faqat vazifaga tegishli bo'limlarni qidirib och. Eski stack/statusni faqat joriy vazifa unga tayansa qayta tekshir.
 2. Muammo, qabul mezoni, o'zgarishi mumkin bo'lgan fayllar va tekshiruvni yoz.
 3. git status va mavjud Locks'ni tekshir. Boshqa agentning o'zgarishini saqla. Kichik feat/ yoki fix/ branch ishlat; main'ga bevosita push qilma.
 4. Bir checkoutda faqat bitta implementer yozadi. Ikkinchi mustaqil implementer kerak bo'lsa, alohida Git worktree va branch yarat; har worktree alohida VS Code oynasida ochiladi. Worktree'ga .env va Telegram session ko'chirma.

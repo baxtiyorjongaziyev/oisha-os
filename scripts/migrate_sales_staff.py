@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 
 # Path is relative to repository root
-DB_PATH = Path(__file__).parents[2] / "data" / "crm_dialer.db"
+DB_PATH = Path(__file__).resolve().parents[1] / "data" / "crm_dialer.db"
 
 def run() -> None:
     con = sqlite3.connect(DB_PATH)

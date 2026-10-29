@@ -170,3 +170,4 @@ data/job_claims/
 
 # Second Brain digest dedupe state (runtime)
 data/brain_digest_state.txt
+.aider*

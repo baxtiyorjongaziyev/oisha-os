@@ -239,8 +239,17 @@ class HermesHarnessLoop:
             was_refined = True
             current_prompt = f"{prompt}\n\n{eval_res.critic_prompt}"
 
-        # If all refinements exhausted, return sanitized best-effort output
+        # Refinements exhausted: only a sanitized text that now passes every
+        # invariant may leave the harness. Otherwise fail closed (no reply).
         sanitized = self.evaluator.sanitize(candidate)
+        final = self.evaluator.evaluate(sanitized, destination=destination)
+        if not final.is_valid:
+            logger.warning(
+                "[HERMES-HARNESS] Refinements exhausted, still invalid: %s. Dropping reply.",
+                final.violations,
+            )
+            self.telemetry.record_failure(time.time() - t0)
+            return None
         self.circuit_breaker.record_success()
         self.telemetry.record_success(time.time() - t0, was_refined=True)
         return sanitized

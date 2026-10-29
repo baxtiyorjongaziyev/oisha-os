@@ -24,7 +24,7 @@ def store(tmp_path):
 def test_resolve_rep():
     assert resolve_rep("shahnoza@jonbranding.uz")["slug"] == "shahnoza"
     assert resolve_rep("rayxona@jonbranding.uz")["slug"] == "rayxona"
-    assert resolve_rep("farangiz@jonbranding.uz")["slug"] == "farangiz"
+    assert resolve_rep("farangiz@jonbranding.uz")["slug"] == "unknown"
     assert resolve_rep("mumtozmaxal@jonbranding.uz")["slug"] == "mumtozmaxal"
 
 

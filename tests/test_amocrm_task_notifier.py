@@ -1,5 +1,7 @@
 import pytest
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
+from src.services.core.crm.task_notifier.notifier import _is_working_hours
 from src.services.core.amocrm_task_notifier import (
     AmoCrmTaskNotifier,
     format_task_notification,
@@ -7,6 +9,12 @@ from src.services.core.amocrm_task_notifier import (
     DEFAULT_FORWARD_GROUP_ID,
     DEFAULT_FORWARD_TOPIC_ID,
 )
+
+
+@pytest.mark.parametrize("hour,expected", [(9, False), (10, True), (12, True), (13, False), (14, True), (18, True), (19, False)])
+def test_working_hours_exclude_lunch(monkeypatch, hour, expected):
+    monkeypatch.setattr("src.time_utils.get_local_now", lambda: datetime(2026, 10, 29, hour))
+    assert _is_working_hours() is expected
 
 
 def test_format_task_notification_due():

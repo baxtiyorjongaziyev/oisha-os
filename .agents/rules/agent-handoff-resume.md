@@ -1,10 +1,10 @@
-# Agent handoff: automatic resume and handoff
+# Agent handoff: scoped resume and handoff
 
-Applies to every task, without the user repeating it.
+Use resume only when the current request continues previous work. Follow AGENTS.md's scoped workflow.
 
-## At the start of every task
-1. Run `powershell -NoProfile -File scripts/agent_resume.ps1` (read-only). It prints branch, git status/diff, active Locks and the last `docs/agents/handoff-log.md` entry.
-2. If the last entry has "Qolgan ish" and the user's task is a continuation (or the user gave no new task), work ONLY on that remaining work.
+## When continuing a task
+1. Search `docs/agents/handoff-log.md` by task, branch or file, then read only the matching entry. The latest entry may belong to another task. `rtk proxy powershell -NoProfile -File scripts/agent_resume.ps1` is an optional read-only snapshot when that broader context is needed; do not run it on every small task.
+2. Continue only the remaining work tied to the current request. With no concrete request, do not automatically adopt unrelated backlog.
 3. If the user gives a new, unrelated task, do that instead; do not resume old work.
 4. Respect Locks and other agents' uncommitted changes. Do not guess; unknown state is "noma'lum".
 

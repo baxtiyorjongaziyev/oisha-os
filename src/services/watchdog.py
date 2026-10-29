@@ -4,6 +4,12 @@ import time
 import logging
 import requests
 import subprocess
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(_ROOT / ".env")
 
 # Set up logging
 logging.basicConfig(
@@ -28,6 +34,29 @@ STARTUP_GRACE_SECONDS = int(os.environ.get("OISHA_STARTUP_GRACE_SECONDS", "240")
 RESTART_COUNT_FILE = os.environ.get(
     "OISHA_WATCHDOG_RESTART_COUNT_FILE", "/run/oisha-watchdog-restarts"
 )
+
+
+def send_telegram_alert(message: str) -> None:
+    """Send one operational alert without allowing Telegram to stop the watchdog."""
+    token = (os.environ.get("BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat_id = os.environ.get("TELEGRAM_ALERT_CHAT_ID", "-1003792973489").strip()
+    topic_id = os.environ.get("TELEGRAM_ALERT_TOPIC_ID", "").strip()
+    if not token or not chat_id:
+        logger.warning("Telegram alert is not configured; continuing without notification.")
+        return
+    payload = {"chat_id": chat_id, "text": message, "disable_web_page_preview": True}
+    if topic_id.isdigit():
+        payload["message_thread_id"] = int(topic_id)
+    try:
+        response = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json=payload,
+            timeout=10,
+        )
+        response.raise_for_status()
+        logger.info("Telegram operational alert sent.")
+    except Exception as exc:
+        logger.error(f"Telegram operational alert failed: {type(exc).__name__}: {exc}")
 
 def service_uptime_seconds():
     """Return the systemd service process age so boot-time failures are tolerated."""
@@ -85,10 +114,14 @@ def check_health() -> bool:
 def main():
     logger.info(f"Oisha-OS Self-Healing Watchdog active. Target: {HEALTH_URL}")
     consecutive_failures = 0
+    outage_alert_sent = False
     
     while True:
         try:
             if check_health():
+                if outage_alert_sent:
+                    send_telegram_alert("✅ OISHA tiklandi: health-check yana 200 qaytarmoqda.")
+                    outage_alert_sent = False
                 consecutive_failures = 0
             else:
                 uptime = service_uptime_seconds()
@@ -103,6 +136,11 @@ def main():
                 consecutive_failures += 1
                 logger.warning(f"Consecutive health failures: {consecutive_failures}/{FAILURE_THRESHOLD}")
                 if consecutive_failures >= FAILURE_THRESHOLD:
+                    if not outage_alert_sent:
+                        send_telegram_alert(
+                            f"🚨 OISHA ishlamayapti: {FAILURE_THRESHOLD} ta ketma-ket health-check muvaffaqiyatsiz."
+                        )
+                        outage_alert_sent = True
                     restart_service()
                     consecutive_failures = 0
                     # Sleep a bit longer after restart to let the service boot

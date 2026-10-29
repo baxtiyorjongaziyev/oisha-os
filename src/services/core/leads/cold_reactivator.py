@@ -262,8 +262,6 @@ class ColdLeadReactivator:
 
         # Yangi bitim payload
         new_tags = ["Sovuq_Baza", "Reactivation"]
-        if summary.get("previous_manager"):
-            new_tags.append(summary["previous_manager"])
 
         payload = {
             "name": f"{orig_name} (Qayta uyg'otish)",

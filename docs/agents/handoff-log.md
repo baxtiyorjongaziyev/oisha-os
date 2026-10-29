@@ -6,7 +6,7 @@
 ## Agent Handoff Log
 
 - **2026-09-30 — Antigravity / Codex — Oisha OS PRD v1.0 & Sales Pipeline 5-Stage Alignment:**
-  - **Bajarilgan ish:** 
+  - **Bajarilgan ish:**
     1. Oisha OS yagona PRD hujjati (`docs/oisha-prd.md`) tayyorlandi: Product vision, source-of-truth xaritasi, MVP scope, funksional talablar, acceptance criteria va risklar.
     2. Sotuv voronkasi (Sales Pipeline 11162698) 5 ta toza bosqichga moslashtirildi (`Yangi`, `Aloqa`, `Kvalifikatsiya`, `Uchrashuv`, `Kelishuv / Yopish`).
     3. `src/services/core/crm/amocrm_pipeline_config.py` yangilandi, eski statuslar uchun orqaga moslik (backward-compatibility aliases) ta'minlandi.
@@ -2648,13 +2648,13 @@ ecxnbIeiSKsAZCV1) loyihasi Loyiha bosqichi = 'Ishlab chiqarish', Jarayon bosqich
 ecyoczNa18O6mjFb) jonli tekshirildi: Baza bo'yicha u allaqachon Ishlab chiqarish / Ish jarayonida holatida ekanligi tasdiqlandi (qo'shimcha o'zgartirish talab qilinmadi).
  3. Obsidian Second Brain: 20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md va 90-AI/Activity Log.md ga qat'iy qoidalar asosida muhrlandi.
  - **O'zgargan fayllar / resurslar**:
- - Airtable API: 
+ - Airtable API:
 ecxnbIeiSKsAZCV1
  - C:\Users\baxti\OneDrive\Документы\Obsidian Vault\20-Areas\Airtable_Operatsion_Tizimi_va_Ozgarishlar.md
  - C:\Users\baxti\OneDrive\Документы\Obsidian Vault\90-AI\Activity Log.md
  - docs/agents/handoff-log.md
  - **Tekshiruv dalili**:
- - Airtable API update_records orqali 
+ - Airtable API update_records orqali
 ecxnbIeiSKsAZCV1 dagi Loyiha bosqichi: 'Ishlab chiqarish' va Jarayon bosqichi (V2): 'Ish jarayonida' holati muvaffaqiyatli tasdiqlandi.
  - **Qolgan ish/eslatma**:
  - Unvan - Patentlash (
@@ -3044,7 +3044,7 @@ ecPi9SROzJNK8SX7, @jonbranding_pm) rasman o'tkazildi.
     - docs/agents/handoff-log.md
   - **Tekshiruv dalillari:**
     - curl -k https://127.0.0.1/.env -H 'Host: oisha.jonbranding.uz' -> 404.
-    - curl http://127.0.0.1:8080/readyz -> 
+    - curl http://127.0.0.1:8080/readyz ->
 eady: true, 	elegram_bot: ok, mocrm: connected.
     - Pytest: 13/13 passed in 	est_production_readiness.py.
     - Bandit: 0 issues across scanned files (andit src/api/routes/health.py -ll).
@@ -3198,3 +3198,73 @@ eady: true, 	elegram_bot: ok, mocrm: connected.
 - `hermes-gateway` qayta ishga tushirildi va `active/running` holati tasdiqlandi. Jonli Telegram sinov xabari yuborilmadi; yangi javobning formatga rioyasi end-to-end tekshirilmagan.
 - Qolgan ish: keyingi tabiiy Telegram javobida JSON yoki `<Skill=...>` chiqmasligini kuzatish; qaytalansa javobni jo'natish qatlamini alohida tuzatish.
 2026-10-28 Codex: Deployed Hermes group_attention module and adapter hooks; require_mention and name patterns configured; plain reply-to-bot no longer triggers. Durable 30-minute unanswered tracking, once per target, 09-19 Asia/Tashkent Mon-Sat, five verified groups. Synthetic checks passed: attribution/dedup/reply cancellation/delay; gateway active and SQLite store exists. Local group_mention change not deployed. Actual delayed Telegram delivery unverified. Existing startup DM/bot Forbidden errors observed. Remote adapter backup .before-attention-20261028; custom patch must be reapplied/reviewed on Hermes upgrade. Remaining: semantic replies without reply linkage, other groups identity confirmation, actual delivery observation.
+
+## 2026-10-28 Codex: read-only credential audit
+- Owner authorized in-memory credential use for local and production. 16 credential-source probes: 9 accepted, 6 HTTP401, 1 HTTP403. Production amoCRM file token/Airtable/Moizvonki/Gemini/Groq/Meta Page+CAPI identity/Turso passed; bot/Cloudflare/Meta user rejected. Local amoCRM file token passed while long-lived token failed. Local MOIZVONK naming differs from expected MOIZVONKI.
+- No configuration or credential changes, refresh, userbot startup or messages. Only this handoff appended in repository; audit scripts/report stored outside repository in Codex visualization folder. Existing dirty work preserved.
+- Evidence: bounded read-only API probes, production service environment comparison, report credential-audit.md in 2026/10/28/01a1826c-d106-7630-adae-c617ce7a97d9.
+- Qolgan ish: rejected credentials and local Moizvonki 403/names; signing, refresh, client and session secrets remain unverified. No end-to-end workflow claim.
+
+
+
+## 2026-10-28 — Codex: tejamkor agent ish tartibi
+- Branch: feat/crm-parity. Bajarildi: vazifaga tegishli kontekst, cheklangan Brain, owner so‘rovisiz subagent yo‘q, mos tekshiruv va aniq yakun holati.
+- Fayllar: AGENTS.md, CLAUDE.md, GEMINI.md, .cursorrules, .agents/rules/agent-handoff-resume.md, .agents/rules/engineering-team.md, docs/agents/three-agent-workflow.md, docs/agents/golden-principles.md; ushbu jurnalga append.
+- Tekshirildi: vazifa boshlanishidagi nusxaga nisbatan diff ko‘rildi; staged index o‘zgarmadi; scoped git diff --check o‘tdi; AGENTS.md 125 qator. Faqat hujjatlar: ilova testlari ishlatilmadi, PR yaratilmagan. PR/CI/xavfsizlik gate va owner tasdig‘i saqlandi.
+- Holat: local. Commit, push, merge, deploy qilinmadi. Brain log yozildi.
+- Ochiq: model tanlovi ilovada qo‘lda; Luna/Sol/Astra yozuvi modelni avtomatik almashtirmaydi. skill-evolution fayli tekshirilgan lokal skill yo‘llarida topilmadi. Aloqasiz runtime/IDE tavsiflari bu vazifada tasdiqlanmadi.
+## 2026-10-28 — Codex: Oisha uzilish alerti
+- Bajarildi: `src/services/watchdog.py` ga Telegram uzilish/tiklanish alerti qo'shildi; alert threshold o'tganda bir marta yuboriladi va health 200 ga qaytganda recovery xabari yuboradi.
+- Production: `/home/ubuntu/oisha-os/src/services/watchdog.py` yangilandi; `oisha-watchdog.service` restart qilindi, `active` va `enabled`; `oisha-os.service` `active`; `/healthz/` HTTP 200.
+- Tekshiruv: Python compile o'tdi; real alert xabari yuborilmadi (xabar yo'nalishi production konfiguratsiyasidan olinadi).
+- Ochiq: barcha biznes workflowlar end-to-end sertifikatlanmagan; Meta user token va SMS verification hali bloklangan.
+
+## 2026-10-28 - Codex Dilbar heartbeat
+- Verified: both required skill paths missing; scoped alternate search no match. No financial-source analysis, checkpoint advancement, promotion or external mutation.
+- Changed: handoff append only; existing staged/unstaged work preserved. Qolgan ish: recover required instructions; unchanged alert suppressed.
+
+## 2026-10-29 - Codex: PR #985 review follow-up
+- Claude lokal `f8d4a2ef` commitini asosiy PR #985 merge holatidan keyin yangilangan `origin/main` ustiga alohida worktreeda cherry-pick qilindi (`5f32ccbb`).
+- `codex/evidence-review-followups` branch push qilindi va PR #990 ochildi. Farq faqat `amocrm_notes.py` hamda ikki evidence test fayli.
+- Tekshiruv: maxsus 48 test, umumiy 3354 passed/18 skipped, Bandit medium/high 0, diff check o'tdi.
+- Ochiq: GitHub Actions joblari GitHub billing/spending-limit sabab ishga tushmadi; PR merge qilinmadi, production deploy qilinmadi. Codacy va CodeRabbit natijalari kutilmoqda.
+
+## 2026-10-29 - Codex: sotuv hisobotidagi roster tuzatildi
+- Owner tasdiqladi: Farangiz sotuv jamoasida emas, uning o'rnida Mumtozmaxal bor.
+- Contabo'dagi `oisha-sales-hourly.service` va `oisha-calls-report.service` rosteri Farangizdan Mumtozmaxalga almashtirildi; daemon reload qilindi. Lokal `deploy/systemd/oisha-calls-report.service` ham yangilandi.
+- Tekshiruv: ikkala unitdan yangi roster qayta o'qildi; soatlik timer active; Moizvonki API bilan `--dry-run` muvaffaqiyatli, roster hajmi 3. Telegramga takroriy hisobot yuborilmadi.
+- Ochiq: Mumtozmaxal accountiga tegishli real call soni alohida tasdiqlanmadi; keyingi yuborilgan hisobotni kuzatish kerak. Lokal fayl commit/push qilinmadi.
+
+## 2026-10-29 - Codex: Moizvonki roster avtomatik sinxronlash tekshiruvi
+- Owner talabi: yangi Moizvonki account ochilganda yoki o'zgarganda sotuvchi ro'yxati avtomatik yangilansin.
+- `calls.list` akkaunt emailini beradi, ammo faol foydalanuvchilar ro'yxati va ismini to'liq bermaydi. `users.list`, `user.list`, `employees.list` read-only API probelari HTTP 400 qaytardi; tasdiqlangan users API topilmadi.
+- Faol defaultlardan Farangiz chiqarildi, Mumtozmaxal qo'shildi; caller ID noma'lum akkauntni Shahnozaga noto'g'ri biriktirmaydi. O'zgargan fayllar: `src/services/core/crm/caller_id_service.py`, `src/services/call_analytics/call_report_formatter.py`, `src/schedulers/unowned_lead_alert.py` va ikkita tegishli test.
+- Tekshiruv: 28 focused test passed. Ochiq: faol users API yoki kabinet orqali roster olish usuli, create/rename avtomatik sinxronlash, prod deploy. Sirlar yozilmadi.
+
+## 2026-10-29 - Codex: Hermes Telegram identity context
+- Contabo Hermes gateway Telegram `from_user.id` ni olishi va xotira yoqilgani tekshirildi. Guruh xabari prefiksida faqat o'zgaruvchan ism berilayotgani aniqlandi.
+- Serverdagi `gateway/run_inbound.py` guruh kontekstiga barqaror Telegram user ID ni, `gateway/session.py` DM kontekstiga user ID ni qo'shadi. `SOUL.md` profillarni faqat ko'rilgan/tasdiqlangan fakt bilan yuritish va maxfiy ma'lumotni boshqa guruhga chiqarmaslik qoidasiga yangilandi. Uchala fayl zaxirasi saqlandi.
+- `py_compile` o'tdi. Serverda pytest yo'q. `hermes-gateway` restartdan keyin active/running, Telegram polling connected, yangi error journal yozuvi yo'q. Haqiqiy Telegram suhbatida profil uzluksizligi E2E tekshirilmadi; boshqa chatlar bo'ylab yagona profil mexanizmi ham tasdiqlanmadi. Lokal Oisha ishlariga tegilmadi.
+
+## 2026-10-29 - Codex: ish vaqti va tushlik qoidasi
+- Owner aytdi: ish vaqti Asia/Tashkent 10:00–19:00, tushlik 13:00–14:00; kelishuvlarga vafo qilishni muloyim eslatish, Isro 34-oyatni bosimga aylantirmaslik.
+- `src/services/core/crm/task_notifier/notifier.py` amoCRM vazifa eslatma chegarasi 18:00 dan 19:00 ga tuzatildi, tushlik soati chiqarildi. `tests/test_amocrm_task_notifier.py` da chegaraviy testlar qo'shildi; 12 test passed.
+- Contabo Hermes `SOUL.md` ga ish vaqti va kelishuvlar qoidasi kiritildi. Oisha notifier yagona fayl sifatida serverga deploy qilindi. `oisha-sales-hourly.timer` 13:05 yuborishni o'tkazib yuboradigan qilib yangilandi. Hermes va Oisha servislar active/running, error journal bo'sh. Uchala server faylining zaxirasi saqlandi; lokal commit/push qilinmadi.
+
+## 2026-10-29 - Codex: AI va inson jadvali ajratildi
+- Owner aniqlashtirdi: Oisha/Hermes 24/7; 10:00–19:00 va tushlik 13:00–14:00 faqat inson xodimlar uchun.
+- Contabo Hermes `SOUL.md` tuzatildi: AI istalgan vaqtda kelgan xabarga javob beradi, xodimga odatiy eslatma va nazorat faqat ish soatlarida. Oldingi fayl zaxirasi saqlandi. Gateway restartdan keyin active; Oisha ham active. Lokal Oisha notifier odamga yuboriladigan amoCRM eslatmalari uchun ish soatlarini qo'llashda qoladi. Telegram E2E yuborish sinovi qilinmadi.
+
+## 2026-10-29 - Oisha: hourly sotuv hisobotidagi eski roster sababi topildi
+- Sabab: systemd `Environment=` dagi yangi roster (Mumtozmaxal) ni `EnvironmentFile=/home/ubuntu/oisha-os/.env` ustidan yozib ketardi; `.env` 95-qatorda hali ham `farangiz@jonbranding.uz:Farangiz,...` turardi. Shu sabab hisobotda Farangiz 0 bilan chiqib, Mumtozmaxal umuman ko'rinmasdi.
+- Contabo `.env` 95-qator yangi roster bilan almashtirildi (zaxira: `.env.bak.`). Boshqa kalitlar tegilmadi.
+- Tekshiruv: Moizvonki `calls.list` 24 soatda 84 qo'ng'iroq, `mumtozmaxal@jonbranding.uz` bo'yicha 19 ta — account haqiqiy va faol. `render()` sinovida Mumtozmaxal 18 urinish / 6 javobli / 10.8 daqiqa bilan chiqdi. 12:30 CET da qo'lda yuborilgan hisobot muvaffaqiyatli (`Hourly report sent`).
+- Ochiq: `.env` repo'da emas, shuning uchun keyingi deploy uni qayta yozmasligini workflow darajasida tasdiqlash kerak; lokal commit yo'q.
+
+
+### 2026-10-29 — Codex Coordinator: reversible Source Control cleanup
+- Prior 99 untracked DevEx artifacts archived; additional 52 formatting-only changes backed up/restored and 10 untracked generated artifacts archived outside Git. Source implementations preserved. Latest all-worktree snapshot: 193 status entries across 30 dirty worktrees; IDE count not re-read.
+- Owner confirmed other agents active: preserve work; no bulk stash, staging or commit. Main tree changed concurrently.
+- Validation: full offline suite 3091 passed, 17 skipped, 10 warnings, 4 subtests passed (109.98s); bandit -r src/ -ll exit 0, no findings/errors; git diff --check passed before this append.
+- Local missing redis/fpdf2 installed. Original MCP 2.1.1 restored to shared .venv; MCP 1.30.0 isolated into external test-deps for project tests. Isolated MCP/PDF focused rerun 10 passed. MCP version conflict between project requirements and installed browser-use remains open.
+- Artifacts/rollback manifests: C:/Users/baxti/oisha-cleanup-archive/. No commit, push, merge, deploy.

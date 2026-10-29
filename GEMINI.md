@@ -57,7 +57,7 @@ Google AI Studio App (`https://aistudio.google.com/apps/80b6106f-6db5-4f9a-9b1c-
 
 ## 📁 3. AI Studio Kontekstiga Yuklanadigan Asosiy Fayllar (Context Files)
 
-AI Studio 2 million token kontekst oynasiga ega. Loyihaning quyidagi asosiy fayllarini chatga/fayllar bo'limiga yuklash tavsiya etiladi:
+`AGENTS.md` dagi tejamkor ish tartibiga amal qiling. Quyidagi ro'yxat ma'lumotnoma: hammasini chatga yuklamang. Avval aniq qidiruv, keyin faqat vazifaga tegishli fayl yoki parcha. Subagent faqat owner so'rasa; model tanlovi hujjat bilan avtomatik o'zgarmaydi.
 1. `CLAUDE.md` — Loyihaning to'liq pasporti, texnik steki va barcha buyruqlar.
 2. `AGENTS.md` — Agentlar koordinatsiyasi, xavfsizlik va muhandislik qoidalari.
 3. `docs/oisha-prd.md` — Oisha-OS mahsulot talablari va arxitekturasi.
@@ -76,4 +76,3 @@ AI Studio 2 million token kontekst oynasiga ega. Loyihaning quyidagi asosiy fayl
    - AI Studio'da tasdiqlangan spetsifikatsiyani Antigravity'ga bering.
    - Antigravity lokal fayllarni modullashtiradi, `pytest` testlarini yozadi, xavfsizlikni tekshiradi (`bandit`) va Contabo VPS'ga deploy qiladi.
    - Natijalarni Obsidian Second Brain'ga muhrlaydi (`brain_log`, `brain_capture`).
-

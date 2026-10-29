@@ -245,7 +245,7 @@ async def _process_amocrm_event(data: Dict[str, Any]):
                     new_status = int(val)
                 elif "leads[status][" in key and "[old_status_id]" in key:
                     old_status = int(val)
-            
+
             if new_status and old_status:
                 is_valid = await vilgood.enforce_pipeline_rules(int(lead_id), old_status, new_status, lead_data)
                 if not is_valid:
@@ -296,7 +296,7 @@ async def _process_amocrm_event(data: Dict[str, Any]):
                             break
                         except (ValueError, TypeError):
                             pass
-                
+
                 if call_id:
                     # Get call recording URL from AmoCRM
                     call_data = await amocrm.get_call(call_id)
@@ -398,3 +398,27 @@ from src.api.routes.fireflies_integration import router as _fireflies_router, fi
 
 router.include_router(_fireflies_router)
 
+
+
+# ----------------------------------------------------------------------
+# amoCRM generic webhook registration endpoint
+# ----------------------------------------------------------------------
+@router.post("/amocrm/webhook")
+async def amocrm_register_webhook(request: Request):
+    """Register a webhook for a given amoCRM event.
+    Expected JSON body: {"event": "lead_added", "target_url": "https://example.com/hook"}
+    """
+    from src.amocrm_sync import register_webhook
+
+    try:
+        payload = await request.json()
+        event = payload.get("event")
+        target_url = payload.get("target_url")
+        if not event or not target_url:
+            raise HTTPException(status_code=400, detail="'event' and 'target_url' required")
+        result = register_webhook(event, target_url)
+        return {"status": "registered", "result": result}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

@@ -23,6 +23,20 @@
 
 ## Asosiy qoidalar
 
+### Tejamkor ish tartibi (owner, 2026-10-28)
+
+- Avval branch, mavjud staged/unstaged o'zgarishlar va tegishli Locks'ni tekshir; begona ishni saqla. Faqat vazifa scope'ini tahrirla.
+- Shu fayl kirish nuqtasi. Bog'langan hujjatlar majburiy o'qish ro'yxati emas: faqat vazifaga tegishli bo'limlarni och; mavjud kontekstni qayta yuklama.
+- Avval `rtk proxy rg -n` / `rtk proxy rg --files` bilan aniq yo'l yoki atamani qidir, keyin kerakli satrlarni o'qi. Katta fayl, diff va loglarni bo'laklab ko'r; to'liq tarixni chiqarma.
+- Brain: sessiya boshida ixcham `brain_context()`; keyin vazifaga tegishli `brain_search` (kichik limit) va kerakli parcha. To'liq tarix faqat aniq zaruratda. Yangi qayta ishlatiladigan faktni manba/sana bilan saqla; sirlar taqiqlanadi, doimiy kontekst va qarorlar proposal-first. Muhim ishni `brain_log` bilan qayd et.
+- Oddiy ishni bevosita bajar; murakkab ish uchun qisqa reja va tekshiriladigan bosqichlar yetarli. Har kichik ishga umumiy audit yoki katta reja tuzma.
+- Subagent yoki parallel agentni faqat owner shu ish uchun so'rasa ishlat. Rollar jadvali va uch-agent hujjati agentlarni avtomatik ishga tushirishga ruxsat emas.
+- O'zgarishga mos tekshiruvni bir marta bajar. Faqat yangi tahrir, xato yoki yangi dalil bo'lsa tegishli tekshiruvni takrorla. Hujjat tahririda diff, havola va qoida izchilligi yetarli; PR pre-flight, majburiy CI va xavfsizlik gate'lari saqlanadi.
+- Qabul mezoni bajarilgach to'xta; aloqasiz muammoni qisqa qayd et, o'zboshimchalik bilan tuzatma.
+- Natija qisqa, tabiiy o'zbekcha: **bajarildi / tekshirildi / ochiq**. Local, commit, push, merge va deploy holatlarini alohida ayt; tasdiqlanmagan natijani bajarildi dema.
+- Model tavsiyasi: oddiy vazifa — **Luna**, kundalik dasturlash — **Sol**, murakkab arxitektura/qiyin diagnostika — **Astra**. Bu tavsiya, avtomatik almashtirish emas. Model boshqaruvi mavjud bo'lmasa, tanlov ilovada qo'lda qilinadi; almashtirdim deb da'vo qilma. Max/ultra faqat owner so'rasa.
+- Shu ish tartibi bog'langan hujjatlardagi umumiy startup, avtomatik resume va ko'p-agent talablarini aniqlashtiradi; xavfsizlik, owner tasdig'i va majburiy CI talablarini bekor qilmaydi.
+
 1. **Bir faylga bir vaqtda bitta agent yozadi.** Ish boshida `## Locks` ga yoziladi, tugagach o'chiriladi.
 2. **Shared fayllar** (`settings.py`, `context.py`, `boot.py`, shu `AGENTS.md`) — faqat Coordinator.
 3. **Pre-flight har PR dan oldin** (pastga qarang). Qizil bo'lsa — PR yo'q.
@@ -30,12 +44,11 @@
 5. **Kod hajmi:** production fayl ≤ 400 qator, funksiya ≤ 60 qator → `docs/agents/code-standards.md`.
 6. **Handoff majburiy:** ish tugagach `docs/agents/handoff-log.md` OXIRIGA yozing:
    sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker.
-   **Davom ettirish avtomatik:** har vazifa boshida `.agents/rules/agent-handoff-resume.md` ni o'qing va
-   `powershell -NoProfile -File scripts/agent_resume.ps1` ni ishga tushiring (limit tugagan agent ishini davom ettirish).
+   **Davom ettirish:** faqat joriy vazifa oldingi ishning davomi bo'lsa `.agents/rules/agent-handoff-resume.md` ni o'qing; tegishli handoff parchasini qidiring. Resume skripti har vazifada majburiy emas.
 7. **Airtable o'zgarishi** → darhol Obsidian `20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md`
    va `brain_log` ga muhrlanadi (Owner qoidasi, 2026-09-15).
 8. **Sirlar hech qayerga yozilmaydi:** token, parol, session string, API key.
-9. **Umumiy skills:** Codex, Claude va Antigravity barcha takrorlanadigan ishlar uchun `.agents/skills/skill-evolution/SKILL.md` qoidasiga amal qiladi. Masalan, Telegram guruh va forumlaridan lidlarni olish va amoCRM ga dublikatsiz boyitish uchun `.agents/skills/community-lead-sync/SKILL.md`, yangi networking manbalari va tanishtiruv mavzularini avtomatik qidirish uchun `.agents/skills/telegram-lead-discovery/SKILL.md` hamda oylik soliq hisobotlari (JShDS 11101_20 va Aylanma 10104_36) uchun `.agents/skills/soliq-ops/SKILL.md` ishlatiladi. Mos skill mavjud bo‘lsa, ish boshlashdan oldin o‘qiydi; yangi tasdiqlangan workflow paydo bo‘lsa, ish tugagach umumiy `.agents/skills/<skill>/SKILL.md` ni yangilaydi.
+9. **Umumiy skills:** faqat joriy vazifaga mos skillni o'qing (yuqoridagi xarita). Skill yaratish yoki tasdiqlangan takroriy workflow'ni yangilash scope'ida `skill-evolution/SKILL.md` mavjudligini tekshiring; yo'q fayl o'qildi deb aytmang. Har kichik vazifani skill auditi yoki yangilashga kengaytirmang.
 
 10. **Soxta ma'lumot taqiqlanadi (owner, 2026-10-10):** chat, Obsidian, skills, kod, jadval, hisobot va tashqi tizimlarda uydirma ma'lumotni haqiqiy fakt sifatida yozmang. Yetishmagan qiymatni taxminiy raqam yoki nol bilan to'ldirmang; `noma'lum` yoki `tekshirilmagan` deb belgilang. Faktga manba va kerak bo'lsa sanani qo'shing; taxminni aniq ajrating. Bajarilmagan ishni `bajarildi`, yuborilmagan hisobotni `topshirildi`, tasdiqlanmagan to'lovni `to'landi` demang. Xato aniqlansa, manbasi bilan ochiq tuzatish kiriting. Sintetik test ma'lumotlari aniq belgilansin va haqiqiy operatsion yozuvlarga aralashmasin.
 11. **Owner bosadigan tugmalar:** autentifikatsiya, xavfsizlik ruxsati yoki ownerning shaxsiy ishtiroki zarur bo'lsa, sahifa va tugma nomini aniq ayting; Baxtiyorjon o'zi bosadi. Uning bosganini yoki natijani taxmin qilmang — yangi holatni tekshiring. Oldindan ruxsat berilgan oddiy ishlar uchun qayta tasdiq so'ramang.
@@ -107,6 +120,6 @@ bandit -r src/ -ll
 - Commit: `feat(scope): message` / `fix(scope): message` / `refactor(scope): message`
 - Avtonom loop commitlari oxirida `[ralph]` bo'ladi.
 
-## VS Code: uch agent
+## Ko'p agentli ish (faqat owner so'raganda)
 
-Ish boshida `AGENTS.md`, `docs/oisha-prd.md` va `docs/agents/three-agent-workflow.md` ni o'qing. Bir checkoutda bitta implementer yozadi; reviewer va analyst shu fayllarga yozmaydi.
+Mahsulot talabi o'zgarsa `docs/oisha-prd.md` ning tegishli qismini o'qing. Owner ko'p agentli ish so'rasa `docs/agents/three-agent-workflow.md` qo'llanadi. Bir checkoutda bitta implementer yozadi; reviewer va analyst shu fayllarga yozmaydi.

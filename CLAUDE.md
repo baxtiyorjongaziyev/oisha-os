@@ -1,5 +1,7 @@
 # Oisha-OS — CLAUDE.md
 
+Ish tartibining yagona manbasi: `AGENTS.md`. Bu fayl ma'lumotnoma; har vazifada to'liq o'qilmaydi. Avval qidirib, kerakli subsystem va buyruq bo'limini oching.
+
 ## Project Overview
 
 Oisha-OS is an autonomous internal management system ("Surgical COO") for Jon Branding
@@ -45,7 +47,7 @@ pytest --cov=src --cov-report=xml
 python -m pytest tests/test_api_server_security.py -v
 ```
 
-### Security scan (must pass before every PR)
+### CI security scan (reference; mandatory CI gates remain required)
 ```bash
 bandit -r src/ -ll -x src/services/debug/ --quiet
 ```
@@ -55,8 +57,8 @@ bandit -r src/ -ll -x src/services/debug/ --quiet
 SKIP_LIVE=1 python -m pytest -q --tb=short
 bandit -r src/ -ll
 ```
-> `AGENTS.md` Rule 4 requires the pre-flight scan without exclusions. The CI/security
-> gate (above) additionally passes `-x src/services/debug/ --quiet`; keep them distinct.
+> Pre-flight talabi `AGENTS.md` da. CI varianti ma'lumot uchun keltirilgan;
+> uni har kichik tahrirda ikkinchi lokal scan sifatida takrorlamang. Majburiy CI gate'larini o'tkazib yubormang.
 
 ### Run the Python app locally
 ```bash
@@ -328,10 +330,9 @@ Standalone Meta-OAuth app (independent of the pnpm workspaces): FastAPI `backend
 - Use `pnpm`, never `npm`, in the TypeScript workspaces; keep the two workspaces separate.
 - Branch naming: `feat/<desc>` or `fix/<desc>`. Commit style: `feat(scope): message`,
   `fix(scope): …`, `refactor(scope): …`.
-- `DEV_LOG.md` and `AGENTS.md` track running history/coordination — skim them for context
-  on recent work before starting.
+- `AGENTS.md` is the entry point. Search history/handoff only when the current task needs prior decisions or continues earlier work; read the matching excerpt.
 - **Skills:** Telegram community/networking lidlarini CRM va Obsidianga sinxronlashda `.agents/skills/community-lead-sync/SKILL.md` hamda O'zbekiston soliq hisobotlari (JShDS 11101_20, Aylanma 10104_36, solishtirma va qaytarish) bo'yicha `.agents/skills/soliq-ops/SKILL.md` dan foydalaning.
 
-## VS Code: uch agent
+## Ko'p agentli ish (faqat owner so'raganda)
 
-Ish boshida `AGENTS.md`, `docs/oisha-prd.md` va `docs/agents/three-agent-workflow.md` ni o'qing. Bir checkoutda bitta implementer yozadi; reviewer va analyst shu fayllarga yozmaydi.
+Mahsulot talablari uchun `docs/oisha-prd.md` ning tegishli qismini o'qing. Owner ko'p agentli ish so'rasa `docs/agents/three-agent-workflow.md` qo'llanadi. Bir checkoutda bitta implementer yozadi; reviewer va analyst shu fayllarga yozmaydi.

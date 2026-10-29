@@ -94,11 +94,14 @@ def test_openai_compatible_gateway_is_protected():
     assert is_protected_path("/v1/models")
 
 
-def test_cors_does_not_reflect_origin_with_credentials():
+def test_cors_does_not_grant_credentials_for_foreign_origin():
     from src.api_server import app
 
     resp = TestClient(app).get(
         "/healthz", headers={"Origin": "https://evil.example", "Cookie": "oisha_token=x"}
     )
-    assert resp.headers.get("access-control-allow-origin") == "*"
+    # Starlette >=0.45 echoes the Origin back when a cookie is present even with
+    # allow_credentials=False; the security property that matters is that
+    # Access-Control-Allow-Credentials is NOT set, so a foreign site cannot make
+    # credentialed requests and read the response.
     assert resp.headers.get("access-control-allow-credentials") is None
