@@ -114,3 +114,57 @@ def test_report_complete_only_when_all_sources_ok():
     report = build_promise_report([], source_status={"amocrm_note": "ok"})
     assert report.complete is True
     assert build_promise_report([], source_status={}).complete is False
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Bugun to'layman", date(2026, 10, 28)),
+        ("Ertaga to'layman", date(2026, 10, 29)),
+        ("Indinga to'layman", date(2026, 10, 30)),
+        ("Payshanba kuni to'layman", date(2026, 10, 29)),  # next day
+        ("Chorshanba kuni to'layman", date(2026, 11, 4)),  # same weekday -> next week
+        ("Seshanba kuni to'layman", date(2026, 11, 3)),  # already passed this week
+        ("15.11 kuni to'layman", date(2026, 11, 15)),
+        ("15.11.2027 da to'layman", date(2027, 11, 15)),
+        ("31-fevral to'layman", None),  # impossible date stays unresolved
+    ],
+)
+def test_date_resolution_table(text, expected):
+    [p] = extract_promises(_msg(text))
+    assert p.promised_date == expected
+    assert p.date_ambiguous is (expected is None)
+
+
+@pytest.mark.parametrize(
+    "text,amount,currency",
+    [
+        ("Ertaga 5 million to'layman", 5_000_000, "UZS"),
+        ("Ertaga 5 mln so'm to'layman", 5_000_000, "UZS"),
+        ("Ertaga 2,5 million to'layman", 2_500_000, "UZS"),
+        ("Ertaga 750 ming so'm to'layman", 750_000, "UZS"),
+        ("Ertaga 1 200 000 sum to'layman", 1_200_000, "UZS"),
+        ("Ertaga 400 usd to'layman", 400, "USD"),
+        ("Ertaga $ 1 500 o'tkazaman", 1_500, "USD"),
+        ("Ertaga to'layman", None, None),
+    ],
+)
+def test_amount_table(text, amount, currency):
+    [p] = extract_promises(_msg(text))
+    assert (p.amount, p.currency) == (amount, currency)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "To'lamayman",
+        "Ertaga to'lay olmayman",
+        "Pul yo'q, bera olmayman",
+        "Bu oy o'tkaza olmaymiz",
+    ],
+)
+def test_negations_are_not_promises(text):
+    assert extract_promises(_msg(text)) == []

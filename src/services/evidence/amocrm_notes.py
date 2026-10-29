@@ -54,12 +54,18 @@ async def fetch_recent_notes(
         if resp.status_code != 200:
             logger.warning("[EVIDENCE] notes page %s -> HTTP %s", page, resp.status_code)
             return messages, f"amoCRM HTTP {resp.status_code}"
-        body = resp.json() or {}
-        for note in body.get("_embedded", {}).get("notes", []):
+        try:
+            body = resp.json() or {}
+        except ValueError:
+            logger.warning("[EVIDENCE] notes page %s: invalid JSON", page)
+            return messages, "amoCRM javobi o'qilmadi (JSON xato)"
+        if not isinstance(body, dict):
+            return messages, "amoCRM javobi kutilmagan formatda"
+        for note in (body.get("_embedded") or {}).get("notes") or []:
             msg = _to_message(note)
             if msg:
                 messages.append(msg)
-        nxt = body.get("_links", {}).get("next", {}).get("href")
+        nxt = ((body.get("_links") or {}).get("next") or {}).get("href")
         if not nxt:
             break
         url, params = nxt, None
