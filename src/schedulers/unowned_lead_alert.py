@@ -42,7 +42,6 @@ DEFAULT_MANAGER_NAMES = {
     "shahnoza",
     "rayxon",
     "rayhona",
-    "farangiz",
     "aziz",
     "ahrorbek",
     "dilbar",

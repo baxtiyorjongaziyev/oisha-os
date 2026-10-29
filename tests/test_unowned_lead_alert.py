@@ -68,7 +68,9 @@ def test_lead_with_manager_tag_is_skipped():
 def test_is_claimed_by_manager():
     assert is_claimed_by_manager(["Shahnoza"]) is True
     assert is_claimed_by_manager(["rayxon"]) is True
-    assert is_claimed_by_manager(["FARANGIZ"]) is True
+    assert is_claimed_by_manager(["Mumtozmaxal"]) is True
+    # Farangiz jamoadan chiqqan: uning tegi endi "egallangan" hisoblanmaydi.
+    assert is_claimed_by_manager(["FARANGIZ"]) is False
     assert is_claimed_by_manager(["menejer: Dilshod"]) is True
     assert is_claimed_by_manager(["mas'ul: Shahnoza"]) is True
     assert is_claimed_by_manager(["taqsimot:inhouse", "Facebook Lead Ads", "Target"]) is False
