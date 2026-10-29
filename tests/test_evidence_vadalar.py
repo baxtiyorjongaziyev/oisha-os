@@ -142,3 +142,77 @@ async def test_vadalar_ignored_for_strangers(monkeypatch):
         TN5_GROUP_ID=None, TN5_TOPIC_ID=None,
     )
     assert handled is False
+
+
+class _BadJsonResp(_Resp):
+    def json(self):
+        raise ValueError("not json")
+
+
+class _BoomSession:
+    def get(self, *a, **k):
+        raise ConnectionError("down")
+
+
+@pytest.mark.asyncio
+async def test_fetch_notes_invalid_json_is_reported():
+    msgs, status = await fetch_recent_notes(_Amo(), now=NOW, session=_Session([_BadJsonResp(200)]))
+    assert msgs == []
+    assert "JSON" in status
+
+
+@pytest.mark.asyncio
+async def test_fetch_notes_unexpected_shapes_do_not_crash():
+    session = _Session([_Resp(200, {"_embedded": None, "_links": None})])
+    assert await fetch_recent_notes(_Amo(), now=NOW, session=session) == ([], "ok")
+    session = _Session([_Resp(200, [1, 2])])
+    msgs, status = await fetch_recent_notes(_Amo(), now=NOW, session=session)
+    assert msgs == [] and "format" in status
+
+
+@pytest.mark.asyncio
+async def test_fetch_notes_request_exception_is_reported():
+    msgs, status = await fetch_recent_notes(_Amo(), now=NOW, session=_BoomSession())
+    assert msgs == []
+    assert status == "amoCRM so'rovi xato: ConnectionError"
+
+
+@pytest.mark.asyncio
+async def test_fetch_notes_page_limit_marks_partial():
+    import src.services.evidence.amocrm_notes as notes_mod
+
+    page = {"_embedded": {"notes": [_note(1, "x")]}, "_links": {"next": {"href": "https://e/next"}}}
+    session = _Session([_Resp(200, page) for _ in range(notes_mod._MAX_PAGES)])
+    msgs, status = await fetch_recent_notes(_Amo(), now=NOW, session=session)
+    assert len(msgs) == notes_mod._MAX_PAGES
+    assert status == f"faqat {notes_mod._MAX_PAGES} sahifa o'qildi"
+
+
+@pytest.mark.parametrize("cmd,days", [("/vadalar", 14), ("/vadalar 30", 30), ("/vadalar 0", 14), ("/vadalar 999", 14), ("/vadalar abc", 14)])
+@pytest.mark.asyncio
+async def test_vadalar_period_and_fallback(monkeypatch, cmd, days):
+    from src import config
+    from src.handlers.msg_pipeline import admin_commands
+    import src.services.evidence.amocrm_notes as notes_mod
+
+    seen = {}
+
+    async def fake_fetch(amocrm, days=14, **_):
+        seen["days"] = days
+        return [], "ok"
+
+    monkeypatch.setattr(notes_mod, "fetch_recent_notes", fake_fetch)
+    monkeypatch.setattr(config, "OWNER_ID", 42, raising=False)
+
+    async def respond(text, **_):
+        pass
+
+    event = SimpleNamespace(is_private=True, sender_id=42, message=SimpleNamespace(text=cmd), respond=respond)
+    await admin_commands.process_admin_commands(
+        event, client=None, bot_client=None,
+        msg_controller=SimpleNamespace(crm=SimpleNamespace(amocrm=_Amo())),
+        settings=None, meeting_scheduler=None, get_surgical_integration=None,
+        _negotiation_int=None, lead_scraper=None, audit_agent=None,
+        auto_lead_agent=None, admin_bot=None, TN5_GROUP_ID=None, TN5_TOPIC_ID=None,
+    )
+    assert seen["days"] == days
