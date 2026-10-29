@@ -11,7 +11,7 @@ Ishlatish:
 Env:
     MOIZVONKI_EMAIL, MOIZVONKI_API_KEY   admin hisob
     MOIZVONKI_DOMAIN                     default: jonbrandingagency.moizvonki.ru
-    MOIZVONKI_REP_NAMES                  ixtiyoriy: "email:Ism,email2:Ism2"
+    MOIZVONKI_REP_NAMES                  zaxira: config/moizvonki_roster.json yo'q bo'lsa ishlatiladi
     MOIZVONKI_EXCLUDE_ACCOUNTS           ixtiyoriy: hisobotdan chiqariladigan email'lar
                                          (admin MOIZVONKI_EMAIL doim chiqariladi)
     BOT_TOKEN; CRM_SALES_REPORT_GROUP_ID / _TOPIC_ID (default: settings.py qiymatlari)
