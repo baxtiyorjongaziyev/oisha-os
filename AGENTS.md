@@ -23,6 +23,14 @@
 
 ## Asosiy qoidalar
 
+### Yagona ish papkasi (owner, 2026-10-29)
+
+- Oisha-OS uchun barcha lokal AI agentlar shu checkoutda ishlaydi: `C:/Users/baxti/playground/oisha-os`.
+- Yangi clone yoki Git worktree yaratmang; mavjud boshqa checkoutda ish boshlamang. Boshqa papkada ochilgan yangi sessiya avval shu asosiy papkaga o'tadi.
+- Eski worktree'lardagi tugallanmagan ishni avtomatik merge, ko'chirish yoki o'chirish taqiqlanadi; avval holatini tekshirib, tegishli vazifa doirasida saqlang.
+- Parallel agentlar bir faylni birga tahrirlamaydi; Locks qoidasiga amal qiladi. Boshqa agent ishlayotganida umumiy branchni almashtirmang va begona o'zgarishlarni commitga qo'shmang.
+- Tugallangan vazifa uchun faqat o'z diffingizni tekshirib commit qiling; commit/push/deploy holatini alohida yozing. Tashqi servislar va Contabo runtime papkalari bu lokal checkout qoidasidan alohida.
+
 ### Tejamkor ish tartibi (owner, 2026-10-28)
 
 - Avval branch, mavjud staged/unstaged o'zgarishlar va tegishli Locks'ni tekshir; begona ishni saqla. Faqat vazifa scope'ini tahrirla.

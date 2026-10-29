@@ -1,0 +1,8 @@
+{
+    "folders": [
+        { "name": "oisha-os", "path": "." }
+    ],
+    "settings": {
+        "terminal.integrated.cwd": "C:\\Users\\baxti\\playground\\oisha-os"
+    }
+}
