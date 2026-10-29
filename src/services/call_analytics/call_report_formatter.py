@@ -81,7 +81,6 @@ def _team_stats_lines(t: any, team_label: str) -> List[str]:
 # Sotuvchi ismi (normalize qilingan, kichik harf) -> Telegram username
 REP_TG_USERNAMES: Dict[str, str] = {
     "rayxon": "@RayxonJonbranding",
-    "farangiz": "@FarangizJonBranding",
     "shahnoza": "@jonbranding_assistant",
 }
 
