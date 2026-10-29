@@ -2072,3 +2072,11 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - `scripts/daily_sales_calls_report.py`, `src/services/core/rop/fetchers.py`, `src/schedulers/unowned_lead_alert.py` ham shu loaderga o'tdi; defaultlardan Farangiz olib tashlandi (u jamoada yo'q, eski tegi leadni «egallangan» qilib ko'rsatmaydi). `deploy/systemd/oisha-calls-report.service` dan takroriy Environment qatori olib tashlandi; `oisha-sales-hourly.service/.timer` repoga qo'shildi va deploy workflow ularni o'rnatadi. Deploy path filteriga `config/**` qo'shildi.
 - Tekshiruv: 33 focused test passed (`test_moizvonki_roster`, `test_unowned_lead_alert`, `test_daily_sales_calls_report`), compileall OK, bandit -ll toza. Prodda qo'lda tekshirilgan: 24 soatda `mumtozmaxal@jonbranding.uz` bo'yicha 19 qo'ng'iroq.
 - Ochiq: PR merge va keyingi deploy; `jonbranding@agency.uz` akkaunti rosterda yo'q — hisobotda alohida ko'rinadi, egasi qaror qilishi kerak.
+
+## 2026-10-29 - Tuzatish: xayrullayevna006@gmail.com — Shahnoza, Rayxon emas
+- Owner tuzatdi: `xayrullayevna006@gmail.com` — Shahnozaning shaxsiy Gmail akkaunti. Avvalgi rosterda u Rayxonga bog'langan edi (xato).
+- `config/moizvonki_roster.json`: gmail endi `Shahnoza`. 30 kunlik tekshiruv: bu akkauntda 0 qo'ng'iroq, ya'ni raqamlarga ta'siri yo'q edi, lekin nomlash xato edi.
+- `src/schedulers/remote_staff_checkin_scheduler.py`: gmail Rayxonning `DEFAULT_REP_EMAILS` dan olib tashlanib Shahnozaning email ro'yxatiga qo'shildi; `scripts/dispatch_remote_checkin.py` dry-run ham yangilandi.
+- `src/services/call_analytics/call_report_formatter.py`: `_merge_reps_by_name` qo'shildi — bir xil ko'rsatiladigan ismli akkauntlar (ish + shaxsiy) bitta qatorga qo'shiladi. `REP_TG_USERNAMES` dan Farangiz olib tashlandi.
+- Eski `oisha-sales-hourly-check.service` (stale roster, timer yo'q) prod serverdan o'chirildi.
+- Tekshiruv: `tests/test_call_report_merge.py` qo'shildi va o'tadi; 90 focused test passed; prodda `get_reps()` = Rayxon [ish], Mumtozmaxal [ish], Shahnoza [ish + gmail].
