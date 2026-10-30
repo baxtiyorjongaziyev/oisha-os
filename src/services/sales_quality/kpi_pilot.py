@@ -1,10 +1,13 @@
 """Proposal-only sales KPI simulation. No payroll writes or automatic activation."""
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+from src.services.sales_quality.funnel_policy import daily_funnel_policy
+
 POLICY = {
     "version": "jonbranding-pilot-v1", "status": "proposal", "payroll_enabled": False,
     "weights": {"result": 50, "discipline": 25, "quality": 25},
     "minimum_reviewed_calls": 20,
+    "daily_funnel": daily_funnel_policy(),
     "quality_basis": "human-approved sales evaluations in review window; not call occurrence window",
 }
 

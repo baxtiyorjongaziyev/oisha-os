@@ -3,6 +3,7 @@ import hashlib
 import math
 
 from src.services.call_analytics.scorecards import EXCLUDED, SALES_TYPES, VERSION, scorecard
+from src.services.call_analytics.funnel_evidence import evaluate_funnel
 
 
 def _number(value):
@@ -41,6 +42,7 @@ def evaluate_context(raw: dict, transcript: str) -> dict:
         "review_ready": review_ready, "sales_quality": call_type in SALES_TYPES,
         "review_status": "pending", "kpi_eligible": False,
         "transcript_digest": hashlib.sha256(transcript.encode()).hexdigest(),
+        "funnel_evidence": evaluate_funnel(raw, transcript, call_type in SALES_TYPES),
     }
 
 
