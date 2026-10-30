@@ -3275,3 +3275,9 @@ eady: true, 	elegram_bot: ok, mocrm: connected.
 - Excluded runtime/credential-related materials from commits. Unstaged 16 diagnostic index entries and locally excluded exact data/session_output.txt and data/verify_result.txt paths; files retained on disk. Backup helper scripts and generated Graphify edits preserved outside Git. Whitespace-only browser helper change backed up/restored.
 - Prior validation remains scoped evidence: 3091 offline tests passed, 17 skipped, 4 subtests; Bandit medium/high scan clean. New concurrent work is checkpointed as WIP, not newly certified.
 - Rollback manifests, index object metadata, parent/new SHAs and file backups: C:/Users/baxti/oisha-cleanup-archive/. Nothing pushed, merged or deployed. Final Git status verification follows this handoff commit.
+
+### 2026-10-30 / Codex: amoCRM credential selection
+- Traced AmoCRMSync -> auth mixin -> token loader: process AMOCRM_ACCESS_TOKEN overrides JSON/file credentials; long-lived HTTP 401 cannot refresh. Exact rejection cause unverified; no secret values inspected.
+- Added explicit AMOCRM_TOKEN_SOURCE=file|env_json|long_lived selection, preserving auto defaults and failing closed on invalid/unavailable sources. Removed raw refresh response/exception logging. Files: token_loader.py, auth.py, tests/test_amocrm_source_selection.py, docs/agents/amocrm-credential-sources.md.
+- Validation: 26 focused tests passed (source selection, token fallback, refresh guard); targeted Bandit -ll and git diff --check passed. Implementation diff reviewed. No live credential probe.
+- Owner: confirm separately verified local source, export matching source selector in service environment, ensure file access if applicable, restart and verify read-only connectivity. Rejected token disposition requires owner verification. No push, PR, merge or deploy performed.
