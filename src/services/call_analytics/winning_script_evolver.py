@@ -1,183 +1,90 @@
-"""
-Winning Script Evolver — Avtomatik Rivojlanuvchi Sotuv Skripti Dvigateli.
-
-Qo'ng'iroq tahlili jarayonida yuqori baholangan (score >= 75) va muvaffaqiyatli
-yakunlangan (outcome converted: to'lov, uchrashuv, material yuborish, KP) qo'ng'iroqlardan
-eng yaxshi ishlayotgan iboralar, e'tiroz yechimlari va yondashuvlarni avtomatik ajratib oladi,
-ularni doimiy bilimlar bazasiga saqlaydi va barcha sotuvchilarga avtomat tarqatadi.
-"""
-
+"""Automatically version private script examples from CRM-confirmed won leads."""
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
-from datetime import datetime, timezone
+import inspect
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from src.services.call_analytics.script_evidence import (
+    extract_examples, quality_score, script_group, verified_sale,
+)
+from src.services.call_analytics.script_library import DEFAULT_LIBRARY, ScriptLibrary
 
 logger = logging.getLogger(__name__)
 
-WINNING_SCRIPTS_FILE = Path("data/winning_sales_scripts.json")
-
-CONVERTING_OUTCOMES = frozenset(
-    {
-        "tolov_kelishildi",
-        "uchrashuv_kelishildi",
-        "material_yuborish",
-        "kp_yuborish",
-        "uchrashuv sanasi belgilandi (offline yoki online)",
-        "portfolio/keys yuborish kelishildi",
-        "KP (tijorat taklifi) yuborish kelishildi",
-        "to'lov kelishildi",
-    }
-)
-
 
 class WinningScriptEvolver:
-    """
-    Qo'ng'iroqlar ichidan g'olib usullarni aniqlab, skriptni avtomatik boyituvchi xizmat.
-    """
-
-    def __init__(self, db: Any = None, tg_client: Any = None):
+    def __init__(self, db: Any = None, tg_client: Any = None, *, path: Path | None = None):
         self.db = db
         self.tg_client = tg_client
-        self._ensure_storage()
+        self.library = ScriptLibrary(DEFAULT_LIBRARY if path is None else path)
 
-    def _ensure_storage(self) -> None:
-        try:
-            WINNING_SCRIPTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            if not WINNING_SCRIPTS_FILE.exists():
-                WINNING_SCRIPTS_FILE.write_text("[]", encoding="utf-8")
-        except Exception as exc:
-            logger.warning("[WINNING-SCRIPT] Storage init warning: %s", exc)
-
-    def is_winning_call(self, analysis: Dict[str, Any]) -> bool:
-        """Qo'ng'iroq konversiyali va yuqori sifatli ekanini aniqlaydi."""
-        score = analysis.get("sifat_bahosi") or analysis.get("overall_score") or 0
-        if isinstance(score, str):
-            try:
-                score = int(score)
-            except ValueError:
-                score = 0
-
-        outcome = str(analysis.get("natija") or analysis.get("outcome") or "").lower()
-        converted = bool(analysis.get("converted")) or (outcome in CONVERTING_OUTCOMES)
-
-        return score >= 75 and (converted or outcome in CONVERTING_OUTCOMES)
+    def is_winning_call(self, analysis: dict) -> bool:
+        """High quality is a candidate filter, never proof of a won sale."""
+        return quality_score(analysis) is not None and script_group(analysis) is not None
 
     async def evolve_from_call(
-        self,
-        lead_id: int,
-        caller_phone: str,
-        manager_name: str,
-        duration_seconds: int,
-        transcript: str,
-        analysis: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Agar qo'ng'iroq muvaffaqiyatli bo'lsa, undan g'olib yondashuvni ajratib oladi va saqlaydi.
-        """
-        if not self.is_winning_call(analysis):
+        self, lead_id: int, caller_phone: str, manager_name: str,
+        duration_seconds: int, transcript: str, analysis: dict,
+        *, call_id: str = "", occurred_at: int = 0,
+    ) -> dict | None:
+        if not self.is_winning_call(analysis) or not call_id:
             return None
-
-        score = analysis.get("sifat_bahosi") or analysis.get("overall_score") or 80
-        outcome = analysis.get("natija") or analysis.get("outcome") or "kelishildi"
-        summary = analysis.get("suhbat_xulosasi") or analysis.get("summary") or ""
-        strengths = analysis.get("strengths") or analysis.get("kuchli_tomonlari") or []
-        if isinstance(strengths, str):
-            strengths = [strengths]
-
-        advice = analysis.get("konversiya_tavsiyalari") or ""
-
-        # G'olib namuna tuzilmasi
-        winning_record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "lead_id": lead_id,
-            "manager_name": manager_name or "Menejer",
-            "caller_phone": caller_phone,
-            "score": score,
-            "outcome": outcome,
-            "duration_seconds": duration_seconds,
-            "summary": summary,
-            "key_strengths": strengths,
-            "winning_technique": self._extract_winning_technique(summary, strengths, transcript),
+        if not isinstance(occurred_at, int) or not 0 < occurred_at <= int(time.time()):
+            return None
+        examples = extract_examples(transcript)
+        if not examples:
+            return None
+        sample = {
+            "call_id": call_id, "lead_id": lead_id, "occurred_at": occurred_at,
+            "group_key": script_group(analysis), "score": quality_score(analysis),
+            "examples": examples,
         }
+        inserted = await asyncio.to_thread(self.library.capture, sample)
+        return {"call_id": call_id, "state": "pending_crm_verification"} if inserted else None
 
-        self._save_winning_record(winning_record)
-        logger.info(
-            "[WINNING-SCRIPT] New winning technique captured for lead=%s score=%s manager=%s",
-            lead_id, score, manager_name
-        )
-        return winning_record
+    async def reconcile(self, amocrm: Any, limit: int = 20, min_interval: int = 0) -> dict:
+        """Revisit captured calls after deals close, including analyzed calls."""
+        now = int(time.time())
+        checked = errors = 0
+        for lead_id in await asyncio.to_thread(self.library.next_leads, limit, now - min_interval):
+            try:
+                getter = amocrm.get_lead
+                if asyncio.iscoroutinefunction(getter):
+                    lead = await getter(lead_id)
+                else:
+                    lead = await asyncio.to_thread(getter, lead_id)
+                    if inspect.isawaitable(lead):
+                        lead = await lead
+                if not isinstance(lead, dict) or lead.get("id") != lead_id:
+                    raise ValueError("invalid_crm_response")
+                for sample in await asyncio.to_thread(self.library.samples_for_lead, lead_id):
+                    won = verified_sale(lead, lead_id, sample["occurred_at"], now)
+                    await asyncio.to_thread(self.library.verify, sample["call_id"], won, now)
+                checked += 1
+            except Exception as exc:
+                errors += 1
+                logger.warning("[SCRIPT LEARNING] CRM verification failed: %s", type(exc).__name__)
+            finally:
+                await asyncio.to_thread(self.library.mark_attempt, lead_id, now)
+        versions = await asyncio.to_thread(self.library.rebuild, now)
+        return {"checked_leads": checked, "errors": errors, "updated_scripts": versions}
 
-    def _extract_winning_technique(
-        self, summary: str, strengths: List[str], transcript: str
-    ) -> str:
-        """Suhbatdan eng ta'sirchan usulni formula qiladi."""
-        techniques = []
-        if strengths:
-            techniques.append(" / ".join(strengths[:2]))
+    def current_scripts(self) -> list[dict]:
+        return self.library.current()
 
-        low = (summary + " " + transcript).lower()
-        if "notarius" in low or "ishonchnoma" in low:
-            techniques.append("Notarius/ishonchnoma tartibi online ekani aniq tushuntirilib, byurokratiya xavfi bartaraf etildi.")
-        if "bosqich" in low or "bolib" in low or "bo'lib" in low:
-            techniques.append("To'lov 2 bosqichga (boshlang'ich ariza va guvohnoma) bo'lib berilishi taklif qilindi.")
-        if "tekshir" in low or "audit" in low or "ekspert" in low:
-            techniques.append("Katta xarajatdan oldin 1 kunda rasmiy Ekspert tekshiruvi (kichik qadam) taklif etildi.")
-        if "telegram" in low:
-            techniques.append("Materiallar/nomlarni darhol Telegram orqali yuborishga kelishib, mijoz bilan yozma kanal ochildi.")
-
-        return "; ".join(techniques) if techniques else summary[:200]
-
-    def _save_winning_record(self, record: Dict[str, Any]) -> None:
-        try:
-            records: List[Dict[str, Any]] = []
-            if WINNING_SCRIPTS_FILE.exists():
-                try:
-                    records = json.loads(WINNING_SCRIPTS_FILE.read_text(encoding="utf-8"))
-                except Exception:
-                    records = []
-
-            # Dublikat bo'lmasligi uchun lead_id bo'yicha tekshirish
-            records = [r for r in records if r.get("lead_id") != record.get("lead_id")]
-            records.append(record)
-
-            # Oxirgi 100 ta g'olib qo'ng'iroqni saqlash
-            records = records[-100:]
-            WINNING_SCRIPTS_FILE.write_text(
-                json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        except Exception as exc:
-            logger.warning("[WINNING-SCRIPT] Save error: %s", exc)
-
-    def get_top_winning_techniques(self, limit: int = 5) -> List[Dict[str, Any]]:
-        """Eng yuqori baholangan g'olib usullarni qaytaradi."""
-        try:
-            if not WINNING_SCRIPTS_FILE.exists():
-                return []
-            records = json.loads(WINNING_SCRIPTS_FILE.read_text(encoding="utf-8"))
-            records.sort(key=lambda x: x.get("score", 0), reverse=True)
-            return records[:limit]
-        except Exception:
-            return []
-
-    def format_telegram_broadcast(self, record: Dict[str, Any]) -> str:
-        """Sotuvchilar guruhiga yuboriladigan g'olib usul xabari."""
-        manager = record.get("manager_name", "Menejer")
-        score = record.get("score", 80)
-        outcome = record.get("outcome", "kelishildi")
-        technique = record.get("winning_technique", "")
-        summary = record.get("summary", "")
-
-        return (
-            f"🏆 **YANGI G'OLIB YONDASHUV ANIQLANDI!**\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🧑‍💼 **Menejer:** {manager}\n"
-            f"⭐️ **Sifat bahosi:** {score}/100\n"
-            f"🎯 **Natija:** {outcome}\n"
-            f"💡 **Ishlagan g'olib usul:**\n{technique}\n"
-            f"📝 **Xulosa:** {summary}\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"📌 *Barcha sotuvchilar ushbu usulni o'z qo'ng'iroqlarida amalda qo'llasin!*"
-        )
+    def format_current_scripts(self) -> str | None:
+        scripts = self.current_scripts()
+        if not scripts:
+            return None
+        lines = ["SOTUV NAMUNALARIDAN YANGILANGAN SKRIPTLAR",
+                 "CRM yutilgan bitimlar; pul tushgani tasdiqlanmagan. Iboralarni vaziyatga moslang."]
+        for script in scripts:
+            lines.append(f"\n{script['group']} — v{script['version']}")
+            for example in script["examples"][:3]:
+                lines.append(f"Manba: lead #{example['lead_id']}, call {example['call_id']}")
+                lines.extend(f"• {phrase}" for phrase in example["phrases"][:2])
+        return "\n".join(lines)

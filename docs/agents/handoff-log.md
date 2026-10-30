@@ -3291,3 +3291,9 @@ eady: true, 	elegram_bot: ok, mocrm: connected.
 ### 2026-10-30 / Codex: amoCRM secret-free diagnostics
 - Added credential_diagnostics() to the amoCRM token loader and source tracking for long_lived, env_json, file, refresh_env, and db paths. Readiness now exposes only configured/selected source, token-presence booleans, long-lived flag, and safe last_error; no credential values.
 - Focused validation: 27 tests passed across source selection, fallback, and readiness degradation; git diff --check passed. No live credential probe or external mutation.
+
+### 2026-10-30 / Codex: CRM-backed automatic script learning
+- Replaced keyword-invented techniques and AI-conversion claims with candidate capture, CRM-won/time verification, distinct-lead thresholds, isolated call-type/service libraries, transactional version history, retraction and freshness gates. Approval/direct flows and bounded historical transcript replay feed the learner; existing coach consumes versions.
+- Files: call_analytics script_evidence/script_library/script_history/script_learning_hook/winning_script_evolver, runner/scorer, call_analysis_scheduler, sales_quality_coach, tests and docs/agents/call-script-learning.md. skill-evolution/SKILL.md was not found in the project skill inventory; none was claimed read or changed.
+- Validation: 76 focused synthetic tests passed; targeted Bandit and diff check passed. No live calls, secret reads, outbound messages, push or deployment. Existing JSON is preserved and not promoted as verified evidence. CRM won is not payment proof; no uplift/payroll claim.
+- Continuing owner scope: apply Gong/NICE conversation-type scorecards, review and sales intelligence experience to Oisha.

@@ -286,37 +286,11 @@ class SalesQualityCoach:
     # ------------------------------------------------------------------
 
     async def generate_ideal_script(self) -> Optional[str]:
-        """Yuqori baholi qo'ng'iroqlar tarixidan yozma ideal skript tuzadi.
+        """Return versioned examples backed by distinct CRM-won leads."""
+        import asyncio
+        from src.services.call_analytics.winning_script_evolver import WinningScriptEvolver
 
-        Yozma skript yo'q — shuning uchun uni eng zo'r haqiqiy suhbatlardan
-        sintez qilamiz. Natija — TAKLIF, rahbariyat tasdiqlashi kerak.
-        """
-        rows = await self.fetch_top_transcripts()
-        if len(rows) < 3:
-            logger.info(
-                "[COACH] Ideal skript uchun namuna yetarli emas (%d ta, kerak: 3+)",
-                len(rows),
-            )
-            return None
-
-        samples = "\n\n---\n\n".join(
-            f"[Ball: {_row_get(r, 'overall_score')}, natija: {_row_get(r, 'outcome')}]\n"
-            + str(_row_get(r, "transcript") or "")[:3000]
-            for r in rows
-        )
-        prompt = (
-            "Sen Jon Branding savdo murabbiyisan. Quyida kompaniyaning ENG YUQORI "
-            "baholangan haqiqiy qo'ng'iroq transkripsiyalari berilgan.\n\n"
-            f"{rubric_prompt_uz()}\n"
-            "VAZIFA: shu namunalar va playbook asosida YOZMA IDEAL SKRIPT tuz:\n"
-            "1. Har bosqich uchun 2-3 ta tayyor ibora (o'zbekcha, tabiiy)\n"
-            "2. 'Qimmat' va 'o'ylab ko'raman' e'tirozlariga tayyor javoblar\n"
-            "3. Yakunlash uchun uchrashuv taklif qilish iboralari\n"
-            "Faqat namunalarda ISHLAGAN yondashuvlarni ol. To'qima.\n"
-            "Format: oddiy matn, Telegram uchun qisqa va aniq.\n\n"
-            f"NAMUNALAR:\n{samples}"
-        )
-        return await self._llm_text(prompt, "ideal_script")
+        return await asyncio.to_thread(WinningScriptEvolver().format_current_scripts)
 
     # ------------------------------------------------------------------
     # 3) Playbook takliflari — haftalik, faqat taklif
