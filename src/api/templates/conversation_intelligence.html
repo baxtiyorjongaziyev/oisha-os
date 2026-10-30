@@ -4,77 +4,112 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Oisha · Suhbatlar va savdo nazorati</title>
 <style>
-:root{color-scheme:dark;--bg:#0b1120;--panel:#141e31;--line:#2b3952;--muted:#b1bfd4;--accent:#b9a0ff}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#edf2fb;font:15px/1.6 system-ui,sans-serif}
-header,main{max-width:1240px;margin:auto;padding:24px}header{border-bottom:1px solid var(--line)}
-h1{font-size:28px;margin:8px 0}h2{font-size:21px}h3{font-size:17px}p{margin:8px 0}a{color:var(--accent)}
-.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
-.tag{display:inline-block;background:#27354c;border-radius:6px;padding:2px 8px;margin:3px;font-size:12px}
-.warning{color:#ffd58b}.number{font-size:30px;font-weight:700}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-button,select,input,textarea{font:inherit;color:inherit;background:#1d2d46;border:1px solid #637694;border-radius:8px;padding:9px 12px}
-button{cursor:pointer}button:hover,button:focus-visible{border-color:var(--accent)}textarea{width:100%;min-height:90px}
-label{display:block;margin:12px 0}blockquote{border-left:3px solid var(--accent);padding-left:12px;margin-left:0;color:#d8e5fa}
-details{border-top:1px solid var(--line);padding:12px 0}summary{cursor:pointer}pre{white-space:pre-wrap;word-break:break-word;font:inherit}
-section{margin-bottom:32px}.error{color:#ffb8b8}.hidden{display:none}@media(max-width:600px){header,main{padding:16px}h1{font-size:23px}}
+:root{color-scheme:light;--bg:#f5f7f8;--panel:#fff;--ink:#192b2b;--line:#dce4e4;--muted:#5b6d6d;--accent:#166758}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",Arial,sans-serif;font-variant-numeric:tabular-nums}
+[hidden],.hidden{display:none!important}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.skip{position:absolute;left:16px;top:-80px;background:white;padding:12px;z-index:2}.skip:focus{top:8px}
+header{background:var(--panel);border-bottom:1px solid var(--line)}.topbar,.workspace,main{max-width:1240px;margin:auto;padding:0 32px}
+.topbar{display:flex;justify-content:space-between;align-items:center;height:68px}.brand{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:650;letter-spacing:-.7px}
+.brand-mark{display:grid;place-items:center;width:30px;height:30px;background:var(--accent);color:white;border-radius:9px;font-size:19px}.topbar>a{font-size:13px;color:var(--muted)}
+.workspace{padding-top:32px}.heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.eyebrow{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.05em}
+h1{font-size:32px;line-height:1.2;letter-spacing:-1px;margin:6px 0 10px;font-weight:650}h2{font-size:21px;letter-spacing:-.4px;margin:0}h3{font-size:16px;margin:0 0 8px}p{margin:8px 0;max-width:72ch;text-wrap:pretty}
+.subtitle,.muted{color:var(--muted)}.subtitle{margin:0;font-size:14px}.pilot-note{display:flex;align-items:center;gap:8px;margin:20px 0 0;font-size:13px;color:var(--accent)}.dot{width:6px;height:6px;background:var(--accent);border-radius:50%;flex:none}
+.tabs{display:flex;gap:28px;margin-top:24px;overflow-x:auto}.tabs button{border:0;border-radius:0;background:none;padding:14px 0;color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent;font-weight:600}
+.tabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}main{padding-top:28px;padding-bottom:60px;min-height:60vh}
+.section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px}.section-head p{margin:5px 0 0;font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:16px}
+.card,.surface{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:16px}.tag{display:inline-flex;align-items:center;background:#edf3f1;border-radius:5px;padding:3px 8px;font-size:12px;color:#376158;line-height:1.5}
+.warning{color:#875714;background:#fff7e8;border-radius:5px;padding:8px 12px}.number{font-size:30px;font-weight:650;letter-spacing:-1px;line-height:1.2;margin:10px 0}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--panel);border:1px solid #b6c6c4;border-radius:7px;padding:10px 12px;max-width:100%}
+button{cursor:pointer;transition:background .15s,border-color .15s}button:hover{background:#edf3f1;border-color:var(--accent)}button:active{transform:translateY(1px)}button:disabled{opacity:.6;cursor:wait}
+:focus-visible{outline:3px solid #73ad9e;outline-offset:3px}.primary{background:var(--accent);border-color:var(--accent);color:white;font-weight:600}.primary:hover{background:#105245;color:white}
+input,select,textarea{width:100%}textarea{min-height:90px}label{display:block;margin:12px 0;font-size:13px;font-weight:600}label input,label select,label textarea{display:block;margin-top:7px;font-weight:400}
+blockquote{border-left:2px solid #9dbbb2;padding:8px 14px;margin:8px 0 16px;background:#f5f8f7;color:#37544d;overflow-wrap:anywhere}
+details{border-top:1px solid var(--line);padding:16px 0}summary{cursor:pointer;font-weight:600}details>summary{list-style-position:outside;margin-left:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}
+section{margin-bottom:32px}.error{color:#a53030}.empty{padding:38px 24px;border:1px dashed #c6d3d1;border-radius:10px;background:#fbfcfc;color:var(--muted);text-align:center}.empty p{margin:6px auto;max-width:56ch}.empty strong{display:block;color:var(--ink);font-size:16px}
+.funnel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden;background:white;margin:18px 0 20px}.funnel-step{padding:24px 20px;border-right:1px solid var(--line);position:relative}.funnel-step:last-child{border:0;background:#edf5f1}.step-no{font-size:11px;color:var(--muted);letter-spacing:.08em}.target{font-size:44px;font-weight:600;line-height:1.3;letter-spacing:-1.8px;margin:10px 0}.step-label{font-size:14px;font-weight:600;min-height:44px}.step-detail{font-size:12px;color:var(--muted);margin-top:8px}
+.plan-foot{display:flex;justify-content:space-between;gap:24px;font-size:13px;color:var(--muted);padding-bottom:12px}.plan-foot p{margin:0}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid var(--line);padding-top:12px}.metrics .card{background:none;border:0;border-radius:0;padding:16px 20px 0 0;margin:0}.metrics .card p{font-size:13px;margin:4px 0}.metrics .number{font-size:27px}
+.call{padding:0;overflow:hidden}.call>details{border:0;padding:0}.call>details>summary{display:grid;grid-template-columns:56px minmax(0,1fr) auto;align-items:center;gap:16px;padding:20px 24px;margin:0;list-style:none}.call>details>summary::-webkit-details-marker{display:none}.call summary:hover{background:#f8faf9}.score{width:54px;height:54px;border-radius:10px;background:#edf4f1;display:grid;place-items:center;font-size:22px;font-weight:600}.call-title{display:block;font-size:15px;font-weight:600}.call-meta{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}.call-state{text-align:right;font-size:12px}.open-label{display:block;color:var(--muted);margin-top:6px;font-weight:400}.call-body{padding:0 24px 24px;border-top:1px solid var(--line)}.call-body>p{font-size:13px}.criterion{padding:12px 0;border-bottom:1px solid #edf1f0}.criterion-head{display:flex;gap:12px;justify-content:space-between;align-items:start}.criterion-head b{font-size:14px}.criterion .tag{flex:none}.review-form{margin-top:20px;background:#f6f8f7;padding:20px;border-radius:8px}.review-form h3{margin:0}.review-form button{margin-top:12px}.filter{min-width:220px;margin:0}.filter select{padding:8px 12px}.account-id{font-size:12px;color:var(--muted)}
+.definitions{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:24px 0}.definitions p{font-size:13px;margin:5px 0}.definitions h3{font-size:14px}.settings-block{margin-top:24px}.settings-block>summary{font-size:16px}.settings-copy{font-size:13px;color:var(--muted);margin:16px 0}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}fieldset{border:0;border-top:1px solid var(--line);padding:20px 0;margin:12px 0}legend{padding:0 12px 0 0;font-size:14px;font-weight:600}.form-note{font-size:12px;color:var(--muted)}#status{font-size:12px;color:var(--muted);margin-top:14px;min-height:20px}.reload{font-size:13px;white-space:nowrap}
+@media(max-width:700px){.topbar,.workspace,main{padding-left:20px;padding-right:20px}.workspace{padding-top:24px}h1{font-size:27px}.tabs{gap:24px}.funnel{grid-template-columns:1fr}.funnel-step{display:grid;grid-template-columns:28px 54px minmax(0,1fr);align-items:center;column-gap:14px;padding:16px 20px;border-right:0;border-bottom:1px solid var(--line)}.target{font-size:32px;grid-column:2;grid-row:1/3;margin:0}.step-no{grid-column:1;grid-row:1/3}.step-label{grid-column:3;min-height:0;font-size:14px}.step-detail{grid-column:3;margin-top:3px}.plan-foot{display:block}.plan-foot p{margin-bottom:8px}.metrics{grid-template-columns:1fr 1fr;row-gap:16px}.definitions{grid-template-columns:1fr;gap:14px}.section-head{align-items:start;flex-direction:column}.filter{width:100%;min-width:0}.call>details>summary{padding:16px;gap:12px;grid-template-columns:44px minmax(0,1fr)}.score{width:44px;height:44px;font-size:19px}.call-state{grid-column:2;text-align:left;display:flex;align-items:center;gap:10px}.open-label{margin:0}.call-body{padding:0 16px 16px}.card,.surface{padding:20px}.call{padding:0}.form-grid{grid-template-columns:1fr}.criterion-head{flex-direction:column;gap:6px}.heading{align-items:start}.reload{padding:8px 10px}.subtitle{font-size:13px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
-<header>
-<a href="/dashboard/sales-quality">← Savdo sifati</a>
-<h1>Suhbatlar va savdo nazorati</h1>
-<p class="muted">Mijoz tarixi → keyingi harakat → dalilli baholash → ROP tekshiruvi</p>
-<p><span class="tag">Pilot</span> Baholar hozircha bonus yoki ish haqini avtomatik o'zgartirmaydi.</p>
-</header>
-<main>
-<div class="row"><button id="reload" type="button">Yangilash</button><span id="status" role="status" aria-live="polite"></span></div>
-<section><h2>Jamoa ko'rinishi</h2><div id="metrics" class="grid"><p>Yuklanmoqda…</p></div></section>
-<section><h2>Bugungi e'tibor va mijoz brifi</h2>
-<p class="muted">Saqlangan tahlillar asosida. Ogohlantirishlar tekshirish uchun signal; jonli bitim holatini tasdiqlamaydi.</p>
-<div id="accounts" class="grid"></div></section>
-<section><h2>Suhbat turiga mos baholash</h2><label>Maqsad bo'yicha filtr <select id="type-filter"><option value="">Barcha turlar</option></select></label>
-<div id="evaluations"></div></section>
-<section><h2>Baholash mezonlari</h2><p class="muted">N/A — tegishli emas; unknown — dalil yetishmaydi. Ikkalasi ham avtomatik nol emas.</p><div id="scorecards" class="grid"></div></section>
-<section id="kpi-pilot" class="hidden"><h2>KPI sinov hisobi</h2><p>Taklif: natija 50%, intizom 25%, sifat 25%. Kamida 20 ta ROP tasdiqlagan savdo suhbati talab qilinadi. Bu chegaralar hali tasdiqlanmagan.</p><p class="muted">Kiritilgan savdo va vazifa raqamlari moliyaviy manbadan tekshirilmaydi. Davr suhbat sanasiga emas, oxirgi ROP tekshiruvi sanasiga tegishli. To‘lov yaratilmaydi.</p>
-<div id="daily-funnel" class="card"><p>Kunlik voronka talablari yuklanmoqda…</p></div>
-<form id="kpi-form" class="card"><div class="grid">
+<a class="skip" href="#main">Asosiy qismga o‘tish</a>
+<header><div class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">o</span>oisha<span class="tag">Sotuv</span></div><a href="/dashboard/sales-quality">← Umumiy panel</a></div>
+<div class="workspace"><div class="heading"><div><div class="eyebrow">Jamoa nazorati</div><h1>Sotuv va suhbat sifati</h1><p class="subtitle">Kunlik reja, suhbatlar va menejerga kerakli keyingi qadam.</p></div><button id="reload" class="reload" type="button">Yangilash ↻</button></div>
+<p class="pilot-note"><span class="dot"></span>Sinov rejimi · Bonus va ish haqiga ta’sir qilmaydi</p>
+<div id="status" role="status" aria-live="polite"></div>
+<nav class="tabs" role="tablist" aria-label="Sotuv paneli"><button id="tab-plan" role="tab" aria-selected="true" aria-controls="panel-plan" data-tab="plan">Kunlik reja</button><button id="tab-calls" role="tab" aria-selected="false" aria-controls="panel-calls" data-tab="calls" tabindex="-1">Suhbatlar</button><button id="tab-accounts" role="tab" aria-selected="false" aria-controls="panel-accounts" data-tab="accounts" tabindex="-1">Mijozlar</button><button id="tab-settings" role="tab" aria-selected="false" aria-controls="panel-settings" data-tab="settings" tabindex="-1">Mezonlar</button></nav></div></header>
+<main id="main">
+<section id="panel-plan" role="tabpanel" aria-labelledby="tab-plan">
+<div class="section-head"><div><h2>Kunlik sotuv rejasi</h2><p>Har bosqichda alohida mijozlar hisoblanadi.</p></div><span class="tag">Belgilangan maqsadlar</span></div>
+<div id="daily-funnel"><div class="empty"><strong>Reja yuklanmoqda</strong><p>Kunlik talablar tekshirilmoqda.</p></div></div>
+<div class="section-head"><div><h2>Suhbatlar tekshiruvi</h2><p>Saqlangan tahlillar bo‘yicha · kunlik natija emas</p></div></div><div id="metrics" class="metrics"><p class="muted">Ma’lumot yuklanmoqda…</p></div>
+</section>
+<section id="panel-calls" role="tabpanel" aria-labelledby="tab-calls" hidden><div class="section-head"><div><h2>Suhbatlar</h2><p>Dalillarni ko‘rish va bahoni tekshirish uchun suhbatni oching.</p></div><label class="filter">Suhbat turi<select id="type-filter"><option value="">Barcha turlar</option></select></label></div><div id="evaluations"></div></section>
+<section id="panel-accounts" role="tabpanel" aria-labelledby="tab-accounts" hidden><div class="section-head"><div><h2>Mijozlar va keyingi qadam</h2><p>Oxirgi saqlangan tahlillar asosida. Bitimning jonli holati alohida tekshiriladi.</p></div></div><div id="accounts" class="grid"></div></section>
+<section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden><div class="section-head"><div><h2>Baholash mezonlari</h2><p>Har bir suhbat turi o‘z maqsadiga mos baholanadi.</p></div></div><div id="scorecards" class="grid"></div>
+<details id="kpi-pilot" class="settings-block hidden"><summary>KPI va bonusni sinov uchun hisoblash</summary><p class="settings-copy">Taklif: savdo 50%, intizom 25%, sifat 25%. Kamida 20 ta ROP tasdiqlagan suhbat kerak. Bu hisob haqiqiy to‘lov yaratmaydi.</p><p class="form-note">Raqamlar qo‘lda kiritiladi va moliyaviy manbadan tekshirilmaydi. Davr — suhbat sanasi emas, ROP tekshiruvi sanasi. Vaqt brauzeringizning mahalliy vaqtida.</p>
+<form id="kpi-form" class="surface"><fieldset><legend>1. Menejer va tekshiruv davri</legend><div class="form-grid">
 <label>Menejer ID <input name="manager_id" required maxlength="100"></label>
 <label>ROP tekshiruvi davri boshi <input name="start" type="datetime-local" required></label>
 <label>Davr oxiri (kirmaydi) <input name="end" type="datetime-local" required></label>
+</div></fieldset><fieldset><legend>2. Savdo va vazifalar</legend><div class="form-grid">
 <label>Savdo natijasi <input name="actual" type="number" min="0" step="any"></label>
 <label>Savdo rejasi (bir xil birlikda) <input name="target" type="number" min="0.01" step="any"></label>
 <label>Vaqtida bajarilgan vazifalar <input name="completed_on_time" type="number" min="0" step="1"></label>
 <label>Muddati kelgan vazifalar <input name="tasks_due" type="number" min="0" step="1"></label>
+</div></fieldset><fieldset><legend>3. Bonus loyihasi · ixtiyoriy</legend><div class="form-grid">
 <label>Sinov bonus fondi (ixtiyoriy) <input name="bonus_pool" type="number" min="0" step="0.01"></label>
 <label>Valyuta <select name="currency"><option>UZS</option><option>USD</option></select></label>
-</div><button>Sinov hisobini chiqarish</button><p id="kpi-result" role="status" aria-live="polite"></p></form></section>
+</div></fieldset><button class="primary">Sinov hisobini chiqarish</button><p id="kpi-result" role="status" aria-live="polite"></p></form></details></section>
 </main>
 <script>
 const byId=id=>document.getElementById(id);
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={met:'Bajarilgan',unmet:'Bajarilmagan',not_applicable:'Tegishli emas',unknown:'Dalil yetishmaydi',pending:'Tekshiruv kutilmoqda',approved:'Tasdiqlangan',rejected:'Rad etilgan',appealed:'E’tiroz bildirildi'};
 let evaluations=[],canReview=false;
+const emptyState=(title,text)=>`<div class="empty"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(text)}</p></div>`;
+function selectTab(name,focus=false){
+ document.querySelectorAll('[data-tab]').forEach(button=>{const active=button.dataset.tab===name;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;if(active&&focus)button.focus()});
+ document.querySelectorAll('[role=tabpanel]').forEach(panel=>{panel.hidden=panel.id!=='panel-'+name});
+}
 async function request(url,options={}){const r=await fetch(url,{credentials:'same-origin',...options});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
 async function load(){
+ byId('reload').disabled=true;
  byId('status').textContent='Yuklanmoqda…';
  const results=await Promise.allSettled([request('/api/sales-quality/intelligence'),request('/api/sales-quality/evaluations'),request('/api/sales-quality/scorecards')]);
  if(results[0].status==='fulfilled')renderIntelligence(results[0].value);else{byId('metrics').innerHTML='<p class="error">Savdo manbasi olinmadi.</p>';byId('accounts').textContent='Ma’lumot olinmadi; bo‘sh natija deb hisoblanmadi.'}
- if(results[1].status==='fulfilled'){evaluations=results[1].value.evaluations;canReview=results[1].value.can_review;renderEvaluations()}else byId('evaluations').innerHTML='<p class="error">Baholashlar olinmadi.</p>';
+ canReview=false;
+ if(results[1].status==='fulfilled'){evaluations=results[1].value.evaluations;canReview=results[1].value.can_review;renderEvaluations()}else{evaluations=[];byId('evaluations').innerHTML=emptyState('Suhbatlar olinmadi','Qayta yuklab ko‘ring. Bu holat suhbat yo‘q degani emas.')}
  if(results[2].status==='fulfilled')renderScorecards(results[2].value.scorecards);
  byId('kpi-pilot').classList.toggle('hidden',!canReview);
  if(canReview)await loadFunnelPolicy();
+ else byId('daily-funnel').innerHTML=emptyState('Kunlik reja ko‘rsatilmagan','Bu ko‘rinish rahbar ruxsatini talab qiladi. Suhbatlar bo‘limida o‘zingizga tegishli tahlillarni ko‘rishingiz mumkin.');
  byId('status').textContent=results.every(r=>r.status==='fulfilled')?'Ko‘rinish yangilandi':'Ayrim manbalar olinmadi';
+ byId('reload').disabled=false;
 }
 function renderIntelligence(d){
  const s=d.review_summary,c=d.calibration;
- byId('metrics').innerHTML=`<div class="card"><p class="muted">Baholangan suhbatlar</p><div class="number">${s.total}</div></div><div class="card"><p class="muted">ROP tekshiruvi kutilmoqda</p><div class="number">${s.pending}</div></div><div class="card"><p class="muted">Sifat tasdiqlangan</p><div class="number">${s.approved}</div></div><div class="card"><p class="muted">AI / ROP o‘rtacha mutlaq farqi</p><div class="number">${c.mean_absolute_difference??'—'}</div><p>${c.compared_reviews} ta taqqoslash</p></div>`;
+ byId('metrics').innerHTML=`<div class="card"><p class="muted">Tahlil qilingan</p><div class="number">${escapeHtml(s.total??'—')}</div></div><div class="card"><p class="muted">ROP tekshiruvi kutilmoqda</p><div class="number">${escapeHtml(s.pending??'—')}</div></div><div class="card"><p class="muted">Tasdiqlangan</p><div class="number">${escapeHtml(s.approved??'—')}</div></div><div class="card"><p class="muted">AI va ROP baholari farqi</p><div class="number">${escapeHtml(c.mean_absolute_difference??'—')}</div><p class="muted">${escapeHtml(c.compared_reviews)} ta taqqoslash</p></div>`;
  byId('accounts').innerHTML=d.accounts.length?d.accounts.map(a=>`<article class="card"><h3>Lid #${escapeHtml(a.lead_id)}</h3><p>${escapeHtml(a.summary)}</p>${a.warnings.map(w=>`<p class="warning">${escapeHtml(w.label)}</p>`).join('')}<p><b>Keyingi harakat:</b> ${escapeHtml(a.next_action)}</p><p class="muted">Manba: ${a.source_call_ids.map(escapeHtml).join(', ')}<br>Oxirgi tahlil: ${escapeHtml(a.last_analyzed_at??'Noma’lum')}</p><details><summary>Qayta aloqa xabari loyihasi</summary><pre>${escapeHtml(a.follow_up_draft)}</pre><p class="muted">Yuborilmagan. Menejer tekshirib moslashtiradi.</p></details></article>`).join(''):'<p class="muted">Ko‘rish huquqingiz doirasida mijoz tahlili topilmadi.</p>';
 }
 function renderEvaluations(){
  const filter=byId('type-filter').value;
- byId('evaluations').innerHTML=evaluations.map((e,index)=>({e,index})).filter(({e})=>!filter||e.call_type===filter).map(({e,index})=>`<article class="card"><div class="row"><h3>${escapeHtml(e.call_id)} · ${escapeHtml(e.label)}</h3><span class="tag">${escapeHtml(labels[e.review_status]??e.review_status)}</span></div><p><b>${e.score===null?'Baholanmadi':escapeHtml(e.score)+'/100'}</b> · Dalil qamrovi ${Math.round(e.coverage*100)}% · ${escapeHtml(e.direction)} · ${escapeHtml(e.scorecard_version)}</p><p class="muted">Tur bo‘yicha AI ishonchi: ${e.type_confidence===null?'Noma’lum':Math.round(e.type_confidence*100)+'%'}; ROP tekshiruvi talab qilinadi.</p><blockquote>${escapeHtml(e.type_evidence||'Tasnif dalili topilmadi')}</blockquote><details><summary>Mezonlar, iqtiboslar va tekshiruv tarixi</summary>${e.criteria.map(c=>`<p><b>${escapeHtml(c.label)}</b> — ${escapeHtml(labels[c.status])}</p><blockquote>${escapeHtml(c.quote||'Iqtibos mavjud emas')}</blockquote><p>${escapeHtml(c.reason)}</p>`).join('')}${e.reviews.map(r=>`<p>${escapeHtml(r.actor)} · ${escapeHtml(labels[r.decision])}: ${escapeHtml(r.reason)}${r.corrected_score===null?'':' · ROP balli: '+escapeHtml(r.corrected_score)}</p>`).join('')}</details><form data-index="${index}"><label>Qaror <select name="decision">${canReview?'<option value="approved">Tasdiqlash</option><option value="rejected">Rad etish</option>':''}<option value="appealed">E’tiroz bildirish</option></select></label><label>Sabab va dalil <textarea name="reason" required maxlength="2000"></textarea></label>${canReview?'<label>ROP mustaqil bahosi (ixtiyoriy, 0–100) <input name="score" type="number" min="0" max="100" step="0.1"></label>':''}<button type="submit">Qayd etish</button><p role="status" aria-live="polite"></p></form></article>`).join('')||'<p class="muted">Mos baholash yo‘q. Eski umumiy ball avtomatik yangi scorecardga aylantirilmaydi.</p>';
+ byId('evaluations').innerHTML=evaluations.map((e,index)=>({e,index})).filter(({e})=>!filter||e.call_type===filter).map(({e,index})=>`
+ <article class="card call"><details><summary>
+ <span class="score" aria-label="AI balli">${escapeHtml(e.score??'—')}</span>
+ <span><span class="call-title">${escapeHtml(e.label)}</span><span class="call-meta">Suhbat #${escapeHtml(e.call_id)} · ${escapeHtml(({incoming:'Kiruvchi',outgoing:'Chiquvchi'}[e.direction])??'Yo‘nalish noma’lum')}</span></span>
+ <span class="call-state"><span class="tag">${escapeHtml(labels[e.review_status]??e.review_status)}</span><span class="open-label">Tafsilotlar ↓</span></span></summary>
+ <div class="call-body"><p class="muted">AI balli: ${escapeHtml(e.score??'Baholanmagan')} / 100 · Dalil qamrovi ${escapeHtml(Math.round(e.coverage*100))}%</p>
+ <blockquote>${escapeHtml(e.type_evidence||'Suhbat turini tasdiqlovchi iqtibos topilmagan.')}</blockquote>
+ <details><summary>Baholash mezonlari va iqtiboslar</summary>${e.criteria.map(c=>`<div class="criterion"><div class="criterion-head"><b>${escapeHtml(c.label)}</b><span class="tag">${escapeHtml(labels[c.status]??c.status)}</span></div><blockquote>${escapeHtml(c.quote||'Dalil topilmagan')}</blockquote><p class="muted">${escapeHtml(c.reason)}</p></div>`).join('')||'<p class="muted">Mezonlar mavjud emas.</p>'}</details>
+ <details><summary>ROP tekshiruvi tarixi</summary>${e.reviews.map(r=>`<p>${escapeHtml(r.actor)} · ${escapeHtml(labels[r.decision]??r.decision)}: ${escapeHtml(r.reason)}${r.corrected_score===null?'':' · ROP balli: '+escapeHtml(r.corrected_score)}</p>`).join('')||'<p class="muted">Hali tekshirilmagan.</p>'}<p class="form-note">Baholash versiyasi: ${escapeHtml(e.scorecard_version)} · Tur bo‘yicha AI ishonchi: ${e.type_confidence==null?'noma’lum':escapeHtml(Math.round(e.type_confidence*100))+'%'}</p></details>
+ ${renderFunnelEvidence(e.funnel_evidence)}
+ <form class="review-form" data-index="${index}"><h3>${canReview?'ROP qarori':'Bahoga e’tiroz bildirish'}</h3><label>Qaror<select name="decision">${canReview?'<option value="approved">Tasdiqlash</option><option value="rejected">Rad etish</option>':''}<option value="appealed">E’tiroz bildirish</option></select></label><label>Sabab va dalil<textarea name="reason" required maxlength="2000" placeholder="Qaroringizni suhbatdagi dalil bilan asoslang"></textarea></label>${canReview?'<label>ROP balli · ixtiyoriy<input name="score" type="number" min="0" max="100" step="0.1" placeholder="0–100"></label>':''}<button class="primary" type="submit">Qayd etish</button><p role="status" aria-live="polite"></p></form>
+ </div></details></article>`).join('')||emptyState('Mos suhbat topilmadi','Filtrni o‘zgartiring yoki yangi tahlillar kelishini kuting.');
  byId('evaluations').querySelectorAll('form').forEach(form=>{
-  form.insertAdjacentHTML('beforebegin',renderFunnelEvidence(evaluations[Number(form.dataset.index)].funnel_evidence));
   form.addEventListener('submit',submitReview);
  });
 }
@@ -95,8 +130,8 @@ function renderScorecards(cards){
 }
 async function loadFunnelPolicy(){
  try{const p=await request('/api/sales-quality/kpi-policy'),f=p.daily_funnel;
- byId('daily-funnel').innerHTML='<h3>Owner belgilagan kunlik voronka</h3><p>'+f.stages.map(s=>escapeHtml(s.target)+' ta '+escapeHtml(s.label)).join(' → ')+'</p><p>Har bosqichda alohida mijozlar sanaladi. Takroriy urinish yangi mijoz emas. Javob bermagan va 3 daqiqaga yetmagan suhbatlar 50 talik talabga kirmaydi.</p><p>50% javob berish taxminida: 100 ta urinish rejalashtiriladi. Bu urinishlar KPI talabi emas. Kamida 150 daqiqa suhbat vaqti.</p><p class="muted">Bu talablar, haqiqiy natijalar emas. Sotuv tasdig‘i, 3 daqiqani jamlash va keyingi kunlardagi konversiyani bog‘lash qoidalari hali aniqlashtiriladi. Uchrashuvga taklif — o‘tkazilgan uchrashuv degani emas. Bonusga avtomatik ta’sir o‘chiq.</p>';
- byId('daily-funnel').insertAdjacentHTML('beforeend','<p><b>Mazmunli suhbat:</b> mijoz tasdiqlagan ehtiyoj + mos xizmat + kelishilgan keyingi qadam. <b>EVQN:</b> ehtiyoj, qachonga kerakligi, qaror qiluvchi/jarayon, narx va mijoz munosabati. AI iqtiboslari ROP tekshiruvidan o‘tadi.</p>');
+ const titles={answered_180s:['Javobli mijoz','Har biri kamida 3 daqiqa'],meaningful:['Mazmunli suhbat','Ehtiyoj va mos xizmat'],evqn_invited:['Uchrashuvga taklif','EVQN asosida'],meeting_held:['O‘tkazilgan uchrashuv','Online yoki offline'],sale:['Sotuv','Tasdiqlangan natija']};
+ byId('daily-funnel').innerHTML='<div class="funnel">'+f.stages.map((s,i)=>`<div class="funnel-step"><span class="step-no">0${i+1}</span><div class="target">${escapeHtml(s.target)}</div><div class="step-label">${escapeHtml(titles[s.key]?.[0]??s.label)}</div><div class="step-detail">${escapeHtml(titles[s.key]?.[1]??'')}</div></div>`).join('')+'</div><div class="plan-foot"><p>50% javob berish taxminida <b>100 ta urinish</b> rejalashtiriladi.<br>50 ta suhbat uchun kamida <b>150 daqiqa</b>.</p><p><b>Haqiqiy kunlik natijalar hali ulanmagan.</b><br>Yuqoridagi sonlar — reja, bajarilgan ish emas.</p></div><div class="definitions"><div><h3>Mazmunli suhbat nima?</h3><p>Mijoz ehtiyojini tasdiqlagan, mos xizmat muhokama qilingan va keyingi qadam kelishilgan suhbat.</p></div><div><h3>EVQN nimani tekshiradi?</h3><p><b>E</b>htiyoj · <b>V</b>aqt · <b>Q</b>aror qabul qiluvchi · <b>N</b>arx</p></div></div><details><summary>Hisoblash qoidalari</summary><p class="muted">Bir mijozga qayta qo‘ng‘iroq qilish yangi mijoz hisoblanmaydi. Javobsiz va 3 daqiqaga yetmagan suhbatlar 50 talik talabga kirmaydi. Taklif yuborilishi — uchrashuv o‘tkazildi degani emas.</p><p class="muted">Sotuv tasdig‘i, suhbat vaqtini jamlash va keyingi kunlardagi uchrashuv/sotuvni bog‘lash qoidalari hali aniqlashtiriladi.</p></details>';
  }catch(error){byId('daily-funnel').textContent='Kunlik talablar olinmadi: '+error.message}
 }
 async function simulateKpi(event){
@@ -107,6 +142,13 @@ async function simulateKpi(event){
  try{const r=await request('/api/sales-quality/kpi-simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});out.textContent=`ROP tasdiqlagan savdo suhbatlari: ${r.quality.reviewed_calls}/${r.quality.required_calls}. `+(r.complete?`Sinov balli: ${r.total_score}/100. `:'Hisob to‘liq emas; yetishmaydi: '+r.missing.map(k=>({result:'savdo natijasi',discipline:'intizom',quality:'sifat'}[k])).join(', ')+'. ')+(r.projected_bonus!==null?`Sinov bonus: ${r.projected_bonus} ${r.currency}. `:'')+'To‘lov yaratilmagan.'}catch(error){out.textContent='Hisob olinmadi: '+error.message}finally{button.disabled=false}
 }
 byId('kpi-form').addEventListener('submit',simulateKpi);
+document.querySelectorAll('[data-tab]').forEach(button=>{
+ button.addEventListener('click',()=>selectTab(button.dataset.tab));
+ button.addEventListener('keydown',event=>{const tabs=[...document.querySelectorAll('[data-tab]')],index=tabs.indexOf(button);let next;
+ if(event.key==='ArrowRight')next=(index+1)%tabs.length;if(event.key==='ArrowLeft')next=(index+tabs.length-1)%tabs.length;if(event.key==='Home')next=0;if(event.key==='End')next=tabs.length-1;
+ if(next!==undefined){event.preventDefault();selectTab(tabs[next].dataset.tab,true)}
+ });
+});
 byId('reload').addEventListener('click',load);byId('type-filter').addEventListener('change',renderEvaluations);load();
 </script>
 </body>
