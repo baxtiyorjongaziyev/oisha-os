@@ -68,15 +68,25 @@ def test_lead_with_manager_tag_is_skipped():
 def test_is_claimed_by_manager():
     assert is_claimed_by_manager(["Shahnoza"]) is True
     assert is_claimed_by_manager(["rayxon"]) is True
-    assert is_claimed_by_manager(["FARANGIZ"]) is True
+    assert is_claimed_by_manager(["Mumtozmaxal"]) is True
+    # Farangiz jamoadan chiqqan: uning tegi endi "egallangan" hisoblanmaydi.
+    assert is_claimed_by_manager(["FARANGIZ"]) is False
     assert is_claimed_by_manager(["menejer: Dilshod"]) is True
     assert is_claimed_by_manager(["mas'ul: Shahnoza"]) is True
     assert is_claimed_by_manager(["taqsimot:inhouse", "Facebook Lead Ads", "Target"]) is False
     assert is_claimed_by_manager([]) is False
 
 
-def test_moizvonki_rep_names_in_manager_tags(monkeypatch):
-    monkeypatch.setenv("MOIZVONKI_REP_NAMES", "botir@jonbranding.uz:Botir,zarina@jonbranding.uz:Zarina")
+def test_moizvonki_rep_names_in_manager_tags(monkeypatch, tmp_path):
+    roster = tmp_path / "roster.json"
+    roster.write_text(
+        json.dumps({"reps": {
+            "botir@jonbranding.uz": "Botir",
+            "zarina@jonbranding.uz": "Zarina",
+        }}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MOIZVONKI_ROSTER_FILE", str(roster))
     names = get_known_manager_names()
     assert "botir" in names
     assert "zarina" in names
