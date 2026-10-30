@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import datetime, timezone
 
 
@@ -157,6 +158,12 @@ class RpcServer:
             result = {'success': False, 'status': 'invalid_tool_or_arguments'}
         except TimeoutError:
             result = {'success': False, 'status': 'source_timeout'}
+        except RuntimeError as exc:
+            code = str(exc)
+            safe = re.fullmatch(r'(?:amocrm|recording)_http_[1-5][0-9]{2}|'
+                                r'recording_(?:too_large|not_audio|redirect_limit|over_30_minutes)|'
+                                r'transcription_not_configured', code)
+            result = {'success': False, 'status': code if safe else 'source_unavailable'}
         except Exception:
             result = {'success': False, 'status': 'source_unavailable'}
         return {'content': [{'type': 'text', 'text': json.dumps(result, ensure_ascii=False)}],
