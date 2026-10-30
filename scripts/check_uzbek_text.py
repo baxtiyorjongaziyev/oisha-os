@@ -217,9 +217,12 @@ def apply_baseline(
 
 
 def _collect_targets(args: argparse.Namespace) -> Tuple[List[Path], Optional[Dict[str, Set[int]]]]:
+    if args.write_baseline:
+        # Baseline har doim butun repo bo'yicha yoziladi — qism ro'yxat uni buzadi.
+        return [Path(p) for p in _tracked_files()], None
     if args.paths:
         return [Path(p) for p in args.paths if Path(p).suffix in TARGET_SUFFIXES], None
-    if args.all or args.write_baseline:
+    if args.all:
         return [Path(p) for p in _tracked_files()], None
     mode = "staged" if args.staged else "base"
     line_map = _diff_changes(mode, args.base)
@@ -276,7 +279,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         )
         return 0
 
-    if args.baseline:
+    if args.baseline and line_map is None:
         baseline = load_baseline(Path(args.baseline))
         violations = apply_baseline(violations, baseline)
 

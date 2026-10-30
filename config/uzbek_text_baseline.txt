@@ -97,7 +97,9 @@
 2	scripts/generate_session_string.py
 2	scripts/get_session.py
 1	scripts/get_today_leads.py
+2	scripts/harness/agent_loop.py
 5	scripts/harness/evaluate_call_prompts.py
+6	scripts/harness/skill_generator.py
 2	scripts/hourly_sales_control.py
 10	scripts/hunter_limit_report.py
 1	scripts/import_to_db.py
@@ -567,7 +569,8 @@
 2	src/services/core/instagram/leadgen_watchdog.py
 24	src/services/core/instagram/meta_health_check.py
 6	src/services/core/instagram/video_analyzer.py
-14	src/services/core/instagram_agent.py
+3	src/services/core/instagram/webhook_processor.py
+8	src/services/core/instagram_agent.py
 5	src/services/core/instagram_weekly_report.py
 1	src/services/core/integrations/fireflies_sync.py
 4	src/services/core/jamoa_ritm/__init__.py
@@ -664,7 +667,7 @@
 1	src/services/core/smart_tasks/analyzer.py
 6	src/services/core/smart_tasks/context_builder.py
 1	src/services/core/smart_tasks/creator.py
-21	src/services/core/systematizer/detector.py
+22	src/services/core/systematizer/detector.py
 20	src/services/core/telegram/ai_features/models.py
 5	src/services/core/telegram/callback_auth.py
 8	src/services/core/telegram/owner_lock.py
