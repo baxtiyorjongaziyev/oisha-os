@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
 import structlog
+from src.services.call_analytics.conversion_coaching import validated_coaching, transcript_quality
 from src.services.core.sales_playbook import (
     MAX_ACCEPTABLE_PAUSE_SECONDS,
     OUTCOME_UNKNOWN,
@@ -85,6 +86,12 @@ class CallNormalizerMixin:
         zaif = _str_list(data.get("zaif_tomonlar"))
         etirozlar = _str_list(data.get("etirozlar"))
         tavsiyalar = _str_list(data.get("konversiya_tavsiyalari") or data.get("tavsiyalar") or [])
+        coaching = validated_coaching(data, transcript)
+        if "coaching_evidence" in data:
+            tavsiyalar = []
+        if coaching:
+            tavsiyalar = [f"Dalil: «{c['quote']}». {c['advice']} "
+                         f"Keyingi suhbatda: {c['better_phrase']}" for c in coaching]
         keyingi_kelishuv = normalize_name_spellings(str(data.get("keyingi_kelishuv") or "").strip())
         natija = normalise_outcome(data.get("natija"))
 
@@ -182,6 +189,8 @@ class CallNormalizerMixin:
             "zaif_tomonlar": zaif,
             "konversiya_tavsiyalari": tavsiyalar,
             "etirozlar": etirozlar,
+            "coaching_evidence": coaching,
+            "transcript_quality": transcript_quality(transcript),
         }
 
     def _fallback_analysis(self, transcript: str) -> Dict[str, Any]:
