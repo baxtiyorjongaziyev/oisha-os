@@ -208,6 +208,8 @@ async def production_readiness_probe():
     except Exception as exc:
         logger.debug("[HEALTH] AmoCRM check: %s", exc)
     checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
+    if amocrm is not None and hasattr(amocrm, "credential_diagnostics"):
+        checks["amocrm_credentials"] = amocrm.credential_diagnostics()
     if not amocrm_ok:
         # Surface *why* — "unavailable" alone hides the difference between a
         # transient network blip and a dead refresh token that needs a human

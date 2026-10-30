@@ -3287,3 +3287,7 @@ eady: true, 	elegram_bot: ok, mocrm: connected.
 - Transferred only amoCRM configuration and validated file payload to local private configuration in memory over SSH; selected file source and cleared stale local access/long-lived env entries. No credential values displayed, no server writes/restart, no userbot startup.
 - Verification: local configuration/file read-back equality, direct account HTTP 200, and actual AmoCRMSync read-only connection check true. Git worktree showed no secret/config changes tracked. Operator helpers outside repository contain no credentials.
 - Remaining: already-running local processes need reload/restart to consume updated configuration; local userbot remains prohibited. No code deployment or push performed.
+
+### 2026-10-30 / Codex: amoCRM secret-free diagnostics
+- Added credential_diagnostics() to the amoCRM token loader and source tracking for long_lived, env_json, file, refresh_env, and db paths. Readiness now exposes only configured/selected source, token-presence booleans, long-lived flag, and safe last_error; no credential values.
+- Focused validation: 27 tests passed across source selection, fallback, and readiness degradation; git diff --check passed. No live credential probe or external mutation.
