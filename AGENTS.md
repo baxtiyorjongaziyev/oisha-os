@@ -20,6 +20,7 @@
 | Telegram networking lidlarini CRM/Obsidianga sinxronlash | `.agents/skills/community-lead-sync/SKILL.md` |
 | Telegram tanishtiruv guruhlari va networking manbalarini kashf qilish | `.agents/skills/telegram-lead-discovery/SKILL.md` |
 | O'zbekiston soliq hisobotlari (JShDS 11101_20, Aylanma 10104_36) | `.agents/skills/soliq-ops/SKILL.md` |
+| O'zbekcha matn, apostrof, yangi alifbo | `.agents/skills/uzbek-text/SKILL.md` |
 
 ## Asosiy qoidalar
 
@@ -38,6 +39,8 @@
 
 10. **Soxta ma'lumot taqiqlanadi (owner, 2026-10-10):** chat, Obsidian, skills, kod, jadval, hisobot va tashqi tizimlarda uydirma ma'lumotni haqiqiy fakt sifatida yozmang. Yetishmagan qiymatni taxminiy raqam yoki nol bilan to'ldirmang; `noma'lum` yoki `tekshirilmagan` deb belgilang. Faktga manba va kerak bo'lsa sanani qo'shing; taxminni aniq ajrating. Bajarilmagan ishni `bajarildi`, yuborilmagan hisobotni `topshirildi`, tasdiqlanmagan to'lovni `to'landi` demang. Xato aniqlansa, manbasi bilan ochiq tuzatish kiriting. Sintetik test ma'lumotlari aniq belgilansin va haqiqiy operatsion yozuvlarga aralashmasin.
 11. **Owner bosadigan tugmalar:** autentifikatsiya, tashqi tizim xavfsizlik ruxsati yoki shaxsiy ishtirok zarur bo'lsa, sahifa va tugma nomini aniq ayting; Baxtiyorjon o'zi bosadi. Yashil CI'ga ega PR'larni merge qilish va oldindan ruxsat berilgan oddiy ishlar uchun qayta tasdiq so'ramang.
+
+12. **O'zbekcha matn va apostrof (owner, 2026-10-29):** kodda o'zbekcha matn faqat **ikki tirnoq** ichida yoziladi. `oʻ`/`gʻ` → `ö`/`ğ` (yangi alifbo) yoki `ʻ` (U+02BB); tutuq belgisi → `ʼ` (U+02BC). ASCII `'` so'z ichida **taqiqlanadi**: `'qo'ng'iroq'` SyntaxError beradi, `"qo'ng'iroq"` esa keyingi tahrirda kodni buzadi. Identifikator, email, teg, username — ASCII, ularga tegilmaydi. Tekshiruv: `python scripts/check_uzbek_text.py --staged`; batafsil: `.agents/skills/uzbek-text/SKILL.md`.
 
 ## Dalil va tekshiruv (owner, 2026-10-10)
 

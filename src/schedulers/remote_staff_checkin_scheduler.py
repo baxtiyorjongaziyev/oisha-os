@@ -27,7 +27,7 @@ REP_TOPIC_ID = 2976
 
 DEFAULT_REP_NAME = "Rayxon"
 DEFAULT_REP_TG = "@RayxonJonbranding"
-DEFAULT_REP_EMAILS = ["rayxona@jonbranding.uz", "xayrullayevna006@gmail.com"]
+DEFAULT_REP_EMAILS = ["rayxona@jonbranding.uz"]
 
 MIN_CHECKIN_INTERVAL_SECONDS = 45 * 60  # 45 daqiqa minimal oraliq
 STATE_FILE = "data/checkin_state.json"
@@ -42,7 +42,7 @@ DEFAULT_REPS: List[Dict[str, Any]] = [
     {"key": "mumtozmaxal", "name": "Mumtozmaxal", "tg": "",
      "emails": ["mumtozmaxal@jonbranding.uz"], "topic": 120},
     {"key": "shahnoza", "name": "Shahnoza", "tg": "",
-     "emails": ["shahnoza@jonbranding.uz"], "topic": 122},
+     "emails": ["shahnoza@jonbranding.uz", "xayrullayevna006@gmail.com"], "topic": 122},
 ]
 
 

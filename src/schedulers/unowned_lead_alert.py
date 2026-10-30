@@ -42,7 +42,6 @@ DEFAULT_MANAGER_NAMES = {
     "shahnoza",
     "rayxon",
     "rayhona",
-    "farangiz",
     "aziz",
     "ahrorbek",
     "dilbar",
@@ -64,15 +63,13 @@ MANAGER_TAG_PREFIXES = (
 
 
 def get_known_manager_names() -> Set[str]:
-    """Return lowercase known manager names from config and defaults."""
+    """Return lowercase known manager names from the roster config and defaults."""
+    from src.services.call_analytics.moizvonki_roster import load_roster
+
     names = set(DEFAULT_MANAGER_NAMES)
-    env_reps = os.getenv("MOIZVONKI_REP_NAMES", "")
-    if env_reps:
-        for item in env_reps.split(","):
-            if ":" in item:
-                val = item.split(":", 1)[1].strip().lower()
-                if val:
-                    names.add(val)
+    for name in load_roster().values():
+        if name.strip():
+            names.add(name.strip().lower())
     return names
 
 
