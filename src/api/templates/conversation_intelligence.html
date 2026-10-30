@@ -36,6 +36,7 @@ section{margin-bottom:32px}.error{color:#ffb8b8}.hidden{display:none}@media(max-
 <div id="evaluations"></div></section>
 <section><h2>Baholash mezonlari</h2><p class="muted">N/A — tegishli emas; unknown — dalil yetishmaydi. Ikkalasi ham avtomatik nol emas.</p><div id="scorecards" class="grid"></div></section>
 <section id="kpi-pilot" class="hidden"><h2>KPI sinov hisobi</h2><p>Taklif: natija 50%, intizom 25%, sifat 25%. Kamida 20 ta ROP tasdiqlagan savdo suhbati talab qilinadi. Bu chegaralar hali tasdiqlanmagan.</p><p class="muted">Kiritilgan savdo va vazifa raqamlari moliyaviy manbadan tekshirilmaydi. Davr suhbat sanasiga emas, oxirgi ROP tekshiruvi sanasiga tegishli. To‘lov yaratilmaydi.</p>
+<div id="daily-funnel" class="card"><p>Kunlik voronka talablari yuklanmoqda…</p></div>
 <form id="kpi-form" class="card"><div class="grid">
 <label>Menejer ID <input name="manager_id" required maxlength="100"></label>
 <label>ROP tekshiruvi davri boshi <input name="start" type="datetime-local" required></label>
@@ -61,6 +62,7 @@ async function load(){
  if(results[1].status==='fulfilled'){evaluations=results[1].value.evaluations;canReview=results[1].value.can_review;renderEvaluations()}else byId('evaluations').innerHTML='<p class="error">Baholashlar olinmadi.</p>';
  if(results[2].status==='fulfilled')renderScorecards(results[2].value.scorecards);
  byId('kpi-pilot').classList.toggle('hidden',!canReview);
+ if(canReview)await loadFunnelPolicy();
  byId('status').textContent=results.every(r=>r.status==='fulfilled')?'Ko‘rinish yangilandi':'Ayrim manbalar olinmadi';
 }
 function renderIntelligence(d){
@@ -71,7 +73,15 @@ function renderIntelligence(d){
 function renderEvaluations(){
  const filter=byId('type-filter').value;
  byId('evaluations').innerHTML=evaluations.map((e,index)=>({e,index})).filter(({e})=>!filter||e.call_type===filter).map(({e,index})=>`<article class="card"><div class="row"><h3>${escapeHtml(e.call_id)} · ${escapeHtml(e.label)}</h3><span class="tag">${escapeHtml(labels[e.review_status]??e.review_status)}</span></div><p><b>${e.score===null?'Baholanmadi':escapeHtml(e.score)+'/100'}</b> · Dalil qamrovi ${Math.round(e.coverage*100)}% · ${escapeHtml(e.direction)} · ${escapeHtml(e.scorecard_version)}</p><p class="muted">Tur bo‘yicha AI ishonchi: ${e.type_confidence===null?'Noma’lum':Math.round(e.type_confidence*100)+'%'}; ROP tekshiruvi talab qilinadi.</p><blockquote>${escapeHtml(e.type_evidence||'Tasnif dalili topilmadi')}</blockquote><details><summary>Mezonlar, iqtiboslar va tekshiruv tarixi</summary>${e.criteria.map(c=>`<p><b>${escapeHtml(c.label)}</b> — ${escapeHtml(labels[c.status])}</p><blockquote>${escapeHtml(c.quote||'Iqtibos mavjud emas')}</blockquote><p>${escapeHtml(c.reason)}</p>`).join('')}${e.reviews.map(r=>`<p>${escapeHtml(r.actor)} · ${escapeHtml(labels[r.decision])}: ${escapeHtml(r.reason)}${r.corrected_score===null?'':' · ROP balli: '+escapeHtml(r.corrected_score)}</p>`).join('')}</details><form data-index="${index}"><label>Qaror <select name="decision">${canReview?'<option value="approved">Tasdiqlash</option><option value="rejected">Rad etish</option>':''}<option value="appealed">E’tiroz bildirish</option></select></label><label>Sabab va dalil <textarea name="reason" required maxlength="2000"></textarea></label>${canReview?'<label>ROP mustaqil bahosi (ixtiyoriy, 0–100) <input name="score" type="number" min="0" max="100" step="0.1"></label>':''}<button type="submit">Qayd etish</button><p role="status" aria-live="polite"></p></form></article>`).join('')||'<p class="muted">Mos baholash yo‘q. Eski umumiy ball avtomatik yangi scorecardga aylantirilmaydi.</p>';
- byId('evaluations').querySelectorAll('form').forEach(form=>form.addEventListener('submit',submitReview));
+ byId('evaluations').querySelectorAll('form').forEach(form=>{
+  form.insertAdjacentHTML('beforebegin',renderFunnelEvidence(evaluations[Number(form.dataset.index)].funnel_evidence));
+  form.addEventListener('submit',submitReview);
+ });
+}
+function renderFunnelEvidence(f){
+ if(!f)return '<p class="muted">Mazmunli suhbat / EVQN: alohida dalil tahlili hali yo‘q.</p>';
+ const states={evidence_candidate:'Dalillar mavjud — ROP tekshiruvi kerak',unknown:'Dalil yetishmaydi',not_met:'Bajarilmagan band bor',excluded:'Savdo voronkasiga tegishli emas'};
+ return '<details><summary>Mazmunli suhbat va EVQN dalillari</summary>'+['meaningful','evqn'].map(key=>'<h3>'+({meaningful:'Mazmunli suhbat',evqn:'EVQN'}[key])+'</h3><p>'+escapeHtml(states[f[key].status]??'Noma’lum')+'</p>'+f[key].criteria.map(c=>'<p>'+escapeHtml(c.label)+' — '+escapeHtml(labels[c.status]??c.status)+'</p><blockquote>'+escapeHtml(c.quote||'Iqtibos yo‘q')+'</blockquote><p>'+escapeHtml(c.reason)+'</p>').join('')).join('')+'<p class="muted">KPIga avtomatik qo‘shilmagan. Davomiylik, o‘tkazilgan uchrashuv va to‘lov bu tahlil bilan tasdiqlanmaydi.</p></details>';
 }
 async function submitReview(event){
  event.preventDefault();const form=event.currentTarget,e=evaluations[Number(form.dataset.index)],data=new FormData(form),status=form.querySelector('[role=status]'),button=form.querySelector('button');button.disabled=true;
@@ -82,6 +92,12 @@ function renderScorecards(cards){
  const selected=byId('type-filter').value;
  byId('type-filter').innerHTML='<option value="">Barcha turlar</option>'+cards.map(c=>`<option value="${escapeHtml(c.type)}">${escapeHtml(c.label)}</option>`).join('');byId('type-filter').value=selected;
  byId('scorecards').innerHTML=cards.map(c=>`<details class="card"><summary>${escapeHtml(c.label)}</summary><ul>${c.criteria.map(q=>`<li>${escapeHtml(q.label)}${q.conditional?' (shartli)':''}</li>`).join('')}</ul><p class="muted">${escapeHtml(c.version)} · pilot</p></details>`).join('');
+}
+async function loadFunnelPolicy(){
+ try{const p=await request('/api/sales-quality/kpi-policy'),f=p.daily_funnel;
+ byId('daily-funnel').innerHTML='<h3>Owner belgilagan kunlik voronka</h3><p>'+f.stages.map(s=>escapeHtml(s.target)+' ta '+escapeHtml(s.label)).join(' → ')+'</p><p>Har bosqichda alohida mijozlar sanaladi. Takroriy urinish yangi mijoz emas. Javob bermagan va 3 daqiqaga yetmagan suhbatlar 50 talik talabga kirmaydi.</p><p>50% javob berish taxminida: 100 ta urinish rejalashtiriladi. Bu urinishlar KPI talabi emas. Kamida 150 daqiqa suhbat vaqti.</p><p class="muted">Bu talablar, haqiqiy natijalar emas. Sotuv tasdig‘i, 3 daqiqani jamlash va keyingi kunlardagi konversiyani bog‘lash qoidalari hali aniqlashtiriladi. Uchrashuvga taklif — o‘tkazilgan uchrashuv degani emas. Bonusga avtomatik ta’sir o‘chiq.</p>';
+ byId('daily-funnel').insertAdjacentHTML('beforeend','<p><b>Mazmunli suhbat:</b> mijoz tasdiqlagan ehtiyoj + mos xizmat + kelishilgan keyingi qadam. <b>EVQN:</b> ehtiyoj, qachonga kerakligi, qaror qiluvchi/jarayon, narx va mijoz munosabati. AI iqtiboslari ROP tekshiruvidan o‘tadi.</p>');
+ }catch(error){byId('daily-funnel').textContent='Kunlik talablar olinmadi: '+error.message}
 }
 async function simulateKpi(event){
  event.preventDefault();const form=event.currentTarget,data=new FormData(form),out=byId('kpi-result'),button=form.querySelector('button');button.disabled=true;out.textContent='Hisoblanmoqda…';

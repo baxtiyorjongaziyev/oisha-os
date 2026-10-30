@@ -3,6 +3,37 @@
 This is a simulation, not an approved compensation policy. There is no activation
 endpoint, salary write, payment creation or automatic deduction.
 
+## Owner daily funnel targets (2026-10-30)
+
+50 distinct answering customers, with at least 180 seconds of conversation each,
+then 20 meaningful conversations, 10 EVQN meeting invitations, 3 actually attended
+online/offline meetings and 1 sale. Repeat attempts are not additional customers;
+invitations are not attended meetings. The 50-customer minimum implies at least
+150 minutes of conversation. At an assumed 50% answer rate, 100 attempts is a
+planning estimate, not the KPI target and not a guaranteed sufficient count.
+
+The API and panel expose these owner-stated targets, not measured counters.
+The contextual AI pass now requests separate meaningful/EVQN evidence and validates
+exact transcript quotations. Results are evidence candidates requiring human review;
+they do not create daily CRM counts, invitations, KPI credit or payroll effects.
+EVQN was defined by the owner: need, timing, decision maker/process and price.
+Price discussion is not budget approval or payment. Another decision maker does
+not itself fail qualification when the decision process is clarified.
+
+The adapted meaningful-conversation pilot requires customer-confirmed need,
+service fit, and an agreed next step (which may be something other than a meeting).
+This adapts Salesforce BANT qualification and Gong's discovery scorecards; it is
+our design, not their universal definition. Unknown evidence stays unknown;
+unsupported quotations are removed. AI attribution/semantics still need ROP review.
+Sources checked 2026-10-30:
+- https://www.salesforce.com/blog/sales/what-is-bant-lead-generation/
+- https://help.gong.io/docs/all-about-scorecards
+
+Sale confirmation, whether 180 seconds must be one call or cumulative, and
+attribution window still need definition. Daily activities and later outcomes from the originating cohort
+must be separate; a later meeting/sale must not become a same-day failure.
+These targets do not approve the proposed 50/25/25 compensation weights below.
+
 ## Proposed model
 
 `total = min(actual / target * 100, 100) * .50 + discipline * .25 + quality * .25`

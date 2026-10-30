@@ -29,6 +29,9 @@ def test_simulation_uses_current_approved_reviews_and_never_writes_payment(tmp_p
             "actual": 80, "target": 100, "completed_on_time": 9, "tasks_due": 10,
             "bonus_pool": 1000000, "currency": "UZS"}
     with TestClient(app) as client:
+        policy = client.get("/api/sales-quality/kpi-policy").json()
+        assert policy["daily_funnel"]["stages"][0]["target"] == 50
+        assert policy["daily_funnel"]["planning"]["attempts_are_kpi_target"] is False
         result = client.post("/api/sales-quality/kpi-simulation", json=body)
         assert result.status_code == 200
         data = result.json()
