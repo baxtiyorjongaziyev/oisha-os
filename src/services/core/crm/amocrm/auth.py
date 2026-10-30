@@ -201,17 +201,8 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
                 logger.info("[AMOCRM OK] Access token refreshed successfully.")
                 return True
 
-            resp_json = {}
-            try:
-                resp_json = response.json()
-            except Exception:
-                logger.debug("[AMOCRM] Failed to parse JSON error response body", exc_info=True)
-
-            error_msg = (
-                resp_json.get("detail") or resp_json.get("title") or response.text
-            )
             self.last_error = f"refresh_failed_http_{response.status_code}"
-            logger.error(f"[AMOCRM ERROR] Token yangilashda xato: {error_msg}")
+            logger.error("[AMOCRM ERROR] Token refresh HTTP %s", response.status_code)
             # DIQQAT: 400/401 da BU YERDA bloklamaymiz. AmoCRM refresh_token'lari
             # rotatsiya qilinadi — 400 ko'pincha "boshqa instance allaqachon
             # yangiladi" degani. Blok qarorini refresh_guard beradi: u avval
@@ -221,7 +212,7 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
             return False
         except Exception as e:
             self.last_error = "refresh_request_failed"
-            logger.error(f"[AMOCRM ERROR] Request yuborishda xato: {e}")
+            logger.error("[AMOCRM ERROR] Token refresh failed: %s", type(e).__name__)
             return False
 
     def authorize_initial(self, auth_code):
@@ -274,7 +265,7 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
             self._load_token()
 
         if not self.access_token:
-            self.last_error = "access_token_missing"
+            self.last_error = self.last_error or "access_token_missing"
             return False
 
         url = f"{self.base_url}/api/v4/account"
