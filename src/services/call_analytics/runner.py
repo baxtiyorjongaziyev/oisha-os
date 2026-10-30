@@ -19,6 +19,8 @@ from src.services.call_analytics.normalizer import (
 )
 from src.services.core.call_events import CallEventLog
 from src.services.call_analytics.crm_automation_hook import run_crm_automation
+from src.services.call_analytics.script_learning_hook import capture_script_sample
+from src.services.call_analytics.script_history import capture_historical_sample
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         self._moizvonki_session = None
         self.gemini_cooldown_seconds = int(os.getenv("GEMINI_CALL_COOLDOWN_SECONDS", "900"))
         self._cooldown_loaded = False
+        self._script_history_budget = 3
         self.free_ai_router = get_free_ai_router()
 
         self.genai_client = gemini_client
@@ -227,15 +230,6 @@ class CallRunnerMixin(NoteExtractorMixin):
             manager_name=manager_name, category=category, summary=summary,
             client_mood=client_mood, transcript=transcript, analysis=analysis,
         )
-        try:
-            from src.services.call_analytics.winning_script_evolver import WinningScriptEvolver
-            evolver = WinningScriptEvolver(db=self.db, tg_client=getattr(self, "tg_client", None))
-            await evolver.evolve_from_call(
-                lead_id=lead_id, caller_phone=phone, manager_name=manager_name,
-                duration_seconds=duration, transcript=transcript, analysis=analysis,
-            )
-        except Exception as exc:
-            logger.debug("[CALL] Winning script evolution hook error: %s", exc)
 
 
     async def _sync_call_to_customer_360(
@@ -294,7 +288,11 @@ class CallRunnerMixin(NoteExtractorMixin):
                 phone=phone, call_status=params.get("call_status") if isinstance(params, dict) else None,
             )
 
-        if not audio_url or self._note_has_analysis_for_call(notes, call_id) or await self._is_call_processed(call_id):
+        if not audio_url:
+            return False
+        if self._note_has_analysis_for_call(notes, call_id) or await self._is_call_processed(call_id):
+            if write:
+                await capture_historical_sample(self, note, lead_id, call_id)
             return False
         if min_call_duration_seconds and duration and duration < min_call_duration_seconds:
             return False
@@ -329,6 +327,7 @@ class CallRunnerMixin(NoteExtractorMixin):
                     audio_url, category, summary, client_mood, next_steps, transcript,
                     analysis, [note1, note2],
                 )
+            await capture_script_sample(note, lead_id, call_id, transcript, analysis)
             if event_log:
                 await event_log.mark_analyzed(call_id)
         return True

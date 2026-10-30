@@ -64,6 +64,7 @@ secrets/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/winning_sales_scripts.sqlite3*
 data/income_supervisor_alerted.json
 data/utc_*
 

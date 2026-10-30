@@ -105,6 +105,7 @@ Rahbar uchun yagona ko‘rinish:
 - Summary, objection, buying signal, commitment va next action.
 - Sales rubric: greeting, needs, value, objections, closing, communication.
 - Manager coaching va owner/ROP daily rollup.
+- CRM yutilgan bitim daliliga tayangan, suhbat turi/xizmat bo'yicha versiyalanadigan avtomatik skript kutubxonasi; KPI mezonlari avtomatik o'zgarmaydi.
 - `mijoz`, `jamoa`, `shaxsiy`, `oila`, `noma'lum` call policy.
 
 ### 8.4 Project Operations

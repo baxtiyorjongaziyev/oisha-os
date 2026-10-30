@@ -103,7 +103,8 @@ async def test_db_failure_does_not_crash_the_scheduler():
 
 
 @pytest.mark.asyncio
-async def test_ideal_script_needs_enough_samples():
+async def test_ideal_script_needs_enough_samples(monkeypatch, tmp_path):
+    monkeypatch.setattr("src.services.call_analytics.winning_script_evolver.DEFAULT_LIBRARY", tmp_path / "scripts.sqlite3")
     class ThinDB:
         async def execute(self, sql, params):
             return [{"transcript": "salom" * 100, "overall_score": 90, "outcome": "sale"}]
@@ -114,34 +115,30 @@ async def test_ideal_script_needs_enough_samples():
 
 
 @pytest.mark.asyncio
-async def test_ideal_script_built_from_top_calls(monkeypatch):
-    samples = [
-        {"transcript": f"Sotuvchi: namuna {i} " * 50, "overall_score": 90, "outcome": "sale"}
-        for i in range(3)
-    ]
+async def test_ideal_script_built_from_verified_won_calls(monkeypatch, tmp_path):
+    import time
+    from unittest.mock import AsyncMock
+    from src.services.call_analytics.winning_script_evolver import WinningScriptEvolver
 
-    class DB:
-        async def execute(self, sql, params):
-            return samples
-
-    captured = {}
-
-    async def fake_generate(client, **kwargs):
-        captured["prompt"] = kwargs.get("contents")
-        return SimpleNamespace(text="1. Salomlashish: ..."), "gemini-1.5-pro"
-
-    monkeypatch.setattr(
-        "src.services.utils.gemini_fallback.generate_content_with_fallback",
-        fake_generate,
-    )
-
-    coach = SalesQualityCoach(db=DB(), gemini_client=SimpleNamespace())
+    monkeypatch.setattr("src.services.call_analytics.winning_script_evolver.DEFAULT_LIBRARY", tmp_path / "scripts.sqlite3")
+    evolver = WinningScriptEvolver()
+    now = int(time.time())
+    for i in range(1, 4):
+        await evolver.evolve_from_call(
+            i, "", "", 60, "Sotuvchi: Siz uchun qanday natija muhim?",
+            {"sifat_bahosi": 90, "category": "Mijoz", "rubrik_amal_qiladi": True,
+             "suhbat_oilasi": "Ehtiyoj aniqlash", "servis_yonalishi": "Brending"},
+            call_id=f"sample-{i}", occurred_at=now - 100,
+        )
+    crm = SimpleNamespace(get_lead=AsyncMock(side_effect=lambda i: {
+        "id": i, "status_id": 142, "closed_at": now - 1,
+    }))
+    await evolver.reconcile(crm)
+    coach = SalesQualityCoach(db=None)
     script = await coach.generate_ideal_script()
-
-    assert script.startswith("1. Salomlashish")
-    # Skript rasmiy playbook mezonlariga tayanadi
-    assert "RASMIY SOTUV RUBRIKASI" in captured["prompt"]
-    assert "namuna 0" in captured["prompt"]
+    assert "discovery:Brending — v1" in script
+    assert "Siz uchun qanday natija muhim?" in script
+    assert "pul tushgani tasdiqlanmagan" in script
 
 
 @pytest.mark.asyncio
@@ -235,7 +232,8 @@ async def test_growth_tips_use_llm_when_available(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_llm_failure_is_survivable(monkeypatch):
+async def test_llm_failure_is_survivable(monkeypatch, tmp_path):
+    monkeypatch.setattr("src.services.call_analytics.winning_script_evolver.DEFAULT_LIBRARY", tmp_path / "scripts.sqlite3")
     class DB:
         async def execute(self, sql, params):
             return [

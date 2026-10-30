@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, Dict, Optional
 import structlog
+from src.services.call_analytics.conversion_coaching import COACHING_GUIDANCE
 from src.services.core.sales_playbook import (
     IDEAL_CLIENT_TALK_PCT,
     outcome_prompt_uz,
@@ -140,7 +141,7 @@ class CallScorerMixin:
                 '    "muloqot_sifati": {"ball": <0-100>}\n'
                 '  }\n'
                 "}\n\n"
-                f"Transkripsiya:\n{transcript}"
+                f"{COACHING_GUIDANCE}\nTranskripsiya:\n{transcript}"
             )
             response = await self._gemini_generate_content(
                 contents=prompt,
@@ -212,11 +213,14 @@ class CallScorerMixin:
             "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
             "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
             "JSON schema: summary, category, client_mood, next_steps, keyingi_kelishuv, "
+            "suhbat_oilasi (Ehtiyoj aniqlash|Yechim taqdimoti|Narx muhokamasi|Follow-up|Shartnoma|Boshqa), "
+            "servis_yonalishi (Brending|Dizayn|SMM|Sayt|Biznes transformatsiya|Reklama|Boshqa), "
+            "rubrik_baholar (har bosqich uchun {ball: 0-100}), "
             "ovoz_ohangi (0-100), nutq_aniqligi (0-100), natija, natija_ishonch, "
             "konversiya_tavsiyalari (array of 1-3 actionable advice), "
             "kelishilgan_vaqt (suhbatda aniq kun/soat kelishilgan bo'lsa "
             "\"YYYY-MM-DD HH:MM\" formatida, aks holda null).\n\n"
-            f"Transkripsiya:\n{transcript}"
+            f"{rubric_prompt_uz()}\n{outcome_prompt_uz()}\n{COACHING_GUIDANCE}\nTranskripsiya:\n{transcript}"
         )
 
         def _create():
@@ -280,6 +284,8 @@ class CallScorerMixin:
             '  "summary": "2-4 gapda O\'zbekcha yaxlit 360° xulosa",\n'
             '  "category": "Shaxsiy|Oila|Jamoa|Mijoz|Boshqa",\n'
             '  "client_mood": "Ijobiy|Neytral|Salbiy|Noaniq",\n'
+            '  "suhbat_oilasi": "Ehtiyoj aniqlash|Yechim taqdimoti|Narx muhokamasi|Follow-up|Shartnoma|Boshqa",\n'
+            '  "servis_yonalishi": "Brending|Dizayn|SMM|Sayt|Biznes transformatsiya|Reklama|Boshqa",\n'
             '  "next_steps": "Keyingi aniq qadamlar yoki N/A",\n'
             '  "keyingi_kelishuv": "Kelishilgan aniq qadam",\n'
             '  "kelishilgan_vaqt": "Aniq kun/soat kelishilgan bo\'lsa YYYY-MM-DD HH:MM, aks holda null",\n'
@@ -301,7 +307,7 @@ class CallScorerMixin:
             '    "muloqot_sifati": {"ball": <0-100>}\n'
             '  }\n'
             "}\n\n"
-            f"Transkripsiya:\n{transcript}"
+            f"{COACHING_GUIDANCE}\nTranskripsiya:\n{transcript}"
         )
         try:
             result = await self.free_ai_router.generate_text(

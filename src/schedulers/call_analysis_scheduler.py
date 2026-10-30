@@ -118,7 +118,7 @@ async def run_call_analysis_scan(
                     min_call_duration_seconds=min_dur,
                 )
                 if processed:
-                    result.processed_calls += len(processed)
+                    result.processed_calls += processed if isinstance(processed, int) else len(processed)
             except Exception as proc_exc:
                 result.errors += 1
                 logger.error(
@@ -150,6 +150,9 @@ async def run_call_analysis_scan(
                 result.processed_calls += int(b_stats.get("calls_processed") or 0)
         except Exception as b_exc:
             logger.debug("[CALL-SCHEDULER] Automatic backfill sweep skipped: %s", b_exc)
+
+        from src.services.call_analytics.script_learning_hook import refresh_scripts
+        await refresh_scripts(client)
 
         logger.info(
             "[CALL-SCHEDULER] Sweep complete: %d leads scanned, %d calls processed, %d errors in %.2fs",
