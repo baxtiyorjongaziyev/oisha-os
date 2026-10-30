@@ -102,3 +102,15 @@ async def test_failed_crm_read_does_not_look_like_no_calls():
 async def test_wrong_note_identity_cannot_be_transcribed():
     with pytest.raises(ValueError, match='note_identity_mismatch'):
         await HermesCrmBridge(FakeApi()).transcript('contacts', 99, 7)
+
+
+@pytest.mark.asyncio
+async def test_recording_failure_is_actionable_without_leaking_urls():
+    async def failed(url, duration):
+        raise RuntimeError('recording_http_502')
+    rpc = RpcServer(HermesCrmBridge(FakeApi(), failed))
+    result = await rpc.call({'name': 'crm_get_call_transcript', 'arguments': {
+        'entity_type': 'contacts', 'entity_id': 42, 'note_id': 7}})
+    assert result['isError'] is True
+    assert 'recording_http_502' in result['content'][0]['text']
+    assert 'https://' not in result['content'][0]['text']
