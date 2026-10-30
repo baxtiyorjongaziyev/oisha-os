@@ -67,6 +67,7 @@ class AmoCRMSync(
         self.base_url = f"https://{self.subdomain}.amocrm.ru"
         self.access_token: Optional[str] = None
         self.token_data: Dict[str, Any] = {}
+        self.token_source: Optional[str] = None
         self.last_error: Optional[str] = None
         self.auth_blocked_until: float = 0.0
         self.auth_block_reason: Optional[str] = None

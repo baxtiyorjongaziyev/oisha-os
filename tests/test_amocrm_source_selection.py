@@ -55,6 +55,32 @@ def test_explicit_source_precedence(monkeypatch, sources, source, expected):
         client._persist_token_to_db.assert_not_called()
 
 
+def test_diagnostics_contains_state_only(monkeypatch, sources):
+    monkeypatch.setenv("AMOCRM_TOKEN_SOURCE", "file")
+    client = Client(sources)
+    diagnostics = client.credential_diagnostics()
+    assert diagnostics == {
+        "configured_source": "file",
+        "selected_source": "file",
+        "access_token_present": True,
+        "refresh_token_present": True,
+        "long_lived": False,
+        "last_error": None,
+    }
+    assert all("synthetic" not in str(value) for value in diagnostics.values())
+
+
+def test_diagnostics_reports_rejected_long_lived_without_secret(monkeypatch, sources):
+    monkeypatch.setenv("AMOCRM_TOKEN_SOURCE", "long_lived")
+    client = Client(sources)
+    client.last_error = "long_lived_token_rejected_http_401"
+    diagnostics = client.credential_diagnostics()
+    assert diagnostics["selected_source"] == "long_lived"
+    assert diagnostics["access_token_present"] is True
+    assert diagnostics["long_lived"] is True
+    assert diagnostics["last_error"] == "long_lived_token_rejected_http_401"
+
+
 @pytest.mark.parametrize("source,content,error", [
     ("invalid-synthetic", "{}", "token_source_invalid"),
     ("file", "{}", "token_source_unavailable"),

@@ -39,12 +39,19 @@ class AmoCRMTokenLoaderMixin:
             self._load_selected_source(source)
             return
         if self._load_long_lived_from_env():
+            self.token_source = "long_lived"
             return
         if self._load_token_from_env_json():
+            self.token_source = "env_json"
             return
         self._load_token_from_file()
+        if self.token_data:
+            self.token_source = "file"
         self._apply_raw_refresh_fallback()
+        if not self.token_source and self.token_data.get("refresh_token"):
+            self.token_source = "refresh_env"
         if self._load_token_from_db_fallback():
+            self.token_source = "db"
             return
         # Env/fayldan yuklangan sog'lom payload'ni DB'ga ko'chirish
         if self.token_data.get("refresh_token") or self.token_data.get("access_token"):
@@ -62,10 +69,25 @@ class AmoCRMTokenLoaderMixin:
             self._load_long_lived_from_env()
         else:
             self.last_error = "token_source_invalid"
+            self.token_source = None
             return
+        self.token_source = source
         if not self.access_token and not self.token_data.get("refresh_token"):
             self._set_token_data({})
             self.last_error = "token_source_unavailable"
+
+    def credential_diagnostics(self) -> dict:
+        """Return safe credential state without exposing secret values."""
+        data = self.token_data if isinstance(self.token_data, dict) else {}
+        configured_source = os.environ.get("AMOCRM_TOKEN_SOURCE", "auto").strip().lower()
+        return {
+            "configured_source": configured_source or "auto",
+            "selected_source": getattr(self, "token_source", None),
+            "access_token_present": bool(self.access_token),
+            "refresh_token_present": bool(data.get("refresh_token")),
+            "long_lived": bool(data.get("long_lived")),
+            "last_error": self.last_error,
+        }
 
     def _set_token_data(self, data: dict) -> None:
         """token_data + access_token'ni bir joyda o'rnatadi."""
