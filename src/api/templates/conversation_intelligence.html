@@ -35,6 +35,18 @@ section{margin-bottom:32px}.error{color:#ffb8b8}.hidden{display:none}@media(max-
 <section><h2>Suhbat turiga mos baholash</h2><label>Maqsad bo'yicha filtr <select id="type-filter"><option value="">Barcha turlar</option></select></label>
 <div id="evaluations"></div></section>
 <section><h2>Baholash mezonlari</h2><p class="muted">N/A — tegishli emas; unknown — dalil yetishmaydi. Ikkalasi ham avtomatik nol emas.</p><div id="scorecards" class="grid"></div></section>
+<section id="kpi-pilot" class="hidden"><h2>KPI sinov hisobi</h2><p>Taklif: natija 50%, intizom 25%, sifat 25%. Kamida 20 ta ROP tasdiqlagan savdo suhbati talab qilinadi. Bu chegaralar hali tasdiqlanmagan.</p><p class="muted">Kiritilgan savdo va vazifa raqamlari moliyaviy manbadan tekshirilmaydi. Davr suhbat sanasiga emas, oxirgi ROP tekshiruvi sanasiga tegishli. To‘lov yaratilmaydi.</p>
+<form id="kpi-form" class="card"><div class="grid">
+<label>Menejer ID <input name="manager_id" required maxlength="100"></label>
+<label>ROP tekshiruvi davri boshi <input name="start" type="datetime-local" required></label>
+<label>Davr oxiri (kirmaydi) <input name="end" type="datetime-local" required></label>
+<label>Savdo natijasi <input name="actual" type="number" min="0" step="any"></label>
+<label>Savdo rejasi (bir xil birlikda) <input name="target" type="number" min="0.01" step="any"></label>
+<label>Vaqtida bajarilgan vazifalar <input name="completed_on_time" type="number" min="0" step="1"></label>
+<label>Muddati kelgan vazifalar <input name="tasks_due" type="number" min="0" step="1"></label>
+<label>Sinov bonus fondi (ixtiyoriy) <input name="bonus_pool" type="number" min="0" step="0.01"></label>
+<label>Valyuta <select name="currency"><option>UZS</option><option>USD</option></select></label>
+</div><button>Sinov hisobini chiqarish</button><p id="kpi-result" role="status" aria-live="polite"></p></form></section>
 </main>
 <script>
 const byId=id=>document.getElementById(id);
@@ -48,6 +60,7 @@ async function load(){
  if(results[0].status==='fulfilled')renderIntelligence(results[0].value);else{byId('metrics').innerHTML='<p class="error">Savdo manbasi olinmadi.</p>';byId('accounts').textContent='Ma’lumot olinmadi; bo‘sh natija deb hisoblanmadi.'}
  if(results[1].status==='fulfilled'){evaluations=results[1].value.evaluations;canReview=results[1].value.can_review;renderEvaluations()}else byId('evaluations').innerHTML='<p class="error">Baholashlar olinmadi.</p>';
  if(results[2].status==='fulfilled')renderScorecards(results[2].value.scorecards);
+ byId('kpi-pilot').classList.toggle('hidden',!canReview);
  byId('status').textContent=results.every(r=>r.status==='fulfilled')?'Ko‘rinish yangilandi':'Ayrim manbalar olinmadi';
 }
 function renderIntelligence(d){
@@ -70,6 +83,14 @@ function renderScorecards(cards){
  byId('type-filter').innerHTML='<option value="">Barcha turlar</option>'+cards.map(c=>`<option value="${escapeHtml(c.type)}">${escapeHtml(c.label)}</option>`).join('');byId('type-filter').value=selected;
  byId('scorecards').innerHTML=cards.map(c=>`<details class="card"><summary>${escapeHtml(c.label)}</summary><ul>${c.criteria.map(q=>`<li>${escapeHtml(q.label)}${q.conditional?' (shartli)':''}</li>`).join('')}</ul><p class="muted">${escapeHtml(c.version)} · pilot</p></details>`).join('');
 }
+async function simulateKpi(event){
+ event.preventDefault();const form=event.currentTarget,data=new FormData(form),out=byId('kpi-result'),button=form.querySelector('button');button.disabled=true;out.textContent='Hisoblanmoqda…';
+ const body={manager_id:data.get('manager_id'),review_window_start:Math.floor(new Date(data.get('start')).getTime()/1000),review_window_end:Math.floor(new Date(data.get('end')).getTime()/1000)};
+ for(const key of ['actual','target','completed_on_time','tasks_due','bonus_pool'])if(data.get(key)!=='')body[key]=Number(data.get(key));
+ if(body.bonus_pool!==undefined)body.currency=data.get('currency');
+ try{const r=await request('/api/sales-quality/kpi-simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});out.textContent=`ROP tasdiqlagan savdo suhbatlari: ${r.quality.reviewed_calls}/${r.quality.required_calls}. `+(r.complete?`Sinov balli: ${r.total_score}/100. `:'Hisob to‘liq emas; yetishmaydi: '+r.missing.map(k=>({result:'savdo natijasi',discipline:'intizom',quality:'sifat'}[k])).join(', ')+'. ')+(r.projected_bonus!==null?`Sinov bonus: ${r.projected_bonus} ${r.currency}. `:'')+'To‘lov yaratilmagan.'}catch(error){out.textContent='Hisob olinmadi: '+error.message}finally{button.disabled=false}
+}
+byId('kpi-form').addEventListener('submit',simulateKpi);
 byId('reload').addEventListener('click',load);byId('type-filter').addEventListener('change',renderEvaluations);load();
 </script>
 </body>

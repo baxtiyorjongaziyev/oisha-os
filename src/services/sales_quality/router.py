@@ -30,6 +30,8 @@ from src.time_utils import get_local_now
 router = APIRouter(tags=["sales-quality"])
 from src.services.sales_quality.intelligence_routes import router as intelligence_router
 router.include_router(intelligence_router)
+from src.services.sales_quality.kpi_routes import router as kpi_router
+router.include_router(kpi_router)
 logger = logging.getLogger(__name__)
 
 

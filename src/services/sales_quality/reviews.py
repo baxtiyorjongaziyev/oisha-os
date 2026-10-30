@@ -66,6 +66,17 @@ class QualityReviews:
             row = conn.execute("SELECT * FROM evaluations WHERE call_id = ?", (call_id,)).fetchone()
             return self._view(conn, row) if row else None
 
+    def manager_window(self, manager_id, start, end):
+        """Current snapshots whose latest review falls in the requested window."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT e.* FROM evaluations e JOIN reviews r ON r.id = "
+                "(SELECT MAX(id) FROM reviews WHERE call_id=e.call_id AND digest=e.digest) "
+                "WHERE e.manager_id=? AND r.created_at>=? AND r.created_at<?",
+                (str(manager_id), start, end),
+            ).fetchall()
+            return [self._view(conn, row) for row in rows]
+
     @staticmethod
     def _view(conn, row):
         reviews = [dict(r) for r in conn.execute(
