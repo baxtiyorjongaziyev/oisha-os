@@ -3281,3 +3281,9 @@ eady: true, 	elegram_bot: ok, mocrm: connected.
 - Added explicit AMOCRM_TOKEN_SOURCE=file|env_json|long_lived selection, preserving auto defaults and failing closed on invalid/unavailable sources. Removed raw refresh response/exception logging. Files: token_loader.py, auth.py, tests/test_amocrm_source_selection.py, docs/agents/amocrm-credential-sources.md.
 - Validation: 26 focused tests passed (source selection, token fallback, refresh guard); targeted Bandit -ll and git diff --check passed. Implementation diff reviewed. No live credential probe.
 - Owner: confirm separately verified local source, export matching source selector in service environment, ensure file access if applicable, restart and verify read-only connectivity. Rejected token disposition requires owner verification. No push, PR, merge or deploy performed.
+
+### 2026-10-30 / Codex: owner-authorized local amoCRM configuration repair
+- Owner clarified offline means local and authorized copying server amoCRM configuration. Active Contabo service uses /home/ubuntu/oisha-os/.env; access/long-lived env sources absent, file source accepted HTTP 200.
+- Transferred only amoCRM configuration and validated file payload to local private configuration in memory over SSH; selected file source and cleared stale local access/long-lived env entries. No credential values displayed, no server writes/restart, no userbot startup.
+- Verification: local configuration/file read-back equality, direct account HTTP 200, and actual AmoCRMSync read-only connection check true. Git worktree showed no secret/config changes tracked. Operator helpers outside repository contain no credentials.
+- Remaining: already-running local processes need reload/restart to consume updated configuration; local userbot remains prohibited. No code deployment or push performed.
