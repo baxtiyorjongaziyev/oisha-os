@@ -1,0 +1,12 @@
+#!/bin/sh
+# O'zbekcha matn guard: so'z ichidagi ASCII apostrof commitga tushmasin.
+# O'rnatish (bir marta): make hooks
+# Batafsil: .agents/skills/uzbek-text/SKILL.md
+set -e
+
+if ! command -v python >/dev/null 2>&1; then
+    echo "uzbek-text guard: python topilmadi, o'tkazib yuborildi" >&2
+    exit 0
+fi
+
+python scripts/check_uzbek_text.py --staged
