@@ -112,6 +112,30 @@ class FormatMixin:
         ]
         return "\n".join(lines)
 
+    def format_daily_summary_uz(self, stats: CRMWeeklyStats) -> str:
+        """amoBot 'Отчет за сегодня' ning o'zbekcha nusxasi (HTML, havolali)."""
+        links = self._weekly_report_links(stats.period_start, stats.period_end)
+
+        def row(label, value, link):
+            return f'{label}: <a href="{link}">{value}</a>'
+
+        def num(n):
+            return f"{n:,}"
+
+        return "\n".join([
+            f"Bugungi hisobot ({stats.period_start.strftime('%d.%m.%Y')})",
+            "",
+            row("Davr oxirida aktiv bitimlar", num(stats.active_leads), links["active"]),
+            row("Aktiv bitimlar summasi", f"{self._fmt_money(stats.active_amount)} soʻm", links["active"]),
+            row("Muvaffaqiyatli yopilgan bitimlar", num(stats.won_leads), links["won"]),
+            row("Muvaffaqiyatli yopilgan summa", f"{self._fmt_money(stats.won_amount)} soʻm", links["won"]),
+            row("Sotilmagan bitimlar", num(stats.lost_leads), links["lost"]),
+            row("Sotilmagan bitimlar summasi", f"{self._fmt_money(stats.lost_amount)} soʻm", links["lost"]),
+            row("Davrda yaratilgan yangi bitimlar", num(stats.new_leads), links["new_leads"]),
+            row("Davrda yaratilgan yangi kompaniyalar", num(stats.new_companies), links["companies"]),
+            row("Davrda yaratilgan yangi kontaktlar", num(stats.new_contacts), links["contacts"]),
+        ])
+
     @staticmethod
     def _delta_str(cur, prev):
         if prev is None:

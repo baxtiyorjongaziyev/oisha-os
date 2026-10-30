@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oisha CRM</title>
+  <link rel="stylesheet" href="/api/crm/parallel/assets/parallel_crm.css">
+  <script src="/api/crm/parallel/assets/parallel_crm.js" defer></script>
+</head>
+<body>
+  <aside class="rail" aria-label="Asosiy navigatsiya">
+    <a class="brand" href="/" aria-label="Oisha bosh sahifa">O<span>.</span></a>
+    <a class="rail-item active" href="/api/crm/parallel/console" aria-current="page">Sotuv</a>
+    <a class="rail-item" href="/">Oisha</a>
+    <div class="rail-foot">JonBranding</div>
+  </aside>
+  <main>
+    <header class="topbar"><span>Oisha / Sotuv</span><span class="mode">amoCRM bilan birga</span></header>
+    <section class="heading"><div><h1>Sotuv doskasi</h1><p>Mijozlar, suhbatlar va keyingi qadamlar bir joyda.</p></div>
+      <button id="sync" class="primary" hidden>Yangilash</button>
+    </section>
+    <div id="notice" role="status" aria-live="polite">CRM ma’lumotlari yuklanmoqda…</div>
+    <section class="toolbar" aria-label="Bitimlarni saralash">
+      <label class="search">Qidiruv<input id="search" type="search" placeholder="Mijoz yoki bitim nomi"></label>
+      <label>Voronka<select id="pipeline"><option value="">Barcha voronkalar</option></select></label>
+      <label>Sotuvchi<select id="seller"><option value="">Barcha sotuvchilar</option></select></label>
+      <span id="count"></span>
+    </section>
+    <div id="error" role="alert" hidden></div>
+    <div id="board" class="board" aria-label="Sotuv bosqichlari"></div>
+    <div class="paging"><button id="prev" disabled>Oldingi</button><span id="page"></span><button id="next" disabled>Keyingi</button></div>
+    <section class="journal"><div class="section-title"><h2>O‘zgarishlar holati</h2><p>“Tasdiqlandi” — amoCRM’dan qayta tekshirilgan o‘zgarish.</p></div>
+      <div id="operations">Hozircha o‘zgarish yo‘q.</div>
+    </section>
+  </main>
+  <dialog id="detail" aria-labelledby="detail-heading">
+    <form id="edit">
+      <div class="drawer-head"><span id="lead-id"></span><button type="button" id="close" aria-label="Kartani yopish">Yopish ✕</button></div>
+      <h2 id="detail-heading">Mijoz kartasi</h2>
+      <label>Bitim nomi<input id="name" maxlength="256" required></label>
+      <div class="fields"><label>Bosqich<select id="stage"></select></label><label>Mas’ul<input id="owner" readonly></label></div>
+      <div class="facts"><span>Kelishilgan summa</span><strong id="price"></strong></div>
+      <section><h3>Kontaktlar</h3><div id="contacts"></div></section>
+      <section><h3>Keyingi vazifalar</h3><div id="tasks"></div></section>
+      <section><h3>So‘nggi izohlar</h3><div id="notes"></div></section>
+      <p id="edit-status" role="status" aria-live="polite"></p>
+      <div class="drawer-actions"><a id="source" target="_blank" rel="noopener noreferrer">amoCRM’da ochish</a><button id="save" class="primary">O‘zgarishni saqlash</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

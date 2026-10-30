@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="uz" data-fx-theme="amethyst">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oisha ERP — FoxUI prototip</title>
+  <link rel="stylesheet" href="https://foxui.dev/assets/foxui.css">
+  <!-- Interaktivlik (saralash, grafik chizish) uchun foxui.js kerak: foxui.dev uni CORS bilan bermaydi,
+       shuning uchun `npx foxui init` bilan lokal o'rnatib, <script type="module" src="foxui/foxui.js"> ulang. -->
+  <style>
+    .page { padding: var(--fx-space-5); display: grid; gap: var(--fx-space-5); }
+    .page__head { display: flex; justify-content: space-between; align-items: center; gap: var(--fx-space-3); flex-wrap: wrap; }
+    .page__head h1 { margin: 0; font-size: var(--fx-font-size-xl); color: var(--fx-text-primary); }
+  </style>
+</head>
+<body>
+<div class="fx-shell" data-fx-shell>
+  <aside class="fx-shell__side" id="side" popover="auto">
+    <div class="fx-shell__brand"><span class="fx-shell__brand-name">Oisha-OS</span></div>
+    <nav class="fx-nav" aria-label="Asosiy">
+      <div class="fx-nav__group">
+        <a class="fx-nav__item" href="#" aria-current="page"><span class="fx-nav__label">Dashboard</span></a>
+        <a class="fx-nav__item" href="#"><span class="fx-nav__label">Lidlar</span><span class="fx-nav__count">18</span></a>
+        <a class="fx-nav__item" href="#"><span class="fx-nav__label">Loyihalar</span></a>
+      </div>
+      <div class="fx-nav__group">
+        <div class="fx-nav__title">Moliya</div>
+        <a class="fx-nav__item" href="#"><span class="fx-nav__label">Hisobchi</span></a>
+        <a class="fx-nav__item" href="#"><span class="fx-nav__label">To'lovlar</span></a>
+      </div>
+    </nav>
+  </aside>
+
+  <header class="fx-shell__top">
+    <ol class="fx-breadcrumbs"><li><a href="#">Oisha-OS</a></li><li><span aria-current="page">Dashboard</span></li></ol>
+  </header>
+  <main class="fx-shell__main page">
+    <div class="page__head">
+      <h1>Bugungi holat</h1>
+      <div class="fx-btn-group" role="group" aria-label="Davr">
+        <button class="fx-btn" aria-pressed="false">Kun</button>
+        <button class="fx-btn" aria-pressed="true">Hafta</button>
+        <button class="fx-btn" aria-pressed="false">Oy</button>
+      </div>
+    </div>
+
+    <div class="fx-stat-row">
+      <div class="fx-stat">
+        <span class="fx-stat__label">Oylik tushum</span>
+        <span class="fx-stat__value">132 mln so'm</span>
+        <div class="fx-stat__delta"><span class="fx-delta" data-dir="up" data-tone="good">+8,2%</span><span class="fx-stat__hint">o'tgan oyga nisbatan</span></div>
+      </div>
+      <div class="fx-stat">
+        <span class="fx-stat__label">Yangi lidlar</span>
+        <span class="fx-stat__value">48</span>
+        <div class="fx-stat__delta"><span class="fx-delta" data-dir="up" data-tone="good">+6</span><span class="fx-stat__hint">30 kunda</span></div>
+      </div>
+      <div class="fx-stat">
+        <span class="fx-stat__label">Yopilgan bitimlar</span>
+        <span class="fx-stat__value">11</span>
+        <div class="fx-stat__delta"><span class="fx-delta" data-dir="down" data-tone="bad">−2</span><span class="fx-stat__hint">30 kunda</span></div>
+      </div>
+      <div class="fx-stat" data-tone="warning">
+        <span class="fx-stat__label">Muddati o'tgan to'lov</span>
+        <span class="fx-stat__value">3</span>
+        <span class="fx-stat__hint">jami 14,5 mln so'm</span>
+      </div>
+    </div>
+
+    <figure class="fx-chart" data-fx-chart data-type="line">
+      <figcaption><span class="fx-chart__title">Tushum va bitimlar</span><span class="fx-chart__sub">haftalik · oktyabr</span></figcaption>
+      <table class="fx-chart__data">
+        <thead><tr><th>Hafta</th><th>Tushum (mln)</th><th>Bitimlar</th></tr></thead>
+        <tbody>
+          <tr><th>1</th><td>28</td><td>2</td></tr>
+          <tr><th>2</th><td>31</td><td>3</td></tr>
+          <tr><th>3</th><td>34</td><td>2</td></tr>
+          <tr><th>4</th><td>39</td><td>4</td></tr>
+        </tbody>
+      </table>
+    </figure>
+
+    <div class="fx-table-scroll">
+      <table class="fx-table" data-fx-table>
+        <thead><tr>
+          <th aria-sort="none"><button class="fx-table__sort">Mijoz</button></th>
+          <th>Xizmat</th>
+          <th data-type="nowrap">Holat</th>
+          <th data-type="num" aria-sort="descending"><button class="fx-table__sort">Summa</button></th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Mijoz A</td><td>Brandbook</td><td data-type="nowrap"><span class="fx-status" data-tone="success">To'langan</span></td><td data-type="num" data-value="25000000">25 000 000</td></tr>
+          <tr><td>Mijoz B</td><td>Logo + naming</td><td data-type="nowrap"><span class="fx-status" data-tone="warning">Kutilmoqda</span></td><td data-type="num" data-value="12000000">12 000 000</td></tr>
+          <tr><td>Mijoz C</td><td>Packaging</td><td data-type="nowrap"><span class="fx-status" data-tone="error">Muddati o'tgan</span></td><td data-type="num" data-value="8500000">8 500 000</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -12,11 +12,13 @@ import logging
 import time
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Dict, Tuple
 
 from src.services.core.marketing.attribution_store import (
     has_first_touch,
     pending_revenue_sync,
+    rows_missing_campaign,
+    set_campaign,
     update_revenue,
     update_seller_info,
 )
@@ -169,3 +171,23 @@ async def sync_attribution_revenue(
 
     logger.info("[ADS ATTRIBUTION] Sinxronizatsiya: %s", result.to_dict())
     return result
+
+
+def backfill_campaigns(resolve: Callable[[str], Tuple[str, str]], limit: int = 200) -> int:
+    """Kampaniyasi bo'sh lidlarni ad_id orqali to'ldiradi; har ad_id uchun bitta so'rov.
+
+    Topilmagan ad_id'lar keyingi siklda qayta uriniladi (yozuv o'zgarmaydi).
+    """
+    cache: Dict[str, Tuple[str, str]] = {}
+    filled = 0
+    for row in rows_missing_campaign(limit):
+        ad_id = str(row["ad_id"])
+        if ad_id not in cache:
+            cache[ad_id] = resolve(ad_id)
+        campaign_id, campaign_name = cache[ad_id]
+        if campaign_id:
+            set_campaign(row["leadgen_id"], campaign_id, campaign_name)
+            filled += 1
+    if filled:
+        logger.info("[ADS ATTRIBUTION] Kampaniya tiklandi: %d lid (%d reklama)", filled, len(cache))
+    return filled

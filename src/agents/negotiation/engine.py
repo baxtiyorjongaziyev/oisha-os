@@ -244,15 +244,21 @@ async def transcribe_and_assess_audio(
 
         audio_b64 = base64.b64encode(audio_bytes).decode()
 
-        prompt = """
-Ushbu audio yozuvni transkripsiya qil (original tilda — uz/ru/en).
+        is_video = mime_type.startswith("video/")
+        visual_line = (
+            '  "visual_summary": "videoda nima ko\'rinyapti (odam, joy, mahsulot, matn)",\n'
+            if is_video
+            else ""
+        )
+        prompt = f"""
+Ushbu {"video" if is_video else "audio"} yozuvdagi nutqni transkripsiya qil (original tilda — uz/ru/en).
 So'ngra FAQAT quyidagi JSON formatda qaytarish:
-{
+{{
   "transcript": "...",
-  "language": "uz|ru|en",
+{visual_line}  "language": "uz|ru|en",
   "speaker_intent": "...",
   "key_phrases": []
-}
+}}
 """
         response, _ = await generate_content_with_fallback(
             client,
@@ -288,6 +294,7 @@ So'ngra FAQAT quyidagi JSON formatda qaytarish:
             "transcript": transcript,
             "language": data.get("language", "uz"),
             "key_phrases": data.get("key_phrases", []),
+            "visual_summary": data.get("visual_summary", ""),
             "assessment": assessment,
         }
 

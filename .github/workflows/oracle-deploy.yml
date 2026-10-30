@@ -1,4 +1,4 @@
-name: Oracle Production Deploy
+name: Production Deploy (Contabo VPS)
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - 'requirements.txt'
       - 'deploy/**'
       - 'scripts/**'
+      - 'config/**'
       - 'data/service_account.json'
       - '.github/workflows/oracle-deploy.yml'
   pull_request:
@@ -72,11 +73,12 @@ jobs:
         run: pytest tests/test_syntax_guard.py -q
 
   deploy:
-    name: Oracle VM healthy deploy
+    name: Contabo VPS healthy deploy
     needs: import-guard
     # Deploy only on push to main; on pull_request events run import-guard alone
     # so the required check can report without touching production.
     if: "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.event.head_commit.message, 'chore(auto):')"
+    # Runner label "oracle" is historical: the runner itself lives on Contabo.
     runs-on: [self-hosted, oracle]
     environment: production
     permissions:
@@ -84,7 +86,7 @@ jobs:
       deployments: write
     timeout-minutes: 10
     steps:
-      - name: Deploy to Oracle VM and verify health
+      - name: Deploy to Contabo VPS and verify health
         id: oracle
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -159,6 +161,12 @@ jobs:
             OISHA_DIR="/home/ubuntu/oisha-os"
             cd "$OISHA_DIR"
 
+            # Serverda kimdir git'ni root sifatida ishlatsa, .git/objects root'ga
+            # o'tib qoladi va keyingi `git fetch` "insufficient permission"
+            # bilan yiqiladi (2026-10-15 dan beri barcha deploy'lar). Runner
+            # user'ga egalikni qaytaramiz.
+            sudo chown -R "$(id -un):$(id -gn)" "$OISHA_DIR"
+
             mkdir -p data
             cp -a data/*.session /tmp/ 2>/dev/null || true
             cp -a data/amocrm_token.json /tmp/amocrm_token.json 2>/dev/null || true
@@ -177,7 +185,11 @@ jobs:
               chmod 600 data/service_account.json service_account.json
             fi
 
-            ./venv/bin/pip install -q -r requirements.txt
+            # Contabo'dagi venv'da `venv/bin/pip` skripti yo'q (servis
+            # venv/bin/python bilan ishlaydi). pip'ni modul sifatida chaqiramiz,
+            # modul ham bo'lmasa ensurepip bilan tiklaymiz.
+            ./venv/bin/python -m pip --version >/dev/null 2>&1 || ./venv/bin/python -m ensurepip --upgrade
+            ./venv/bin/python -m pip install -q -r requirements.txt
 
             # Ollama ENDI IXTIYORIY. VM da 954MB RAM bor; qwen2.5:3b
             # inference paytida bir necha yuz MB dan gigabaytgacha oladi va
@@ -392,8 +404,24 @@ jobs:
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
             # Kunlik Moizvonki qo'ng'iroq hisoboti (06:00 Toshkent)
             sudo install -m 0644 deploy/systemd/oisha-calls-report.service deploy/systemd/oisha-calls-report.timer /etc/systemd/system/
+            # Soatlik sotuv nazorati (10:00-19:00, tushlik 13:00 dan tashqari).
+            # Roster config/moizvonki_roster.json dan o'qiladi — unitda takrorlanmaydi.
+            sudo install -m 0644 deploy/systemd/oisha-sales-hourly.service deploy/systemd/oisha-sales-hourly.timer /etc/systemd/system/
             sudo systemctl daemon-reload
             sudo systemctl enable --now oisha-calls-report.timer || echo "calls report timer enable skipped"
+            sudo systemctl enable --now oisha-sales-hourly.timer || echo "sales hourly timer enable skipped"
+            # Self-healing watchdog: repo'dan boshqariladi va deploy qilingan
+            # kodni ishlatadi. Eski /root/oisha-os checkout'idan ishlab,
+            # mavjud bo'lmagan oisha.service'ni nishonga olgan legacy
+            # watchdog.service o'chiriladi (u real servisni restart qila olmasdi).
+            sudo install -m 0644 deploy/systemd/oisha-watchdog.service /etc/systemd/system/
+            if systemctl list-unit-files --no-legend watchdog.service 2>/dev/null | grep -q '^watchdog.service'; then
+              sudo systemctl disable --now watchdog.service || echo "legacy watchdog disable skipped"
+            fi
+            sudo systemctl daemon-reload
+            sudo systemctl enable oisha-watchdog.service
+            sudo systemctl restart oisha-watchdog.service || echo "oisha-watchdog restart failed"
+            systemctl show -p ActiveState,Environment --value oisha-watchdog.service || true
             sudo systemctl reset-failed oisha-os || true
             sudo systemctl restart oisha-os
             # oisha-leads: unit mavjud bo'lsa HAR deployda qayta ishga tushadi.
@@ -485,7 +513,7 @@ jobs:
             if [ -n "$DEGRADED" ]; then
               echo "OGOHLANTIRISH: Oisha degraded rejimda ishlayapti: ${DEGRADED}"
             else
-              echo "SUCCESS: Oisha Oracle production sog'lom."
+              echo "SUCCESS: Oisha Contabo production sog'lom."
             fi
             cat /tmp/oisha-health.json
 
@@ -510,7 +538,7 @@ jobs:
               text = (
                   '🚀 Oisha OS: Yangilanish o\'rnatildi (cheklangan rejim)\n\n'
                   f'📌 Versiya (Commit): {sha}\n'
-                  '🖥 Server: Oracle VM (ishlamoqda)\n'
+                  '🖥 Server: Contabo VPS (ishlamoqda)\n'
                   f'⚠️ Cheklov: {degraded}\n'
                   'ℹ️ Tavsiya: Bog\'liq tokenlarni yangilang.'
               )
@@ -518,13 +546,13 @@ jobs:
               text = (
                   '🚀 Oisha OS: Yangilanish muvaffaqiyatli o\'rnatildi ✅\n\n'
                   f'📌 Versiya (Commit): {sha}\n'
-                  '🖥 Server: Oracle VM to\'liq barqaror va sog\'lom.'
+                  '🖥 Server: Contabo VPS to\'liq barqaror va sog\'lom.'
               )
           else:
               text = (
                   '🚨 Oisha OS: Yangilanishda xatolik yuz berdi ❌\n\n'
                   f'📌 Versiya (Commit): {sha}\n'
-                  '⚠️ Sabab: Oracle VM salomatlik tekshiruvi muvaffaqiyatsiz bo\'ldi.'
+                  '⚠️ Sabab: Contabo VPS salomatlik tekshiruvi muvaffaqiyatsiz bo\'ldi.'
               )
 
           if bot_token and owner_id:

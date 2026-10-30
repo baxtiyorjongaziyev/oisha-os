@@ -69,6 +69,18 @@ def _get_meta_credentials() -> tuple[str, str]:
     return access_token, my_ig_id
 
 
+def _record_chat_manager(sender_id: str, text: str, direction: str, author: str) -> None:
+    """IG DM'ni AI Chat Manager dialoglariga yozadi; xato DM oqimini to'xtatmaydi."""
+    if not (text or "").strip():
+        return
+    try:
+        from src.services.core.chat_manager import store
+        store.record_message("instagram", sender_id, text, direction=direction, author=author)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[META] chat-manager record failed", error=str(exc))
+
+
+
 async def _handle_dm_event(sender_id: str, text: str, my_ig_id: str, db: Optional[Any]) -> None:
     """Processes a single incoming Instagram Direct Message."""
     from src.services.core.instagram_agent import strip_bracket_tags, notify_crm
@@ -80,6 +92,8 @@ async def _handle_dm_event(sender_id: str, text: str, my_ig_id: str, db: Optiona
     logger.info("[META] Received Instagram DM", sender_id=sender_id, text=text[:50])
     if db:
         await db.log_message(user_id_str, text, is_ai=False)
+
+    _record_chat_manager(sender_id, text, "in", "client")
 
     history: list[dict] = []
     if db:
@@ -108,6 +122,8 @@ async def _handle_dm_event(sender_id: str, text: str, my_ig_id: str, db: Optiona
     clean_reply = strip_bracket_tags(ai_reply)
     if db:
         await db.log_message(user_id_str, clean_reply, is_ai=True)
+
+    _record_chat_manager(sender_id, clean_reply, "out", "ai_draft")
 
     notify_crm("Instagram DM", "Foydalanuvchi", sender_id, text, ai_reply)
 

@@ -17,7 +17,7 @@ import src.schedulers.unowned_lead_alert as alert_module
 NOW = 1_800_000_000
 
 
-def _lead(lead_id, minutes_ago, owner=BOT_RESPONSIBLE_USER_ID, tag=INHOUSE_TAG, status=87609514, extra_tags=None):
+def _lead(lead_id, minutes_ago, owner=BOT_RESPONSIBLE_USER_ID, tag=INHOUSE_TAG, status=89067962, extra_tags=None):
     tags = [{"name": tag}]
     if extra_tags:
         for t in extra_tags:
@@ -68,15 +68,25 @@ def test_lead_with_manager_tag_is_skipped():
 def test_is_claimed_by_manager():
     assert is_claimed_by_manager(["Shahnoza"]) is True
     assert is_claimed_by_manager(["rayxon"]) is True
-    assert is_claimed_by_manager(["FARANGIZ"]) is True
+    assert is_claimed_by_manager(["Mumtozmaxal"]) is True
+    # Farangiz jamoadan chiqqan: uning tegi endi "egallangan" hisoblanmaydi.
+    assert is_claimed_by_manager(["FARANGIZ"]) is False
     assert is_claimed_by_manager(["menejer: Dilshod"]) is True
     assert is_claimed_by_manager(["mas'ul: Shahnoza"]) is True
     assert is_claimed_by_manager(["taqsimot:inhouse", "Facebook Lead Ads", "Target"]) is False
     assert is_claimed_by_manager([]) is False
 
 
-def test_moizvonki_rep_names_in_manager_tags(monkeypatch):
-    monkeypatch.setenv("MOIZVONKI_REP_NAMES", "botir@jonbranding.uz:Botir,zarina@jonbranding.uz:Zarina")
+def test_moizvonki_rep_names_in_manager_tags(monkeypatch, tmp_path):
+    roster = tmp_path / "roster.json"
+    roster.write_text(
+        json.dumps({"reps": {
+            "botir@jonbranding.uz": "Botir",
+            "zarina@jonbranding.uz": "Zarina",
+        }}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MOIZVONKI_ROSTER_FILE", str(roster))
     names = get_known_manager_names()
     assert "botir" in names
     assert "zarina" in names
@@ -148,3 +158,13 @@ def test_alert_text_uses_hours_after_60_minutes():
     now = 10_000_000
     text = build_alert_text({"name": "Lobar", "created_at": now - 1392 * 60}, now)
     assert "23 soat 12 daqiqadan beri" in text
+
+
+def test_lead_moved_out_of_new_stage_is_skipped():
+    leads = [_lead(20, 40, status=89067963)]
+    assert alert_module.find_unowned_inhouse_leads(leads, NOW) == []
+
+
+def test_mumtozmaxal_tag_counts_as_claimed():
+    leads = [_lead(21, 40, extra_tags=["Mumtozmaxal"])]
+    assert alert_module.find_unowned_inhouse_leads(leads, NOW) == []

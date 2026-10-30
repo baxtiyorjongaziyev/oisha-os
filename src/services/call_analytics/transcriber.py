@@ -6,7 +6,6 @@ import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 import structlog
 import requests as _requests
-from src.services.core.stt_service import STTService
 from src.services.call_analytics.helpers import *
 
 logger = structlog.get_logger()
@@ -207,7 +206,7 @@ class CallTranscriberMixin:
         try:
             from src.services.utils.gemini_fallback import generate_content_with_fallback
 
-            response, _ = await generate_content_with_fallback(
+            response, used_model = await generate_content_with_fallback(
                 self.genai_client,
                 primary_model=self.model_name,
                 contents=contents,
@@ -215,6 +214,7 @@ class CallTranscriberMixin:
                 env_name="GEMINI_CALL_FALLBACK_MODELS",
                 log_prefix="[CALL]",
             )
+            self._last_gemini_model = used_model
             return response
         except Exception as exc:
             if self._is_gemini_quota_error(exc):
@@ -226,14 +226,14 @@ class CallTranscriberMixin:
                 )
                 raise GeminiQuotaCooldownError(
                     "Gemini quota cooldown started"
-                )
+                ) from exc
+            raise
 
     async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
-        """Transcribe audio using Gemini first (best Uzbek accuracy), fallback to
-        STTService (Groq Whisper — weaker on Uzbek, drifts into Kazakh/Russian on
-        noisy clips), then OpenAI Whisper."""
+        """Transcribe audio using Gemini only (best Uzbek accuracy)."""
         from google.genai import types
 
+        self._last_stt_source = None
         # 1. Try Gemini first — Groq/Whisper is unreliable on Uzbek speech.
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
@@ -241,7 +241,7 @@ class CallTranscriberMixin:
             "to'liq O'zbek tilida (lotin alifbosida) yozing.\n\n"
             "QOIDALAR:\n"
             "- Faqat audio faylda HAQIQATDA eshitilgan gaplarni yozing — hech narsa o'ylab topmang.\n"
-            "- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
+            f"- Agar tushunarli nutq bo'lmasa, qaytaring: {NO_SPEECH_SENTINEL}\n"
             "- Har bir gapni [mm:ss] vaqt belgisi bilan boshlang.\n"
             "- Gapiruvchini rolига qarab aniqlang va shu tarzda belgilang: \"Menejer:\" "
             "(qo'ng'iroq qilayotgan/xizmat ko'rsatayotgan tomon) va \"Mijoz:\" "
@@ -265,32 +265,20 @@ class CallTranscriberMixin:
             text = (getattr(response, "text", None) or "").strip()
             if text and NO_SPEECH_SENTINEL not in text:
                 if not _looks_like_stt_hallucination(text):
+                    self._last_stt_source = f"gemini/{getattr(self, '_last_gemini_model', None) or self.model_name}"
                     return text
                 logger.info(
                     "[CALL] Gemini transcript rejected as likely hallucination: %r",
                     text[:80],
                 )
+        except GeminiQuotaCooldownError:
+            raise
         except Exception as exc:
             logger.error("[CALL] Gemini STT failed: %s", exc)
 
-        # 2. Fallback to STTService (Groq Whisper) if Gemini failed/unavailable
-        try:
-            stt_service = STTService()
-            result = await stt_service.transcribe(audio_bytes, mime_type)
-            if result and result.transcript:
-                if _looks_like_stt_hallucination(result.transcript):
-                    logger.info(
-                        "[CALL] STTService transcript rejected as likely "
-                        "hallucination: %r",
-                        result.transcript[:80],
-                    )
-                else:
-                    return result.transcript
-        except Exception as exc:
-            logger.warning("[CALL] STTService fallback failed: %s", exc)
-
-        # 3. Final fallback to OpenAI
-        return await self._transcribe_openai(audio_bytes, mime_type)
+        # Gemini-only: Whisper fallbacks (Groq/OpenAI) produced garbled Uzbek
+        # transcripts, so no fallback — the call is retried on a later cycle.
+        return None
 
     async def _transcribe_openai(
         self, audio_bytes: bytes, mime_type: str
@@ -336,6 +324,7 @@ class CallTranscriberMixin:
                 return None
             if text:
                 logger.info("[CALL] OpenAI STT fallback done: %s chars", len(text))
+                self._last_stt_source = f"openai/{model}"
                 return text
             return None
         except Exception as exc:

@@ -1,0 +1,394 @@
+/**
+ * amoCRM Atomic Design System (Tokens -> Atoms -> Molecules -> Organisms)
+ * Jon Branding Agency - crm.jonbranding.uz
+ * Rule: File strictly under 400 lines
+ */
+
+/* ==========================================================================
+   1. TOKENS (Hujayra / Tokens)
+   ========================================================================== */
+:root {
+  /* Typography Scale */
+  --amo-font-sans: 'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --amo-font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --amo-text-2xs: 10px;  --amo-lh-2xs: 13px;
+  --amo-text-xs:  11px;  --amo-lh-xs:  15px;
+  --amo-text-sm:  12px;  --amo-lh-sm:  16px;
+  --amo-text-base:13.5px;--amo-lh-base:19px;
+  --amo-text-md:  15px;  --amo-lh-md:  20px;
+  --amo-text-lg:  17px;  --amo-lh-lg:  22px;
+  --amo-text-xl:  20px;  --amo-lh-xl:  26px;
+  --amo-text-2xl: 26px;  --amo-lh-2xl: 32px;
+
+  /* Font Weights */
+  --amo-weight-normal: 400;
+  --amo-weight-medium: 500;
+  --amo-weight-semibold: 600;
+  --amo-weight-bold: 700;
+
+  /* Palette - Neutrals */
+  --amo-bg-canvas: #f4f5f7;
+  --amo-bg-surface: #ffffff;
+  --amo-bg-surface-hover: #f9fafb;
+  --amo-bg-sidebar: #19222b;
+  --amo-bg-sidebar-active: #131b22;
+  --amo-bg-cockpit: #0b1118;
+  --amo-bg-cockpit-card: rgba(16, 24, 34, 0.88);
+  --amo-border-subtle: #edf0f3;
+  --amo-border-default: #d8dde3;
+  --amo-border-strong: #b8c2cc;
+  --amo-text-900: #19222b;
+  --amo-text-800: #2e3640;
+  --amo-text-700: #4a5568;
+  --amo-text-500: #7e8b9b;
+  --amo-text-400: #9da8b6;
+
+  /* Palette - Accents */
+  --amo-blue: #3875d7;
+  --amo-blue-hover: #2b64c0;
+  --amo-blue-soft: #eff6ff;
+  --amo-cyan: #00bcd4;
+  --amo-green: #10b981;
+  --amo-green-soft: #ecfdf5;
+  --amo-amber: #f59e0b;
+  --amo-amber-soft: #fffbeb;
+  --amo-red: #ef4444;
+  --amo-red-soft: #fef2f2;
+  --amo-purple: #8b5cf6;
+  --amo-purple-soft: #f5f3ff;
+
+  /* Elevations */
+  --amo-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --amo-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --amo-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.09), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --amo-shadow-lg: 0 12px 24px -4px rgba(15, 23, 42, 0.14);
+}
+
+/* ==========================================================================
+   2. BASE RESET & TYPOGRAPHY FOUNDATION
+   ========================================================================== */
+html {
+  font-size: 14px; /* Standardize rem base from chaotic 17.5px */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--amo-font-sans);
+  background-color: var(--amo-bg-canvas);
+  color: var(--amo-text-800);
+  font-size: var(--amo-text-base);
+  line-height: var(--amo-lh-base);
+}
+
+/* Tabular Numerics for Currencies and Phone Numbers */
+.amo-num-tabular, .tabular-nums {
+  font-family: var(--amo-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Typographic Hierarchy Classes */
+.amo-type-display {
+  font-size: var(--amo-text-xl);
+  line-height: var(--amo-lh-xl);
+  font-weight: var(--amo-weight-bold);
+  color: var(--amo-text-900);
+  letter-spacing: -0.02em;
+}
+
+.amo-type-title {
+  font-size: var(--amo-text-md);
+  line-height: var(--amo-lh-md);
+  font-weight: var(--amo-weight-semibold);
+  color: var(--amo-text-900);
+}
+
+.amo-type-body {
+  font-size: var(--amo-text-base);
+  line-height: var(--amo-lh-base);
+  font-weight: var(--amo-weight-normal);
+  color: var(--amo-text-800);
+}
+
+.amo-type-label {
+  font-size: var(--amo-text-xs);
+  line-height: var(--amo-lh-xs);
+  font-weight: var(--amo-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--amo-text-500);
+}
+
+.amo-type-meta {
+  font-size: var(--amo-text-xs);
+  line-height: var(--amo-lh-xs);
+  font-weight: var(--amo-weight-normal);
+  color: var(--amo-text-400);
+}
+
+/* ==========================================================================
+   3. ATOMS (Atomlar)
+   ========================================================================== */
+/* Buttons */
+.amo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--amo-font-sans);
+  font-size: var(--amo-text-base);
+  font-weight: var(--amo-weight-semibold);
+  border-radius: 4px;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.amo-btn-primary {
+  background-color: var(--amo-blue);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(56, 117, 215, 0.25);
+}
+.amo-btn-primary:hover {
+  background-color: var(--amo-blue-hover);
+}
+
+.amo-btn-secondary {
+  background-color: #ffffff;
+  border-color: var(--amo-border-default);
+  color: var(--amo-text-800);
+}
+.amo-btn-secondary:hover {
+  background-color: var(--amo-bg-surface-hover);
+  border-color: var(--amo-border-strong);
+}
+
+.amo-btn-danger {
+  background-color: var(--amo-red);
+  color: #ffffff;
+}
+.amo-btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.amo-btn-sm {
+  padding: 4px 10px;
+  font-size: var(--amo-text-sm);
+  border-radius: 4px;
+}
+
+/* Inputs & Form Controls */
+.amo-input {
+  font-family: var(--amo-font-sans);
+  font-size: var(--amo-text-base);
+  color: var(--amo-text-900);
+  background-color: #ffffff;
+  border: 1px solid var(--amo-border-default);
+  border-radius: 4px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.amo-input:focus {
+  border-color: var(--amo-blue);
+  box-shadow: 0 0 0 2px rgba(56, 117, 215, 0.18);
+}
+.amo-input::placeholder {
+  color: var(--amo-text-400);
+}
+
+/* Badges & Tags */
+.amo-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--amo-text-xs);
+  font-weight: var(--amo-weight-medium);
+  padding: 2px 7px;
+  border-radius: 4px;
+  line-height: var(--amo-lh-xs);
+  background-color: #f1f4f7;
+  color: var(--amo-text-700);
+  border: 1px solid var(--amo-border-subtle);
+}
+.amo-badge-blue { background-color: var(--amo-blue-soft); color: var(--amo-blue); border-color: #bfdbfe; }
+.amo-badge-green { background-color: var(--amo-green-soft); color: #047857; border-color: #a7f3d0; }
+.amo-badge-amber { background-color: var(--amo-amber-soft); color: #b45309; border-color: #fde68a; }
+.amo-badge-red { background-color: var(--amo-red-soft); color: #b91c1c; border-color: #fecaca; }
+
+/* Status Dot Indicator */
+.amo-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.amo-dot-green { background-color: var(--amo-green); }
+.amo-dot-amber { background-color: var(--amo-amber); }
+.amo-dot-red { background-color: var(--amo-red); }
+.amo-dot-gray { background-color: var(--amo-border-strong); }
+
+/* Scrollbars */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ==========================================================================
+   4. MOLECULES (Molekulalar)
+   ========================================================================== */
+/* Kanban Deal Card */
+.amo-deal-card {
+  background: var(--amo-bg-surface);
+  padding: 10px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--amo-border-subtle);
+  box-shadow: var(--amo-shadow-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+.amo-deal-card:hover {
+  border-color: var(--amo-border-strong);
+  box-shadow: var(--amo-shadow-sm);
+  transform: translateY(-1px);
+}
+.amo-deal-card:active { transform: translateY(0); }
+
+.amo-card-contact {
+  font-size: var(--amo-text-sm);
+  color: var(--amo-text-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.amo-card-title {
+  font-size: var(--amo-text-base);
+  font-weight: var(--amo-weight-semibold);
+  color: var(--amo-text-900);
+  line-height: 1.35;
+  transition: color 0.15s ease;
+}
+.amo-deal-card:hover .amo-card-title {
+  color: var(--amo-blue);
+}
+
+.amo-card-price {
+  font-size: var(--amo-text-base);
+  font-weight: var(--amo-weight-bold);
+  color: var(--amo-text-900);
+}
+
+/* Column Header */
+.amo-column-header {
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 3px solid #60a5fa;
+  flex-shrink: 0;
+  text-align: center;
+}
+.amo-column-title {
+  font-size: var(--amo-text-sm);
+  font-weight: var(--amo-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--amo-text-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.amo-column-stats {
+  font-size: var(--amo-text-xs);
+  color: var(--amo-text-500);
+  margin-top: 3px;
+}
+
+/* Field Row in Drawer */
+.amo-field-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.12s ease;
+}
+.amo-field-row:hover { border-bottom-color: var(--amo-border-subtle); }
+.amo-field-label {
+  width: 42%;
+  font-size: var(--amo-text-sm);
+  color: var(--amo-text-500);
+  padding-right: 10px;
+  line-height: 1.3;
+}
+.amo-field-val {
+  width: 58%;
+  font-size: var(--amo-text-base);
+  color: var(--amo-text-900);
+  font-weight: var(--amo-weight-semibold);
+}
+
+/* ==========================================================================
+   5. ORGANISMS (Organizmlar)
+   ========================================================================== */
+/* Sidebar Rail */
+.amo-sidebar {
+  width: 74px;
+  background-color: var(--amo-bg-sidebar);
+}
+.amo-nav-btn {
+  color: #9db0be;
+  transition: all 0.15s ease;
+  position: relative;
+}
+.amo-nav-btn:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.06);
+}
+.amo-nav-active {
+  color: #ffffff !important;
+  background-color: var(--amo-bg-sidebar-active) !important;
+}
+.amo-nav-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--amo-cyan);
+}
+
+/* Top Header */
+.amo-top-header {
+  height: 60px;
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--amo-border-subtle);
+}
+
+/* Sleek Cockpit Dashboard (Replacing Unsplash Mountain Wallpaper) */
+.amo-cockpit {
+  background: radial-gradient(circle at 50% 10%, #152233 0%, var(--amo-bg-cockpit) 100%);
+  color: #ffffff;
+}
+
+.amo-dark-card {
+  background: var(--amo-bg-cockpit-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+}
+.amo-dark-card:hover { border-color: rgba(255, 255, 255, 0.18); }
+
+.amo-ai-glow {
+  background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc, #38bdf8);
+  padding: 1.5px;
+  border-radius: 10px;
+}

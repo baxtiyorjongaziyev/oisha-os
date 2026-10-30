@@ -174,6 +174,8 @@ class CallCrmTasksMixin:
         from src.services.core.calls.call_notifier import send_call_analysis_telegram_alert
 
         subdomain = getattr(self.amocrm, "subdomain", "jonbranding") if self.amocrm else "jonbranding"
+        if isinstance(analysis, dict) and getattr(self, "_last_stt_source", None):
+            analysis.setdefault("stt_model", self._last_stt_source)
         await send_call_analysis_telegram_alert(
             lead_id=lead_id,
             call_id=call_id,

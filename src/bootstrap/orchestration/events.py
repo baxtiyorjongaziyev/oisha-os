@@ -30,7 +30,7 @@ from src.handlers.kirim import kirim_topic_handler
 from src.handlers.case_publisher import case_publisher_handler
 from src.handlers.negotiation import negotiation_agent_handler
 from src.handlers.shadow_advisor import shadow_advisor_handler
-from src.handlers.monitoring import activity_monitor_handler
+from src.handlers.monitoring import activity_monitor_handler, skill_command_handler
 from src.handlers.meeting import meeting_scheduler_handler
 from src.entrypoint.message_event import (
     handle_new_message,
@@ -131,6 +131,7 @@ def register_event_handlers(
         client.add_event_handler(activity_monitor_handler, events.NewMessage(outgoing=True))
         client.add_event_handler(meeting_scheduler_handler, events.NewMessage(incoming=True))
         client.add_event_handler(meeting_scheduler_handler, events.NewMessage(outgoing=True))
+        client.add_event_handler(skill_command_handler, events.NewMessage(chats="me", pattern=r"^/skill"))
         client.add_event_handler(self_command_handler, events.NewMessage(chats="me"))
         client.add_event_handler(handle_new_message, events.NewMessage(incoming=True))
         client.add_event_handler(handle_message_edited, events.MessageEdited())

@@ -23,10 +23,19 @@ async def process_voice(
     surgical_integration,
     auto_reply_gate,
 ) -> None:
-    """Ovozli xabarlarni Gemini STT orqali qayta ishlash."""
-    logger.info("🎙️ [VOICE] New voice from %s...", sender_name)
+    """Ovozli, audio va dumaloq video xabarlarni Gemini orqali tushunish."""
+    msg = event.message
+    if getattr(msg, "video_note", None):
+        ext, mime_type, label = "mp4", "video/mp4", "🎥 **Video xabar"
+    elif getattr(msg, "voice", None):
+        ext, mime_type, label = "ogg", "audio/ogg", "🎙️ **Ovozli xabar"
+    else:
+        doc_mime = getattr(getattr(msg, "file", None), "mime_type", None) or "audio/mpeg"
+        ext = (getattr(getattr(msg, "file", None), "ext", None) or ".mp3").lstrip(".")
+        mime_type, label = doc_mime, "🎵 **Audio"
+    logger.info("🎙️ [VOICE] New %s from %s...", mime_type, sender_name)
     try:
-        temp_path = f"temp_voice_{event.id}.ogg"
+        temp_path = f"temp_voice_{event.id}.{ext}"
         await client.download_media(event.message, file=temp_path)
 
         try:
@@ -50,13 +59,17 @@ async def process_voice(
 
             async with client.action(event.chat_id, 'typing'):
                 stt_result = await transcribe_and_assess_audio(
-                    audio_bytes, mime_type="audio/ogg", crm_status=crm_status
+                    audio_bytes, mime_type=mime_type, crm_status=crm_status
                 )
             transcript = stt_result.get("transcript", "")
             assessment = stt_result.get("assessment")
 
+            visual = stt_result.get("visual_summary", "")
+            if visual:
+                transcript = f"{transcript}\n[Videoda: {visual}]".strip()
+
             if transcript:
-                admin_note = f"🎙️ **Ovozli xabar ({sender_name}):**\n\n{transcript}"
+                admin_note = f"{label} ({sender_name}):**\n\n{transcript}"
                 if assessment:
                     admin_note += (
                         f"\n\n🔍 **Assessment:** stage={assessment.stage} "
@@ -88,7 +101,10 @@ async def process_voice(
                     surgical_result = await surgical_integration.process_message(
                         str(event.sender_id),
                         transcript,
-                        context={"source": "voice", "user_info": {}},
+                        context={
+                            "source": "video_note" if mime_type.startswith("video/") else "voice",
+                            "user_info": {},
+                        },
                     )
                     if surgical_result.get("mode") == "surgical":
                         voice_reply = surgical_result.get("response", "")
@@ -118,7 +134,7 @@ async def process_voice(
             result = await voice_processor.transcribe(temp_path)
             if result and admin_bot:
                 await admin_bot.notify_lead(
-                    f"🎙️ **Ovozli xabar ({sender_name}):**\n\n{result}"
+                    f"{label} ({sender_name}):**\n\n{result}"
                 )
 
         asyncio.create_task(voice_processor.cleanup(temp_path))

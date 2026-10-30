@@ -35,6 +35,24 @@ async def _broadcast_incoming_message(event: Any) -> tuple[Any, str, str]:
     return sender, sender_name, msg_text
 
 
+async def _record_chat_manager(event: Any, sender: Any, sender_name: str) -> None:
+    """Shaxsiy suhbatni AI Chat Manager dialoglariga yozadi (panel /api/chat/)."""
+    text = event.message.message or ""
+    if not (event.is_private and not event.out and text.strip()) or getattr(sender, "bot", False):
+        return
+    try:
+        from src.services.core.chat_manager import store
+        name = " ".join(
+            p for p in (getattr(sender, "first_name", ""), getattr(sender, "last_name", "")) if p
+        )
+        await asyncio.to_thread(
+            store.record_message, "telegram", str(event.chat_id), text,
+            name=name, phone=getattr(sender, "phone", "") or "",
+        )
+    except Exception as exc:  # noqa: BLE001 - panel logging must never break replies
+        logger.warning(f"[CHAT-MANAGER] record failed: {exc}")
+
+
 async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, message_text: str, chat_id: int) -> None:
     if not (event.is_private and not event.out and message_text):
         return
@@ -88,7 +106,9 @@ async def _handle_media_and_voice(event: Any, sender: Any, sender_name: str) -> 
     if auto_reply_gate is None:
         from src.services.core import auto_reply_gate
 
-    if event.is_private and not event.out and event.message.voice and voice_processor:
+    msg = event.message
+    is_audio = bool(msg.voice or msg.video_note or msg.audio)
+    if event.is_private and not event.out and is_audio and voice_processor:
         from src.handlers.message_handler import process_voice
         await process_voice(
             event, client=client, sender=sender, sender_name=sender_name,
@@ -96,7 +116,7 @@ async def _handle_media_and_voice(event: Any, sender: Any, sender_name: str) -> 
             admin_bot=admin_bot, surgical_integration=surgical_integration,
             auto_reply_gate=auto_reply_gate,
         )
-    if event.is_private and not event.out and (event.message.photo or event.message.document):
+    if event.is_private and not event.out and not is_audio and (msg.photo or msg.document):
         from src.handlers.message_handler import process_media
         await process_media(
             event, client=client, sender_name=sender_name,
@@ -141,6 +161,7 @@ async def handle_new_message(event):
         await safe_responder.update_me_id(me.id)
 
     sender, sender_name, msg_text = await _broadcast_incoming_message(event)
+    await _record_chat_manager(event, sender, sender_name)
     await advance_checkpoint(event, app_ctx.msg_controller)
 
     if _should_block_private_userbot_reply(event) or (safe_responder and not await safe_responder.should_respond(event)):

@@ -33,6 +33,14 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     asyncio.create_task(daily_frog_loop(bot_runtime, settings.TEAM_GROUP_ID), name="daily_frog_loop")
     from src.schedulers.channel_scout_scheduler import channel_scout_loop
     asyncio.create_task(channel_scout_loop(), name="channel_scout_loop")
+    from src.schedulers.hunter_retry_scheduler import hunter_retry_loop
+    asyncio.create_task(hunter_retry_loop(), name="hunter_retry_loop")
+    from src.schedulers.lead_follow_up_scheduler import lead_follow_up_loop
+    asyncio.create_task(lead_follow_up_loop(), name="lead_follow_up_loop")
+    from src.schedulers.chat_manager_scheduler import chat_manager_extract_loop
+    asyncio.create_task(chat_manager_extract_loop(), name="chat_manager_extract_loop")
+    from src.schedulers.attendance_summary_scheduler import attendance_summary_loop
+    asyncio.create_task(attendance_summary_loop(), name="attendance_summary_loop")
     from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
     asyncio.create_task(
         instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
@@ -124,6 +132,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[UNOWNED LEAD] scheduler unavailable: %s", exc)
 
     try:
+        from src.schedulers.speed_to_lead import speed_to_lead_loop
+        asyncio.create_task(speed_to_lead_loop(), name="speed_to_lead_loop")
+    except ImportError as exc:
+        logger.warning("[SPEED-TO-LEAD] scheduler unavailable: %s", exc)
+
+    try:
         from src.schedulers.marketing_attribution_scheduler import marketing_attribution_loop
         asyncio.create_task(marketing_attribution_loop(), name="marketing_attribution_loop")
     except ImportError as exc:
@@ -134,3 +148,15 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         asyncio.create_task(income_supervisor_loop(), name="income_supervisor_loop")
     except ImportError as exc:
         logger.warning("[INCOME SUPERVISOR] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.jamoa_ritm_scheduler import jamoa_ritm_loop
+        asyncio.create_task(jamoa_ritm_loop(bot_runtime), name="jamoa_ritm_loop")
+    except ImportError as exc:
+        logger.warning("[JAMOA-RITM] scheduler unavailable: %s", exc)
+
+    try:
+        from src.schedulers.remote_staff_checkin_scheduler import remote_staff_checkin_loop
+        asyncio.create_task(remote_staff_checkin_loop(bot_runtime), name="remote_staff_checkin_loop")
+    except ImportError as exc:
+        logger.warning("[REMOTE CHECKIN] scheduler unavailable: %s", exc)

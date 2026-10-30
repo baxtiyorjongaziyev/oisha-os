@@ -19,7 +19,7 @@ from src.services.core.sales_playbook import (
 )
 
 SALES_PIPELINE_ID = 11162698
-STATUS_YANGI = 87609514  # Yangi LEads
+STATUS_YANGI = 89067962  # Yangi LEads (eski 87609514 "Yangi" 2026-09-30 da o'chirilgan)
 STATUS_ALOQA = 87609518  # Qayta aloqa
 STATUS_KVALIFIKATSIYA = 87609522  # Kvalifikatsiya
 STATUS_UCHRASHUV = 87609526  # Uchrashuv

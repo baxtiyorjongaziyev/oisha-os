@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>Oisha · Davomat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>body{font-family:'Inter',sans-serif;background:#f8fafc}video{object-fit:cover}</style>
+</head>
+<body class="text-slate-900 min-h-screen">
+<main class="max-w-md mx-auto px-5 pt-8 pb-16">
+  <header class="flex items-center gap-3 mb-8">
+    <div class="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold">O</div>
+    <div>
+      <p class="text-xs text-slate-500">Oisha OS</p>
+      <h1 class="text-lg font-semibold">Davomat</h1>
+    </div>
+    <p id="clock" class="ml-auto text-sm font-medium text-slate-500"></p>
+  </header>
+
+  <p id="loading" class="text-slate-500">Yuklanmoqda…</p>
+
+  <section id="login" class="hidden bg-white rounded-2xl p-6 shadow-sm text-center">
+    <p class="mb-4 text-slate-600">Davomat uchun Telegram orqali kiring.</p>
+    <a href="/api/auth/telegram/login?next=/api/attendance/app" class="inline-block bg-sky-500 text-white font-semibold px-6 py-3 rounded-xl">Telegram bilan kirish</a>
+  </section>
+
+  <section id="link" class="hidden bg-white rounded-2xl p-6 shadow-sm">
+    <h2 class="font-semibold">Davomatga ulanish</h2>
+    <p class="text-sm text-slate-500 mt-1" id="link-text">Telegram hisobingiz hali xodimlar ro‘yxatiga bog‘lanmagan. Ism-familiyangizni yozing — rahbar tasdiqlaydi.</p>
+    <form id="link-form" class="mt-4 space-y-3">
+      <input id="link-name" required minlength="2" maxlength="120" class="w-full border border-slate-200 rounded-xl px-4 py-3" placeholder="Ism Familiya">
+      <button class="w-full py-3 rounded-xl text-white font-semibold bg-slate-900">So‘rov yuborish</button>
+    </form>
+    <p id="link-msg" class="text-sm mt-3"></p>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="bg-white rounded-2xl p-6 shadow-sm mb-4">
+      <p class="text-sm text-slate-500" id="today-label">Bugun</p>
+      <div id="today-events" class="mt-3 space-y-2"></div>
+      <button id="action" class="mt-6 w-full py-4 rounded-xl text-white text-lg font-semibold bg-slate-900 active:scale-[.99] transition disabled:opacity-50"></button>
+    </div>
+
+    <div id="flow" class="hidden bg-white rounded-2xl p-6 shadow-sm mb-4">
+      <ol class="space-y-3 text-sm">
+        <li id="step-gps" class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">1</span>Lokatsiya tekshiruvi</li>
+        <li id="step-qr" class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">2</span>Ofis Wi-Fi</li>
+        <li id="step-ok" class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">3</span>Tasdiqlash</li>
+      </ol>
+      <p id="message" class="mt-4 text-sm"></p>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm">
+      <h2 class="font-semibold mb-3">So‘nggi 14 kun</h2>
+      <div id="history" class="divide-y divide-slate-100 text-sm"></div>
+    </div>
+    <p class="text-xs text-slate-400 mt-6 text-center">Ofis Wi-Fi’siga ulangan holda bosing. Lokatsiya faqat tugmani bosganda bir marta olinadi.</p>
+  </section>
+</main>
+<script src="/api/attendance/app/common.js"></script>
+<script src="/api/attendance/app/employee.js"></script>
+</body>
+</html>

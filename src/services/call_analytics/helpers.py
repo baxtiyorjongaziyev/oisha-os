@@ -3,7 +3,7 @@ import json
 import structlog
 import re
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 from src.services.utils.transcript import (
@@ -147,6 +147,29 @@ def _looks_like_stt_hallucination(text: str) -> bool:
     words = normalised.split()
     if len(words) >= 4 and len(set(words)) == 1:
         return True
+    if _has_phrase_loop(normalised):
+        return True
+    return False
+
+
+# Tilsiz Whisper o'zbekcha audioni ko'pincha inglizcha "tarjima" qilib,
+# bir gapni qayta-qayta takrorlaydi ("I got a new car, I got a new car...").
+# Real savdo qo'ng'irog'ida bunday sikl bo'lmaydi.
+_PHRASE_SPLIT_RE = re.compile(r"[.,!?;\n]+")
+
+
+def _has_phrase_loop(normalised: str, min_repeats: int = 4) -> bool:
+    """Bir gap ketma-ket ``min_repeats`` marta takrorlansa — ASR sikli.
+
+    Faqat ketma-ket takror hisoblanadi: real suhbatda "ha albatta" turli
+    joylarda bir necha bor uchrashi normal.
+    """
+    phrases = [p.strip() for p in _PHRASE_SPLIT_RE.split(normalised) if len(p.strip()) >= 6]
+    run = 1
+    for prev, cur in zip(phrases, phrases[1:]):
+        run = run + 1 if cur == prev else 1
+        if run >= min_repeats:
+            return True
     return False
 
 

@@ -202,8 +202,8 @@ class RopFetcher:
         from scripts.daily_sales_calls_report import (
             fetch_calls,
             build_report,
-            parse_rep_names,
         )
+        from src.services.call_analytics.moizvonki_roster import load_excludes, load_roster
 
         email = os.environ.get("MOIZVONKI_EMAIL", "")
         api_key = os.environ.get("MOIZVONKI_API_KEY", "")
@@ -213,8 +213,8 @@ class RopFetcher:
 
         try:
             calls = await asyncio.to_thread(fetch_calls, email, api_key, start_ts, end_ts, domain)
-            exclude = [email, *os.environ.get("MOIZVONKI_EXCLUDE_ACCOUNTS", "").split(",")]
-            names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
+            exclude = [email, *load_excludes(), *os.environ.get("MOIZVONKI_EXCLUDE_ACCOUNTS", "").split(",")]
+            names = load_roster()
             day_str = now.strftime("%Y-%m-%d")
             report = build_report(calls, day_str, exclude_accounts=exclude, known_accounts=names)
             

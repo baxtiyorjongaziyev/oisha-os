@@ -22,6 +22,12 @@ class SqlitePool:
         self.conn.commit()
 
 
+@pytest.fixture(autouse=True)
+def _no_lead_assignment(monkeypatch):
+    # Biriktirish o'z testlarida; bu yerda haqiqiy guruhga xabar ketmasin.
+    monkeypatch.setenv("LEAD_ASSIGNMENT_ENABLED", "0")
+
+
 @pytest_asyncio.fixture
 async def isolated(monkeypatch, tmp_path):
     from src.services.core.instagram import leadgen_capi as capi
@@ -81,6 +87,7 @@ async def test_router_finishes_checkpoint_and_channels_while_capi_waits(monkeypa
     amo.find_active_lead_by_phone = lambda phone: None
     amo.ensure_lead.return_value = 77
     monkeypatch.setattr(router, "_amocrm_instance", lambda: amo)
+    monkeypatch.setattr("src.database_pool.db_pool", isolated)  # Hunter navbati
     monkeypatch.setattr(router, "is_leadgen_processed", lambda _: False)
     monkeypatch.setattr(router, "mark_leadgen_processed", lambda *a, **k: None)
     monkeypatch.setattr(router, "resolve_ad_name", lambda _: None)
@@ -100,6 +107,10 @@ async def test_router_finishes_checkpoint_and_channels_while_capi_waits(monkeypa
         assert delivery.is_delivery_complete("123")
         await asyncio.wait_for(started.wait(), 1)
         amo.add_lead_tag.assert_any_await(77, "manba:reklama")
+        from src.services.core.crm.amocrm_pipeline_config import SALES_NEW_STATUS_ID, SALES_PIPELINE_ID
+        call = amo.ensure_lead.await_args.kwargs
+        assert (call["pipeline_id"], call["status_id"]) == (SALES_PIPELINE_ID, SALES_NEW_STATUS_ID)
+        amo.add_lead_tag.assert_any_await(77, "hunter:meta_lead_ads")
     finally:
         release.set()
 

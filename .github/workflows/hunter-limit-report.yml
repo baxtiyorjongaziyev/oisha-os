@@ -1,0 +1,44 @@
+name: Server read-only report
+
+# Faqat qo'lda ishga tushadi. Contabo'dagi self-hosted runner'da prod .env bilan
+# faqat o'qiydigan hisobot skriptini ishga tushiradi. Hech narsa yozmaydi,
+# servisni qayta ishga tushirmaydi.
+on:
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Qaysi hisobot"
+        type: choice
+        default: hunter_limit_report
+        options:
+          - hunter_limit_report
+          - lead_assignment_check
+      days:
+        description: "Necha kunlik ma'lumot (hunter_limit_report)"
+        default: "30"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 10
+    steps:
+      - name: Run report in prod checkout
+        env:
+          REPORT: ${{ inputs.report }}
+          DAYS: ${{ inputs.days }}
+        run: |
+          set -euo pipefail
+          case "$DAYS" in ''|*[!0-9]*) echo "days must be a number"; exit 1;; esac
+          cd /home/ubuntu/oisha-os
+          set -a
+          . ./.env
+          set +a
+          case "$REPORT" in
+            hunter_limit_report) ./venv/bin/python scripts/hunter_limit_report.py --days "$DAYS" ;;
+            lead_assignment_check) ./venv/bin/python scripts/lead_assignment_check.py ;;
+            *) echo "unknown report"; exit 1 ;;
+          esac

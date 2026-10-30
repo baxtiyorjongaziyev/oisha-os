@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
-from src.services.core.crm.amocrm_pipeline_config import SALES_PIPELINE_ID
+from src.services.core.crm.amocrm_pipeline_config import SALES_NEW_STATUS_ID, SALES_PIPELINE_ID
 from src.time_utils import is_quiet_hours
 
 logger = logging.getLogger("UnownedLeadAlert")
@@ -42,12 +42,13 @@ DEFAULT_MANAGER_NAMES = {
     "shahnoza",
     "rayxon",
     "rayhona",
-    "farangiz",
     "aziz",
     "ahrorbek",
     "dilbar",
     "hasanboy",
     "baxtiyorjon",
+    "mumtozmaxal",
+    "mumtoz",
 }
 
 MANAGER_TAG_PREFIXES = (
@@ -62,15 +63,13 @@ MANAGER_TAG_PREFIXES = (
 
 
 def get_known_manager_names() -> Set[str]:
-    """Return lowercase known manager names from config and defaults."""
+    """Return lowercase known manager names from the roster config and defaults."""
+    from src.services.call_analytics.moizvonki_roster import load_roster
+
     names = set(DEFAULT_MANAGER_NAMES)
-    env_reps = os.getenv("MOIZVONKI_REP_NAMES", "")
-    if env_reps:
-        for item in env_reps.split(","):
-            if ":" in item:
-                val = item.split(":", 1)[1].strip().lower()
-                if val:
-                    names.add(val)
+    for name in load_roster().values():
+        if name.strip():
+            names.add(name.strip().lower())
     return names
 
 
@@ -165,6 +164,9 @@ def find_unowned_inhouse_leads(leads: List[Dict[str, Any]], now: float) -> List[
         if lead.get("status_id") in (142, 143):
             continue
         if lead.get("responsible_user_id") != BOT_RESPONSIBLE_USER_ID:
+            continue
+        # Menejer leadni "Yangi LEads"dan boshqa bosqichga surgan bo'lsa — demak olingan.
+        if lead.get("status_id") not in (None, SALES_NEW_STATUS_ID):
             continue
         tags = {str(t.get("name") or "").strip() for t in (lead.get("_embedded") or {}).get("tags") or []}
         if INHOUSE_TAG not in tags:

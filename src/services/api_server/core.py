@@ -4,6 +4,7 @@ Core FastAPI application creation, middleware, router inclusions, and lifespan.
 import hmac
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -33,6 +34,11 @@ async def lifespan(app: FastAPI):
     from src.services.core.instagram.config_guard import check_meta_config
 
     check_meta_config()
+    from src.api.routes.attendance_routes import _ready_db
+
+    started = time.perf_counter()
+    await _ready_db()
+    logger.info("[ATTENDANCE] startup initialization finished in %.3fs", time.perf_counter() - started)
     mark_heartbeat("api")
     add_activity("api_started", "ok", {"event": "lifespan_start"})
     yield
@@ -118,6 +124,10 @@ from src.api.routes.instagram_routes import router as instagram_router
 from src.api.routes.product_suite import router as product_router
 from src.api.routes.business_commands import router as business_commands_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
+from src.api.routes.parallel_crm import router as parallel_crm_router
+from src.api.routes.twenty_calls import router as twenty_calls_router
+from src.api.routes.simple_crm import router as simple_crm_router
+from src.api.routes.chat_manager import router as chat_manager_router
 from src.api.routes.crm_reports import router as crm_reports_router
 from src.api.routes.finance_dashboard import router as finance_dashboard_router
 from src.api.routes.finance_ai import router as finance_ai_router
@@ -129,6 +139,8 @@ from src.api.routes.client_qa import router as client_qa_router
 from src.api.routes.payme import router as payme_router
 from src.api.routes.callback_widget import router as callback_widget_router
 from src.api.routes.telephony import router as telephony_router
+from src.api.routes.attendance_routes import router as attendance_router, pages_router as attendance_pages_router
+from src.api.routes.attendance_setup_routes import router as attendance_setup_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -145,6 +157,10 @@ app.include_router(instagram_router)
 app.include_router(product_router)
 app.include_router(business_commands_router)
 app.include_router(crm_dashboard_router)
+app.include_router(parallel_crm_router)
+app.include_router(twenty_calls_router)
+app.include_router(simple_crm_router)
+app.include_router(chat_manager_router)
 app.include_router(crm_reports_router)
 app.include_router(finance_dashboard_router)
 app.include_router(finance_ai_router)
@@ -156,6 +172,9 @@ app.include_router(client_qa_router)
 app.include_router(payme_router)
 app.include_router(callback_widget_router)
 app.include_router(telephony_router)
+app.include_router(attendance_router)
+app.include_router(attendance_pages_router)
+app.include_router(attendance_setup_router)
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oisha · Davomat QR</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>body{font-family:'Inter',sans-serif;background:#0f172a}#qr svg{width:100%;height:100%}</style>
+</head>
+<body class="text-white min-h-screen flex items-center justify-center p-6">
+<main class="w-full max-w-xl text-center">
+  <p class="text-slate-400 text-sm tracking-widest uppercase">Oisha OS · Davomat</p>
+  <p id="clock" class="text-6xl font-bold tabular-nums mt-2 mb-8"></p>
+  <div id="qr-wrap" class="hidden bg-white rounded-3xl p-6 mx-auto aspect-square max-w-md">
+    <div id="qr" class="w-full h-full"></div>
+  </div>
+  <div class="mt-6 h-1.5 bg-slate-800 rounded-full overflow-hidden max-w-md mx-auto">
+    <div id="bar" class="h-full bg-emerald-400 transition-all duration-1000 ease-linear" style="width:100%"></div>
+  </div>
+  <p id="status" class="mt-6 text-slate-300">Telefon orqali Oisha → Davomat → “Keldim” ni bosing va shu kodni skanerlang.</p>
+
+  <form id="setup" class="hidden mt-8 bg-slate-800 rounded-2xl p-6 text-left space-y-3">
+    <p class="text-sm text-slate-300">HR panel → Sozlamalar → “Monitor havolasini yaratish” orqali olingan havolani shu qurilmada oching yoki kalitni shu yerga qo‘ying.</p>
+    <input id="token" type="password" autocomplete="off" class="w-full rounded-lg px-3 py-2 text-slate-900" placeholder="Kiosk token">
+    <button class="w-full bg-emerald-500 rounded-lg py-2 font-semibold">Saqlash</button>
+  </form>
+</main>
+<script>
+const KEY = 'oisha_kiosk_token';
+const $ = (id) => document.getElementById(id);
+let expiresAt = 0, ttl = 30;
+
+function getToken() { try { return localStorage.getItem(KEY) || ''; } catch (_) { return ''; } }
+
+// HR paneli bergan havola: .../kiosk#k=<kalit> — kalit saqlanadi va manzildan o'chiriladi.
+(function takeTokenFromHash() {
+  const m = /[#&]k=([A-Za-z0-9_-]+)/.exec(location.hash);
+  if (!m) return;
+  try { localStorage.setItem(KEY, m[1]); } catch (_) { /* private mode */ }
+  history.replaceState(null, '', location.pathname);
+})();
+
+function tick() {
+  $('clock').textContent = new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Tashkent' });
+  const left = Math.max(0, (expiresAt - Date.now()) / 1000);
+  $('bar').style.width = `${Math.min(100, (left / ttl) * 100)}%`;
+}
+
+async function refresh() {
+  const token = getToken();
+  if (!token) { $('setup').classList.remove('hidden'); return; }
+  try {
+    const res = await fetch('/api/attendance/kiosk/qr?kiosk_id=main', { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401 || res.status === 403) {
+      $('status').textContent = 'Monitor kaliti noto‘g‘ri yoki muddati tugagan.';
+      $('setup').classList.remove('hidden');
+      $('qr-wrap').classList.add('hidden');
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const qr = qrcode(0, 'M');
+    qr.addData(data.token);
+    qr.make();
+    $('qr').innerHTML = qr.createSvgTag({ margin: 0, scalable: true });  // svg kutubxona tomonidan yaratiladi, token — base64url
+    $('qr-wrap').classList.remove('hidden');
+    expiresAt = new Date(data.expires_at).getTime();
+    ttl = Math.max(1, (expiresAt - Date.now()) / 1000);
+    setTimeout(refresh, (data.refresh_in_s || 25) * 1000);
+  } catch (err) {
+    $('status').textContent = 'Server bilan aloqa yo‘q. Qayta urinilmoqda…';
+    $('qr-wrap').classList.add('hidden');
+    setTimeout(refresh, 5000);
+  }
+}
+
+$('setup').addEventListener('submit', (e) => {
+  e.preventDefault();
+  try { localStorage.setItem(KEY, $('token').value.trim()); } catch (_) { /* private mode */ }
+  $('setup').classList.add('hidden');
+  refresh();
+});
+tick(); setInterval(tick, 1000);
+refresh();
+</script>
+</body>
+</html>

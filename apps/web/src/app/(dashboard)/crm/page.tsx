@@ -1,110 +1,38 @@
 import React from 'react';
-import { getCrmLeads, getCrmDashboardStats, CrmLead } from '@/lib/apiClient';
+import { getCrmLeads, CrmLead } from '@/lib/apiClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CRMDashboard() {
-  const [stats, leadsData] = await Promise.all([
-    getCrmDashboardStats(),
-    getCrmLeads(),
-  ]);
-
-  const totalLeads = stats?.leads?.total ?? leadsData?.total ?? 0;
-  const newLeads = stats?.leads?.hot ?? 0;
-  const inNegotiation = stats?.deals?.total ?? 0;
-  const closedThisMonth = stats?.deals?.won ?? 0;
+  const leadsData = await getCrmLeads();
   const leads = leadsData?.leads ?? [];
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Asosiy CRM: oddiy sahifa (amoCRM "Sotuv" voronkasi) */}
+      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-primary)] bg-[var(--accent-primary-light)] px-2.5 py-0.5 rounded-full">
-              AMOCRM V4 & TURSO DB
-            </span>
-            <span className="text-xs text-[var(--text-secondary)]">• 100% Real Lidlar Bazasi</span>
-          </div>
-          <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-            Sotuv Voronkasi & Lidlar
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+            Mijozlar
           </h1>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            Bazada jami <strong>{totalLeads}</strong> ta foydalanuvchi/lid ro&apos;yxatga olingan. 500 bitim limiti nazoratda.
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Mijoz qo&apos;shish, qo&apos;ng&apos;iroq yozish va bosqichni o&apos;zgartirish oddiy CRM sahifasida.
           </p>
         </div>
-
-        <div className="flex items-center gap-2.5">
-          <button className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] px-4 py-2 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--bg-surface-active)] transition-all active:scale-[0.98]">
-            🔄 Sinxronlash
-          </button>
-          <button className="rounded-xl bg-[var(--accent-primary)] text-white px-5 py-2 text-xs font-bold shadow-xs hover:opacity-90 transition-all active:scale-[0.98]">
-            + Yangi Lid qo&apos;shish
-          </button>
-        </div>
-      </div>
-
-      {/* 4 Pipeline Tonal Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-            Jami Real Lidlar
-          </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[var(--text-primary)]">
-            {totalLeads}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
-            <span>500 Limit bandligi:</span>
-            <strong className="text-[#059669] dark:text-[#34d399]">{((totalLeads / 500) * 100).toFixed(1)}%</strong>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-            Hunter (Yangi & Issiq)
-          </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[var(--accent-primary)]">
-            {newLeads}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
-            <span>Bugun qo&apos;shilgan:</span>
-            <strong className="text-[var(--text-primary)]">{stats?.contacts?.new_today ?? 0} ta</strong>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-            Setter (Muzokarada)
-          </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[#7c3aed] dark:text-[#c084fc]">
-            {inNegotiation}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
-            <span>Kutilayotgan vazifalar:</span>
-            <strong className="text-[#7c3aed] dark:text-[#c084fc]">{stats?.tasks?.pending ?? 0} ta</strong>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-            Farmer (Yopilgan & LTV)
-          </span>
-          <div className="mt-2 text-3xl font-black tracking-tight text-[#059669] dark:text-[#34d399]">
-            {closedThisMonth}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--text-secondary)] border-t border-[var(--border-subtle)] pt-2.5">
-            <span>Mijozlar bazasi:</span>
-            <strong className="text-[#059669] dark:text-[#34d399]">Doimiy monitoring</strong>
-          </div>
-        </div>
+        <a
+          href="/api/simple-crm/"
+          className="rounded-xl bg-[var(--accent-primary)] text-white px-6 py-4 text-lg font-bold text-center hover:opacity-90"
+        >
+          CRM&apos;ni ochish
+        </a>
       </div>
 
       {/* Leads Table */}
       <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-xs overflow-hidden">
         <div className="border-b border-[var(--border-default)] px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="font-bold text-sm text-[var(--text-primary)]">Faol Lidlar Ro&apos;yxati</h2>
-            <p className="text-xs text-[var(--text-secondary)]">Turso bazasidagi real Telegram foydalanuvchilari va so&apos;rovlari ({leads.length} ta)</p>
+            <h2 className="font-bold text-sm text-[var(--text-primary)]">Telegram foydalanuvchilari</h2>
+            <p className="text-xs text-[var(--text-secondary)]">Bot bilan yozishgan foydalanuvchilar ({leads.length} ta). Bu amoCRM bitimlari emas.</p>
           </div>
         </div>
 

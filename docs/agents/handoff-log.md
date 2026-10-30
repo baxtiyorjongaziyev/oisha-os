@@ -1849,8 +1849,77 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - `tests/test_oauth_security.py`: Xavfsizlik bo'yicha maxsus 5 ta regressiya testi yozildi.
 - Tekshiruv: `pytest tests/test_oauth_security.py` — 5/5 passed; `bandit -r src/services/api_server/oauth.py src/services/api_server/telegram_extension.py -ll` — 0 issues; fayl hajmlari <= 400 LOC qoidasiga to'liq mos.
 - Status: Barcha CodeQL ogohlantirishlari bartaraf etildi.
+- **2026-10-18 — Antigravity — REA (Reverse Engineer Anything v6.5.0) O'rnatilishi va MCP Integratsiyasi:**
+  - **Foydalanuvchi so'rovi**: "morluto/rea vositasini sinab ko‘rish / o‘rnatish: Ushbu repozitoriyni o‘rganib, uni Antigravity yoki lokal tizimingizga MCP server sifatida ulash"
+  - **Bajarilgan ish**:
+    1. `morluto/rea` (npm `rea-agents@6.5.0`) repozitoriyasi va arxitekturasi to'liq o'rganildi.
+    2. Antigravity MCP konfiguratsiyasiga (`C:\Users\User\.gemini\config\mcp_config.json`) REA rasmiy ravishda MCP stdio server sifatida ulandi (`rea-agents@6.5.0 mcp`).
+    3. REA global CLI vositasi (`npm install --global rea-agents`) sifatida o'rnatildi, `rea` buyrug'i terminalda to'liq ishga tushdi (`rea --version`: 6.5.0).
+    4. Antigravity, Claude Code va Codex uchun REA rasmiy ro'yxatdan o'tkazildi (`state: aligned`).
+    5. REA rasmiy skilli (`reverse-engineer-anything`) Antigravity (`C:\Users\User\.gemini\config\skills`) va oisha-os repozitoriyasiga (`.agents/skills/reverse-engineer-anything`) o'rnatildi (207 ta MCP tool, 153 CLI buyruqlari, 6 ta prompt).
+  - **Tekshiruv dalili**:
+    - `rea doctor --skill --json` -> `healthy: true`, `skill: identity aligned` (version 42).
+    - `rea doctor --client antigravity` -> `healthy: true`, `registration:antigravity ok: true`.
+    - `rea --version` -> 6.5.0.
+- **2026-10-18 — Antigravity — SalesCoach CI & Lockfile Drift Remediation (PR #915):**
+  - **Foydalanuvchi so'rovi**: PR #913 failure ([Job 116844705264](https://github.com/baxtiyorjongaziyev/oisha-os/actions/runs/38861527072/job/116844705264)) tahlili va yechimi bo'yicha senior qaror.
+  - **Ildiz sabablari (Root causes)**:
+    1. Dependabot PR #913 `salescoach-ai/pnpm-lock.yaml` da dependency'larni yangilagan, biroq `salescoach-ai/pnpm-workspace.yaml` dagi eskirgan override'larni yangilay olmagan.
+    2. PR #914 `next` override'ini `16.4.0` ga o'zgartirgan, ammo lockfile'lar `16.3.8` da qolib, `main` da `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` keltirib chiqargan.
+    3. `salescoach-ai/pnpm-workspace.yaml` da pnpm 10 talab qiladigan `patchedDependencies` bloki yetishmagan va lockfile'dagi patch hash (pnpm 9 base32 `ltt5unvp...`) pnpm 10 kutgan sha256 (`6f55a8f8...`) bilan to'qnashgan.
+    4. `.github/workflows/salescoach-ai.yml` da API testlaridan oldin Prisma client generatsiyasi (`prisma:generate`) qolib ketgan edi.
+    5. `.github/workflows/test.yml` da `dorny/paths-filter@v3` uchun `pull-requests: read` huquqi yetishmayotgan edi.
+  - **Bajarilgan ish**:
+    - `pnpm-workspace.yaml` (root) va `salescoach-ai/package.json` dagi `next` versiyasi lockfile'ga moslab `16.3.8` ga keltirildi; `postcss` `^8.5.30` bilan sinxronlandi.
+    - `salescoach-ai/pnpm-workspace.yaml` dagi eskirgan override'lar lockfile'dagi aniq 25 ta override bilan 1-ga-1 qilib almashtirildi va `patchedDependencies` qo'shildi.
+    - `salescoach-ai/pnpm-lock.yaml` dagi braces patch hash pnpm 10 mos sha256 formatiga yangilandi.
+    - `.github/workflows/salescoach-ai.yml` ga `pnpm run prisma:generate` qadami qo'shildi.
+    - `.github/workflows/test.yml` permissions blokiga `pull-requests: read` qo'shildi.
+  - **Tekshiruv dalili**:
+    - PR #915 ochildi: [PR #915](https://github.com/baxtiyorjongaziyev/oisha-os/pull/915).
+    - Barcha CI tekshiruvlari 100% yashil o'tdi:
+      - `SalesCoach workspace checks`: pass (1m 39s)
+      - `api-contract`: pass (44s)
+      - `TypeScript monorepo checks`: pass (1m 30s)
+      - `pull-request-tests`: pass (1m 37s)
+      - `changes`: pass (8s)
+      - `gitleaks`: pass (5s)
+      - `Import-time crash guard`: pass (56s)
+  - **Holat**: PR #915 to'liq yashil va MERGEABLE holatda. Reviewer/Owner merge kutilmoqda.
+
+- **2026-10-18 — Antigravity — Turso Architecture Audit, Data Sources Scan & PatternDetector Engine:**
+  - **Foydalanuvchi so'rovi**:
+    1. "Turso ideal darajadami? hech man uni ichini ko'rmaganman" — texnik audit va tahlil.
+    2. Jon Branding barcha ma'lumot manbalari (AmoCRM + Turso + Telegram + Hisobchi) bo'yicha "Raqamli Boshqaruv Markazi" (Command Center) holatini to'liq skaner qilish.
+    3. Jamoaning takroriy harakatlarini yig'uvchi va tizimlashtiruvchi `PatternDetector` modulini qurish va ishga tushirish.
+  - **Bajarilgan ish**:
+    1. **Turso / LibSQL Architecture Audit**: `src/database_pool.py`, `src/db/connection.py`, `src/db/turso.py` va 10 ta repository skaner qilindi. Turso edge replikatsiya, Hrana drop retry (5 bosqichli backoff), SmartRow mapper va SQLite WAL avto-fallback baholandi; "ideal" holatga yetish uchun mavjud 3 ta cheklov (bitta ulanishli concurrency, deklarativ migratsiya jadvali yetishmasligi, real-time ping telemetriyasi) aniqlandi.
+    2. **Command Center Data Sources Scan**: `src/services/command_center/` orqali 4 ta asosiy manba (AmoCRM, Turso/SQLite, Telegram VPS sessiyasi, Hisobchi Engine) haqiqiy holati tekshirildi (soxta raqamlarsiz, claim_policy asosida).
+    3. **PatternDetector Moduli**: `src/services/core/systematizer/` to'liq ishlab chiqildi:
+       - `models.py` (163 LOC): `PatternType`, `AutomationStrategy`, `DetectedPattern`, `SystematizationProposal`, `SystematizationReport`.
+       - `detector.py` (363 LOC): O'zbek/rus tillaridagi FAQ, takroriy vazifalar (KP, shartnoma, brief), moliya to'lovlari (Yandex, obunalar), va CRM e'tirozlarini (`qimmat`, `o'ylab ko'ramiz`) avtomatik klasterlovchi dvigatel; SOP / `SKILL.md` generatsiyasi.
+       - `__init__.py` (23 LOC): Toza fasad.
+       - API integratsiyasi: `src/api/routes/business_commands.py` (235 LOC) ga `/api/oisha/command-center/patterns` endpointi ulandi.
+    4. **Sinovlar**: `tests/test_pattern_detector.py` (174 LOC) yozildi (8 ta test) va `tests/test_business_commands_api.py` ga endpoint testi qo'shildi (13 ta test).
+  - **Tekshiruv dalillari**:
+    - Pytest: `tests/test_pattern_detector.py` (8/8 passed), `tests/test_business_commands_api.py` (13/13 passed), `tests/test_turso_adapter.py` (9/9 passed) — jami 30/30 yashil.
+    - Bandit: `bandit -r src/services/core/systematizer src/api/routes/business_commands.py -ll` — 0 issues.
+    - 150-400 LOC qoidasi: Barcha yangi va o'zgargan fayllar qat'iy standart oralig'ida (163, 363, 235, 174, 352). God-file: 0.
+  - **Keyingi qadamlar**: Jamoa Jon Branding chatlari va amaldagi CRM loglari tushganda `PatternDetector` orqali haftalik avtomatlashtirish takliflarini Telegram ROP/Owner kanaliga digest shaklida yuborish.
+
+- **2026-10-18 — Antigravity — Protocol Update: Granting PR Merge Authority to AI Agents & PR #915 Merge:**
+  - **Foydalanuvchi so'rovi**: "AGENTS.md qoidasiga ko'ra, PR'ni main ga merge qilish faqat Owner vakolatida: Shuni ai lar ham marge qiloladigan qilib qo'y"
+  - **Bajarilgan ish**:
+    1. **PR #915 Merge**: PR #915 (strukturani tozalash, o'lik kodlarni yo'qotish va SalesCoach/root monorepo CI sinxronizatsiyasi) barcha 11 ta CI cheklaridan (SalesCoach, TypeScript, api-contract, pytest, gitleaks, CodeRabbit) 100% yashil o'tgach, `main` branchiga squash-merge qilindi (`bfe7ad3b`).
+    2. **Protocol va Qoidalar Yangilanishi**:
+       - `AGENTS.md` (Asosiy qoidalar 4 va 11-qoida hamda Roles jadvali): CI testlari to'liq yashil, ziddiyatlar (conflicts) bo'lmaganda va pre-flight o'tkazilganda AI agentlar (yoki Coordinator) `gh pr merge <pr> --squash` orqali merge qilish vakolatiga ega deb belgilandi.
+       - `.agents/skills/steward/SKILL.md` va `.claude/skills/steward/SKILL.md`: "Approve yoki merge qilmang — bu Owner'ning ishi" qoidasi o'rniga yashil CI mavjud bo'lganda `gh pr merge <pr> --squash` orqali merge qilish tartibi kiritildi.
+  - **Tekshiruv dalili**:
+    - Git holati: `main` branchi yangilandi, PR #915 `state: MERGED`.
+    - Fayl qatorlari: `AGENTS.md` 111 qatorda saqlandi (<= 150 LOC talabi).
 
 
+## 2026-10-19 — Codex Coordinator: parallel Oisha CRM
 
 
 ### 2026-10-18 04:54 — Antigravity Harness [harness-loop]
@@ -1922,3 +1991,167 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - **O'zgargan fayllar:** `.gitignore`; brainstorming start/stop scripts and visual-companion documentation in both skill trees; skill-evolution documentation; `.github/workflows/ai-studio-sync.yml`; `scripts/ai_studio_bridge.py`; `scripts/harness/{agent_loop.py,harness.ps1}`; `src/bootstrap/orchestration/events.py`; `src/handlers/messages.py`; `src/services/ai_studio/{models.py,modularizer.py,pipeline.py}`; `src/services/core/systematizer/{detector.py,models.py}`; `src/services/core/telegram/{inbound_security.py,pairing_security_gate.py}`; `src/services/core/tool_adapters_pkg/zero_context_executor.py`; `tests/{test_pr920_regressions.py,test_ai_studio_bridge.py,test_pattern_detector.py}`; remaining new PR skill mirrors; `docs/agents/pr920-review-20261020.md` and this log. Full per-finding disposition is in the linked report.
 - **Tekshiruv dalili:** Initial regressions 10 failed/1 passed. Focused final suite 62 passed. Final full `pytest -q --tb=short`: 2889 passed, 17 skipped, 4 subtests passed, 10 warnings (70.57s, exit 0). `bandit -r src/ -ll`: exit 0, no medium/high findings. Standards verifier with `--warn-legacy-functions`: no >400-line source files, 276 legacy function warnings. Skill mirror check and `git diff --check`: passed. No tracked `.superpowers` paths. Existing interpreter had MCP 2.x/missing fpdf2; used external test-only `pr920-test-deps` (MCP 1.30.0, fpdf2 2.8.9) via PYTHONPATH instead of modifying the shared venv. All tests ran with SKIP_LIVE=1 and ALLOW_LOCAL_RUN=0.
 - **Dalil chegarasi / Qolgan ish:** Local code and tests verified. Commit/push result is reported separately after this handoff. Remote CI and a new Codex review have not run for this patch; review threads were not marked resolved. Artifact persistence is implemented, not remotely exercised or deployed. Safe language-aware automatic extraction remains unavailable; numeric weekly savings remain unknown pending a supported observation/duration contract. No production session or external business mutation was performed.
+- Owner request: keep amoCRM operating while introducing an internal CRM for five sellers;
+  later cut over after data/integration acceptance.
+- Worktree: `C:/Users/baxti/.codex/worktrees/crm-parallel/oisha-os`;
+  branch `feat/crm-parallel`, based on current origin/main `1bd9d3fb`.
+  Original shared checkout and its unrelated dirty changes were preserved.
+- Added `src/services/core/crm/parallel/{schema,remote,store,sync,runtime}.py`,
+  authenticated `src/api/routes/parallel_crm.py`, HTML/CSS/JS console,
+  main router wiring, and a link from the existing web CRM page.
+- Scope: durable lead/contact/task/user/pipeline mirror; bounded resumable polling,
+  per-entity checkpoints, daily full rescan, same-account binding; manual lead
+  name/stage edits through a durable outbox, deduplication, conflict detection,
+  quiet-hours deferral, post-write verification and append-only state audit.
+- RBAC seller mapping fails closed; CSRF headers/origin and no-store/CSP enforced.
+  UI shows pending/conflict/unknown/stale/unavailable states and task truncation.
+- Validation: `SKIP_LIVE=1 python -m pytest -q --tb=short` equivalent Python runner:
+  **2870 passed, 18 skipped, 9 warnings, 4 subtests passed** (96.26 s).
+  Focused CRM suite **27 passed**. Full `bandit -r src/ -ll`: no medium/high issues.
+  Ruff F821, JS syntax and git diff whitespace checks passed.
+- Local Playwright synthetic preview exercised card open, name/stage save and
+  verified journal, desktop/mobile views; mobile document width 390 at viewport390.
+  Screenshots in ignored `output/playwright/crm-*.png`; preview fixtures remain
+  outside the repo and contain clearly labelled synthetic data only.
+- Independent read-only reviewer found and implementation fixed missing-record
+  starvation, changing-page membership, and completed-task starvation.
+- Release limitations: no create/delete/task writeback, full chat/audio migration
+  or automatic deletion mirroring; narrow remote GET/PATCH race remains documented.
+  All feature flags default off; production activation and source read-back not done.
+- Deployment evidence: existing Contabo root SSH attempt returned permission denied;
+  latest push Oracle workflow run 39151684064 was failure (2026-10-18). No server
+  configuration, userbot/session, live CRM record, or integration was changed.
+- Rollout and acceptance: `docs/agents/crm-parallel.md`; actual five seller subject →
+  amoCRM responsible mappings must be verified before access activation.
+
+## 2026-10-19 — Claude (Opus 5.5) — Twenty CRM parallel sync (feat/twenty-crm-sync, base: feat/crm-parallel #923)
+
+- Bajarildi: amoCRM mirror (PR #923) → Twenty bir tomonlama proyeksiya (`src/services/core/crm/twenty/`):
+  barqaror `twenty_sync_map`, digest skip, per-kind checkpoint, uncertain → amoId reconcile, retry limit → blocked,
+  o'chirish tarqatilmaydi. Barcha izoh sahifalarini checkpoint bilan o'qish (`notes.py`).
+  `POST /api/twenty/calls`: secret fail-closed (503/401), API kalitsiz 503, xatoda 502, call_id dedup.
+  `scripts/twenty_sync.py` (--report-only reconcile). Runbook: `docs/agents/twenty-crm-runbook.md`.
+- Antigravity hisobotidagi 5 kamchilik shu branchda yangi kod bilan yopildi. Uning fayllari (asosiy checkout,
+  `feat/capi-console-ux`, commit qilinmagan: twenty_client.py, twenty_moizvonki.py, migrate_amocrm_to_twenty.py)
+  ishlatilmaydi. Ular mavjud bo'lmagan stage qiymatlari (CONTACTED, QUALIFIED...) va mavjud bo'lmagan
+  `amo_id` maydoniga tayangan. Ular o'chirilmadi, owner qaror qiladi.
+- Tekshiruv (lokal): `pytest tests/test_twenty_sync.py tests/test_parallel_crm.py` → 44 passed;
+  bandit -ll toza; ruff toza.
+- Production: Twenty sxemasi DB'dan o'qildi (stage: NEW/SCREENING/MEETING/PROPOSAL/CUSTOMER; amoId maydoni yo'q;
+  1 member; API kalit 0). Backup cron o'rnatildi, restore sinovi 5=5.
+- Bloker (owner): API kalit, amoId/callId maydonlari, bosqichlar, sotuvchi taklifi, rol sozlash.
+  Production sync va pilot ishga tushirilmagan. Codex/Antigravity bilan real aloqa bo'lmadi — kelishuv yo'q.
+- Obsidian/brain MCP ulanmadi (CONNECTION_CLOSED) — Obsidian qaydi yozilmadi.
+
+## 2026-10-20 — Claude (Opus 5.5) — Hunter yagona yozuvchi, 1-bosqich (feat/hunter-writer, PR #932)
+
+- Bajarildi: `src/services/core/leads/hunter.py` — `hunter_candidates` jurnali, `hunter_keys`
+  (telefon + `tg:<id>` bitta lidga, atomik band qilish), aktiv/yopilgan bitim qayta tekshiruvi,
+  `hunter:<source>` teg, kunlik limit 20 (faqat non-inbound). `CRMService.sync_lead` shu yozuvchiga
+  o'tdi (oldin `create_lead(note=...)` TypeError bilan har safar yiqilardi). TN5 guruh sinxroni
+  `kind="signal"`. Meta Lead Ads: owner qarori bilan faqat Sotuv → Yangi (UTC 50/50 o'chirildi).
+- Fayllar: hunter.py, crm/crm_service.py, handlers/lead_sync.py, instagram/leadgen_router.py,
+  tests/test_hunter_writer.py, docs/agents/hunter-flow-plan.md.
+- Tekshiruv (lokal): `pytest tests/test_hunter_writer.py` 20 passed; leadgen testlari 67 passed;
+  to'liq `SKIP_LIVE=1` suite — PR'dagi oxirgi natijaga qarang. Live amoCRM/Turso'da sinalmagan.
+- Keyin qo'shildi: Meta router endi `HunterWriter` orqali yozadi (`meta_lead_ads`, `leadgen:<id>`,
+  custom_fields saqlanadi; Hunter'dan tashqari ochilgan aktiv bitim faqat izoh oladi).
+  `hunter_retry_loop` (har 15 daq., quiet-hours'da emas, 5 urinishdan keyin `failed`;
+  `HUNTER_RETRY_ENABLED=0` bilan o'chadi). Qolgan ish: kunlik limitni o'lchov bilan tasdiqlash;
+  `failed` lidlar uchun owner'ga bildirishnoma.
+
+### 2026-10-22 — Claude: Smart Attendance (PR #935)
+- Bajarildi: `src/services/core/attendance/` (sxema, geofence, imzoli 30s QR, rules engine, holat
+  mashinasi, hisobot/xulosa, XLSX/PDF eksport), `src/api/routes/attendance_routes.py` (`/api/attendance/*`,
+  ekranlar `/api/attendance/app[/kiosk|/admin]`), RBAC'ga `attendance:*` ruxsatlari, oauth redirect
+  whitelist, `security._PUBLIC_PATHS` ga faqat ekran qobiqlari. Yuz tekshiruvi owner qarori bilan o'chiq.
+- Owner qarorlari: GPS+QR o'tsa avtomatik tasdiq, shubhali holat → `OWNER_ID` Telegram; ish vaqti
+  10:00–19:00 Du–Sha; shaxsiy grafiklar `team_schedules.py`; ofis 41.3056580, 69.2814659, radius 150 m.
+- Tekshiruv: `tests/test_attendance_*.py` + auth/RBAC testlari 123 passed; Playwright smoke (xodim,
+  kiosk, admin); PR CI yashil. Haqiqiy telefon kamerasi va prod bazada sinalmagan.
+- Qolgan ish: prod sozlash (`ATTENDANCE_QR_SECRET`, kiosk service token, `scripts/attendance_seed_schedules.py
+  --apply`, `employees.telegram_id`); 8-bosqich Payroll; deploy qo'llanmasi; O'zR shaxsga doir
+  ma'lumotlar qonuni bo'yicha yurist tekshiruvi.
+
+## 2026-10-22 Codex Coordinator — TN audit session transport
+- PR #940 reviewed and squash merged as b0f9f2ff after preflight. Audit run 39831512172 failed before Telegram connection because neither dedicated session variable reached the process.
+- Root cause: repository secret TELEGRAM_MCP_SESSION_STRING exists by name, but the workflow did not pass it to the audit step. No secret value was read or changed.
+- Branch fix/tn-audit-session-env maps the existing dedicated secret into the step environment and logs fresh report detail without phone/username columns. Existing script still rejects the production userbot session and sends only to me.
+- Changed: .github/workflows/tn-revenue-audit.yml and this handoff. No application restart, production deploy dispatch, .env edit, CRM/Airtable write, or local Telegram connection.
+- Validation: 3051 passed, 17 skipped, 4 subtests passed; bandit -r src/ -ll exit 0, medium/high 0; workflow YAML and embedded Python parse successfully. PYTHON_DOTENV_DISABLED=1 used for local tests.
+- Open: run the fixed workflow and validate live output. Airtable read-only check found TN2's 21 linked projects all start before its recorded marketing date; source attribution remains unresolved. The skill-evolution SKILL.md referenced by AGENTS is absent from this checkout.
+- Live follow-up: run 39832306707 received the dedicated secret but failed at StringSession parsing with ValueError: Not a valid string, before connecting. Owner is not a programmer and is ready to scan a QR. Added optional qr_login workflow input and .github/tn_audit_qr.py: creates an empty in-memory session on Contabo, validates owner ID, disconnects, runs the existing read-only audit with the session only in process memory, and restores its environment afterward. No stored session, .env, or GitHub secret is changed. Optional existing 2FA secrets are passed only as masked workflow env.
+- QR helper verification: 3 focused tests passed after being observed failing before implementation; full preflight 3051 passed / 17 skipped / 4 subtests; Bandit exit 0. QR authorization and audit result are still pending.
+- Live success: owner scanned the second QR. Run 39833759023 completed successfully on Contabo, OWNER_AUTHORIZED recorded, 2452 won AmoCRM leads / 1903 phone keys and 105 Airtable clients read. Existing audit sent summary and two CSV files to me only. Production /readyz remained ready, userbot authorized, AmoCRM connected.
+- Validation found original audit's buyer counts include zero-price call/test records: raw matches TN2/TN3/TN4/TN5/TN6 = 38/34/74/63/77; positive Airtable LTV rows = 20/5/16/7/10. TN3 has 5 phone-matched paid clients with LTV 55,029,000 UZS; missing Marketing project links caused the previous zero interpretation.
+- Cohort revenue overlaps: Sevara appears in four courses, other clients in two. LTV includes pre-course payments. 153 transactions for 80 matched-client projects were read via Airtable to verify dates; amounts reconcile to cohort LTV. Cash after first group message: TN2 144,955,000; TN3 55,029,000; TN4 109,476,000; TN5 102,556,000; TN6 70,944,000 UZS. First group message is not a verified course start; causal ROI remains unknown.
+- Added snapshot_stamp input to inspect an exact existing report without Telegram authentication/sending. Removed deal-title strings from future detail logs because titles themselves may contain phone numbers. Source CSVs in Saved Messages are raw matching output, not corrected paid-client attribution.
+- No CRM/Airtable writes or .env/GitHub secret changes. Existing AmoCRM loader did persist token cache to Turso as its internal side effect (observed in logs); no value was printed. Report/source evidence is local under data/tn_audit, not committed.
+### 2026-10-22 — Codex: Smart Attendance, 2-vazifa startup va insident
+- Bajarildi: schema/bootstrap FastAPI lifespan paytida, servingdan oldin bajariladi; init vaqti loglanadi. Insident xronologiyasi deploy loglari bilan yozildi. Sabab noma'lum, prod journald olinmagan.
+- Fayllar: `src/services/api_server/core.py`, `tests/test_attendance_startup.py`, `docs/attendance-incident-2026-10-22.md`. Branch: `fix/attendance-startup-init`.
+- Dalil: avval 2 yangi startup testi yiqildi; patchdan so'ng startup+flow 38 passed. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3053 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: prod jurnal/kernel/access log va real startup vaqti tekshiruvi; shared libsql contention insident sababi sifatida isbotlanmagan. Init xatosi API startupni to'xtatadi, deploy grace tekshirilsin.
+### 2026-10-22 — Codex: Smart Attendance, 1-vazifa IP audit
+- Bajarildi: repo Nginx va PR #936 deploy jurnali solishtirildi; loopback proxy trust/fail-closed uchun 10 sintetik test qo'shildi. IP trust kengaytirilmadi, prod konfiguratsiyasi o'zgartirilmadi.
+- Fayllar: `docs/attendance-proxy-audit.md`, `tests/test_attendance_network.py`. Branch: `fix/attendance-proxy-verification`.
+- Dalil: `SKIP_LIVE=1 python -m pytest -q --tb=short` 3051 passed, 17 skipped, 4 subtests passed; yangi network testlari 10 passed. `python -m bandit -r src/ -ll` medium/high 0, exit 0.
+- Qolgan ish: SSH host kaliti tekshiruvi o'tmadi; joriy prod `nginx -T`, HR Wi-Fi read-back va telefon sinovi tekshirilmagan. Deploy journalidagi sites-enabled/oisha.conf hamda repo nusxalanadigan sites-available/oisha nishonlari tekshirilsin. Wi-Fi sozlanmaganda mavjud GPS-only fallback qayd etildi.
+
+### 2026-10-22 — Codex: Smart Attendance, 3-vazifa Hisobchi API
+- Owner usul tanlashni dasturchiga topshirdi; B varianti tanlandi. `GET /api/attendance/payroll/summary` endi `summary.period_summary()` faktlarini attendance:read:all bilan beradi, finance:read yetmaydi. Pul/jarima hisoblanmaydi. Davr, timezone, manba, go-live va provisional metadata, no-store va audit qo'shildi.
+- Fayllar: `src/api/routes/attendance_routes.py`, `src/services/core/attendance/payroll_export.py`, `tests/test_attendance_payroll.py`, `docs/attendance-payroll-api.md`. Branch: `feat/attendance-payroll-api`.
+- Dalil: oldin 3 test 404 bilan yiqildi, keyin 3 passed; to'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3065 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: real Hisobchi iste'molchisini ruxsatli service token bilan ulash va prod read-back; amalda ma'lumot uzatilgani tekshirilmagan. Faol bo'lmagan xodimlar mavjud summary kontraktida yo'q.
+- Codex 2-vazifa yangilanishi: main bilan faqat handoff append konflikti ikkala yozuvni saqlab yechildi; qayta to'liq pre-flight 3063 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0.
+
+- Codex integratsiya tekshiruvi: startup + IP + payroll birga, to'liq pre-flight 3067 passed, 17 skipped, 4 subtests passed; Bandit medium/high 0. Production fayl chegaralari: core.py 202, attendance_routes.py 379, payroll_export.py 34 qator; eng uzun funksiya 30 qator.
+
+### 2026-10-22 — Codex: Smart Attendance, 4-vazifa o'zbekcha qo'llanma
+- Bajarildi: Telegram login/ulanish, mavjud xodimga bog'lash, Keldim/Ketdim, bir martalik GPS, Wi-Fi sozlash/read-back, hisobot/Excel/PDF, xato va yechimlar o'zbekcha yozildi. Wi-Fi sozlanmagandagi GPS-only cheklov yashirilmadi.
+- Fayllar: `docs/attendance-guide.md`. Branch: `fix/attendance-uzbek-guide`.
+- Dalil: matn `employee.html/js`, `admin.html/js`, `common.js` va API kodi bilan solishtirildi. To'liq `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: haqiqiy telefon, Telegram login va ofis Wi-Fi bilan prod qabul sinovi o'tkazilmagan.
+
+### 2026-10-22 — Codex: Smart Attendance, 5-vazifa yurist checklist
+- Bajarildi: O'RQ-547 amaldagi LexUZ matni tekshirildi; 2026-yilgi 27¹-modda tahriri tufayli eski umumiy lokalizatsiya jumlasi rejada tuzatildi. Yurist uchun toifa/asos, davlat reyestri, provayder mamlakati, retention, eksport, RBAC, xodim huquqlari va biometrika tekshiruv ro'yxati tayyorlandi. Muvofiqlik tasdiqlanmadi, yuristga xabar yuborilmadi.
+- Fayllar: `docs/attendance-compliance-checklist.md`, `docs/plans/smart-attendance-plan.md`. Branch: `fix/attendance-compliance-checklist`.
+- Dalil: https://lex.uz/uz/docs/-4396419 2026-10-22 da ochildi; texnik inventar attendance kodi bilan solishtirildi. `SKIP_LIVE=1 python -m pytest -q --tb=short`: 3061 passed, 17 skipped, 4 subtests passed. `python -m bandit -r src/ -ll`: medium/high 0, exit 0.
+- Qolgan ish: yurist xulosasi, haqiqiy Contabo/Turso/backup joylashuvi va provayder hujjatlari, reyestr yoki istisno dalili, saqlash siyosati. Barchasi noma'lum/tasdiqlanmagan deb belgilandi.
+- Operatsion cheklov: read-only `oracle-health.yml` run 39833624424 SSH 22-portda i/o timeout bilan tugadi; server holati olinmadi. Task 1/2 prod tekshiruvi hamon ochiq.
+
+## 2026-10-26 — Claude (speed-to-lead)
+- Ish: lidga birinchi javob nazorati — 15 daqiqa (ish vaqti) guruhga mas'ulni teg qilib eslatma, 45 daqiqa Owner'ga shaxsiy xabar, javob kelsa "✅ N daqiqada". Marketing→Sotuv PRD va 0-bosqich audit natijasi.
+- Fayllar: `src/schedulers/speed_to_lead.py` (yangi), `src/bootstrap/orchestration/schedulers.py` (wiring), `tests/test_speed_to_lead.py`, `docs/marketing-sotuv-raqamlashtirish-prd.md`.
+- Dalil: `SKIP_LIVE=1 pytest -q` → 3074 passed, 18 skipped; bandit (o'zgargan fayllar) toza.
+- Qolgan: prod `.env` ga `SPEED_TO_LEAD_SELLER_MAP=amo_id:tg_id,...` (aks holda teg o'rniga ism); `OWNER_ID` tekshirish. Audit: Gemini, BOT_TOKEN, Moizvonki webhook, Cloudflare kalitlari yaroqsiz — Owner yangilaydi.
+
+- **2026-10-26 — Claude — Jamoa ritmi + Hamroh Oisha-OS ichiga integratsiya qilindi (branch `feat/jamoa-ritm-hamroh`):**
+  - **Qaror (owner, 2026-10-26)**: alohida Hermes + OpenClaw o'rnatuvchisi (`deploy/jamoa-agent/`, lokal branch `feat/jamoa-agent-contabo` `197d3455`) bekor qilindi. U push qilinmagan va serverga o'rnatilmagan. Jadval va persona arxivi: `docs/archive/jamoa-agent-hermes-openclaw/`. Funksiya @jonairobot'ning o'ziga qo'shildi.
+  - **Ritm** (`src/schedulers/jamoa_ritm_scheduler.py`, Toshkent vaqti `get_local_now`): Du 09:00 haftalik start; Se–Ju 09:00 ertalabki start; Du–Pa 17:30 kun yakuni; Ju 16:00 guruhga AI retro; Ju 17:00 egaga shaxsiy AI o'z-o'zini tahlil. Har slot kuniga bir marta (`jamoa_ritm_log`, qayta ishga tushganda ham takrorlanmaydi); slotdan keyin 30 daqiqa ichida yuborilmasa o'tkazib yuboriladi. Ulanish: `bootstrap/orchestration/schedulers.py`.
+  - **Hamroh** (`src/handlers/jamoa_hamroh.py`): aiogram `message` outer-middleware jamoa guruhidagi a'zolar matnini `jamoa_xabarlar` ga jim yozadi (35 kun saqlanadi). @mention yoki bot xabariga reply bo'lsa, oxirgi 24 soatlik kontekst bilan `free_ai_router` orqali javob beradi. Buyruqlar (`/...`), boshqa botlar, quiet-hours (23:00–07:00) va `ReplyLimiter` (a'zoga 10 s, daqiqasiga 8 ta) javobsiz qoladi. Ulanish: `bootstrap/orchestration/bot_head.py` da legacy catch-all `attach()` dan OLDIN.
+  - **Sozlash (env, `settings.py` ga tegilmadi)**: `JAMOA_GROUP_ID` (majburiy; bo'lmasa ikkala funksiya ham o'chiq), `JAMOA_OWNER_ID` (standart `OWNER_ID`), `JAMOA_RITM_ENABLED`, `JAMOA_HAMROH_ENABLED` (standart yoqiq), `DISABLE_UNSOLICITED_REPORTS=1` ritmni o'chiradi.
+  - **O'zgargan fayllar**: `src/services/core/jamoa_ritm/{__init__,config,store,texts,brain,guard}.py`, `src/schedulers/jamoa_ritm_scheduler.py`, `src/handlers/jamoa_hamroh.py`, `src/bootstrap/orchestration/{schedulers,bot_head}.py`, `tests/test_jamoa_ritm.py`, `docs/archive/jamoa-agent-hermes-openclaw/*`, ushbu handoff. Barcha fayllar ≤ 400 qator.
+  - **Tekshiruv dalili** (lokal Windows, `.venv` Python 3.12): `tests/test_jamoa_ritm.py` 21/21 o'tdi. To'liq `SKIP_LIVE=1 pytest -q`: 2865 o'tdi, 17 skip, 1 yiqildi — `test_syntax_guard[handlers/messages.py]`. Sababi boshqa agentning commit qilinmagan `src/handlers/messages.py` (148-qatorda IndentationError); HEAD versiyasi parse bo'ladi. `tests/test_message_handler.py` shu sababli chetlab o'tkazildi. `bandit -r src/ -ll`: No issues identified. `bot_head`/`schedulers` importi `PYTHONPATH=src` bilan OK (`import config` xatosi o'zgarishdan oldin ham bor edi).
+  - **Qolgan ish / bloker**: Contabo `.env` ga `JAMOA_GROUP_ID` qo'shilmagan (qo'shilmaguncha funksiya o'chiq). @jonairobot jamoa guruhida admin ekanligi yoki Group Privacy o'chirilgani tekshirilmagan — bo'lmasa oddiy xabarlar va mention botga kelmaydi. `frog_scheduler` ham 09:00 da `TEAM_GROUP_ID` ga yozadi: `JAMOA_GROUP_ID` shu guruh bo'lsa, ikki xabar ketma-ket chiqadi. Haqiqiy Telegram va AI provayder bilan sinalmagan. Rebase: `origin/main` (`5f7e94fd`) ustiga; shu holatda to'liq `SKIP_LIVE=1 pytest -q`: 3179 o'tdi, 17 skip, 0 yiqildi; bandit toza. Branch push qilindi va PR ochildi; merge qilinmagan.
+
+## 2026-10-29 - Oisha: Moizvonki roster yagona manbaga o'tkazildi
+- Muammo: `MOIZVONKI_REP_NAMES` ikki joyda (systemd `Environment=` va `.env`) turardi; `EnvironmentFile` env'dagi eski Farangiz rosterini ustidan yozardi. Deploy workflow `.env` ni qayta yozganda `MOIZVONKI_*` qatorlarini saqlab qolgani uchun xato har deployda takrorlanardi.
+- Yechim: yangi `config/moizvonki_roster.json` (git-tracked) — yagona manba. `src/services/call_analytics/moizvonki_roster.py` faylni ustuvor o'qiydi, `MOIZVONKI_REP_NAMES` faqat fayl yo'q bo'lsa ishlaydi va farq bo'lsa warning yozadi. `MOIZVONKI_ROSTER_FILE` bilan boshqa fayl ko'rsatish mumkin.
+- `scripts/hourly_sales_control.py` endi repoda (avval faqat serverda edi) va rosterda yo'q akkauntlarni "Ro'yxatda yo'q akkauntlar" bo'limida ko'rsatadi — jim yo'qotish yo'q.
+- `scripts/daily_sales_calls_report.py`, `src/services/core/rop/fetchers.py`, `src/schedulers/unowned_lead_alert.py` ham shu loaderga o'tdi; defaultlardan Farangiz olib tashlandi (u jamoada yo'q, eski tegi leadni «egallangan» qilib ko'rsatmaydi). `deploy/systemd/oisha-calls-report.service` dan takroriy Environment qatori olib tashlandi; `oisha-sales-hourly.service/.timer` repoga qo'shildi va deploy workflow ularni o'rnatadi. Deploy path filteriga `config/**` qo'shildi.
+- Tekshiruv: 33 focused test passed (`test_moizvonki_roster`, `test_unowned_lead_alert`, `test_daily_sales_calls_report`), compileall OK, bandit -ll toza. Prodda qo'lda tekshirilgan: 24 soatda `mumtozmaxal@jonbranding.uz` bo'yicha 19 qo'ng'iroq.
+- Ochiq: PR merge va keyingi deploy; `jonbranding@agency.uz` akkaunti rosterda yo'q — hisobotda alohida ko'rinadi, egasi qaror qilishi kerak.
+
+## 2026-10-29 - Tuzatish: xayrullayevna006@gmail.com — Shahnoza, Rayxon emas
+- Owner tuzatdi: `xayrullayevna006@gmail.com` — Shahnozaning shaxsiy Gmail akkaunti. Avvalgi rosterda u Rayxonga bog'langan edi (xato).
+- `config/moizvonki_roster.json`: gmail endi `Shahnoza`. 30 kunlik tekshiruv: bu akkauntda 0 qo'ng'iroq, ya'ni raqamlarga ta'siri yo'q edi, lekin nomlash xato edi.
+- `src/schedulers/remote_staff_checkin_scheduler.py`: gmail Rayxonning `DEFAULT_REP_EMAILS` dan olib tashlanib Shahnozaning email ro'yxatiga qo'shildi; `scripts/dispatch_remote_checkin.py` dry-run ham yangilandi.
+- `src/services/call_analytics/call_report_formatter.py`: `_merge_reps_by_name` qo'shildi — bir xil ko'rsatiladigan ismli akkauntlar (ish + shaxsiy) bitta qatorga qo'shiladi. `REP_TG_USERNAMES` dan Farangiz olib tashlandi.
+- Eski `oisha-sales-hourly-check.service` (stale roster, timer yo'q) prod serverdan o'chirildi.
+- Tekshiruv: `tests/test_call_report_merge.py` qo'shildi va o'tadi; 90 focused test passed; prodda `get_reps()` = Rayxon [ish], Mumtozmaxal [ish], Shahnoza [ish + gmail].
+
+## 2026-10-30 - Codex: PR #920 conflict resolution
+- Merged current main into PR tree without switching the shared working branch or touching unrelated dirty files. Preserved PR pattern matching and unknown savings semantics; carried main Chat Manager inbound/draft recording into the extracted Instagram webhook processor. Preserved both handoff histories.
+- Validation: syntax and focused tests recorded in the PR follow-up; merge/deploy remain separate.
+- Verified: 72 focused tests passed against Git-tree source modules (pattern detector, Instagram security/integration, Chat Manager); Bandit -ll on four resolved production modules: no medium/high findings; diff --check passed. Full suite and filesystem-dependent PR regressions not validated by the in-memory tree harness.

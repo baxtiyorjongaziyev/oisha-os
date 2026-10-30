@@ -3,13 +3,9 @@ import datetime
 import logging
 import sys
 
-# Project imports
-project_dir = r"c:\Users\baxti\.gemini\antigravity\playground\oisha-os"
-sys.path.append(project_dir)
-
-import settings
-from amocrm_sync import AmoCRMSync
-from database import Database
+from src import settings
+from src.database import Database
+from src.services.core.crm.amocrm_sync import AmoCRMSync
 from telegram import Bot
 
 logging.basicConfig(
