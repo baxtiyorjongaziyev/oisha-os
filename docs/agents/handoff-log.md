@@ -2161,5 +2161,6 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - `.githooks/pre-commit` (staged tekshiruv) + `Makefile` da `make hooks` va `make uzbek-text`. `AGENTS.md` pre-flight ro'yxatiga `python scripts/check_uzbek_text.py --staged` qo'shildi.
 - `.github/workflows/uzbek-text-guard.yml`: PR da `--base` diff, main pushda `--all --baseline`, alohida guard testlari.
 - `.agents/skills/uzbek-text/SKILL.md`: baseline, hook va CI bo'limlari bilan yangilandi.
+- `GEMINI.md`, `.cursor/rules/preflight.mdc`, `.agents/skills/preflight/SKILL.md` va `.claude/skills/preflight/SKILL.md` ga ham `--staged` buyrug'i qo'shildi — barcha agentlar bir xil tekshiradi.
 - Tekshiruv: `tests/test_check_uzbek_text.py` 11 passed; `--all --baseline` toza (1575 fayl); legacy fayl baseline bilan toza; workflow YAML parse OK.
 - Ochiq: GitHub Actions CI joblari billing/spending-limit sabab ishlamaydi (PR #991 da kuzatilgan; kod emas); baseline hozircha fayl darajasida, so'z darajasida emas.
