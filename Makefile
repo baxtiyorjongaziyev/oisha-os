@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: up migrate dev test build lint typecheck python-test
+.PHONY: up migrate dev test build lint typecheck python-test hooks uzbek-text
 
 up:
 	docker compose up -d postgres redis minio
@@ -25,3 +25,11 @@ typecheck:
 
 python-test:
 	python -m pytest -q
+
+# O'zbekcha matn guard (ASCII apostrof) — pre-commit hook va qo'lda tekshiruv.
+hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks o'rnatildi: core.hooksPath=.githooks"
+
+uzbek-text:
+	python scripts/check_uzbek_text.py --staged

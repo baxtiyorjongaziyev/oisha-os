@@ -89,6 +89,7 @@ Icon?
 !requirements.txt
 !requirements-dev.txt
 !requirements-lock.txt
+!config/uzbek_text_baseline.txt
 logs/
 audit/
 out/

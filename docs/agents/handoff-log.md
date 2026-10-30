@@ -2080,3 +2080,12 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - `src/services/call_analytics/call_report_formatter.py`: `_merge_reps_by_name` qo'shildi — bir xil ko'rsatiladigan ismli akkauntlar (ish + shaxsiy) bitta qatorga qo'shiladi. `REP_TG_USERNAMES` dan Farangiz olib tashlandi.
 - Eski `oisha-sales-hourly-check.service` (stale roster, timer yo'q) prod serverdan o'chirildi.
 - Tekshiruv: `tests/test_call_report_merge.py` qo'shildi va o'tadi; 90 focused test passed; prodda `get_reps()` = Rayxon [ish], Mumtozmaxal [ish], Shahnoza [ish + gmail].
+
+## 2026-10-30 - Guard: ASCII apostrof uchun baseline, pre-commit va CI
+- `scripts/check_uzbek_text.py`: `--baseline [fayl]` va `--write-baseline` qo'shildi; xatolar `Violation` dataclass orqali yig'iladi. Baseline soni tugagach keyingi xato qaytariladi (ratchet). `--staged`/`--base` diff rejimlarida baseline qo'llanmaydi — har bir qo'shilgan qator tekshiriladi.
+- `config/uzbek_text_baseline.txt`: 769 faylda 7564 mavjud xato fayl bo'yicha qulflandi (`<son>\t<path>`, 32 KB). Yangi fayl yoki fayldagi son oshsa CI qizil.
+- `.githooks/pre-commit` (staged tekshiruv) + `Makefile` da `make hooks` va `make uzbek-text`. `AGENTS.md` pre-flight ro'yxatiga `python scripts/check_uzbek_text.py --staged` qo'shildi.
+- `.github/workflows/uzbek-text-guard.yml`: PR da `--base` diff, main pushda `--all --baseline`, alohida guard testlari.
+- `.agents/skills/uzbek-text/SKILL.md`: baseline, hook va CI bo'limlari bilan yangilandi.
+- Tekshiruv: `tests/test_check_uzbek_text.py` 11 passed; `--all --baseline` toza (1559 fayl); legacy fayl baseline bilan toza; workflow YAML parse OK.
+- Ochiq: PR #991 CI joblari GitHub billing sabab ishlamaydi (kod emas); baseline hozircha fayl darajasida, so'z darajasida emas.
