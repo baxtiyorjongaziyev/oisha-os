@@ -153,6 +153,11 @@ async def run_call_analysis_scan(
 
         from src.services.call_analytics.script_learning_hook import refresh_scripts
         await refresh_scripts(client)
+        try:
+            from src.services.call_analytics.quality_backfill import backfill_quality
+            await backfill_quality(database, analyzer, limit=3)
+        except Exception as exc:
+            logger.warning("[CONTEXTUAL QUALITY] Replay failed: %s", type(exc).__name__)
 
         logger.info(
             "[CALL-SCHEDULER] Sweep complete: %d leads scanned, %d calls processed, %d errors in %.2fs",
