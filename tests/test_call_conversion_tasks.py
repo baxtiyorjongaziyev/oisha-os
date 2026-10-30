@@ -122,6 +122,21 @@ class TestCallConversionAndTasks:
         assert normalized["kelishilgan_vaqt"] is not None
         assert normalized["kelishilgan_vaqt"].hour == 15
 
+    def test_normalizer_exposes_voice_scores_and_success_status(self):
+        analyzer = DummyAnalyzer()
+        normalized = analyzer._normalise_analysis(
+            {
+                "category": "Mijoz",
+                "natija": "tolov_kelishildi",
+                "ovoz_ohangi": 94,
+                "nutq_aniqligi": 91,
+            },
+            "Qisqa audio",
+        )
+        assert normalized["ovoz_ohangi"] == 94
+        assert normalized["nutq_aniqligi"] == 91
+        assert normalized["holat"] == "Muvaffaqiyatli yakunlangan"
+
     def test_build_amocrm_note_includes_conversion_section(self):
         """Built AmoCRM note must contain the conversion advice section."""
         analyzer = DummyAnalyzer()
@@ -191,6 +206,22 @@ class TestCallConversionAndTasks:
         assert "⏰ <b>Kelishilgan vaqt:</b> 02.09.2026 10:00" in msg
         assert "💡 <b>Konversiya Tavsiyalari:</b>" in msg
         assert "Task #task_555" in msg
+
+    def test_telegram_alert_includes_voice_quality_and_status(self):
+        msg = build_call_alert_message(
+            lead_id=1, call_id="call", category="Mijoz", summary="x",
+            client_mood="Ijobiy", next_steps="KP", duration_seconds=60,
+            manager_name="Ali", caller_phone="+998", analysis={
+                "sifat_bahosi": 79, "natija": "tolov_kelishildi",
+                "holat": "Muvaffaqiyatli yakunlangan", "ovoz_ohangi": 94,
+                "nutq_aniqligi": 91, "client_talk_pct": 74,
+                "agent_talk_pct": 26,
+            },
+        )
+        assert "Muvaffaqiyatli yakunlangan" in msg
+        assert "Ovoz ohangi: 94/100" in msg
+        assert "Nutq aniqligi: 91/100" in msg
+        assert "Mijoz 74% | Sotuvchi 26%" in msg
 
     @pytest.mark.asyncio
     async def test_scheduler_scan_execution(self):

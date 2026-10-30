@@ -6,6 +6,8 @@ from src.services.core.sales_playbook import (
     STAGE_WEIGHTS,
     normalise_outcome,
     outcome_converted,
+    OUTCOME_FOLLOW_UP,
+    OUTCOME_REFUSED,
 )
 from src.services.utils.transcript import (
     detect_pauses,
@@ -86,6 +88,23 @@ class CallNormalizerMixin:
         keyingi_kelishuv = normalize_name_spellings(str(data.get("keyingi_kelishuv") or "").strip())
         natija = normalise_outcome(data.get("natija"))
 
+        def _optional_score(*keys: str):
+            for key in keys:
+                if data.get(key) is not None and data.get(key) != "":
+                    return _clamp_score(data.get(key))
+            return None
+
+        ovoz_ohangi = _optional_score("ovoz_ohangi", "tone_score")
+        nutq_aniqligi = _optional_score("nutq_aniqligi", "clarity_score")
+        if outcome_converted(natija):
+            holat = "Muvaffaqiyatli yakunlangan"
+        elif natija == OUTCOME_FOLLOW_UP:
+            holat = "Keyingi aloqa kerak"
+        elif natija == OUTCOME_REFUSED:
+            holat = "Muvaffaqiyatsiz yakunlangan"
+        else:
+            holat = "Aniqlanmadi"
+
         # --- Rubrik baholar ---
         rubrik_raw = data.get("rubrik_baholar") or {}
         if rubrik_raw and isinstance(rubrik_raw, dict):
@@ -150,7 +169,10 @@ class CallNormalizerMixin:
             # Murabbiylik qatlami (sales_quality_coach, metasell_conversion)
             # aynan shu maydonlarni o'qiydi.
             "natija": natija,
+            "holat": holat,
             "natija_ishonch": _normalise_outcome_confidence(data.get("natija_ishonch")),
+            "ovoz_ohangi": ovoz_ohangi,
+            "nutq_aniqligi": nutq_aniqligi,
             "konversiya": outcome_converted(natija),
             "uzilish_vaqti": breakdown_at,
             "uzilish_sababi": breakdown_reason,
@@ -253,7 +275,10 @@ class CallNormalizerMixin:
             },
             # Baholanmagan qo'ng'iroq konversiya statistikasiga kirmaydi.
             "natija": OUTCOME_UNKNOWN,
+            "holat": "Aniqlanmadi",
             "natija_ishonch": 0.0,
+            "ovoz_ohangi": None,
+            "nutq_aniqligi": None,
             "konversiya": False,
             "uzilish_vaqti": None,
             "uzilish_sababi": "",

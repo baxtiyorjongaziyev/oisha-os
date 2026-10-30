@@ -115,6 +115,8 @@ class CallScorerMixin:
                 '  "joylashuv": "shahar/viloyat yoki N/A",\n'
                 '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"],\n'
                 '  "natija": "yuqoridagi natija kalitlaridan bittasi",\n'
+                '  "ovoz_ohangi": <0-100: ovozning professional, xotirjam va hurmatli ohangi>,\n'
+                '  "nutq_aniqligi": <0-100: gaplarning ravshanligi, tushunarliligi va keraksiz chalkashlik yo\'qligi>,\n'
                 '  "natija_ishonch": "natija aniqligiga ishonch, 0.0-1.0 son '
                 '(aniq kelishuv bo\'lsa 0.9+, taxmin bo\'lsa 0.5 dan past)",\n'
                 '  "uzilish_vaqti": "Agar suhbat biror lahzada BUZILGAN bo\'lsa '
@@ -210,6 +212,7 @@ class CallScorerMixin:
             "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
             "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
             "JSON schema: summary, category, client_mood, next_steps, keyingi_kelishuv, "
+            "ovoz_ohangi (0-100), nutq_aniqligi (0-100), natija, natija_ishonch, "
             "konversiya_tavsiyalari (array of 1-3 actionable advice), "
             "kelishilgan_vaqt (suhbatda aniq kun/soat kelishilgan bo'lsa "
             "\"YYYY-MM-DD HH:MM\" formatida, aks holda null).\n\n"
@@ -281,6 +284,8 @@ class CallScorerMixin:
             '  "keyingi_kelishuv": "Kelishilgan aniq qadam",\n'
             '  "kelishilgan_vaqt": "Aniq kun/soat kelishilgan bo\'lsa YYYY-MM-DD HH:MM, aks holda null",\n'
             '  "natija": "yuqoridagi natija kalitlaridan bittasi",\n'
+            '  "ovoz_ohangi": <0-100>,\n'
+            '  "nutq_aniqligi": <0-100>,\n'
             '  "natija_ishonch": "natija aniqligiga ishonch, 0.0-1.0 son '
             '(aniq kelishuv bo\'lsa 0.9+, taxmin bo\'lsa 0.5 dan past)",\n'
             '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta)"],\n'

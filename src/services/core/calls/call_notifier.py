@@ -56,6 +56,7 @@ def build_call_alert_message(
     lead_url = f"https://{subdomain}.amocrm.ru/leads/detail/{lead_id}"
 
     outcome = analysis.get("natija") or analysis.get("outcome") or ""
+    status = analysis.get("holat") or ""
     score = analysis.get("sifat_bahosi") or analysis.get("overall_score") or ""
     objections = analysis.get("etirozlar") or analysis.get("objections") or []
     if isinstance(objections, list):
@@ -70,8 +71,24 @@ def build_call_alert_message(
         f"⏱ <b>Davomiyligi:</b> {dur_m}m {dur_s}s",
         f"🎭 <b>Kayfiyat:</b> {client_mood} | <b>Toifa:</b> {category}",
     ]
+    if status:
+        msg_lines.append(f"📌 <b>Holati:</b> {status}")
     if score:
         msg_lines.append(f"⭐️ <b>Sifat Bahosi:</b> {score}/100")
+    voice_score = analysis.get("ovoz_ohangi")
+    clarity_score = analysis.get("nutq_aniqligi")
+    if voice_score is not None or clarity_score is not None:
+        msg_lines.append(
+            "🎙 <b>Nutq tahlili:</b> "
+            + (f"Ovoz ohangi: {voice_score}/100" if voice_score is not None else "Ovoz ohangi: Noma'lum")
+            + " | "
+            + (f"Nutq aniqligi: {clarity_score}/100" if clarity_score is not None else "Nutq aniqligi: Noma'lum")
+        )
+    if analysis.get("client_talk_pct") is not None or analysis.get("agent_talk_pct") is not None:
+        msg_lines.append(
+            f"🗣 <b>Muloqot balansi:</b> Mijoz {analysis.get('client_talk_pct', 0)}% | "
+            f"Sotuvchi {analysis.get('agent_talk_pct', 0)}%"
+        )
     if outcome:
         msg_lines.append(f"📊 <b>Natija:</b> {outcome}")
     if objections:

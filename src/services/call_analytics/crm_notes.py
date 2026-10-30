@@ -87,6 +87,18 @@ class CallCrmNotesMixin:
             f"Servis yo'nalishi: {analysis.get('servis_yonalishi') or 'Boshqa'}",
             f"Kayfiyat: {mood}",
         ]
+        if "holat" in analysis:
+            lines.append(f"Holati: {analysis.get('holat') or 'Aniqlanmadi'}")
+        if analysis.get("ovoz_ohangi") is not None or analysis.get("nutq_aniqligi") is not None:
+            voice = analysis.get("ovoz_ohangi")
+            clarity = analysis.get("nutq_aniqligi")
+            voice_label = voice if voice is not None else "Noma'lum"
+            clarity_label = clarity if clarity is not None else "Noma'lum"
+            lines.append(
+                "Nutq tahlili: "
+                f"Ovoz ohangi {voice_label}/100 | "
+                f"Nutq aniqligi {clarity_label}/100"
+            )
 
         if rubrik_amal_qiladi:
             rubrik = analysis.get("rubrik_baholar") or {}
