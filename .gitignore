@@ -17,6 +17,7 @@ apps/**/.next/
 apps/**/dist/
 apps/ai_studio_preview/
 packages/**/dist/
+apps/ai_studio_preview/
 *.tsbuildinfo
 
 # Python
@@ -171,3 +172,6 @@ data/job_claims/
 
 # Second Brain digest dedupe state (runtime)
 data/brain_digest_state.txt
+
+# Companion runtime contains reusable authentication tokens and token-bearing logs.
+.superpowers/

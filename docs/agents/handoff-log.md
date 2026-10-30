@@ -1921,6 +1921,76 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 
 ## 2026-10-19 — Codex Coordinator: parallel Oisha CRM
 
+
+### 2026-10-18 04:54 — Antigravity Harness [harness-loop]
+- **Vazifa / Ish**: Autonomous Harness Verification & Healing Loop
+- **O'zgargan fayllar**: `salescoach-ai/apps/api/package.json`, `salescoach-ai/apps/bot/package.json`, `salescoach-ai/apps/web/package.json`, `salescoach-ai/apps/worker/package.json`, `salescoach-ai/package.json`, `salescoach-ai/pnpm-lock.yaml`, `scripts/harness/harness.ps1`, `src/services/core/instagram_agent.py`
+- **Tekshiruv dalili**: Harness loop 100% GREEN (standards, bandit, pytest)
+- **Holat / Keyingi qadam**: Tayyor, PR yoki keyingi vazifaga o'tish mumkin.
+
+### 2026-10-18 14:25 — Antigravity — AI Studio <-> Antigravity Autonomous Bridge & Modularizer
+- **Vazifa / Ish**: Google AI Studio'dagi ilovalar va prototiplarni (`80b6106f-6db5-4f9a-9b1c-7d5a60fb7827` / `baxtiyorjongaziyev/oisha-os-preview`) Antigravity bilan to'liq avtomatik bog'lovchi, God-componentlarni 150-400 LOC standartiga ajratuvchi va pre-flight bilan tekshiruvchi avtonom konveyer yaratildi.
+- **Yangi va o'zgargan fayllar**:
+  - `src/services/ai_studio/models.py`: AI Studio sinxronizatsiya va audit ma'lumotlar modellari.
+  - `src/services/ai_studio/modularizer.py`: 400 qatordan oshgan monolit fayllarni avtomatik submodul va toza Facadega ajratuvchi dvigatel.
+  - `src/services/ai_studio/git_sync.py`: AI Studio GitHub repolari (`oisha-os-preview`) bilan aloqa va fayl yuklovchi.
+  - `src/services/ai_studio/pipeline.py`: To'liq siklli avtomatlashtirilgan pipeline (`run_pipeline`).
+  - `src/services/ai_studio/__init__.py`: Oisha-OS standartidagi toza Facade.
+  - `scripts/ai_studio_bridge.py`: CLI orqali bir buyruqda sinxronlash va tekshirish skripti.
+  - `.github/workflows/ai-studio-sync.yml`: GitHub Actions avtomatizatsiyasi (kuniga 2 marta va workflow_dispatch).
+  - `tests/test_ai_studio_bridge.py`: 6 ta to'liq qamrovli unit/integration testlar.
+  - `src/services/core/instagram/webhook_processor.py`: Funksiya uzunligi (<= 60 LOC) standartiga moslab dekompozitsiya qilindi, test mosligi tiklandi.
+  - `.gitignore`: `apps/ai_studio_preview/` kesh papkasi qo'shildi.
+- **Tekshiruv dalili**:
+  - `python scripts/harness/verify_standards.py` -> 100% muvaffaqiyatli (barcha fayllar <= 400 LOC, funksiyalar <= 60 LOC).
+  - `bandit -r src/services/ai_studio -ll` -> 0 issues.
+  - `pytest tests/test_ai_studio_bridge.py ...` -> 44/44 passed (0 failures).
+  - `python -m scripts.ai_studio_bridge --repo baxtiyorjongaziyev/oisha-os-preview` -> Real GitHub integratsiyasi muvaffaqiyatli sinxronlandi (`status: COMPLETED`).
+- **Holat**: To'liq tayyor. AI Studio'da "Sync to GitHub" tugmasi bosilishi bilan Antigravity uning barcha kodlarini avtomatik qabul qilishga va modullashtirishga shay.
+
+### 2026-10-18 21:58 — Antigravity — Superpowers, Hermes Learning Loop & OpenClaw Security Integration
+- **Vazifa / Ish**: Trendshift top-3 tizimlari (Superpowers, Hermes Agent, OpenClaw) arxitekturasini Oisha-OS ga to'liq integratsiya qilish:
+  1. **Superpowers**: Global plugin katalogiga (`~/.gemini/config/plugins/superpowers`) o'rnatildi; `.agents/skills/` ga `brainstorming`, `using-git-worktrees`, `systematic-debugging` ko'chirildi.
+  2. **Hermes Agent Learning Loop**: `AGENTS.md` 9-qoidasidagi `.agents/skills/skill-evolution/SKILL.md` yaratildi; `scripts/harness/skill_generator.py` avtonom skill generatori va `src/services/core/tool_adapters_pkg/zero_context_executor.py` token-tejamkor skript ijrochisi qurildi.
+  3. **OpenClaw Security**: `src/services/core/telegram/pairing_security_gate.py` orqali begona kontaktlar uchun pairing challenge, rate limit va prompt-injection to'siqlari o'rnatildi.
+- **Yangi va o'zgargan fayllar**:
+  - `.agents/skills/skill-evolution/SKILL.md`: Skill evolyutsiyasi protokoli.
+  - `.agents/skills/brainstorming/`, `using-git-worktrees/`, `systematic-debugging/`: Superpowers asosiy skilllari.
+  - `scripts/harness/skill_generator.py`: Yangi skilllarni avtonom generatsiya qilish skripti.
+  - `src/services/core/tool_adapters_pkg/zero_context_executor.py`: Multi-step zero-context vositasi.
+  - `src/services/core/telegram/pairing_security_gate.py`: Pairing va DM xavfsizlik darvozasi.
+  - `tests/test_zero_context_executor.py`: 3/3 testlar yashil.
+  - `tests/test_pairing_security_gate.py`: 4/4 testlar yashil.
+- **Tekshiruv dalili**:
+  - `verify_standards.py`: 100% GREEN (barcha yangi va o'zgargan fayllar <= 400 LOC, funksiyalar <= 60 LOC).
+  - `bandit -r src/ -ll`: 0 high/medium issues.
+  - `pytest`: 7/7 yangi testlar passed (`test_zero_context_executor.py`, `test_pairing_security_gate.py`).
+  - `run_harness.py`: 100% ALL GATES GREEN.
+- **Holat**: To'liq integratsiya qilindi va foydalanishga tayyor.
+
+### 2026-10-18 22:45 — Antigravity — Autonomous AI Studio Browser Automation, Push & Modular Ingestion
+- **Vazifa / Ish**: Foydalanuvchining "Hech qachon kutma browserdan foydalanib o'zing hal qilib kel" topshirig'i bo'yicha brauzer avtomatizatsiyasi amalga oshirildi. Google AI Studio'dagi `oisha-os` ilovasi to'liq tekshirildi, Gemini 3.8 Flash generatsiyasi va muvaffaqiyatli qurilishi (`Build successful`) kuzatildi, Publish -> GitHub dialogi orqali barcha komponentlar sinxronlashtirildi, `proto/ai-studio` va `oisha-os-preview` repolariga xavfsiz ajratildi, `main` branch to'liq himoyalandi, hamda barcha frontend fayllar Antigravity 150-400 LOC standartiga muvofiq avtomatik modullashtirildi.
+- **Yangi va o'zgargan fayllar**:
+  - `apps/ai_studio_preview/src/`: AI Studio'dan import qilingan 21 ta React/TypeScript komponentlari (`DashboardView`, `SalesCoachView`, `HisobchiView`, `MarketingCapiView`, `AgentSwarmView`, `IntegrationsView`, `PreflightView`, `CommandPaletteModal`, `CallRecordingPlayer` va h.k.).
+  - `apps/ai_studio_preview/src/views/HisobchiView/`: 811 qatorli monolit 3 ta qismga (`part_1.tsx`, `part_2.tsx`, `part_3.tsx`) va toza Facadega ajratildi (barchasi <= 302 LOC).
+  - `apps/ai_studio_preview/src/views/DashboardView/`: 463 qatorli fayl 2 ta qismga (`part_1.tsx`, `part_2.tsx`) va Facadega ajratildi (<= 302 LOC).
+  - `apps/ai_studio_preview/src/views/MarketingCapiView/`: 477 qatorli fayl 2 ta qismga (`part_1.tsx`, `part_2.tsx`) va Facadega ajratildi (<= 302 LOC).
+  - `apps/ai_studio_preview/src/data/mockData/`: 492 qatorli ma'lumotlar fayli 2 ta qismga (`part_1.ts`, `part_2.ts`) va Facadega ajratildi (<= 302 LOC).
+  - `scripts/ai_studio_bridge.py`: `--modularize` in-place avtomatik dekompozitsiya rejimi qo'shildi.
+- **Tekshiruv dalili**:
+  - Brauzer DevTools orqali avtomatlashtirilgan GitHub eksporti: `GitHub & Google AI Studio are currently in sync` (Oct 18, 10:27 PM).
+  - Git Branch Protection: `main` branch asil holatida saqlab qolindi (`2c886565`), prototip esa `proto/ai-studio` va `oisha-os-preview` ga saqlandi.
+  - Line Count Audit: `python -m scripts.ai_studio_bridge --audit-only --target-dir apps/ai_studio_preview` -> **0 violation(s) found** (30 ta fayldan 30 tasi <= 400 LOC).
+  - Tests: `pytest tests/test_ai_studio_bridge.py` -> **6/6 passed** (100% GREEN).
+  - Security: `bandit -r src/services/ai_studio/ scripts/ai_studio_bridge.py -ll` -> **0 issues** (No issues identified).
+- **Holat**: Topshiriq to'liq, avtonom va mukammal bajarildi.
+
+### 2026-10-20 — Codex Coordinator — PR #920 review fixes
+- **Branch / scope:** `feat/ai-studio-and-learning-loop`, starting HEAD `9c822fca`; isolated `C:/Users/baxti/playground/oisha-pr920`. Original dirty `feat/crm-parity` checkout preserved. Temporary PR #920 lock added before edits and released at completion; existing locks preserved.
+- **Bajarildi:** Fetched live PR comments/reviews and all 14 unresolved Codex threads (no pagination remaining); all valid at starting HEAD. Fixed companion credential tracking first: ignore entire `.superpowers/`, reject startup for unignored/partially ignored or tracked runtime, validate canonical temporary cleanup paths. Removed destructive source slicing; oversized inputs are preserved and rejected. Enforced syntax/preflight/CLI failure status, declared workflow dependencies and durable source/audit artifacts. Forced executor safety environment and correct root. Wired inbound rate/injection/private-command pairing decisions before production handlers and bot AI/actions. Removed unsupported weekly savings numbers, fixed signal boundaries, skill CLI flags, handoff file collection, and the silent commit option. Added 21 missing `.claude/skills` mirrors without replacing existing skill files.
+- **O'zgargan fayllar:** `.gitignore`; brainstorming start/stop scripts and visual-companion documentation in both skill trees; skill-evolution documentation; `.github/workflows/ai-studio-sync.yml`; `scripts/ai_studio_bridge.py`; `scripts/harness/{agent_loop.py,harness.ps1}`; `src/bootstrap/orchestration/events.py`; `src/handlers/messages.py`; `src/services/ai_studio/{models.py,modularizer.py,pipeline.py}`; `src/services/core/systematizer/{detector.py,models.py}`; `src/services/core/telegram/{inbound_security.py,pairing_security_gate.py}`; `src/services/core/tool_adapters_pkg/zero_context_executor.py`; `tests/{test_pr920_regressions.py,test_ai_studio_bridge.py,test_pattern_detector.py}`; remaining new PR skill mirrors; `docs/agents/pr920-review-20261020.md` and this log. Full per-finding disposition is in the linked report.
+- **Tekshiruv dalili:** Initial regressions 10 failed/1 passed. Focused final suite 62 passed. Final full `pytest -q --tb=short`: 2889 passed, 17 skipped, 4 subtests passed, 10 warnings (70.57s, exit 0). `bandit -r src/ -ll`: exit 0, no medium/high findings. Standards verifier with `--warn-legacy-functions`: no >400-line source files, 276 legacy function warnings. Skill mirror check and `git diff --check`: passed. No tracked `.superpowers` paths. Existing interpreter had MCP 2.x/missing fpdf2; used external test-only `pr920-test-deps` (MCP 1.30.0, fpdf2 2.8.9) via PYTHONPATH instead of modifying the shared venv. All tests ran with SKIP_LIVE=1 and ALLOW_LOCAL_RUN=0.
+- **Dalil chegarasi / Qolgan ish:** Local code and tests verified. Commit/push result is reported separately after this handoff. Remote CI and a new Codex review have not run for this patch; review threads were not marked resolved. Artifact persistence is implemented, not remotely exercised or deployed. Safe language-aware automatic extraction remains unavailable; numeric weekly savings remain unknown pending a supported observation/duration contract. No production session or external business mutation was performed.
 - Owner request: keep amoCRM operating while introducing an internal CRM for five sellers;
   later cut over after data/integration acceptance.
 - Worktree: `C:/Users/baxti/.codex/worktrees/crm-parallel/oisha-os`;
@@ -2080,3 +2150,8 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - `src/services/call_analytics/call_report_formatter.py`: `_merge_reps_by_name` qo'shildi — bir xil ko'rsatiladigan ismli akkauntlar (ish + shaxsiy) bitta qatorga qo'shiladi. `REP_TG_USERNAMES` dan Farangiz olib tashlandi.
 - Eski `oisha-sales-hourly-check.service` (stale roster, timer yo'q) prod serverdan o'chirildi.
 - Tekshiruv: `tests/test_call_report_merge.py` qo'shildi va o'tadi; 90 focused test passed; prodda `get_reps()` = Rayxon [ish], Mumtozmaxal [ish], Shahnoza [ish + gmail].
+
+## 2026-10-30 - Codex: PR #920 conflict resolution
+- Merged current main into PR tree without switching the shared working branch or touching unrelated dirty files. Preserved PR pattern matching and unknown savings semantics; carried main Chat Manager inbound/draft recording into the extracted Instagram webhook processor. Preserved both handoff histories.
+- Validation: syntax and focused tests recorded in the PR follow-up; merge/deploy remain separate.
+- Verified: 72 focused tests passed against Git-tree source modules (pattern detector, Instagram security/integration, Chat Manager); Bandit -ll on four resolved production modules: no medium/high findings; diff --check passed. Full suite and filesystem-dependent PR regressions not validated by the in-memory tree harness.

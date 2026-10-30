@@ -93,7 +93,7 @@ class SystematizationProposal:
     strategy: AutomationStrategy
     problem_statement: str
     solution_blueprint: str
-    time_saved_weekly_minutes: int
+    time_saved_weekly_minutes: Optional[int]
     target_skill_or_handler: str
     status: ProposalStatus = ProposalStatus.PENDING
     draft_sop: Optional[str] = None
@@ -140,8 +140,11 @@ class SystematizationReport:
         )
 
     @property
-    def estimated_time_saved_hours_weekly(self) -> float:
-        total_mins = sum(p.time_saved_weekly_minutes for p in self.proposals)
+    def estimated_time_saved_hours_weekly(self) -> Optional[float]:
+        if any(p.time_saved_weekly_minutes is None for p in self.proposals):
+            return None
+        total_mins = sum(p.time_saved_weekly_minutes for p in self.proposals
+                         if p.time_saved_weekly_minutes is not None)
         return round(total_mins / 60.0, 1)
 
     def to_dict(self) -> Dict[str, Any]:
