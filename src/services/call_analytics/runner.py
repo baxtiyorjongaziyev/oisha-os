@@ -21,6 +21,7 @@ from src.services.core.call_events import CallEventLog
 from src.services.call_analytics.crm_automation_hook import run_crm_automation
 from src.services.call_analytics.script_learning_hook import capture_script_sample
 from src.services.call_analytics.script_history import capture_historical_sample
+from src.services.call_analytics.quality_hook import contextual_review, save_quality
 
 logger = logging.getLogger(__name__)
 
@@ -300,6 +301,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         transcript, analysis = await self._handle_audio_pipeline(audio_url, duration, phone, lead_id, call_id)
         if not transcript or not analysis:
             return False
+        analysis["contextual_evaluation"] = await contextual_review(self, transcript)
 
         category = _normalise_category(analysis.get("category"))
         client_mood = _normalise_mood(analysis.get("client_mood"))
@@ -328,6 +330,7 @@ class CallRunnerMixin(NoteExtractorMixin):
                     analysis, [note1, note2],
                 )
             await capture_script_sample(note, lead_id, call_id, transcript, analysis)
+            await save_quality(analysis, call_id, lead_id, responsible_user_id, note.get("note_type"))
             if event_log:
                 await event_log.mark_analyzed(call_id)
         return True

@@ -28,6 +28,8 @@ from src.api.routes.state import api_state
 from src.time_utils import get_local_now
 
 router = APIRouter(tags=["sales-quality"])
+from src.services.sales_quality.intelligence_routes import router as intelligence_router
+router.include_router(intelligence_router)
 logger = logging.getLogger(__name__)
 
 

@@ -15,7 +15,13 @@ SENSITIVE = re.compile(r"(?:parol|password|token|api.?key|session|otp|pin.?kod)"
 
 
 def quality_score(analysis: dict) -> float | None:
-    raw = analysis.get("sifat_bahosi", analysis.get("overall_score"))
+    contextual = analysis.get("contextual_evaluation")
+    if isinstance(contextual, dict):
+        if not contextual.get("review_ready") or not contextual.get("sales_quality"):
+            return None
+        raw = contextual.get("score")
+    else:
+        raw = analysis.get("sifat_bahosi", analysis.get("overall_score"))
     if isinstance(raw, bool):
         return None
     try:
@@ -29,6 +35,12 @@ def script_group(analysis: dict) -> str | None:
     if analysis.get("category") != "Mijoz" or analysis.get("rubrik_amal_qiladi") is not True:
         return None
     family = FAMILIES.get(analysis.get("suhbat_oilasi"))
+    contextual = analysis.get("contextual_evaluation")
+    if isinstance(contextual, dict):
+        from src.services.call_analytics.scorecards import SALES_TYPES
+        family = contextual.get("call_type")
+        if family not in SALES_TYPES:
+            return None
     service = analysis.get("servis_yonalishi")
     return f"{family}:{service}" if family and service in SERVICES else None
 
