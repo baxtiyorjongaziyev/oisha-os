@@ -44,6 +44,12 @@ async def process_message_logic(
     elif message.caption:
         text_content = message.caption
 
+    from src.services.core.telegram.inbound_security import evaluate_message
+    decision = evaluate_message(user_id, text_content, is_private=chat.type == "private",
+                                owner_id=config.OWNER_ID)
+    if not decision.allowed:
+        return
+
     # 3. Handle Special Input (Photos / Voice)
     # (Simplified: In a full refactor, specific processors would be here)
     if message.photo:
@@ -178,6 +184,11 @@ async def handle_guest_query(
     query_id = guest_message.guest_query_id
     text = guest_message.text
     user = guest_message.from_user
+
+    from src.services.core.telegram.inbound_security import evaluate_message
+    if not evaluate_message(user.id, text or "", is_private=False,
+                            owner_id=config.OWNER_ID).allowed:
+        return
 
     logger.info(f"[GUEST] Received query from {user.first_name}: {text}")
 

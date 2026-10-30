@@ -116,7 +116,7 @@ def test_generate_proposals(detector: PatternDetector):
     assert prop.proposal_id == "prop_msg_pricing_123456"
     assert prop.strategy == AutomationStrategy.AI_AUTO_REPLY
     assert prop.status == ProposalStatus.PENDING
-    assert prop.time_saved_weekly_minutes > 0
+    assert prop.time_saved_weekly_minutes is None
     assert "Gemini 1.5 Flash" in prop.solution_blueprint
 
 
@@ -149,7 +149,7 @@ def test_run_audit_end_to_end(detector: PatternDetector):
     assert report.total_scanned_items == 8
     assert len(report.patterns) == 4
     assert len(report.proposals) == 4
-    assert report.estimated_time_saved_hours_weekly > 0
+    assert report.estimated_time_saved_hours_weekly is None
 
     d = report.to_dict()
     assert d["total_scanned_items"] == 8

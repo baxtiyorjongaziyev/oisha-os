@@ -109,6 +109,10 @@ def register_event_handlers(
             logger.error("[HISOBCHI] Dedicated handler failed: %s", exc, exc_info=True)
 
     if client:
+        from src.services.core.telegram.inbound_security import build_telethon_guard
+        client.add_event_handler(
+            build_telethon_guard(settings.OWNER_ID), events.NewMessage(incoming=True),
+        )
         client.add_event_handler(
             _hisobchi_event_handler,
             events.NewMessage(incoming=True),

@@ -1,6 +1,7 @@
 # Harness Loop Wrapper for Windows PowerShell
 param(
-    [string]$Target = ""
+    [string]$Target = "",
+    [switch]$Loop
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,12 +12,16 @@ Set-Location $root
 
 $python = Join-Path $root ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) {
-    Write-Error "Virtual environment not found at .venv\Scripts\python.exe"
+    $python = "python"
 }
+
+$scriptName = if ($Loop) { "agent_loop.py" } else { "run_harness.py" }
+$scriptPath = Join-Path $root "scripts\harness\$scriptName"
 
 $harnessArgs = @()
 if ($Target) {
     $harnessArgs += $Target
 }
-& $python (Join-Path $root "scripts\harness\run_harness.py") @harnessArgs
+
+& $python $scriptPath @harnessArgs
 exit $LASTEXITCODE
