@@ -14,7 +14,7 @@
 | Joriy holat, operatsion eslatmalar, refactor tarixi | `docs/agents/state-and-history.md` |
 | Agent handoff jurnali (tarix + yangi yozuvlar) | `docs/agents/handoff-log.md` |
 | Avtonom dev loop (Ralph) | `scripts/ralph/` |
-| Deploy | `DEPLOYMENT.md`, `deploy/` |
+| Deploy | `DEPLOYMENT.md`, `deploy/`, `.agents/skills/contabo-devops/SKILL.md` |
 | Xavfsizlik | `SECURITY.md`, `docs/security/` |
 | Eski hisobot va handofflar | `docs/archive/` |
 | Telegram networking lidlarini CRM/Obsidianga sinxronlash | `.agents/skills/community-lead-sync/SKILL.md` |
@@ -101,8 +101,11 @@
 | **Documentation** | README, API docs, inline docs | — |
 | **Performance** | profiling, caching, optimization | — |
 | **Code Quality** | dead code, naming, type hints | — |
+| **DevOps** | Contabo VPS, systemd/Docker, health/logs, deploy (`agent-devops.md`) | — |
 
 ## Locks
+- Codex: Dependabot remediation; root/salescoach-ai manifests and lockfiles, deepmerge patch and security regression check (2026-10-30).
+- Codex: call script evidence, learning store, runner/scheduler hooks, coach script output and focused tests (2026-10-30).
 - Codex: Google sign-in flow, web auth store, OAuth routes, focused auth tests (2026-10-17).
 - Codex: prospect discovery modules, admin command hook, channel scout scheduler hook, focused tests (2026-10-13).
  

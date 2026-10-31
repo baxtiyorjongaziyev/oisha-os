@@ -3297,3 +3297,134 @@ eady: true, 	elegram_bot: ok, mocrm: connected.
 - Files: call_analytics script_evidence/script_library/script_history/script_learning_hook/winning_script_evolver, runner/scorer, call_analysis_scheduler, sales_quality_coach, tests and docs/agents/call-script-learning.md. skill-evolution/SKILL.md was not found in the project skill inventory; none was claimed read or changed.
 - Validation: 76 focused synthetic tests passed; targeted Bandit and diff check passed. No live calls, secret reads, outbound messages, push or deployment. Existing JSON is preserved and not promoted as verified evidence. CRM won is not payment proof; no uplift/payroll claim.
 - Continuing owner scope: apply Gong/NICE conversation-type scorecards, review and sales intelligence experience to Oisha.
+
+### 2026-10-30 Codex — corpus coaching evidence
+Added conversion_coaching.py; scorer.py uses shared coaching guidance for Gemini/OpenAI/free router; normalizer.py validates exact quotes and surfaces coaching in existing advice. Added tests/test_conversion_coaching_evidence.py. 31 focused tests passed; diff check passed. Existing other-agent edits preserved. Corpus export 2731 notes/2621 distinct texts; all quality-scanned, full semantic batch first request failed AllProvidersUnavailableError (Hermes/Ollama also failed). Full semantic audit incomplete. No commit/push/deploy. Deliverable status in projectless outputs/amocrm-audit/Implementation-status.md.
+
+### 2026-10-30 Codex — owner-authorized coaching deploy
+Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound coaching; quote guard rejects unverified guarantee/price superlatives; safe provider timeout/fallback; 77 focused tests and targeted Bandit passed. 18 selected source/template files deployed directly to Contabo /home/ubuntu/oisha-os; hashes verified. Backup data/deploy-backups/coaching-20261030-114927. oisha-os active/running and healthz=200. New scorecards/panel/evaluations reject unauthenticated HTTP with 401. Ubuntu-user smoke passed: 18 cards, writable review store, unknown score null; store had zero evaluations. No authenticated browser or real-call E2E acceptance yet, no full corpus audit, no conversion uplift claim. No push/merge; remote Git HEAD unchanged. Other runtime edits preserved.
+
+
+## 2026-10-30 — Codex: Hermes live read-only CRM bridge
+- Owner: "foydalana oladigan qilib ber". Independent Hermes gateway had no MCP CRM server; Python Oisha agent tools were not shared with it. Added hermes_crm_bridge.py, hermes_crm_runtime.py, scripts/hermes_crm_mcp.py, bridge guide and focused tests. Commits 837aa23, ee6a21c; no push/merge.
+- Verification: 13 focused tests passed, scoped Bandit 0 issues, diff check clean; Ruff unavailable in local interpreter. Three deployed source files SHA256 match local committed files. Existing AGENTS/handoff changes preserved.
+- Contabo: registered oisha_crm stdio MCP in Hermes config, appended operational tool-use instructions to SOUL, saved .before-crm-20261030 backups. Gateway restarted active; oisha-os active. No CRM write/task or explicit outbound message test. Gateway startup showed pre-existing Telegram forbidden/bot-to-bot delivery errors; not repaired in this scope.
+- Live evidence: as Hermes OS user MCP init/list/read passed. No-send Hermes model CLI retrieved 2026-10-30 notes 336167827 (0s), 336167301 (117s), 336165593 (95s). Transcript test failed; model admitted source failure without invented analysis. Telegram actual inbound/delivery E2E unverified.
+- Open: three Moizvonki recording URLs returned HTTP502; login page HTTP200; direct calls.list API probe HTTP403. Audio/STT end-to-end not complete. Existing malformed local bot.db does not prove live Turso corruption; no database repair performed. Remote config/prompt changes are backed up but not Git tracked.
+
+### 2026-10-30 / Codex: proposed sales KPI simulator
+- Added owner/admin KPI preview API and panel form; proposal weights 50/25/25 and minimum 20 current human-approved sales calls. Unknown inputs block totals, rejected/appealed/superseded/non-sales rows are excluded. Scoped manager/review-window query avoids the general 500-row list limit. No payroll activation or payment writes.
+- Files: sales_quality/kpi_pilot.py, kpi_routes.py, router.py, reviews.py; conversation_intelligence.html; tests/test_sales_kpi_pilot.py, test_sales_kpi_routes.py; docs/agents/sales-kpi-pilot.md.
+- Validation: 34 focused tests passed; synthetic Edge mobile form submission, incomplete-quality handling, no overflow or JS errors passed. Final diff inspected. No secrets read or displayed. Other agents' AGENTS/handoff edits preserved.
+- Open: weights/threshold/result definition require owner policy approval; financial/task inputs are manual and unverified, window uses review date rather than call date, no case-mix adjustment. Independent AI/ROP calibration and full shadow cycle remain necessary. No server deployment, push, merge or compensation activation in this task.
+
+### 2026-10-30 / Codex: owner daily funnel and EVQN evidence
+- Owner clarified 50 distinct answered customers >=180 seconds each, 20 meaningful, 10 EVQN invitations, 3 attended meetings and 1 sale. 100 attempts is a 50%-answer-rate planning estimate, not the target. EVQN = need, timing, decision maker/process, price.
+- Added funnel_policy.py targets to policy API/panel and funnel_evidence.py exact-quote AI candidates to contextual analysis/panel. Meaningful pilot adapts Salesforce BANT and Gong scorecards: customer-confirmed need, service fit, agreed next step. Owner asked for global-practice adaptation; these criteria remain a pilot, not validated universal thresholds.
+- Validation: 47 focused tests passed; targeted Bandit clean; synthetic Edge mobile form/funnel display/HTML escaping and no JS errors passed; diff reviewed. No secret read, live AI call, CRM write, outbound message or payroll change.
+- Open: no daily operational counters or cohort attribution implemented; define 180-second single/cumulative rule, sale evidence and conversion window. Independent ROP calibration and production deployment remain open. Existing AGENTS/handoff edits preserved.
+
+### 2026-10-30 / Codex: conversation panel readability redesign
+- Owner found the HTML difficult to understand. Applied redesign-existing-projects skill to the existing vanilla template: light neutral/teal surfaces, 50/20/10/3/1 plan first, separate plan/calls/accounts/criteria tabs, collapsed call details and ROP form, hidden-until-open KPI simulator, keyboard tabs/focus and mobile layout. Targets remain explicitly separate from unavailable daily actuals. API/RBAC/payroll behavior unchanged.
+- File: src/api/templates/conversation_intelligence.html. Existing unrelated dependency/workflow/AGENTS/handoff changes preserved.
+- Validation: 5 focused route/provider tests passed. Synthetic Edge browser acceptance passed: plan, tabs/keyboard, collapsed details, review submission, seller-only appeal controls, KPI incomplete preview, empty/error states, HTML escaping and 320/390/768 layouts; no JS errors. Desktop/mobile screenshots visually inspected. Final diff check clean.
+- Artifacts: external visualization directory 01a18b3a-c2b0-7110-968e-45ffb7f9119f/verify_redesign.py and redesign-desktop.png, redesign-mobile.png, redesign-call.png; fixtures are synthetic, not real operating results. No secrets/live CRM mutations, payroll activation, push/merge/deploy or authenticated live browser verification.
+
+## 2026-10-30 - Codex Dilbar heartbeat
+- Required two skills still missing; scoped alternate search no match. Financial-source deltas not checked, checkpoint unchanged; no promotion or external mutation.
+- Changed: handoff append only. Qolgan ish: recover required skill instructions. Same blocker; duplicate alert suppressed.
+
+### 2026-10-30 / opencode: Dilnoza Muminova roster correction
+- Owner: "Dilnoza Muminova degan odam ishlamaydi bizda". Report had listed her as Biznes assistent. Evidence: she is an AmoCRM client lead — "Metasell (Ra'no) - Dilnoza Muminova — LOZA BY DIOZA" (53878503) — not a staff member. Source of error: Hermes cron continuity reused the previous run's hallucinated roster.
+- Contabo Hermes cron prompts updated with strict canonical roster (Baxtiyorjon Gaziyev, Hasanboy Gaziyev, Ahroriy Abdulloh, Beslan, Dilbar, Ifora, Shahnoza Abdijabborova, Rayxona Rahimova, Mumtozmaxal Normurodova) and explicit rule: only roster names are staff; CRM/Telegram/Drive client names are not staff; "Dilnoza Muminova — mijoz (LOZA BY DIOZA), xodim emas"; prior-run names not authoritative. Job IDs 7514ea7d5246 (kunlik-fakt-hisoboti) and 883372a46b8d (ertalab-standup).
+- Backup: /home/hermes/.hermes/cron/jobs.json.bak-dilnoza-20261030. Updated prompt readback confirmed both jobs. No Telegram message sent, no report rerun, no secret read/displayed, no Git push.
+- Local: create_hermes_team_crons.sh prompts aligned. Open: Dilbar status in the same roster conflicts with older Obsidian note claiming owner confirmed her departure (2026-10-12); needs owner confirmation before changing.
+
+### 2026-10-31 / Antigravity: Architecture & RevOps Audit P0 Surgical Fixes
+- **Bajarilgan ish:**
+  1. `src/services/core/sales_staff_copilot.py` (475 -> 365 LOC, <= 400 LOC standarti tiklandi): ikki marta e'lon qilingan dublikat funksiyalar (`get_known_staff_user_id`, `bind_and_welcome_staff`, `is_checkin_interaction`) yagona dinamik implementatsiyaga birlashtirildi (endi `crm_seller_accounts` dagi barcha sotuvchilar va Rayxon orqaga mosligi to'liq ishlaydi). `generate_copilot_advice` ichidagi `FreeAIProviderRouter` fallback chaqiruvi `generate_text` (`.text`) hamda eski test mocklari uchun `.get_text` (`.content`) ni qo'llaydigan qilindi.
+  2. `src/api/routes/amocrm_integration.py` (424 -> 400 LOC): ochiq turgan `POST /amocrm/webhook` (`amocrm_register_webhook`) endpointiga `require_admin_access(request)` himoyasi qo'shildi, `register_webhook` va `amocrm.get_lead_phone` sinxron chaqiruvlari `asyncio.to_thread` ga olindi, HTTP 500 javobda ichki xato matni sizib chiqishi yopildi.
+  3. `src/services/api_server/webhooks.py` (398 LOC) va `src/services/core/leads/lead_operating_system.py` (228 LOC): event loop'ni bloklovchi sinxron `amocrm.get_lead_phone` va `at_client.update_project_fields_by_name` chaqiruvlari `await asyncio.to_thread(...)` ga o'tkazildi.
+  4. `tests/test_sales_staff_copilot.py` va `tests/test_security_audit_regressions.py` ga yangi regressiya testlari qo'shildi.
+- **O'zgargan fayllar:** `src/services/core/sales_staff_copilot.py`, `src/api/routes/amocrm_integration.py`, `src/services/api_server/webhooks.py`, `src/services/core/leads/lead_operating_system.py`, `tests/test_sales_staff_copilot.py`, `tests/test_security_audit_regressions.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:** `pytest tests/test_sales_staff_copilot.py tests/test_security_audit_regressions.py tests/test_amocrm_webhook_lead_processing.py` — 24 passed; `bandit -ll` — 0 Medium/High issues (1,174 LOC scanned); barcha o'zgargan production `.py` fayllar <= 400 qator.
+- **Qolgan ish / Holat:** O'zgarishlar lokal checkoutda (`feat/crm-parity`) tayyor; commit, push va Contabo'ga deploy qilinmadi (owner topshirig'i bilan amalga oshiriladi).
+- **Contabo Deploy (2026-10-31):** Owner topshirig'i bilan o'zgargan 5 ta fayl (`src/services/core/sales_staff_copilot.py`, `src/api/routes/amocrm_integration.py`, `src/services/api_server/webhooks.py`, `src/services/core/leads/lead_operating_system.py`, `scripts/deploy_contabo_receiver.py`) commit qilindi (`fe624308`, `1a6a57f4`, `dd6878ea`, `14b9546c`) va `scripts/deploy_contabo_direct.py --apply` orqali Contabo (`/home/ubuntu/oisha-os`) ga chiqarildi. Zaxira: `/home/ubuntu/oisha-os/data/deploy-backups/oisha-direct-1f534a17ae9d48b782e0c725f3fe782c` va `oisha-direct-4e15261ac69f430e9895e91cc850e4b2`. Jonli tekshiruv: `oisha-os` xizmati `active`, `/healthz` = `200 OK` (`db_instance: present`, `event_loop: responsive`), autentifikatsiyasiz `POST /amocrm/webhook` so'rovi `401 Unauthorized` bilan rad etildi. Git push qilinmadi.
+
+### 2026-10-31 / Antigravity: Hermes jamoa tushlik va davomat cron vazifalari (10:00, 13:00, 14:00)
+- **Bajarilgan ish:**
+  1. Contabo Hermes (`bbccdf7142e8`, `tushlik-ishtaha`, `0 13 * * 1-6`, `telegram:-1003114662117`) prompti yangilandi: soat 13:00 dagi tushlik tabrigiga soat 14:00 da ishga qaytish eslatmasi qo'shildi.
+  2. Yangi cron vazifa yaratildi: `6f582e23da97` (`tushlikdan-qaytish-tekshiruvi`, `0 14 * * 1-6`, `telegram:-1003114662117`) — dushanba–shanba kunlari soat 14:00 da tasdiqlangan jamoa a'zolarini (`Shahnoza Abdijabborova`, `Rayxona Rahimova`, `Mumtozmaxal Normurodova`, `Hasanboy Gaziyev`, `Ifora`, `Ahroriy Abdulloh`, `Beslan`, `Dilbar`) Telegram ID teglari bilan birma-bir tushlikdan ishga qaytganini tekshiradi.
+  3. Yangi cron vazifa yaratildi: `3375a5b1e741` (`ertalab-davomat-10-00`, `0 10 * * 1-6`, `telegram:-1003114662117`) — dushanba–shanba kunlari soat 10:00 da jamoa a'zolarini birma-bir teg qilib, ishga kelganliklarini va birinchi asosiy vazifasini so'rab oladi.
+  4. Zaxira: `/home/hermes/.hermes/cron/jobs.json.bak-20261031-checkin`. Lokal `create_hermes_team_crons.sh` skripti yangi cronlar bilan sinxronlandi.
+- **Tekshiruv dalili:** `hermes cron list` orqali uchala vazifa `[active]` holatda ekani va `Next run` vaqtlari (`2026-10-31T14:00:00+05:00`, `2026-11-02T10:00:00+05:00`, `2026-11-02T13:00:00+05:00`) tasdiqlandi.
+- **Qolgan ish / Holat:** Contabo Hermes'da jonli faol; lokal `create_hermes_team_crons.sh` va `docs/agents/handoff-log.md` yangilandi (commit/push qilinmadi).
+
+### 2026-10-31 / Antigravity: Yagona Xodimlar Ro'yxati (Team Roster Single Source of Truth — SSoT)
+- **Bajarilgan ish:**
+  1. `src/services/core/crm/team_roster.py` (229 LOC <= 400 LOC) yaratildi: barcha faol xodimlar (`Baxtiyorjon Gaziyev`, `Shahnoza Abdijabborova`, `Rayxona Rahimova`, `Mumtozmaxal Normurodova`, `Hasanboy Gaziyev`, `Ifora`, `Ahroriy Abdulloh`, `Beslan`, `Dilbar`), ularning Telegram user ID, `@username`, AmoCRM `rep_id`, Airtable record ID va Moizvonki email manzillari yagona SSoT modulga birlashtirildi hamda `data/crm_dialer.db` bilan dinamik sinxronlandi. Sobiq xodimlar (`farangiz`, `oydin`) va mijoz ismlari (`dilnoza`, `dilnoza_muminova`) `EXCLUDED_NON_STAFF_SLUGS` orqali qat'iy bloklandi.
+  2. Quyidagi modullar yagona `team_roster` manbasiga ulandi:
+     - `src/services/core/crm/caller_id_service.py` (eskirgan `oydin@jonbranding.uz` olib tashlandi, `get_moizvonki_rep_map()` va `find_staff()` ga ulandi).
+     - `src/services/call_analytics/call_report_formatter.py` (`get_rep_tg_usernames()` va `find_staff()` ga ulandi).
+     - `src/schedulers/unowned_lead_alert.py` (`get_known_manager_tags()` ga ulandi).
+     - `src/services/core/sales_staff_copilot.py` (`get_all_staff()` SSoT bilan birlashtirildi).
+     - `scripts/daily_sales_calls_report.py` (`parse_rep_names()` standart qiymatlarni SSoT dan oladi).
+     - `src/services/core/hermes_crm_bridge.py` (`crm_get_team_roster` MCP tool qo'shildi, Hermes bevosita SSoT rosterni o'qiy oladi).
+  3. Contabo Hermes `/home/hermes/.hermes/memories/MEMORY.md` faylidan eski galutsinatsiya qilingan `Dilnoza Muminova — Business Assistant` yozuvi tozalandi va tasdiqlangan SSoT roster muhrlandi (zaxira: `MEMORY.md.bak-20261031`).
+- **O'zgargan fayllar:** `src/services/core/crm/team_roster.py`, `src/services/core/crm/caller_id_service.py`, `src/services/call_analytics/call_report_formatter.py`, `src/schedulers/unowned_lead_alert.py`, `src/services/core/sales_staff_copilot.py`, `src/services/core/hermes_crm_bridge.py`, `scripts/daily_sales_calls_report.py`, `tests/test_team_roster.py`, `create_hermes_team_crons.sh`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_team_roster.py tests/test_unowned_lead_alert.py tests/test_sales_staff_copilot.py` — 31/31 passed.
+  - `bandit -ll` — 0 Medium/High issues (1,611 LOC scanned).
+  - Contabo deploy: commit `69897ca6`, `deploy_contabo_direct.py --apply` -> 7 ta fayl SHA256 xeshlari tasdiqlandi, `/healthz` = `200 OK` (zaxira: `oisha-direct-928ce20cb1ba46d0b9e390b50b81dc3f`).
+  - Jonli cron tekshiruvi: soat `14:00:22` da `tushlikdan-qaytish-tekshiruvi` (`6f582e23da97`) Jamoa guruhiga (`-1003114662117`) muvaffaqiyatli yuborildi (`status: ok`).
+- **Qolgan ish / Holat:** Local commit (`69897ca6`) va Contabo prod deploy bajarildi; Git push qilinmadi.
+
+### 2026-10-31 / Antigravity: 1-AI Agent — AI ROP (Sotuv Bo'limi Rahbari) To'liq Integratsiyasi
+- **Bajarilgan ish:**
+  1. `src/services/core/rop/targets.py` (98 LOC <= 400 LOC): `ensure_ssot_roster(repo)` qo'shildi — SSoT (`team_roster.py`) dagi faol sotuvchilarni (`Shahnoza Abdijabborova` `13021974`, `Rayxona Rahimova` `9000001`, `Mumtozmaxal Normurodova` `9000002`) avtomatik ravishda **50/20/10/3/1 kunlik voronka standartlari** (`calls=50`, `follow_ups=20`, `proposals=10`, `meetings=3`, `expected_sales=1`) bilan `rop_targets` jadvaliga sinxronlaydi va sobiq/mijoz yozuvlarini o'chiradi.
+  2. `src/services/core/rop/service.py` (299 LOC <= 400 LOC): `_resolve_lead_owner_uid()` qo'shildi — AmoCRM'da umumiy litsenziyada ishlovchi sotuvchilarning (`Rayxon`/`Rayxona`, `Mumtozmaxal`, `Shahnoza`) bitimlari va yutilgan sotuvlarini avval `_embedded.tags` tegi bo'yicha, keyin `responsible_user_id` bo'yicha aniq ajratib hisoblaydi.
+  3. `src/services/core/rop/rop_messages.py` (248 LOC <= 400 LOC): ertalabki (`09:00`), tushki (`14:00`) va kechki (`18:30`) hisobotlarga **50/20/10/3/1 kunlik voronka qoidasi** (`50 suhbat (>=3 daq) -> 20 mazmunli -> 10 EVQN taklif -> 3 uchrashuv -> 1 sotuv`) va `EVQN taklif` ko'rsatkichi qo'shildi.
+  4. `src/schedulers/rop_scheduler.py` (167 LOC <= 400 LOC): har slot (`09:00`, `14:00`, `18:30`) oldidan `ensure_ssot_roster` ishga tushiriladi hamda yig'ma ROP hisobotlari CEO (`150074828`) bilan bir qatorda **Sotuv bo'limi guruhiga (`-1003854308552`, topic `115`)** ham yuboriladi.
+  5. `src/services/core/hermes_crm_bridge.py` (268 LOC <= 400 LOC): `crm_get_rop_digest` read-only MCP tool qo'shildi — Hermes (`@jonairobot`) so'rov bo'yicha sotuvchilarning 50/20/10/3/1 voronka rejasi va bugungi Moizvonki telefoniya faktini (`today_telephony`) real vaqtda ko'ra oladi. Contabo Hermes `SOUL.md` fayliga AI ROP yo'riqnomasi qo'shildi.
+  6. Contabo (`/home/ubuntu/oisha-os/.env` va Turso/`bot.db`) da `ROP_ENABLED=1`, `ROP_CEO_CHAT_ID=150074828`, `ROP_SALES_GROUP_ID=-1003854308552`, `ROP_SALES_TOPIC_ID=115` yoqildi va uchala sotuvchi `rop_targets` jadvaliga muhrlandi.
+- **O'zgargan fayllar:** `src/services/core/rop/targets.py`, `src/services/core/rop/service.py`, `src/services/core/rop/rop_messages.py`, `src/schedulers/rop_scheduler.py`, `src/services/core/hermes_crm_bridge.py`, `tests/test_rop_targets.py`, `tests/test_rop_service.py`, `tests/test_rop_scheduler.py`, `tests/test_hermes_crm_bridge.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_rop_targets.py tests/test_rop_service.py tests/test_rop_scheduler.py tests/test_rop_messages.py tests/test_rop_end_to_end.py tests/test_hermes_crm_bridge.py tests/test_team_roster.py` — 50/50 passed.
+  - `bandit -ll` — 0 Medium/High issues (944 LOC scanned).
+  - Contabo deploy: commit `bf41f378`, `deploy_contabo_direct.py --apply` -> 5 ta fayl SHA256 xeshlari tasdiqlandi, `oisha-os.service` va `hermes-gateway.service` = `active`, `/healthz/` = `200 OK` (zaxira: `oisha-direct-081b17bafc194a24b7b6e573796b3f63`).
+- **Qolgan ish / Holat:** Local commit (`bf41f378`) va Contabo prod deploy bajarildi; Git push qilinmadi.
+
+### 2026-10-31 / Antigravity: AI Agent Orchestrator (Supervisor / Meta-Agent Fleet Registry, Self-Healing & Hire/Fire Engine)
+- **Bajarilgan ish:**
+  1. Dunyo standartlariga (Anthropic Supervisor/Orchestrator-Worker, LangGraph, AgentOps Lifecycle) asoslangan `src/services/core/ai_agent_orchestrator.py` (397 LOC <= 400 LOC) yaratildi:
+     - **Yagona Shtat Jadvali (8 ta Canonical Blueprints):** `ai_rop`, `ai_call_qa`, `ai_hr_attendance_10`, `ai_hr_lunch_13`, `ai_hr_return_14`, `ai_hr_evening_18`, `ai_lead_hunter`, `ai_debitor_finance`.
+     - **Audit & Gap Analysis (`evaluate_fleet_status`):** Kompaniyaga nechta AI agent kerakligini (`optimal_team_size=8`), qaysilari faol ishlayotganini, qaysilari xato berganini (`stalled_or_failed_agents`), qaysilari dublikat/zombie ekanini (`zombie_or_duplicate_agents`) va qaysi yangi agentlarni ishga olish kerakligini (`recommended_hires`) real vaqtda hisoblaydi.
+     - **Hire (`hire_ai_agent`), Fire (`fire_ai_agent`), Self-Heal (`revive_or_cleanup_fleet`):** Yangi agentni shablon yoki maxsus jadval asosida ishga oladi, foydasiz/dublikat agentni o'chiradi (bo'shatadi) va to'xtab qolgan agentlarni qayta ishga tushiradi.
+  2. `src/services/core/hermes_crm_bridge.py` (311 LOC <= 400 LOC) ga 4 ta yangi MCP vositasi qo'shildi: `ai_fleet_status`, `ai_fleet_hire`, `ai_fleet_fire`, `ai_fleet_revive`.
+  3. Contabo jonli audit va tozalash (`revive_or_cleanup_fleet(auto_fire_zombies=True, auto_hire_missing_core=True)`):
+     - **Ishdan bo'shatilgan (Fired) 3 ta dublikat/zombie agent:** `ertalab-standup` (`883372a46b8d` — 10:00 davomat bilan dublikat), `Ertaga 29-oktabr Azizullo` (`cd8ca81f9e75` — har kuni 09:00 da takrorlanib qolgan eski eslatma), `Mijoz bilan uchrashuv: Mijoz Obegacha kelaman dedi` (`9828836346de`).
+     - **Yangi ishga olingan (Hired) 2 ta yetishmayotgan AI agent:**
+       - `kechki-sarhisob-18-00` (`4eb554b638b5`, `0 18 * * 1-6`, `telegram:-1003114662117`) — soat 18:00 da barcha 8 nafar xodimdan kunlik bajargan ishlarini birma-bir so'raydi.
+       - `ai-debitor-nazorati` (`576e7914195f`, `0 11 * * 1-6`, `telegram:150074828`) — soat 11:00 da AmoCRM'dagi shartnoma va to'lov kutilayotgan issiq bitimlarni tekshirib hisobot beradi.
+  4. Contabo `/home/hermes/.hermes/SOUL.md` yangilandi va `hermes-gateway.service` hamda `oisha-os.service` qayta ishga tushirildi.
+- **O'zgargan fayllar:** `src/services/core/ai_agent_orchestrator.py`, `src/services/core/hermes_crm_bridge.py`, `tests/test_ai_agent_orchestrator.py`, `tests/test_hermes_crm_bridge.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_ai_agent_orchestrator.py tests/test_hermes_crm_bridge.py tests/test_team_roster.py` — 24/24 passed.
+  - `bandit -ll` — 0 Medium/High issues.
+  - Contabo deploy: commit `8dbd052a`, `deploy_contabo_direct.py --apply` -> SHA256 tasdiqlandi, `/healthz` = `200 OK` (zaxira: `oisha-direct-395a27a865ae4a64b4afd11e8c857650`, Hermes cron zaxirasi: `jobs.json.bak-orchestrator`).
+- **Qolgan ish / Holat:** Local commit (`8dbd052a`) va Contabo prod deploy bajarildi; Git push qilinmadi.
+
+
+### 2026-10-31 / Antigravity: AI DevOps & SRE Agent (`devops_agent.py`, Fleet Blueprint, Hermes MCP & DevOps Skill)
+- **Bajarilgan ish:**
+  1. `src/services/core/devops_agent.py` (220 LOC <= 400 LOC) yaratildi:
+     - `inspect_server_status()`: Contabo serverining `loadavg`, `uptime`, `RAM`, `disk (/)`, `systemd` xizmatlari (`oisha-os`, `oisha-watchdog`, `hermes-gateway`, `shirinlaxza-bot`, `nginx`, `actions.runner`), `Docker` konteynerlari, `/healthz/`, `/readyz` va `journalctl` xatolarini jonli tekshiradi.
+     - `heal_server_services(auto_restart_failed=...)`: Ishdan chiqqan ruxsat etilgan systemd xizmatlarini avtomatik qayta ishga tushiradi va holatni qayta tekshiradi.
+  2. `src/services/core/ai_agent_orchestrator.py` (388 LOC <= 400 LOC) shtat jadvaliga 9-asosiy AI agent sifatida `ai_devops_sre` ("AI DevOps & SRE — Contabo Server Nazoratchisi") qo'shildi.
+  3. `src/services/core/hermes_crm_bridge.py` (325 LOC <= 400 LOC) ga `devops_server_status` va `devops_server_heal` MCP vositalari ulandi (Telegramda Oisha/Hermes orqali "serverda nima gap?" deb so'ralganda jonli tekshiradi).
+  4. `.agents/agent-devops.md` rol fayli va `.agents/skills/contabo-devops/SKILL.md` (`agents/openai.yaml` bilan) yaratildi hamda `AGENTS.md` (138 LOC <= 150 LOC) yangilandi.
+- **O'zgargan fayllar:** `src/services/core/devops_agent.py`, `src/services/core/ai_agent_orchestrator.py`, `src/services/core/hermes_crm_bridge.py`, `tests/test_devops_agent.py`, `tests/test_hermes_crm_bridge.py`, `.agents/agent-devops.md`, `.agents/skills/contabo-devops/SKILL.md`, `.agents/skills/contabo-devops/agents/openai.yaml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_devops_agent.py tests/test_ai_agent_orchestrator.py tests/test_hermes_crm_bridge.py` — 20/20 passed.
+  - `bandit -r src/services/core/devops_agent.py src/services/core/ai_agent_orchestrator.py src/services/core/hermes_crm_bridge.py -ll` — 0 Medium/High issues.
+- **Qolgan ish / Holat:** Scoped commit va Contabo prod deploy (`deploy_contabo_direct.py --apply`).

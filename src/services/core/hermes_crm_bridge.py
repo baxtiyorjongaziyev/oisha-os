@@ -216,6 +216,14 @@ class HermesCrmBridge:
             auto_hire_missing_core=bool(auto_hire_missing_core),
         )
 
+    async def devops_server_status(self, include_logs=True):
+        from src.services.core.devops_agent import inspect_server_status
+        return inspect_server_status(include_logs=bool(include_logs))
+
+    async def devops_server_heal(self, auto_restart_failed=False):
+        from src.services.core.devops_agent import heal_server_services
+        return heal_server_services(auto_restart_failed=bool(auto_restart_failed))
+
 
 def tool(name, description, properties, required=(), read_only=True):
     return {'name': name, 'description': description,
@@ -252,6 +260,10 @@ TOOLS = [
     tool('ai_fleet_revive', 'Self-heal stalled/failed AI agents, disable zombie/duplicate cron jobs, and optionally auto-hire missing core blueprint agents.',
          {'auto_fire_zombies': {'type': 'boolean'}, 'auto_hire_missing_core': {'type': 'boolean'}},
          read_only=False),
+    tool('devops_server_status', 'Inspect live Contabo VPS status: CPU load, RAM, disk, systemd services, Docker containers, /healthz, /readyz, and recent error logs.',
+         {'include_logs': {'type': 'boolean'}}),
+    tool('devops_server_heal', 'Self-heal Contabo VPS by auditing systemd services and optionally restarting failed allowlisted services (oisha-os, oisha-watchdog, hermes-gateway, shirinlaxza-bot).',
+         {'auto_restart_failed': {'type': 'boolean'}}, read_only=False),
 ]
 
 
@@ -289,6 +301,8 @@ class RpcServer:
             'ai_fleet_hire': self.bridge.ai_fleet_hire,
             'ai_fleet_fire': self.bridge.ai_fleet_fire,
             'ai_fleet_revive': self.bridge.ai_fleet_revive,
+            'devops_server_status': self.bridge.devops_server_status,
+            'devops_server_heal': self.bridge.devops_server_heal,
         }
         try:
             fn = methods.get(params.get('name'))
