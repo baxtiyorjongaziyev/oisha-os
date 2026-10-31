@@ -340,11 +340,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         if not phone:
             return False
         raw = getattr(self._settings, "AMOCRM_CALL_ANALYSIS_EXCLUDED_PHONES", "") or ""
-        excluded = {
-            "".join(ch for ch in p if ch.isdigit())
-            for p in raw.split(",")
-            if p.strip()
-        }
+        excluded = {"".join(ch for ch in p if ch.isdigit()) for p in raw.split(",") if p.strip()}
         if not excluded:
             return False
         normalized_phone = "".join(ch for ch in phone if ch.isdigit())

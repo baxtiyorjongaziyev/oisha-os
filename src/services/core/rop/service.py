@@ -47,7 +47,7 @@ def _find_seller_calls(seller_name: str, today_calls: dict[str, dict]) -> dict:
 
 
 def _resolve_lead_owner_uid(lead: dict, roster_ids: set[int]) -> int | None:
-    """Resolve seller responsible_user_id from AmoCRM tags first (shared license support), then responsible_user_id."""
+    """Resolve seller responsible_user_id from AmoCRM tags first, then responsible_user_id."""
     try:
         from src.services.core.crm.team_roster import find_staff
         tags = lead.get("_embedded", {}).get("tags") or []
@@ -74,16 +74,79 @@ class RopService:
         self._ceo = ceo_chat_id
         self._now_fn = now_fn
 
+    async def _fetch_secondary_data(self, all_lead_ids: list[int], roster_ids: set[int], slot: str, now: datetime) -> dict | None:
+        is_monday = now.weekday() == 0
+        try:
+            open_tasks = await self._fetch.fetch_open_tasks_for_leads(all_lead_ids)
+            completed_by_entity, completed_by_user = await self._fetch.fetch_today_completed_tasks(list(roster_ids), now=now)
+            today_events = await self._fetch.fetch_today_events(all_lead_ids, now=now)
+            notes = await self._fetch.fetch_notes_for_leads(all_lead_ids) if slot in ("morning", "evening") else {}
+            won_today = await self._fetch.fetch_won_leads_since(_tashkent_day_start_epoch(now)) if slot in ("midday", "evening") else []
+            recent_events, won_week = {}, []
+            if slot == "evening" or (slot == "morning" and is_monday):
+                since_7d = int((now - timedelta(days=7)).timestamp())
+                recent_events = await self._fetch.fetch_recent_events(all_lead_ids, since_7d)
+                won_week = await self._fetch.fetch_won_leads_since(int(monday_start(now).timestamp()))
+            return {
+                "open_tasks": open_tasks, "completed_by_entity": completed_by_entity,
+                "completed_by_user": completed_by_user, "today_events": today_events,
+                "notes": notes, "won_today": won_today, "recent_events": recent_events, "won_week": won_week,
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[ROP] %s slot aborted — secondary fetch failed: %s", slot, exc)
+            return None
+
+    def _eval_seller(self, s, ctx: dict) -> tuple[int, str] | None:
+        slot, s_leads, config, now = ctx["slot"], ctx["leads_by_user"].get(s.responsible_user_id, []), ctx["config"], ctx["now"]
+        evs = {lid: ctx["data"]["today_events"].get(lid, []) + ctx["data"]["recent_events"].get(lid, []) for lid in (l["id"] for l in s_leads)}
+        scored = score_seller_leads(s_leads, ctx["data"]["open_tasks"], ctx["data"]["notes"], evs, config, now)
+        actuals = _bucket_actuals(ctx["data"]["completed_by_user"].get(s.responsible_user_id, []))
+        won = [l for l in ctx["data"]["won_today"] if _resolve_lead_owner_uid(l, ctx["roster_ids"]) == s.responsible_user_id]
+        actuals["won"], actuals["won_revenue"] = len(won), sum(int(l.get("price") or 0) for l in won)
+        calls = _find_seller_calls(s.seller_name, ctx["today_calls"])
+
+        if slot == "morning":
+            tasks = {l["id"]: ctx["data"]["open_tasks"].get(l["id"], []) for l in s_leads}
+            mp = build_morning(s, scored, tasks, find_discipline(s_leads, ctx["data"]["open_tasks"], ctx["data"]["notes"], config, now), config, now)
+            ctx["morning_plans"].append(mp)
+            return (s.telegram_user_id, render_seller_morning(mp)) if s.telegram_user_id else None
+        if slot == "midday":
+            touched = {lid for lid in (l["id"] for l in s_leads) if ctx["data"]["completed_by_entity"].get(lid) or ctx["data"]["today_events"].get(lid)}
+            mc = build_midday(s, scored, actuals, touched, config, call_stats=calls)
+            ctx["midday_checks"].append(mc)
+            ctx["traffic"][s.responsible_user_id] = self._traffic_for(s, scored, actuals, [], config, now, ctx["data"]["recent_events"], ctx["prior_snapshot"], s_leads, ctx["data"]["open_tasks"])
+            return (s.telegram_user_id, render_seller_midday(mc)) if not mc.on_track and s.telegram_user_id else None
+
+        overdue = sum(1 for lid in (l["id"] for l in s_leads) for t in ctx["data"]["open_tasks"].get(lid, []) if (t.get("complete_till") or 0) and float(t["complete_till"]) < now.timestamp())
+        ev = build_evening(s, scored, actuals, overdue, call_stats=calls)
+        ctx["evening_results"].append(ev)
+        ctx["traffic"][s.responsible_user_id] = self._traffic_for(s, scored, actuals, find_discipline(s_leads, ctx["data"]["open_tasks"], ctx["data"]["notes"], config, now), config, now, ctx["data"]["recent_events"], ctx["prior_snapshot"], s_leads, ctx["data"]["open_tasks"])
+        return (s.telegram_user_id, render_seller_evening(ev)) if s.telegram_user_id else None
+
+    async def _append_ceo_summary(self, plan: list, ctx: dict, no_owner: list) -> None:
+        if not self._ceo:
+            return
+        slot, now, cfg, data = ctx["slot"], ctx["now"], ctx["config"], ctx["data"]
+        if slot == "morning":
+            await self._write_snapshot(now, ctx["morning_plans"])
+            await self._cleanup_snapshots(now)
+            recap = progress(data["won_week"], cfg) if now.weekday() == 0 else None
+            no_owner_finds = [find_discipline([l], {}, {}, cfg, now)[0] for l in no_owner if find_discipline([l], {}, {}, cfg, now)]
+            plan.append((self._ceo, render_ceo_morning(build_ceo_morning(ctx["morning_plans"], no_owner_finds, recap))))
+        elif slot == "midday":
+            plan.append((self._ceo, render_ceo_midday(build_ceo_midday(ctx["midday_checks"], ctx["traffic"]))))
+        else:
+            exp_tom = sum(int(l.price * l.score / 100) for ev in ctx["evening_results"] for l in ev.tomorrow_closings if l.band in ("HOT", "WARM"))
+            dash = build_ceo_dashboard(ctx["evening_results"], ctx["traffic"], progress(data["won_week"], cfg), exp_tom, ctx["skipped"])
+            plan.append((self._ceo, render_ceo_dashboard(dash)))
+
     async def run(self, slot: str) -> list[tuple[int, str]]:
         assert slot in SLOTS, slot
         await seed_config(self._repo)
-        config = await load_config(self._repo)
-        now: datetime = self._now_fn()
-
+        config, now = await load_config(self._repo), self._now_fn()
         roster = await load_roster(self._repo)
         if not roster:
             return [(self._ceo, render_empty_roster_notice())] if self._ceo else []
-
         try:
             leads = await self._fetch.fetch_active_sales_leads()
         except RopFetchError as exc:
@@ -95,147 +158,35 @@ class RopService:
         no_owner: list[dict] = []
         for l in leads:
             uid = _resolve_lead_owner_uid(l, roster_ids)
-            if not uid:
-                no_owner.append(l)
-            elif uid in leads_by_user:
-                leads_by_user[uid].append(l)
+            (leads_by_user[uid] if uid in leads_by_user else no_owner).append(l)
 
-        all_lead_ids = [l["id"] for l in leads]
-        is_monday = now.weekday() == 0
-        recent_events: dict = {}
-        won_today: list[dict] = []
-        won_week: list[dict] = []
-        try:
-            open_tasks = await self._fetch.fetch_open_tasks_for_leads(all_lead_ids)
-            completed_by_entity, completed_by_user = await self._fetch.fetch_today_completed_tasks(
-                list(roster_ids), now=now
-            )
-            today_events = await self._fetch.fetch_today_events(all_lead_ids, now=now)
-            notes = (
-                await self._fetch.fetch_notes_for_leads(all_lead_ids)
-                if slot in ("morning", "evening")
-                else {}
-            )
-
-            if slot in ("midday", "evening"):
-                won_today = await self._fetch.fetch_won_leads_since(_tashkent_day_start_epoch(now))
-            if slot == "evening" or (slot == "morning" and is_monday):
-                since_7d = int((now - timedelta(days=7)).timestamp())
-                recent_events = await self._fetch.fetch_recent_events(all_lead_ids, since_7d)
-                won_week = await self._fetch.fetch_won_leads_since(int(monday_start(now).timestamp()))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("[ROP] %s slot aborted — secondary fetch failed: %s", slot, exc)
+        sec_data = await self._fetch_secondary_data([l["id"] for l in leads], roster_ids, slot, now)
+        if sec_data is None:
             return []
 
-        today_calls: dict[str, dict] = {}
+        calls: dict = {}
         if slot in ("midday", "evening") and hasattr(self._fetch, "fetch_today_calls"):
             try:
-                today_calls = await self._fetch.fetch_today_calls(now)
+                calls = await self._fetch.fetch_today_calls(now)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[ROP] fetch_today_calls failed: %s", exc)
 
-        prior_snapshot = await self._latest_snapshot(now)
+        ctx = {
+            "slot": slot, "now": now, "config": config, "roster_ids": roster_ids, "leads_by_user": leads_by_user,
+            "data": sec_data, "today_calls": calls, "prior_snapshot": await self._latest_snapshot(now),
+            "morning_plans": [], "midday_checks": [], "evening_results": [], "traffic": {}, "skipped": 0,
+        }
         plan: list[tuple[int, str]] = []
-        skipped = 0
-        morning_plans = []
-        midday_checks = []
-        evening_results = []
-        traffic: dict[int, object] = {}
-
         for s in roster:
             try:
-                s_leads = leads_by_user.get(s.responsible_user_id, [])
-                events_by_lead = {
-                    lid: today_events.get(lid, []) + recent_events.get(lid, [])
-                    for lid in (l["id"] for l in s_leads)
-                }
-                scored = score_seller_leads(
-                    s_leads, open_tasks, notes, events_by_lead, config, now
-                )
-                s_completed = completed_by_user.get(s.responsible_user_id, [])
-                actuals = _bucket_actuals(s_completed)
-                s_won_today = [
-                    l for l in won_today
-                    if _resolve_lead_owner_uid(l, roster_ids) == s.responsible_user_id
-                ]
-                actuals["won"] = len(s_won_today)
-                actuals["won_revenue"] = sum(int(l.get("price") or 0) for l in s_won_today)
-                s_calls = _find_seller_calls(s.seller_name, today_calls)
-
-                if slot == "morning":
-                    tasks_by_lead = {l["id"]: open_tasks.get(l["id"], []) for l in s_leads}
-                    findings = find_discipline(
-                        s_leads, open_tasks, notes, config, now
-                    )
-                    mp = build_morning(s, scored, tasks_by_lead, findings, config, now)
-                    morning_plans.append(mp)
-                    if s.telegram_user_id:
-                        plan.append((s.telegram_user_id, render_seller_morning(mp)))
-
-                elif slot == "midday":
-                    touched = {
-                        lid for lid in (l["id"] for l in s_leads)
-                        if completed_by_entity.get(lid) or today_events.get(lid)
-                    }
-                    check = build_midday(s, scored, actuals, touched, config, call_stats=s_calls)
-                    midday_checks.append(check)
-                    traffic[s.responsible_user_id] = self._traffic_for(
-                        s, scored, actuals, [], config, now, recent_events,
-                        prior_snapshot, s_leads, open_tasks,
-                    )
-                    if not check.on_track and s.telegram_user_id:
-                        plan.append((s.telegram_user_id, render_seller_midday(check)))
-
-                else:  # evening
-                    overdue_count = sum(
-                        1 for lid in (l["id"] for l in s_leads)
-                        for t in open_tasks.get(lid, [])
-                        if (t.get("complete_till") or 0) and float(t["complete_till"]) < now.timestamp()
-                    )
-                    ev = build_evening(s, scored, actuals, overdue_count, call_stats=s_calls)
-                    evening_results.append(ev)
-                    findings = find_discipline(s_leads, open_tasks, notes, config, now)
-                    traffic[s.responsible_user_id] = self._traffic_for(
-                        s, scored, actuals, findings, config, now, recent_events,
-                        prior_snapshot, s_leads, open_tasks,
-                    )
-                    if s.telegram_user_id:
-                        plan.append((s.telegram_user_id, render_seller_evening(ev)))
+                item = self._eval_seller(s, ctx)
+                if item:
+                    plan.append(item)
             except Exception:  # noqa: BLE001
                 logger.exception("[ROP] seller %s compute failed", s.responsible_user_id)
-                skipped += 1
+                ctx["skipped"] += 1
 
-        no_owner_findings = [
-            find_discipline([l], {}, {}, config, now)[0]
-            for l in no_owner
-            if find_discipline([l], {}, {}, config, now)
-        ]
-
-        if slot == "morning":
-            await self._write_snapshot(now, morning_plans)
-            await self._cleanup_snapshots(now)
-            weekly_recap = progress(won_week, config) if is_monday else None
-            ceo = build_ceo_morning(morning_plans, no_owner_findings, weekly_recap)
-            if self._ceo:
-                plan.append((self._ceo, render_ceo_morning(ceo)))
-        elif slot == "midday":
-            ceo = build_ceo_midday(midday_checks, traffic)
-            if self._ceo:
-                plan.append((self._ceo, render_ceo_midday(ceo)))
-        else:
-            weekly = progress(won_week, config)
-            expected_tomorrow = sum(
-                int(l.price * l.score / 100)
-                for ev in evening_results
-                for l in ev.tomorrow_closings
-                if l.band in ("HOT", "WARM")
-            )
-            dash = build_ceo_dashboard(
-                evening_results, traffic, weekly, expected_tomorrow, skipped
-            )
-            if self._ceo:
-                plan.append((self._ceo, render_ceo_dashboard(dash)))
-
+        await self._append_ceo_summary(plan, ctx, no_owner)
         return plan
 
     # ---- snapshot helpers ----
@@ -244,11 +195,7 @@ class RopService:
         return f"snapshot.{now.strftime('%Y-%m-%d')}"
 
     async def _write_snapshot(self, now, morning_plans) -> None:
-        data = {
-            str(ls.lead_id): ls.band
-            for mp in morning_plans
-            for ls in mp.top_closings
-        }
+        data = {str(ls.lead_id): ls.band for mp in morning_plans for ls in mp.top_closings}
         await self._repo.set_config(self._snapshot_key(now), data)
 
     async def _latest_snapshot(self, now) -> dict:
@@ -268,7 +215,6 @@ class RopService:
         prior_snapshot, s_leads, open_tasks,
     ):
         won_today = actuals.get("won", 0)
-        streak = 0
         overdue_count = sum(
             1 for lid in (l["id"] for l in s_leads)
             for t in open_tasks.get(lid, [])
@@ -276,24 +222,15 @@ class RopService:
         )
         hot_silent = 0.0
         for ls in scored:
-            if ls.band == "HOT":
-                if any("aloqa yo'q" in r for r in ls.reasons):
-                    hot_silent = max(hot_silent, config["traffic.hot_lead_silent_hours"])
-        band_dropped = any(
-            prior_snapshot.get(str(ls.lead_id)) == "HOT" and ls.band != "HOT"
-            for ls in scored
-        )
-        biggest_amt, biggest_days = 0, 0.0
+            if ls.band == "HOT" and any("aloqa yo'q" in r for r in ls.reasons):
+                hot_silent = max(hot_silent, config["traffic.hot_lead_silent_hours"])
+        band_dropped = any(prior_snapshot.get(str(ls.lead_id)) == "HOT" and ls.band != "HOT" for ls in scored)
         metrics = SellerMetrics(
-            won_today=won_today,
-            no_result_streak_days=streak,
-            overdue_count=overdue_count,
+            won_today=won_today, no_result_streak_days=0, overdue_count=overdue_count,
             calls_done=actuals["calls"], calls_target=seller.calls,
             follow_ups_done=actuals["follow_ups"], follow_ups_target=seller.follow_ups,
             meetings_done=actuals["meetings"], meetings_target=seller.meetings,
-            biggest_stuck_deal_amount=biggest_amt,
-            biggest_stuck_deal_days=biggest_days,
-            hot_lead_max_silent_hours=hot_silent,
-            hot_band_dropped=band_dropped,
+            biggest_stuck_deal_amount=0, biggest_stuck_deal_days=0.0,
+            hot_lead_max_silent_hours=hot_silent, hot_band_dropped=band_dropped,
         )
         return evaluate(metrics, findings, config)
