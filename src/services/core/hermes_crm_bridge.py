@@ -1,4 +1,4 @@
-"""Small read-only CRM surface for the independent Hermes Telegram gateway."""
+"""Small CRM & AI Agent Fleet surface for the independent Hermes Telegram gateway."""
 from __future__ import annotations
 
 import asyncio
@@ -191,12 +191,37 @@ class HermesCrmBridge:
             'guidance': 'Distinguish funnel_targets (50/20/10/3/1 plan) from today_telephony (observed Moizvonki actuals).',
         }
 
+    async def ai_fleet_status(self):
+        from src.services.core.ai_agent_orchestrator import evaluate_fleet_status
+        return evaluate_fleet_status()
 
-def tool(name, description, properties, required=()):
+    async def ai_fleet_hire(self, blueprint_slug=None, name=None, prompt=None, cron_expr=None, deliver='telegram:-1003114662117'):
+        from src.services.core.ai_agent_orchestrator import hire_ai_agent
+        return hire_ai_agent(
+            blueprint_slug=blueprint_slug,
+            name=name,
+            prompt=prompt,
+            cron_expr=cron_expr,
+            deliver=deliver,
+        )
+
+    async def ai_fleet_fire(self, agent_id_or_name, remove_permanently=False):
+        from src.services.core.ai_agent_orchestrator import fire_ai_agent
+        return fire_ai_agent(agent_id_or_name, remove_permanently=bool(remove_permanently))
+
+    async def ai_fleet_revive(self, auto_fire_zombies=True, auto_hire_missing_core=False):
+        from src.services.core.ai_agent_orchestrator import revive_or_cleanup_fleet
+        return revive_or_cleanup_fleet(
+            auto_fire_zombies=bool(auto_fire_zombies),
+            auto_hire_missing_core=bool(auto_hire_missing_core),
+        )
+
+
+def tool(name, description, properties, required=(), read_only=True):
     return {'name': name, 'description': description,
             'inputSchema': {'type': 'object', 'properties': properties,
                             'required': list(required), 'additionalProperties': False},
-            'annotations': {'readOnlyHint': True, 'destructiveHint': False}}
+            'annotations': {'readOnlyHint': bool(read_only), 'destructiveHint': False}}
 
 
 INTEGER = {'type': 'integer', 'minimum': 1}
@@ -215,6 +240,18 @@ TOOLS = [
          {'include_owner': {'type': 'boolean'}, 'role': {'type': 'string'}}),
     tool('crm_get_rop_digest', 'Return live AI ROP 50/20/10/3/1 daily funnel targets and today Moizvonki telephony execution metrics per seller.',
          {'seller_query': {'type': 'string'}}),
+    tool('ai_fleet_status', 'Audit all AI agents (Oisha-OS + Hermes), report optimal team size, active/stalled/zombie agents, and recommend missing AI agents.',
+         {}),
+    tool('ai_fleet_hire', 'Hire (create or re-enable) an AI agent from a canonical blueprint_slug (e.g. ai_hr_evening_18, ai_debitor_finance) or custom name/prompt/cron_expr.',
+         {'blueprint_slug': {'type': 'string'}, 'name': {'type': 'string'},
+          'prompt': {'type': 'string'}, 'cron_expr': {'type': 'string'},
+          'deliver': {'type': 'string'}}, read_only=False),
+    tool('ai_fleet_fire', 'Fire (disable or remove) an inactive, duplicate, or zombie AI agent by job_id, name, or slug.',
+         {'agent_id_or_name': {'type': 'string'}, 'remove_permanently': {'type': 'boolean'}},
+         ['agent_id_or_name'], read_only=False),
+    tool('ai_fleet_revive', 'Self-heal stalled/failed AI agents, disable zombie/duplicate cron jobs, and optionally auto-hire missing core blueprint agents.',
+         {'auto_fire_zombies': {'type': 'boolean'}, 'auto_hire_missing_core': {'type': 'boolean'}},
+         read_only=False),
 ]
 
 
@@ -242,11 +279,17 @@ class RpcServer:
         return response | {'result': result}
 
     async def call(self, params):
-        methods = {'crm_search_leads': self.bridge.search_leads,
-                   'crm_list_calls': self.bridge.list_calls,
-                   'crm_get_call_transcript': self.bridge.transcript,
-                   'crm_get_team_roster': self.bridge.get_team_roster,
-                   'crm_get_rop_digest': self.bridge.get_rop_digest}
+        methods = {
+            'crm_search_leads': self.bridge.search_leads,
+            'crm_list_calls': self.bridge.list_calls,
+            'crm_get_call_transcript': self.bridge.transcript,
+            'crm_get_team_roster': self.bridge.get_team_roster,
+            'crm_get_rop_digest': self.bridge.get_rop_digest,
+            'ai_fleet_status': self.bridge.ai_fleet_status,
+            'ai_fleet_hire': self.bridge.ai_fleet_hire,
+            'ai_fleet_fire': self.bridge.ai_fleet_fire,
+            'ai_fleet_revive': self.bridge.ai_fleet_revive,
+        }
         try:
             fn = methods.get(params.get('name'))
             if fn is None:
