@@ -258,7 +258,11 @@ def _hhmm(ts: int) -> str:
 
 
 def parse_rep_names(raw: str) -> Dict[str, str]:
-    names: Dict[str, str] = {}
+    try:
+        from src.services.core.crm.team_roster import get_moizvonki_rep_names
+        names: Dict[str, str] = get_moizvonki_rep_names(include_owner=False)
+    except Exception:
+        names = {}
     for part in (raw or "").split(","):
         if ":" in part:
             email, name = part.split(":", 1)

@@ -38,17 +38,9 @@ _LOCK = threading.RLock()
 _alerted: Set[int] = set()
 _INITIALIZED: bool = False
 
-DEFAULT_MANAGER_NAMES = {
-    "shahnoza",
-    "rayxon",
-    "rayhona",
-    "mumtozmaxal",
-    "aziz",
-    "ahrorbek",
-    "dilbar",
-    "hasanboy",
-    "baxtiyorjon",
-}
+from src.services.core.crm.team_roster import get_known_manager_tags
+
+DEFAULT_MANAGER_NAMES = get_known_manager_tags() | {"aziz"}
 
 MANAGER_TAG_PREFIXES = (
     "menejer:",
@@ -62,8 +54,8 @@ MANAGER_TAG_PREFIXES = (
 
 
 def get_known_manager_names() -> Set[str]:
-    """Return lowercase known manager names from config and defaults."""
-    names = set(DEFAULT_MANAGER_NAMES)
+    """Return lowercase known manager names from SSoT team_roster and config."""
+    names = set(get_known_manager_tags()) | set(DEFAULT_MANAGER_NAMES)
     env_reps = os.getenv("MOIZVONKI_REP_NAMES", "")
     if env_reps:
         for item in env_reps.split(","):

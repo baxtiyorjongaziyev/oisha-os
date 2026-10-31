@@ -78,17 +78,18 @@ def _team_stats_lines(t: any, team_label: str) -> List[str]:
     return lines
 
 
-# Sotuvchi ismi (normalize qilingan, kichik harf) -> Telegram username
-REP_TG_USERNAMES: Dict[str, str] = {
-    "rayxon": "@RayxonJonbranding",
-    "mumtozmaxal": "@MumtozmaxalJonbranding",
-    "shahnoza": "@jonbranding_assistant",
-}
+from src.services.core.crm.team_roster import find_staff, get_rep_tg_usernames
+
+# Sotuvchi ismi (normalize qilingan, kichik harf) -> Telegram username (SSoT: team_roster)
+REP_TG_USERNAMES: Dict[str, str] = get_rep_tg_usernames()
 
 
 def _tg_mention(rep_name: str) -> str:
     key = (rep_name or "").strip().split(" ")[0].lower()
-    return REP_TG_USERNAMES.get(key, "")
+    if key in REP_TG_USERNAMES:
+        return REP_TG_USERNAMES[key]
+    member = find_staff(key)
+    return member.tg_username if member else ""
 
 
 def _personal_feedback(r: any, rep_name: str, team_avg_rate: float) -> str:

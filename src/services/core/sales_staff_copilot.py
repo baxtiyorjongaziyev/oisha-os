@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import sqlite3
 from typing import Any, Dict, Optional, Tuple
 
@@ -51,19 +52,27 @@ DEFAULT_RULE_BASED_ADVICE = (
 # ----------------------------------------------------------------------
 
 def get_all_staff(db_path: str = "data/crm_dialer.db") -> list[dict]:
-    """Return a list of all sales staff from ``crm_seller_accounts``.
-    Expected columns: ``slug`` (unique identifier), ``name`` (display), ``tg`` (Telegram handle).
-    """
+    """Return a list of all sales staff from ``crm_seller_accounts`` merged with SSoT team_roster."""
+    from src.services.core.crm.team_roster import get_active_staff
+
+    seen: dict[str, dict] = {}
     try:
-        conn = sqlite3.connect(db_path, timeout=5.0)
-        cur = conn.cursor()
-        cur.execute("SELECT slug, name, tg FROM crm_seller_accounts")
-        rows = cur.fetchall()
-        conn.close()
-        return [{"slug": r[0], "name": r[1], "tg": r[2]} for r in rows]
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path, timeout=5.0)
+            cur = conn.cursor()
+            cur.execute("SELECT slug, name, tg FROM crm_seller_accounts")
+            for r in cur.fetchall():
+                seen[str(r[0]).lower()] = {"slug": r[0], "name": r[1], "tg": r[2]}
+            conn.close()
     except Exception as exc:
-        logger.debug("[COPILOT] Unable to fetch staff list: %s", exc)
-        return []
+        logger.debug("[COPILOT] Unable to fetch staff list from db: %s", exc)
+
+    for m in get_active_staff(include_owner=True, db_path=db_path):
+        if m.slug not in seen:
+            seen[m.slug] = {"slug": m.slug, "name": m.name, "tg": m.tg_username}
+        elif not seen[m.slug].get("tg") and m.tg_username:
+            seen[m.slug]["tg"] = m.tg_username
+    return list(seen.values())
 
 def get_staff_by_username(username: str, db_path: str = "data/crm_dialer.db") -> dict | None:
     """Lookup a staff entry by Telegram username (without @)."""

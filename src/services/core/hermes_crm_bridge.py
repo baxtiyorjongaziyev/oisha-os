@@ -99,6 +99,31 @@ class HermesCrmBridge:
                 'STT can contain errors. Quote exact transcript evidence, distinguish inference, '
                 'do not invent names or speaker timing. No measured 70/30 ratio is available.'}
 
+    async def get_team_roster(self, include_owner=True, role=None):
+        from src.services.core.crm.team_roster import EXCLUDED_NON_STAFF_SLUGS, get_active_staff
+        roles = (str(role).strip().lower(),) if role else None
+        staff = get_active_staff(include_owner=bool(include_owner), roles=roles)
+        return {
+            'success': True,
+            'source': 'team_roster_ssot',
+            'staff': [
+                {
+                    'slug': m.slug,
+                    'name': m.name,
+                    'role': m.role,
+                    'title': m.title,
+                    'tg_user_id': m.tg_user_id,
+                    'tg_username': m.tg_username,
+                    'tg_markdown_mention': m.tg_markdown_mention(),
+                    'amocrm_user_id': m.amocrm_user_id,
+                    'moizvonki_emails': list(m.moizvonki_emails),
+                }
+                for m in staff
+            ],
+            'excluded_non_staff': sorted(EXCLUDED_NON_STAFF_SLUGS),
+            'guidance': 'Only members in this list are verified Jon Branding staff. Never treat CRM client/lead names as staff.',
+        }
+
 
 def tool(name, description, properties, required=()):
     return {'name': name, 'description': description,
@@ -119,6 +144,8 @@ TOOLS = [
          'Use before analyzing mistakes. No CRM writes or Telegram messages. May take 3 minutes.',
          {'entity_type': ENTITY, 'entity_id': INTEGER, 'note_id': INTEGER},
          ['entity_type', 'entity_id', 'note_id']),
+    tool('crm_get_team_roster', 'Return the canonical Single Source of Truth (SSoT) active team roster (names, roles, Telegram IDs, handles, AmoCRM/Moizvonki accounts).',
+         {'include_owner': {'type': 'boolean'}, 'role': {'type': 'string'}}),
 ]
 
 
@@ -148,7 +175,8 @@ class RpcServer:
     async def call(self, params):
         methods = {'crm_search_leads': self.bridge.search_leads,
                    'crm_list_calls': self.bridge.list_calls,
-                   'crm_get_call_transcript': self.bridge.transcript}
+                   'crm_get_call_transcript': self.bridge.transcript,
+                   'crm_get_team_roster': self.bridge.get_team_roster}
         try:
             fn = methods.get(params.get('name'))
             if fn is None:
