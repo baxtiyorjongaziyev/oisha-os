@@ -73,18 +73,38 @@ def get_staff_by_username(username: str, db_path: str = "data/crm_dialer.db") ->
             return staff
     return None
 
-def get_known_staff_user_id(username: str = "RayxonJonbranding", db_path: str = "data/bot.db") -> Optional[int]:
-    """Retrieve already bound numeric Telegram user_id for any staff username.
-    Looks for a KV key ``STAFF_USER_ID_<SLUG>``.
-    """
+def get_known_staff_user_id(
+    username: str = "RayxonJonbranding",
+    db_path: str = "data/bot.db",
+    dialer_db_path: str = "data/crm_dialer.db",
+) -> Optional[int]:
+    """Retrieve already bound numeric Telegram user_id for any staff username."""
     clean_uname = username.lstrip("@").lower()
-    staff = get_staff_by_username(clean_uname)
-    if not staff:
-        return None
-    slug = staff["slug"].upper()
-    from .database import get_kv_setting
-    val = get_kv_setting(f"STAFF_USER_ID_{slug}")
-    return int(val) if val else None
+    staff = get_staff_by_username(clean_uname, db_path=dialer_db_path)
+    slug = staff["slug"].upper() if staff else clean_uname.upper()
+    try:
+        conn = sqlite3.connect(db_path, timeout=5.0)
+        c = conn.cursor()
+        c.execute(
+            "SELECT user_id FROM users WHERE lower(username) = ? LIMIT 1",
+            (clean_uname,),
+        )
+        row = c.fetchone()
+        if row and row[0]:
+            conn.close()
+            return int(row[0])
+
+        for key in (f"STAFF_USER_ID_{slug}", "STAFF_USER_ID_RAYXON"):
+            c.execute("SELECT value FROM kv_settings WHERE key = ? LIMIT 1", (key,))
+            row = c.fetchone()
+            if row and row[0]:
+                conn.close()
+                return int(row[0])
+        conn.close()
+    except Exception as exc:
+        logger.debug("[COPILOT] Error retrieving staff user_id: %s", exc)
+    return None
+
 
 def bind_and_welcome_staff(
     user_id: int,
@@ -93,20 +113,19 @@ def bind_and_welcome_staff(
     db_path: str = "data/bot.db",
     dialer_db_path: str = "data/crm_dialer.db",
 ) -> Tuple[bool, str]:
-    """Auto‑bind Telegram user_id to staff record and return intro message if new.
-    Uses dynamic KV key ``STAFF_USER_ID_<SLUG>``.
-    """
+    """Auto-bind Telegram user_id to staff record and return intro message if new."""
     if not user_id:
         return False, ""
-    clean_uname = (username or "").lstrip("@").lower()
-    staff = get_staff_by_username(clean_uname, db_path=dialer_db_path)
-    if not staff:
-        # fallback: treat as generic staff – use username as slug
-        slug = clean_uname.upper()
-        display_name = first_name or clean_uname.title()
-    else:
+    clean_uname = (username or "").lstrip("@")
+    low_uname = clean_uname.lower()
+    staff = get_staff_by_username(low_uname, db_path=dialer_db_path) if low_uname else None
+    if staff:
         slug = staff["slug"].upper()
-        display_name = staff["name"] or first_name
+        display_name = staff["name"] or first_name or clean_uname.title()
+    else:
+        slug = (low_uname or "RAYXON").upper()
+        display_name = first_name or (clean_uname.title() if clean_uname else "Rayxon")
+
     now_iso = datetime.datetime.now().isoformat()
     is_new_intro = False
     try:
@@ -124,19 +143,23 @@ def bind_and_welcome_staff(
             """,
             (user_id, clean_uname, display_name, now_iso),
         )
-        # Store KV with dynamic key
-        kv_key = f"STAFF_USER_ID_{slug}"
-        c.execute(
-            "INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, ?, ?)",
-            (kv_key, str(user_id), now_iso),
-        )
-        intro_key = f"STAFF_INTRO_SENT_{slug}"
-        c.execute("SELECT value FROM kv_settings WHERE key = ? LIMIT 1", (intro_key,))
-        if not c.fetchone():
+        for kv_key in {f"STAFF_USER_ID_{slug}", "STAFF_USER_ID_RAYXON"} if "rayxon" in low_uname or slug.startswith("RAYXON") else {f"STAFF_USER_ID_{slug}"}:
             c.execute(
-                "INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, '1', ?)",
-                (intro_key, now_iso),
+                "INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                (kv_key, str(user_id), now_iso),
             )
+        intro_key = f"STAFF_INTRO_SENT_{user_id}"
+        slug_intro_key = f"STAFF_INTRO_SENT_{slug}"
+        c.execute(
+            "SELECT value FROM kv_settings WHERE key IN (?, ?) LIMIT 1",
+            (intro_key, slug_intro_key),
+        )
+        if not c.fetchone():
+            for ik in (intro_key, slug_intro_key):
+                c.execute(
+                    "INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, '1', ?)",
+                    (ik, now_iso),
+                )
             is_new_intro = True
         conn.commit()
         conn.close()
@@ -145,63 +168,61 @@ def bind_and_welcome_staff(
         )
     except Exception as exc:
         logger.warning("[COPILOT] Error binding staff %s: %s", slug, exc)
-    # Update telegram handle in crm_seller_accounts if we have a staff record
-    if staff:
-        try:
-            conn_d = sqlite3.connect(dialer_db_path, timeout=5.0)
-            c_d = conn_d.cursor()
+
+    try:
+        conn_d = sqlite3.connect(dialer_db_path, timeout=5.0)
+        c_d = conn_d.cursor()
+        if staff:
             c_d.execute(
                 "UPDATE crm_seller_accounts SET tg = ? WHERE slug = ?",
-                (f"@{clean_uname}", staff["slug"]),
+                (f"@{clean_uname}" if clean_uname else staff["tg"], staff["slug"]),
             )
-            conn_d.commit()
-            conn_d.close()
-        except Exception as exc:
-            logger.debug("[COPILOT] Dialer accounts update failed: %s", exc)
+        elif "rayxon" in low_uname:
+            c_d.execute(
+                "UPDATE crm_seller_accounts SET tg = ? WHERE slug = 'rayxona' OR lower(tg) LIKE '%rayxon%'",
+                (f"@{clean_uname}" if clean_uname else "@RayxonJonbranding",),
+            )
+        conn_d.commit()
+        conn_d.close()
+    except Exception as exc:
+        logger.debug("[COPILOT] Dialer accounts update notice: %s", exc)
+
     if is_new_intro:
         return True, build_staff_intro_message(display_name, user_id)
     return False, ""
+
 
 def is_checkin_interaction(
     text: str,
     reply_to_text: Optional[str] = None,
     username: Optional[str] = None,
+    dialer_db_path: str = "data/crm_dialer.db",
 ) -> bool:
-    """True if the message looks like a check‑in or a request for assistance.
-    Dynamically checks against any known staff username.
-    """
-    if not username:
-        return False
-    uname = username.lstrip("@").lower()
-    # If username is in our staff list, treat as potential check‑in
-    staff_usernames = {s["tg"].lstrip("@").lower() for s in get_all_staff() if s["tg"]}
-    if uname not in staff_usernames:
-        return False
-    low_text = text.lower()
-    # Simple keyword triggers – same as before but generalized
-    triggers = [
-        "mijoz",
-        "gaplashdim",
-        "qongiroq",
-        "qo'ng'iroq",
-        "narx",
-        "taklif",
-        "yordam",
-        "skript",
-        "lid",
-        "amocrm",
-        "yopildi",
-        "e'tiroz",
-        "etiroz",
-        "shartnoma",
-    ]
-    if any(t in low_text for t in triggers):
-        return True
+    """True if the message is a reply to a check-in or from a known sales staff asking assistance."""
+    uname = (username or "").lstrip("@").lower()
+    staff_usernames = {
+        s["tg"].lstrip("@").lower()
+        for s in get_all_staff(db_path=dialer_db_path)
+        if s.get("tg")
+    } | {"rayxonjonbranding", "rayxona"}
+
     if reply_to_text:
         low_reply = reply_to_text.lower()
         if "soatlik check-in" in low_reply or "check-in" in low_reply:
             return True
-        if f"@{uname}" in low_reply:
+        if uname and f"@{uname}" in low_reply:
+            return True
+        if "@rayxonjonbranding" in low_reply:
+            return True
+
+    if uname and uname in staff_usernames:
+        low_text = text.lower()
+        triggers = (
+            "mijoz", "gaplashdim", "qongiroq", "qo'ng'iroq", "narx",
+            "taklif", "yordam", "skript", "blok", "lid", "amocrm",
+            "yopildi", "e'tiroz", "etiroz", "shartnoma",
+        )
+        if any(t in low_text for t in triggers):
             return True
     return False
 
@@ -219,111 +240,6 @@ def build_staff_intro_message(rep_name: str, user_id: int) -> str:
         f"• Bitimlarni tezroq va osonroq yopishingizda yordamlashaman.\n\n"
         f"Savol yoki yordam kerak bo'lsa, istalgan paytda menga yozishingiz mumkin! Bugungi rejalarni birga bajaramiz! 🚀"
     )
-
-
-def get_known_staff_user_id(
-    username: str = "RayxonJonbranding",
-    db_path: str = "data/bot.db",
-) -> Optional[int]:
-    """Retrieve already bound numeric Telegram user_id for staff username."""
-    clean_uname = username.lstrip("@").lower()
-    try:
-        conn = sqlite3.connect(db_path, timeout=5.0)
-        c = conn.cursor()
-        c.execute(
-            "SELECT user_id FROM users WHERE lower(username) = ? LIMIT 1",
-            (clean_uname,),
-        )
-        row = c.fetchone()
-        if row and row[0]:
-            conn.close()
-            return int(row[0])
-
-        c.execute("SELECT value FROM kv_settings WHERE key = 'STAFF_USER_ID_RAYXON' LIMIT 1")
-        row = c.fetchone()
-        conn.close()
-        if row and row[0]:
-            return int(row[0])
-    except Exception as exc:
-        logger.debug("[COPILOT] Error retrieving staff user_id: %s", exc)
-    return None
-
-
-def bind_and_welcome_staff(
-    user_id: int,
-    username: str,
-    first_name: str,
-    db_path: str = "data/bot.db",
-    dialer_db_path: str = "data/crm_dialer.db",
-) -> Tuple[bool, str]:
-    """Auto-bind Telegram user_id, upsert user/seller records, and return intro message if new."""
-    if not user_id:
-        return False, ""
-
-    clean_uname = (username or "").lstrip("@")
-    clean_first = first_name or "Rayxon"
-    now_iso = datetime.datetime.now().isoformat()
-    is_new_intro = False
-
-    try:
-        conn = sqlite3.connect(db_path, timeout=5.0)
-        c = conn.cursor()
-        c.execute(
-            """
-            INSERT INTO users (user_id, username, first_name, role, position, created_at)
-            VALUES (?, ?, ?, 'closer', 'Sotuv menejeri (Closer)', ?)
-            ON CONFLICT(user_id) DO UPDATE SET
-                username = excluded.username,
-                first_name = COALESCE(excluded.first_name, users.first_name),
-                role = 'closer',
-                position = 'Sotuv menejeri (Closer)'
-            """,
-            (user_id, clean_uname, clean_first, now_iso),
-        )
-
-        c.execute(
-            """
-            INSERT OR REPLACE INTO kv_settings (key, value, updated_at)
-            VALUES ('STAFF_USER_ID_RAYXON', ?, ?)
-            """,
-            (str(user_id), now_iso),
-        )
-
-        intro_key = f"STAFF_INTRO_SENT_{user_id}"
-        c.execute("SELECT value FROM kv_settings WHERE key = ? LIMIT 1", (intro_key,))
-        row = c.fetchone()
-        if not row:
-            c.execute(
-                "INSERT OR REPLACE INTO kv_settings (key, value, updated_at) VALUES (?, '1', ?)",
-                (intro_key, now_iso),
-            )
-            is_new_intro = True
-
-        conn.commit()
-        conn.close()
-        logger.info("[COPILOT] Bound staff user_id=%s (@%s), is_new_intro=%s", user_id, clean_uname, is_new_intro)
-    except Exception as exc:
-        logger.warning("[COPILOT] Error binding staff user_id: %s", exc)
-
-    try:
-        conn_d = sqlite3.connect(dialer_db_path, timeout=5.0)
-        c_d = conn_d.cursor()
-        c_d.execute(
-            """
-            UPDATE crm_seller_accounts
-            SET tg = ?
-            WHERE slug = 'rayxona' OR lower(tg) LIKE '%rayxon%'
-            """,
-            (f"@{clean_uname}" if clean_uname else "@RayxonJonbranding",),
-        )
-        conn_d.commit()
-        conn_d.close()
-    except Exception as exc:
-        logger.debug("[COPILOT] Dialer accounts update notice: %s", exc)
-
-    if is_new_intro:
-        return True, build_staff_intro_message(clean_first, user_id)
-    return False, ""
 
 
 async def auto_resolve_staff_id(
@@ -350,35 +266,6 @@ async def auto_resolve_staff_id(
             logger.debug("[COPILOT] Proactive get_entity for @%s skipped/unavailable: %s", clean_uname, exc)
 
     return None
-
-
-def is_checkin_interaction(
-    text: str,
-    reply_to_text: Optional[str] = None,
-    username: Optional[str] = None,
-) -> bool:
-    """True if message is a reply to check-in or from sales rep asking assistance."""
-    uname = (username or "").lstrip("@").lower()
-    is_rayxon = uname in {"rayxonjonbranding", "rayxona"}
-
-    if reply_to_text:
-        low_reply = reply_to_text.lower()
-        if "soatlik check-in" in low_reply or "check-in" in low_reply:
-            return True
-        if "@rayxonjonbranding" in low_reply:
-            return True
-
-    if is_rayxon:
-        low_text = text.lower()
-        triggers = [
-            "mijoz", "gaplashdim", "qongiroq", "qo'ng'iroq", "narx",
-            "taklif", "yordam", "skript", "blok", "lid", "amocrm",
-            "yopildi", "e'tiroz", "etiroz", "shartnoma"
-        ]
-        if any(trig in low_text for trig in triggers):
-            return True
-
-    return False
 
 
 def save_checkin_report(
@@ -439,14 +326,17 @@ async def generate_copilot_advice(
         logger.debug("[COPILOT] Hermes generation fallback: %s", exc)
 
     try:
+        import inspect
         from src.services.utils.free_ai_router import FreeAIProviderRouter
         router = FreeAIProviderRouter()
-        res = await router.get_text(
-            prompt=clean_prompt,
-            system_instruction=SALES_COACH_SYSTEM_PROMPT,
-        )
-        if res and res.content and len(res.content.strip()) > 20:
-            return res.content.strip()
+        gen_fn = getattr(router, "generate_text", None)
+        if inspect.iscoroutinefunction(gen_fn):
+            res = await gen_fn(prompt=clean_prompt, system=SALES_COACH_SYSTEM_PROMPT)
+        else:
+            res = await router.get_text(prompt=clean_prompt, system_instruction=SALES_COACH_SYSTEM_PROMPT)
+        text_val = getattr(res, "text", None) or getattr(res, "content", None) or ""
+        if isinstance(text_val, str) and len(text_val.strip()) > 20:
+            return text_val.strip()
     except Exception as exc:
         logger.debug("[COPILOT] FreeAIProvider fallback: %s", exc)
 

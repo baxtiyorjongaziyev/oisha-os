@@ -68,19 +68,13 @@ async def _get_db_instance():
 @router.post("/api/amocrm-refresh")
 async def refresh_amocrm_token(request: Request):
     auth_header = request.headers.get("Authorization")
-    cron_secret = (
-        settings.AMOCRM_CRON_SECRET.get_secret_value()
-        if settings.AMOCRM_CRON_SECRET
-        else None
-    )
+    cron_secret = settings.AMOCRM_CRON_SECRET.get_secret_value() if settings.AMOCRM_CRON_SECRET else None
     if not cron_secret:
         return {"ok": False, "error": "CRON_SECRET not configured"}
     if not auth_header or auth_header != f"Bearer {cron_secret}":
         return {"ok": False, "error": "Unauthorized"}
-
     amocrm = _get_amocrm_instance()
-    success = amocrm.refresh_token()
-    if success:
+    if amocrm.refresh_token():
         return {"ok": True, "expires_at": amocrm.token_data.get("expires_at", "unknown")}
     return {"ok": False, "error": amocrm.last_error or "Refresh failed"}
 
@@ -122,27 +116,12 @@ def _amocrm_webhook_secret_configured() -> Optional[str]:
 
 
 def _is_authorized_amocrm_webhook(request: Request) -> bool:
-    """Shared-secret check for the AmoCRM webhook.
-
-    AmoCRM's own webhook subscriptions don't support custom signing, so the
-    secret is passed as a query param on the subscribed URL (e.g.
-    ``.../webhook/amocrm?token=<secret>``) — update the webhook URL in
-    AmoCRM's settings once AMOCRM_WEBHOOK_SECRET is set.
-
-    Fails open (with a loud log) when no secret is configured yet, so
-    deploying this doesn't silently break the existing integration before
-    the webhook URL is updated.
-    """
+    """Shared-secret check via ?token=<secret> query param; fails open with warning if unset."""
     secret = _amocrm_webhook_secret_configured()
     if not secret:
-        logger.warning(
-            "[Webhook] AMOCRM_WEBHOOK_SECRET is not set — this endpoint accepts "
-            "unauthenticated requests. Set AMOCRM_WEBHOOK_SECRET and add "
-            "?token=<secret> to the AmoCRM webhook URL to close this gap."
-        )
+        logger.warning("[Webhook] AMOCRM_WEBHOOK_SECRET is not set — accepting unauthenticated request.")
         return True
-    token = request.query_params.get("token", "")
-    return hmac.compare_digest(token, secret)
+    return hmac.compare_digest(request.query_params.get("token", ""), secret)
 
 
 @router.post("/api/amocrm/tasks/webhook")
@@ -274,7 +253,7 @@ async def _process_amocrm_event(data: Dict[str, Any]):
             logger.info("[Webhook] Duplicate AmoCRM note/notification pass for lead %s, skipping", lead_id)
             return
 
-        phone = amocrm.get_lead_phone(int(lead_id))
+        phone = await asyncio.to_thread(amocrm.get_lead_phone, int(lead_id))
 
         if getattr(settings, "ENABLE_AMOCRM_LEAD_ENRICHMENT", True):
             try:
@@ -399,26 +378,23 @@ from src.api.routes.fireflies_integration import router as _fireflies_router, fi
 router.include_router(_fireflies_router)
 
 
-
-# ----------------------------------------------------------------------
-# amoCRM generic webhook registration endpoint
-# ----------------------------------------------------------------------
 @router.post("/amocrm/webhook")
 async def amocrm_register_webhook(request: Request):
-    """Register a webhook for a given amoCRM event.
-    Expected JSON body: {"event": "lead_added", "target_url": "https://example.com/hook"}
-    """
+    """Register a webhook for a given amoCRM event (Requires Admin/Owner auth)."""
+    from src.api.security import require_admin_access
     from src.amocrm_sync import register_webhook
 
+    require_admin_access(request)
     try:
         payload = await request.json()
         event = payload.get("event")
         target_url = payload.get("target_url")
         if not event or not target_url:
             raise HTTPException(status_code=400, detail="'event' and 'target_url' required")
-        result = register_webhook(event, target_url)
+        result = await asyncio.to_thread(register_webhook, event, target_url)
         return {"status": "registered", "result": result}
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error("[AMOCRM WEBHOOK REGISTER] Failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Webhook registration failed")

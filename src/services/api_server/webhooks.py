@@ -345,7 +345,7 @@ async def amocrm_notes_webhook(request: Request):
                 
                 from src.services.core.crm.amocrm_sync import AmoCRMSync
                 amocrm = AmoCRMSync()
-                phone = amocrm.get_lead_phone(lead_id)
+                phone = await asyncio.to_thread(amocrm.get_lead_phone, lead_id)
                 
                 if phone:
                     if app_ctx.outgoing_messages is None:

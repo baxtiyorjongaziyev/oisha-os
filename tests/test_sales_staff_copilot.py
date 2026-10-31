@@ -340,3 +340,55 @@ def test_can_dispatch_checkin_deduplication(tmp_path):
     can_send_forced, reason_forced = can_dispatch_checkin(now_next_min, msg_text, force=True, db_path=str(test_bot_db), state_file=test_state_file)
     assert can_send_forced is True
     assert reason_forced == "forced"
+
+
+@pytest.mark.asyncio
+async def test_generate_copilot_advice_free_router_generate_text():
+    from src.services.utils.free_ai_router import ProviderResult
+
+    with patch("src.services.core.ai.hermes_provider.get_hermes_provider") as mock_get_hermes, \
+         patch("src.services.utils.free_ai_router.FreeAIProviderRouter") as mock_router_cls:
+        mock_hermes = MagicMock()
+        mock_hermes.is_available.return_value = False
+        mock_get_hermes.return_value = mock_hermes
+
+        mock_router = MagicMock()
+        mock_router.generate_text = AsyncMock(
+            return_value=ProviderResult(
+                text="Mumtozmaxal, mijozga ROI hisob-kitobini ko'rsating va uchrashuv belgilang.",
+                provider="gemini",
+                model="gemini-2.5-flash",
+            )
+        )
+        mock_router_cls.return_value = mock_router
+
+        advice = await generate_copilot_advice("Mumtozmaxal", "Mijoz o'ylab ko'raman dedi")
+        assert "ROI hisob-kitobini" in advice
+
+
+def test_dynamic_staff_checkin_and_bind(tmp_path):
+    from src.services.core.sales_staff_copilot import bind_and_welcome_staff, get_known_staff_user_id
+
+    test_bot_db = tmp_path / "bot_dyn.db"
+    test_dialer_db = tmp_path / "dialer_dyn.db"
+
+    conn = sqlite3.connect(test_bot_db)
+    conn.execute("CREATE TABLE users (user_id INTEGER PRIMARY KEY, username TEXT, first_name TEXT, role TEXT, position TEXT, created_at TEXT)")
+    conn.execute("CREATE TABLE kv_settings (key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME)")
+    conn.close()
+
+    conn_d = sqlite3.connect(test_dialer_db)
+    conn_d.execute("CREATE TABLE crm_seller_accounts (slug TEXT PRIMARY KEY, name TEXT, tg TEXT)")
+    conn_d.execute("INSERT INTO crm_seller_accounts VALUES ('mumtozmaxal', 'Mumtozmaxal', '@Mumtoz_Jon')")
+    conn_d.close()
+
+    is_new, intro = bind_and_welcome_staff(
+        user_id=555444333,
+        username="Mumtoz_Jon",
+        first_name="Mumtozmaxal",
+        db_path=str(test_bot_db),
+        dialer_db_path=str(test_dialer_db),
+    )
+    assert is_new is True
+    assert "Mumtozmaxal" in intro
+    assert get_known_staff_user_id("Mumtoz_Jon", db_path=str(test_bot_db)) == 555444333
