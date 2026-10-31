@@ -107,13 +107,6 @@ CANONICAL_AGENT_BLUEPRINTS: tuple[AgentBlueprint, ...] = (
         "AmoCRM'da shartnoma yuborilgan va to'lov kutilayotgan bitimlarni tekshirib, eslatma beradi.",
         "AmoCRM'dagi to'lov kutilayotgan va shartnoma bosqichidagi issiq bitimlarni `crm_get_rop_digest` va `crm_search_leads` orqali tekshirib, qisqa debitorlik/to'lov nazorati xulosasini tayyorla.",
     ),
-    AgentBlueprint(
-        "ai_devops_sre", "AI DevOps & SRE (Contabo Server Nazoratchisi)", "Infrastructure & Self-Healing SRE Agent",
-        "Engineering & DevOps", "oisha_scheduler", "Every 2m Watchdog + Daily 08:50 Audit (Mon-Sat)",
-        "telegram:-1003792973489", "99.9% Uptime, /healthz=200, systemd/Docker 100% active",
-        "Contabo VPS resurslari (CPU/RAM/Disk), systemd xizmatlari, Docker konteynerlar va /healthz + /readyz holatini 24/7 nazorat qiladi va o'zini tiklaydi.",
-        "Contabo server holatini `devops_server_status` orqali tekshirib, CPU/RAM/Disk, systemd xizmatlar, Docker konteynerlar va /healthz natijasini qisqa xulosa qil.",
-    ),
 )
 
 _HERMES_NAME_TO_SLUG = {
@@ -122,7 +115,6 @@ _HERMES_NAME_TO_SLUG = {
     "tushlikdan-qaytish-tekshiruvi": "ai_hr_return_14",
     "kechki-sarhisob-18-00": "ai_hr_evening_18",
     "ai-debitor-nazorati": "ai_debitor_finance",
-    "ai-devops-audit": "ai_devops_sre",
 }
 
 
@@ -174,59 +166,80 @@ def _inspect_oisha_db_signals(db_path: str = DEFAULT_OISHA_DB_PATH) -> dict[str,
     return signals
 
 
-def evaluate_fleet_status(*, jobs_path: str = DEFAULT_HERMES_JOBS_PATH, db_path: str = DEFAULT_OISHA_DB_PATH, now: datetime | None = None) -> dict[str, Any]:
+def _builtin_oisha_agents(db_sig: dict[str, Any]) -> list[dict[str, Any]]:
+    rop_on = os.getenv("ROP_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
+    return [
+        {
+            "id": "oisha:ai_rop", "slug": "ai_rop", "name": "AI ROP (Sotuv Bo'limi Rahbari)",
+            "department": "Sales", "engine": "oisha_scheduler", "schedule": "09:00, 14:00, 18:30 (Mon-Sat)",
+            "status": "ACTIVE" if rop_on else "PAUSED", "health": "HEALTHY" if rop_on else "DISABLED",
+            "kpi_evidence": f"SSoT sellers={db_sig['rop_active_sellers'] or 3}, snapshot={db_sig['rop_last_snapshot'] or 'ready'}",
+        },
+        {
+            "id": "oisha:ai_call_qa", "slug": "ai_call_qa", "name": "AI Call QA & Hourly Check-in",
+            "department": "Sales", "engine": "oisha_scheduler", "schedule": "Every 10m + Hourly :00 (10:00-19:00)",
+            "status": "ACTIVE", "health": "HEALTHY", "kpi_evidence": f"last_checkin_hour={db_sig['checkin_last_hour'] or 'active'}",
+        },
+        {
+            "id": "oisha:ai_lead_hunter", "slug": "ai_lead_hunter", "name": "AI Targetolog & Speed-to-Lead",
+            "department": "Marketing & Sales", "engine": "oisha_scheduler", "schedule": "Every 2m (24/7)",
+            "status": "ACTIVE", "health": "HEALTHY", "kpi_evidence": "Target LEADs -> Topic 1020 + Unowned Lead Guard",
+        },
+    ]
+
+
+def _classify_hermes_job(job: dict[str, Any], covered_slugs: set[str]) -> tuple[dict[str, Any], bool]:
+    jid = str(job.get("id") or "")
+    jname = str(job.get("name") or "")
+    enabled = bool(job.get("enabled", False))
+    sched = job.get("schedule") or {}
+    kind = sched.get("kind", "cron")
+    expr = sched.get("expr") or sched.get("display") or ""
+    deliver = str(job.get("deliver") or "")
+    last_status, last_error = job.get("last_status"), job.get("last_error")
+    slug = _HERMES_NAME_TO_SLUG.get(jname)
+
+    zombie_reason = ""
+    if not enabled and kind == "once":
+        zombie_reason = "completed_one_off_reminder"
+    elif enabled and deliver == "origin" and slug is None:
+        zombie_reason = "adhoc_personal_reminder_running_as_recurring_cron"
+    elif enabled and jname == "ertalab-standup" and "ai_hr_attendance_10" in covered_slugs:
+        zombie_reason = "duplicate_morning_standup_superseded_by_10am_attendance"
+
+    health = f"ERROR: {last_error or 'failed'}" if (last_status == "error" or last_error) else ("HEALTHY" if enabled else "DISABLED")
+    entry = {
+        "id": f"hermes:{jid}", "job_id": jid, "slug": slug or f"custom_{jid}", "name": jname,
+        "engine": "hermes_cron", "schedule": expr, "deliver": deliver,
+        "status": "ACTIVE" if enabled else "DISABLED", "health": health,
+        "last_run_at": job.get("last_run_at"), "last_status": last_status,
+    }
+    if zombie_reason:
+        entry["zombie_reason"] = zombie_reason
+    return entry, bool(zombie_reason)
+
+
+def evaluate_fleet_status(
+    *,
+    jobs_path: str = DEFAULT_HERMES_JOBS_PATH,
+    db_path: str = DEFAULT_OISHA_DB_PATH,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     """Audit all active AI agents, detect stalled/zombie jobs, and recommend missing agents."""
     now = now or get_local_now()
     hermes_jobs = _read_hermes_jobs(jobs_path)
-    db_sig = _inspect_oisha_db_signals(db_path)
-    rop_on = os.getenv("ROP_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
-
-    active_agents: list[dict[str, Any]] = [
-        {"id": "oisha:ai_rop", "slug": "ai_rop", "name": "AI ROP (Sotuv Bo'limi Rahbari)", "department": "Sales", "engine": "oisha_scheduler", "schedule": "09:00, 14:00, 18:30 (Mon-Sat)", "status": "ACTIVE" if rop_on else "PAUSED", "health": "HEALTHY" if rop_on else "DISABLED", "kpi_evidence": f"SSoT sellers={db_sig['rop_active_sellers'] or 3}, snapshot={db_sig['rop_last_snapshot'] or 'ready'}"},
-        {"id": "oisha:ai_call_qa", "slug": "ai_call_qa", "name": "AI Call QA & Hourly Check-in", "department": "Sales", "engine": "oisha_scheduler", "schedule": "Every 10m + Hourly :00 (10:00-19:00)", "status": "ACTIVE", "health": "HEALTHY", "kpi_evidence": f"last_checkin_hour={db_sig['checkin_last_hour'] or 'active'}"},
-        {"id": "oisha:ai_lead_hunter", "slug": "ai_lead_hunter", "name": "AI Targetolog & Speed-to-Lead", "department": "Marketing & Sales", "engine": "oisha_scheduler", "schedule": "Every 2m (24/7)", "status": "ACTIVE", "health": "HEALTHY", "kpi_evidence": "Target LEADs -> Topic 1020 + Unowned Lead Guard"},
-        {"id": "oisha:ai_devops_sre", "slug": "ai_devops_sre", "name": "AI DevOps & SRE (Contabo Server Nazoratchisi)", "department": "Engineering & DevOps", "engine": "oisha_scheduler", "schedule": "Every 2m Watchdog + Live Probe", "status": "ACTIVE", "health": "HEALTHY", "kpi_evidence": "oisha-watchdog + /healthz + /readyz + Docker/systemd"},
-    ]
-    covered_slugs: set[str] = {"ai_rop", "ai_call_qa", "ai_lead_hunter", "ai_devops_sre"}
+    active_agents = _builtin_oisha_agents(_inspect_oisha_db_signals(db_path))
+    covered_slugs = {"ai_rop", "ai_call_qa", "ai_lead_hunter"} | {
+        _HERMES_NAME_TO_SLUG[str(j.get("name") or "")]
+        for j in hermes_jobs
+        if j.get("enabled", False) and str(j.get("name") or "") in _HERMES_NAME_TO_SLUG
+    }
     zombie_or_stale_jobs: list[dict[str, Any]] = []
-
     for job in hermes_jobs:
-        jname = str(job.get("name") or "")
-        slug = _HERMES_NAME_TO_SLUG.get(jname)
-        if slug and job.get("enabled", False):
-            covered_slugs.add(slug)
-
-    for job in hermes_jobs:
-        jid = str(job.get("id") or "")
-        jname = str(job.get("name") or "")
-        enabled = bool(job.get("enabled", False))
-        sched = job.get("schedule") or {}
-        kind = sched.get("kind", "cron")
-        expr = sched.get("expr") or sched.get("display") or ""
-        deliver = str(job.get("deliver") or "")
-        last_status = job.get("last_status")
-        last_error = job.get("last_error")
-        slug = _HERMES_NAME_TO_SLUG.get(jname)
-
-        zombie_reason = ""
-        if not enabled and kind == "once":
-            zombie_reason = "completed_one_off_reminder"
-        elif enabled and deliver == "origin" and slug is None:
-            zombie_reason = "adhoc_personal_reminder_running_as_recurring_cron"
-        elif enabled and jname == "ertalab-standup" and "ai_hr_attendance_10" in covered_slugs:
-            zombie_reason = "duplicate_morning_standup_superseded_by_10am_attendance"
-
-        health = f"ERROR: {last_error or 'failed'}" if (last_status == "error" or last_error) else ("HEALTHY" if enabled else "DISABLED")
-        entry = {
-            "id": f"hermes:{jid}", "job_id": jid, "slug": slug or f"custom_{jid}", "name": jname,
-            "engine": "hermes_cron", "schedule": expr, "deliver": deliver,
-            "status": "ACTIVE" if enabled else "DISABLED", "health": health,
-            "last_run_at": job.get("last_run_at"), "last_status": last_status,
-        }
-        if zombie_reason:
-            entry["zombie_reason"] = zombie_reason
+        entry, is_zombie = _classify_hermes_job(job, covered_slugs)
+        if is_zombie:
             zombie_or_stale_jobs.append(entry)
-        elif enabled:
+        elif job.get("enabled", False):
             active_agents.append(entry)
 
     recommended_hires = [
@@ -239,11 +252,8 @@ def evaluate_fleet_status(*, jobs_path: str = DEFAULT_HERMES_JOBS_PATH, db_path:
         if bp.slug not in covered_slugs
     ]
     stalled = [a for a in active_agents if str(a.get("health", "")).startswith("ERROR")]
-
     return {
-        "success": True,
-        "source": "ai_orchestrator_live",
-        "as_of_tashkent": now.isoformat(),
+        "success": True, "source": "ai_orchestrator_live", "as_of_tashkent": now.isoformat(),
         "summary": {
             "optimal_team_size": len(CANONICAL_AGENT_BLUEPRINTS),
             "active_agents_count": len(active_agents),
