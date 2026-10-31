@@ -72,7 +72,8 @@ async def test_rpc_lists_tools_and_initializes_without_api_access():
     assert r['result']['capabilities'] == {'tools': {}}
     r = await rpc.respond({'id': 2, 'method': 'tools/list'})
     assert {t['name'] for t in r['result']['tools']} == {
-        'crm_search_leads', 'crm_list_calls', 'crm_get_call_transcript'}
+        'crm_search_leads', 'crm_list_calls', 'crm_get_call_transcript',
+        'crm_get_team_roster', 'crm_get_rop_digest'}
     assert all(t['annotations']['readOnlyHint'] for t in r['result']['tools'])
 
 
@@ -114,3 +115,22 @@ async def test_recording_failure_is_actionable_without_leaking_urls():
     assert result['isError'] is True
     assert 'recording_http_502' in result['content'][0]['text']
     assert 'https://' not in result['content'][0]['text']
+
+
+@pytest.mark.asyncio
+async def test_get_rop_digest_returns_ssot_sellers_and_50_20_10_3_1_targets():
+    bridge = HermesCrmBridge(FakeApi())
+    result = await bridge.get_rop_digest()
+    assert result['success'] is True
+    assert result['source'] == 'ai_rop_live'
+    names = {s['name'] for s in result['sellers']}
+    assert 'Shahnoza Abdijabborova' in names
+    assert 'Rayxona Rahimova' in names
+    assert 'Mumtozmaxal Normurodova' in names
+    for s in result['sellers']:
+        assert s['funnel_targets']['answered_calls'] == 50
+        assert s['funnel_targets']['meaningful'] == 20
+        assert s['funnel_targets']['evqn_invited'] == 10
+        assert s['funnel_targets']['meeting_held'] == 3
+        assert s['funnel_targets']['sale'] == 1
+

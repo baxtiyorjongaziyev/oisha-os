@@ -12,6 +12,10 @@ from src.services.core.rop.weekly import WeeklyProgress
 
 _BAND_UZ = {"HOT": "issiq", "WARM": "iliq", "COLD": "sovuq"}
 _MAX_LIST = 5
+_FUNNEL_RULE_LINE = (
+    "📐 <b>Kunlik Voronka (50/20/10/3/1):</b> "
+    "50 suhbat (≥3 daq) → 20 mazmunli → 10 EVQN taklif → 3 uchrashuv → 1 sotuv"
+)
 
 
 def fmt_sum(n: int) -> str:
@@ -39,7 +43,11 @@ def _weekly_line(w: WeeklyProgress) -> str:
 
 def render_seller_morning(plan: SellerMorningPlan) -> str:
     s = plan.seller
-    lines = [f"<b>Bugungi plan — {s.expected_sales} ta sotuv</b>", ""]
+    lines = [
+        f"<b>Bugungi plan — {s.expected_sales} ta sotuv</b>",
+        _FUNNEL_RULE_LINE,
+        "",
+    ]
     if plan.top_closings:
         lines.append("\U0001F525 <b>Closingga eng yaqin:</b>")
         for i, ls in enumerate(plan.top_closings, 1):
@@ -52,6 +60,8 @@ def render_seller_morning(plan: SellerMorningPlan) -> str:
     lines.append(f"🎯 <b>Asosiy marra: {plan.solid_calls_target} ta sifatli suhbat (≥3 daqiqa)!</b>")
     lines.append(f"• {s.calls} ta qo'ng'iroq")
     lines.append(f"• {s.follow_ups} ta follow-up")
+    if getattr(s, "proposals", 0) > 0:
+        lines.append(f"• {s.proposals} ta EVQN taklif")
     lines.append(f"• {s.meetings} ta uchrashuv")
     lines.append(f"• {s.payments} ta to'lov")
     if plan.followup_due:
@@ -102,6 +112,7 @@ def render_seller_midday(check: SellerMiddayCheck) -> str:
     s = check.seller
     lines = [
         "<b>Tushki tekshiruv (14:00)</b>",
+        _FUNNEL_RULE_LINE,
         "",
         f"Plan: {check.plan}",
         f"Fakt: {check.fakt}",
@@ -141,6 +152,7 @@ def render_seller_evening(result: SellerEveningResult) -> str:
     s = result.seller
     lines = [
         "<b>Bugungi natija (18:30)</b>",
+        _FUNNEL_RULE_LINE,
         "",
         f"Sales: {result.sales_done}/{s.expected_sales}",
         f"Revenue: {fmt_sum(result.revenue_today)} so'm",
@@ -182,6 +194,7 @@ def render_ceo_morning(m: CeoMorning) -> str:
     lines.append(f"Bugun kutilayotgan sotuv: {m.total_expected_sales}")
     lines.append(f"Kutilayotgan revenue: {fmt_sum(m.total_expected_revenue)} so'm")
     lines.append(f"Overdue: {m.total_overdue}")
+    lines.append(_FUNNEL_RULE_LINE)
     lines.append(f"<i>{DISCLAIMER}</i>")
     if m.no_owner:
         lines.append("")
@@ -206,6 +219,7 @@ def render_ceo_midday(m: CeoMidday) -> str:
 def render_ceo_dashboard(d: CeoDashboard) -> str:
     lines = [
         "<b>Sales Department</b>",
+        _FUNNEL_RULE_LINE,
         "",
         f"Plan: {d.team_plan}",
         f"Fakt: {d.team_fakt}",
