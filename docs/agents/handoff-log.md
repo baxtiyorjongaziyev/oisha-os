@@ -3428,3 +3428,13 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - `pytest tests/test_devops_agent.py tests/test_ai_agent_orchestrator.py tests/test_hermes_crm_bridge.py` — 20/20 passed.
   - `bandit -r src/services/core/devops_agent.py src/services/core/ai_agent_orchestrator.py src/services/core/hermes_crm_bridge.py -ll` — 0 Medium/High issues.
 - **Qolgan ish / Holat:** Scoped commit va Contabo prod deploy (`deploy_contabo_direct.py --apply`).
+
+### 2026-10-31 / Antigravity: Code Standard Refactor (`runner.py` 397L, `RopService.run` <= 48L, `src/` 100% <= 400L)
+- **Bajarilgan ish:**
+  1. `src/services/call_analytics/runner.py` (401L -> 397L): 400 qator me'yoridan 1 qatorga oshib ketgan telefon chiqarib tashlash mantig'i ixchamlashtirilib, butun `src/` backend papkasida 400 qatordan oshgan fayllar soni **aniq 0 taga (982/982 ta fayl <= 400L)** keltirildi.
+  2. `src/services/core/rop/service.py` (299L -> 236L): 163 qatorlik yirik `run` metodi `_fetch_secondary_data` (21L), `_eval_seller` (26L), `_append_ceo_summary` (16L) va ixcham `run` (48L) qismlariga ajratildi. Fayldagi barcha funksiyalar <= 60 qator (maksimal 48 qator) qoidasiga to'liq moslashtirildi.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_runner_workflow_contract.py tests/test_runner_diagnostic_classifier.py tests/test_rop_service.py` — 20/20 passed.
+  - AST tekshiruvi: `SRC_FILES_OVER_400_COUNT = 0`.
+  - Contabo deploy: commit `482db7b4`, `deploy_contabo_direct.py --apply` -> SHA256 tasdiqlandi, `/healthz` = `200 OK` (zaxira: `oisha-direct-8d3a1be647bb43d8b1bcf888a15c59ac`).
+- **Qolgan ish / Holat:** Scoped commit va Contabo prod deploy bajarildi; Git push qilinmadi.
