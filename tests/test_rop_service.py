@@ -114,3 +114,26 @@ async def test_service_integrates_call_stats():
     svc = RopService(FakeRepo([_target(101, 555)]), FetcherWithCalls(leads), ceo_chat_id=42, now_fn=lambda: THU_630)
     plan = await svc.run("evening")
     assert any("50/50 ta" in text for _, text in plan if _ == 555)
+
+
+@pytest.mark.asyncio
+async def test_service_attributes_leads_by_seller_tag_on_shared_license():
+    # Lead responsible_user_id is 13021974 (Shahnoza), but tag is "Rayxon" (amocrm_user_id=9000001)
+    leads = [{
+        "id": 99,
+        "name": "Rayxon Mijozi",
+        "status_id": 111,
+        "price": 15_000_000,
+        "responsible_user_id": 13021974,
+        "updated_at": int(THU_630.timestamp()) - 100,
+        "created_at": int(THU_630.timestamp()) - 2 * 86400,
+        "_embedded": {"tags": [{"name": "Rayxon"}]},
+    }]
+    repo = FakeRepo([
+        _target(13021974, 8802892610, seller_name="Shahnoza Abdijabborova"),
+        _target(9000001, 8878762085, seller_name="Rayxona Rahimova"),
+    ])
+    svc = RopService(repo, FakeFetcher(leads), ceo_chat_id=42, now_fn=lambda: THU_630)
+    plan = await svc.run("morning")
+    rayxona_dm = next(text for chat_id, text in plan if chat_id == 8878762085)
+    assert "Rayxon Mijozi" in rayxona_dm

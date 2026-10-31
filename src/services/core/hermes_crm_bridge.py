@@ -124,6 +124,73 @@ class HermesCrmBridge:
             'guidance': 'Only members in this list are verified Jon Branding staff. Never treat CRM client/lead names as staff.',
         }
 
+    async def get_rop_digest(self, seller_query=None):
+        """Return live AI ROP 50/20/10/3/1 funnel targets and today's Moizvonki call metrics per seller."""
+        from src.services.core.crm.team_roster import find_staff, get_active_staff
+        from src.services.core.rop.fetchers import RopFetcher
+        from src.services.core.rop.service import _find_seller_calls
+        from src.services.sales_quality.funnel_policy import daily_funnel_policy
+        from src.time_utils import get_local_now
+
+        now = get_local_now()
+        policy = daily_funnel_policy()
+        stage_map = {st['key']: st['target'] for st in policy.get('stages', [])}
+        funnel_targets = {
+            'answered_calls': stage_map.get('answered_180s', 50),
+            'meaningful': stage_map.get('meaningful', 20),
+            'evqn_invited': stage_map.get('evqn_invited', 10),
+            'meeting_held': stage_map.get('meeting_held', 3),
+            'sale': stage_map.get('sale', 1),
+        }
+        sellers = get_active_staff(include_owner=False, roles=('seller',))
+        if seller_query:
+            matched = find_staff(str(seller_query))
+            if matched and matched.role == 'seller':
+                sellers = [matched]
+
+        fetcher = RopFetcher(None)
+        try:
+            today_calls = await fetcher.fetch_today_calls(now)
+        except Exception:
+            today_calls = {}
+
+        rows = []
+        for s in sellers:
+            c = _find_seller_calls(s.name, today_calls)
+            solid = int(c.get('solid_calls', 0))
+            total = int(c.get('total', 0))
+            answered = int(c.get('answered', 0))
+            talk_sec = int(c.get('talk_seconds', 0))
+            no_cb = int(c.get('no_callback', 0))
+            rows.append({
+                'slug': s.slug,
+                'name': s.name,
+                'tg_user_id': s.tg_user_id,
+                'tg_username': s.tg_username,
+                'tg_markdown_mention': s.tg_markdown_mention(),
+                'amocrm_user_id': s.amocrm_user_id,
+                'funnel_targets': dict(funnel_targets),
+                'today_telephony': {
+                    'total_calls': total,
+                    'answered_calls': answered,
+                    'solid_calls_ge_3m': solid,
+                    'solid_calls_target': funnel_targets['answered_calls'],
+                    'solid_calls_pct': round(solid / funnel_targets['answered_calls'] * 100, 1)
+                    if funnel_targets['answered_calls'] else 0.0,
+                    'talk_minutes': round(talk_sec / 60, 1),
+                    'missed_no_callback': no_cb,
+                },
+            })
+
+        return {
+            'success': True,
+            'source': 'ai_rop_live',
+            'as_of_tashkent': now.isoformat(),
+            'funnel_standard': '50 suhbat (>=3 daq) -> 20 mazmunli -> 10 EVQN taklif -> 3 uchrashuv -> 1 sotuv',
+            'sellers': rows,
+            'guidance': 'Distinguish funnel_targets (50/20/10/3/1 plan) from today_telephony (observed Moizvonki actuals).',
+        }
+
 
 def tool(name, description, properties, required=()):
     return {'name': name, 'description': description,
@@ -146,6 +213,8 @@ TOOLS = [
          ['entity_type', 'entity_id', 'note_id']),
     tool('crm_get_team_roster', 'Return the canonical Single Source of Truth (SSoT) active team roster (names, roles, Telegram IDs, handles, AmoCRM/Moizvonki accounts).',
          {'include_owner': {'type': 'boolean'}, 'role': {'type': 'string'}}),
+    tool('crm_get_rop_digest', 'Return live AI ROP 50/20/10/3/1 daily funnel targets and today Moizvonki telephony execution metrics per seller.',
+         {'seller_query': {'type': 'string'}}),
 ]
 
 
@@ -176,7 +245,8 @@ class RpcServer:
         methods = {'crm_search_leads': self.bridge.search_leads,
                    'crm_list_calls': self.bridge.list_calls,
                    'crm_get_call_transcript': self.bridge.transcript,
-                   'crm_get_team_roster': self.bridge.get_team_roster}
+                   'crm_get_team_roster': self.bridge.get_team_roster,
+                   'crm_get_rop_digest': self.bridge.get_rop_digest}
         try:
             fn = methods.get(params.get('name'))
             if fn is None:

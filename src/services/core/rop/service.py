@@ -39,10 +39,32 @@ def _find_seller_calls(seller_name: str, today_calls: dict[str, dict]) -> dict:
     s_lower = seller_name.strip().lower()
     if s_lower in today_calls:
         return today_calls[s_lower]
+    s_first = s_lower.split()[0] if s_lower else ""
     for k, v in today_calls.items():
-        if k in s_lower or s_lower in k:
+        if k in s_lower or s_lower in k or (s_first and s_first in k):
             return v
     return {}
+
+
+def _resolve_lead_owner_uid(lead: dict, roster_ids: set[int]) -> int | None:
+    """Resolve seller responsible_user_id from AmoCRM tags first (shared license support), then responsible_user_id."""
+    try:
+        from src.services.core.crm.team_roster import find_staff
+        tags = lead.get("_embedded", {}).get("tags") or []
+        for t in tags:
+            t_name = str(t.get("name") or "").strip()
+            if not t_name:
+                continue
+            member = find_staff(t_name)
+            if member and member.amocrm_user_id in roster_ids:
+                return int(member.amocrm_user_id)
+    except Exception:  # noqa: BLE001
+        pass
+
+    uid = lead.get("responsible_user_id")
+    if uid and int(uid) in roster_ids:
+        return int(uid)
+    return int(uid) if uid else None
 
 
 class RopService:
@@ -72,7 +94,7 @@ class RopService:
         leads_by_user: dict[int, list[dict]] = {uid: [] for uid in roster_ids}
         no_owner: list[dict] = []
         for l in leads:
-            uid = l.get("responsible_user_id")
+            uid = _resolve_lead_owner_uid(l, roster_ids)
             if not uid:
                 no_owner.append(l)
             elif uid in leads_by_user:
@@ -134,7 +156,7 @@ class RopService:
                 actuals = _bucket_actuals(s_completed)
                 s_won_today = [
                     l for l in won_today
-                    if l.get("responsible_user_id") == s.responsible_user_id
+                    if _resolve_lead_owner_uid(l, roster_ids) == s.responsible_user_id
                 ]
                 actuals["won"] = len(s_won_today)
                 actuals["won_revenue"] = sum(int(l.get("price") or 0) for l in s_won_today)
@@ -202,7 +224,6 @@ class RopService:
                 plan.append((self._ceo, render_ceo_midday(ceo)))
         else:
             weekly = progress(won_week, config)
-            # expected tomorrow = sum of HOT+WARM expected across sellers' scored lists
             expected_tomorrow = sum(
                 int(l.price * l.score / 100)
                 for ev in evening_results
