@@ -1,0 +1,3 @@
+interface:
+  display_name: "Contabo DevOps"
+  short_description: "Contabo VPS (109.199.100.137) monitoring, systemd/Docker diagnostika, log tahlili va rollback-safe deploy"
