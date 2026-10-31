@@ -13,7 +13,12 @@ from fastapi.responses import JSONResponse
 
 from src.api.routes.state import api_state
 from src.settings import settings
-from src.workers.call_intel_worker import enqueue_call_analysis, enqueue_crm_sync
+
+try:
+    from src.workers.call_intel_worker import enqueue_call_analysis, enqueue_crm_sync
+except ImportError:
+    enqueue_call_analysis = None  # type: ignore[assignment]
+    enqueue_crm_sync = None  # type: ignore[assignment]
 
 router = APIRouter(tags=["amocrm"])
 logger = logging.getLogger(__name__)
@@ -276,26 +281,23 @@ async def _process_amocrm_event(data: Dict[str, Any]):
                         except (ValueError, TypeError):
                             pass
 
-                if call_id:
-                    # Get call recording URL from AmoCRM
+                if call_id and enqueue_call_analysis:
                     call_data = await amocrm.get_call(call_id)
                     if call_data and call_data.get("recording_url"):
-                        await enqueue_call_analysis(
-                            call_id=str(call_id),
-                            audio_url=call_data["recording_url"],
-                            lead_id=str(lead_id)
-                        )
+                        await enqueue_call_analysis(str(call_id), call_data["recording_url"], str(lead_id))
                         logger.info("[Webhook] Enqueued call analysis: call_id=%s, lead_id=%s", call_id, lead_id)
+                elif not enqueue_call_analysis:
+                    from src.services.core.call_analyzer import CallAnalyzer
+                    await CallAnalyzer(amocrm=amocrm, db=runtime_db).process_call_recordings_for_lead(
+                        lead_id=int(lead_id), caller_phone=phone or "",
+                        responsible_user_id=lead_data.get("responsible_user_id"),
+                        min_call_duration_seconds=settings.AMOCRM_CALL_ANALYSIS_MIN_DURATION_SECONDS,
+                    )
             except Exception as call_exc:
-                logger.error("[Webhook] AmoCRM call analysis enqueue failed for lead %s: %s", lead_id, call_exc, exc_info=True)
+                logger.error("[Webhook] AmoCRM call analysis failed for lead %s: %s", lead_id, call_exc, exc_info=True)
 
-        # Enqueue CRM sync operations
-        if new_status:
-            await enqueue_crm_sync("status_change", {
-                "lead_id": int(lead_id),
-                "status_id": new_status,
-                "pipeline_id": lead_data.get("pipeline_id")
-            })
+        if new_status and enqueue_crm_sync:
+            await enqueue_crm_sync("status_change", {"lead_id": int(lead_id), "status_id": new_status, "pipeline_id": lead_data.get("pipeline_id")})
 
     except Exception as exc:
         logger.error("[Webhook] process_amocrm_event failed: %s", exc, exc_info=True)
