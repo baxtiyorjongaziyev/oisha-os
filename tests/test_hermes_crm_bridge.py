@@ -73,8 +73,9 @@ async def test_rpc_lists_tools_and_initializes_without_api_access():
     r = await rpc.respond({'id': 2, 'method': 'tools/list'})
     assert {t['name'] for t in r['result']['tools']} == {
         'crm_search_leads', 'crm_list_calls', 'crm_get_call_transcript',
-        'crm_get_team_roster', 'crm_get_rop_digest'}
-    assert all(t['annotations']['readOnlyHint'] for t in r['result']['tools'])
+        'crm_get_team_roster', 'crm_get_rop_digest',
+        'ai_fleet_status', 'ai_fleet_hire', 'ai_fleet_fire', 'ai_fleet_revive'}
+    assert all(t['annotations']['destructiveHint'] is False for t in r['result']['tools'])
 
 
 @pytest.mark.parametrize('url', [
