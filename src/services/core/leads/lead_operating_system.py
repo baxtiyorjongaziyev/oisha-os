@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import datetime
 from html import escape
 from typing import Any, Dict, List, Optional
@@ -133,8 +134,10 @@ class LeadOperatingSystem:
             ):
                 at_client = self.controller.crm.airtable
                 client_name = context["user_name"]
-                at_client.update_project_fields_by_name(
-                    client_name, {"Xulosa": chat_summary}
+                await asyncio.to_thread(
+                    at_client.update_project_fields_by_name,
+                    client_name,
+                    {"Xulosa": chat_summary},
                 )
 
             reviewed.append(

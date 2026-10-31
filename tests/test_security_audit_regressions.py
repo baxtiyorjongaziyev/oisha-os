@@ -105,3 +105,19 @@ def test_cors_does_not_grant_credentials_for_foreign_origin():
     # Access-Control-Allow-Credentials is NOT set, so a foreign site cannot make
     # credentialed requests and read the response.
     assert resp.headers.get("access-control-allow-credentials") is None
+
+
+def test_amocrm_register_webhook_requires_admin_auth():
+    from src.api.routes import amocrm_integration
+
+    app = FastAPI()
+    app.include_router(amocrm_integration.router)
+    client = TestClient(app)
+
+    with patch("src.amocrm_sync.register_webhook") as reg_mock:
+        resp = client.post(
+            "/amocrm/webhook",
+            json={"event": "add_lead", "target_url": "https://evil.example/hook"},
+        )
+    assert resp.status_code in (401, 503)
+    reg_mock.assert_not_called()
