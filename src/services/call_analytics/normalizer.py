@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import structlog
 from src.services.call_analytics.conversion_coaching import validated_coaching, transcript_quality
 from src.services.core.sales_playbook import (
@@ -17,6 +17,58 @@ from src.services.utils.transcript import (
 from src.services.call_analytics.helpers import *
 
 logger = structlog.get_logger()
+
+
+def _derive_traffic_light(sifat_bahosi: int, raw_val: Any = None) -> str:
+    raw_str = str(raw_val or "").strip().upper()
+    if "YASHIL" in raw_str or "GREEN" in raw_str:
+        return "YASHIL"
+    if "SARIQ" in raw_str or "YELLOW" in raw_str:
+        return "SARIQ"
+    if "QIZIL" in raw_str or "RED" in raw_str:
+        return "QIZIL"
+    if sifat_bahosi >= 80:
+        return "YASHIL"
+    elif sifat_bahosi >= 60:
+        return "SARIQ"
+    return "QIZIL"
+
+
+def _derive_coaching_message(
+    svetofor: str,
+    sifat_bahosi: int,
+    raw_val: Any = None,
+    kuchli: Optional[List[str]] = None,
+    zaif: Optional[List[str]] = None,
+) -> str:
+    raw_str = str(raw_val or "").strip()
+    if raw_str:
+        return normalize_name_spellings(raw_str)
+    if svetofor == "YASHIL":
+        reason = f" ({kuchli[0]})" if kuchli else ""
+        return f"Ajoyib muloqot! Mijoz bilan ishonch mustahkamlandi{reason}. Aynan shu tempda bitimni yakunlang!"
+    elif svetofor == "SARIQ":
+        focus = f" Asosiy e'tibor: {zaif[0]}." if zaif else ""
+        return f"Suhbat o'rtacha darajada bo'ldi.{focus} Mahsulot qiymatini ko'proq ochib bering va navbatdagi aniq qadamni mustahkamlang."
+    return "Muloqotda uzilish yoki e'tiroz bor. Mijozning ehtiyojiga qayta tayanib, yangi yechim taklif qilish orqali bitimni qutqarish mumkin."
+
+
+def _derive_client_script(
+    raw_val: Any = None,
+    coaching: Optional[List[Dict[str, str]]] = None,
+    next_steps: str = "",
+    keyingi_kelishuv: str = "",
+) -> str:
+    raw_str = str(raw_val or "").strip()
+    if raw_str:
+        return normalize_name_spellings(raw_str)
+    if coaching and coaching[0].get("better_phrase"):
+        return normalize_name_spellings(coaching[0]["better_phrase"])
+    if keyingi_kelishuv and keyingi_kelishuv.lower() not in {"n/a", "na", "-"}:
+        return f"Assalomu alaykum! Kelishganimizdek, {keyingi_kelishuv} bo'yicha bog'lanyapman. Taklifimizni ko'rib chiqa oldingizmi?"
+    if next_steps and next_steps.lower() not in {"n/a", "na", "-"}:
+        return f"Assalomu alaykum! {next_steps} yuzasidan sizga ma'lumotlarni yubordim, qachon qisqa gaplashib olsak bo'ladi?"
+    return "Assalomu alaykum! Kechagi suhbatimiz bo'yicha loyiha tafsilotlarini aniqlashtirib olsak bo'ladimi?"
 
 class CallNormalizerMixin:
     def _normalise_analysis(
@@ -70,6 +122,8 @@ class CallNormalizerMixin:
         if not breakdown_at:
             # Vaqtsiz sabab rahbarga foydasiz — ikkalasi birga yashaydi.
             breakdown_reason = ""
+
+
 
         # Pauzalar DETERMINISTIK hisoblanadi (LLM'dan so'ralmaydi): vaqt
         # belgilari bor, demak buni o'lchash mumkin va LLM to'qishi shart emas.
@@ -147,7 +201,22 @@ class CallNormalizerMixin:
             breakdown_at = None
             breakdown_reason = ""
 
+        svetofor = _derive_traffic_light(sifat_bahosi, data.get("svetofor"))
+        motivatsiya_coaching = _derive_coaching_message(
+            svetofor, sifat_bahosi, data.get("motivatsiya_va_coaching"), kuchli, zaif
+        )
+        keyingi_qadam_aniq = normalize_name_spellings(
+            str(data.get("keyingi_qadam_aniq") or keyingi_kelishuv or next_steps or "Mijoz bilan follow-up").strip()
+        )
+        mijozga_gap = _derive_client_script(
+            data.get("mijozga_aytiladigan_gap"), coaching, next_steps, keyingi_kelishuv
+        )
+
         return {
+            "svetofor": svetofor,
+            "motivatsiya_va_coaching": motivatsiya_coaching,
+            "keyingi_qadam_aniq": keyingi_qadam_aniq,
+            "mijozga_aytiladigan_gap": mijozga_gap,
             "summary": summary or _clip(transcript, 350),
             "category": category,
             "client_mood": _normalise_mood(data.get("client_mood")),
@@ -255,6 +324,10 @@ class CallNormalizerMixin:
             for p in detect_pauses(transcript, MAX_ACCEPTABLE_PAUSE_SECONDS)
         ]
         return {
+            "svetofor": "QIZIL",
+            "motivatsiya_va_coaching": "Avtomatik tahlil chegaralangan. Suhbatni tinglab, mijoz bilan qayta bog'lanish tavsiya etiladi.",
+            "keyingi_qadam_aniq": "Mijoz bilan qayta bog'lanish",
+            "mijozga_aytiladigan_gap": "Assalomu alaykum, kecha gaplashgan edik, sizga yana qanday yordam bera olamiz?",
             "summary": _clip(transcript or "Tahlil uchun transkripsiya topilmadi.", 350),
             "category": category,
             "client_mood": "Noaniq",
