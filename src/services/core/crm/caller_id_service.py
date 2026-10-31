@@ -16,37 +16,12 @@ import time
 from typing import Any, Dict, List, Optional
 
 from src.services.core.crm.dialer_store import DialerStore
+from src.services.core.crm.team_roster import find_staff, get_moizvonki_rep_map
 
 logger = logging.getLogger(__name__)
 
-# Moizvonki email -> Sotuvchi profili xaritasi
-MOIZVONKI_REP_MAP: Dict[str, Dict[str, Any]] = {
-    "shahnoza@jonbranding.uz": {
-        "slug": "shahnoza",
-        "name": "Shahnoza Abdijabborova",
-        "rep_id": 13021974,
-    },
-    "rayxona@jonbranding.uz": {
-        "slug": "rayxona",
-        "name": "Rayxona",
-        "rep_id": 9000001,
-    },
-    "oydin@jonbranding.uz": {
-        "slug": "oydin",
-        "name": "Oydin Ermuhammadova",
-        "rep_id": 13838466,
-    },
-    "mumtozmaxal@jonbranding.uz": {
-        "slug": "mumtozmaxal",
-        "name": "Mumtozmaxal",
-        "rep_id": 9000002,
-    },
-    "jonbranding@agency.uz": {
-        "slug": "baxtiyorjon",
-        "name": "Baxtiyorjon Gaziyev",
-        "rep_id": 8128012,
-    },
-}
+# Moizvonki email -> Sotuvchi profili xaritasi (Single Source of Truth: team_roster)
+MOIZVONKI_REP_MAP: Dict[str, Dict[str, Any]] = get_moizvonki_rep_map()
 
 _active_call_events: Dict[str, Dict[str, Any]] = {}
 _listeners: List[asyncio.Queue] = []
@@ -57,9 +32,15 @@ def resolve_rep(identifier: Optional[str]) -> Dict[str, Any]:
     clean = (identifier or "").strip().lower()
     if clean in MOIZVONKI_REP_MAP:
         return MOIZVONKI_REP_MAP[clean]
-    for acc, info in MOIZVONKI_REP_MAP.items():
-        if clean == info["slug"] or clean == info["name"].lower() or clean.split("@")[0] == acc.split("@")[0]:
-            return info
+    member = find_staff(clean)
+    if member:
+        return {
+            "slug": member.slug,
+            "name": member.name,
+            "rep_id": member.amocrm_user_id,
+            "tg": member.tg_username,
+            "tg_user_id": member.tg_user_id,
+        }
     return {"slug": "unknown", "name": "Noma'lum Moizvonki akkaunti", "rep_id": None}
 
 
