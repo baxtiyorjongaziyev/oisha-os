@@ -13,7 +13,7 @@ ROOT = Path('/home/ubuntu/oisha-os')
 
 
 def healthy():
-    for _ in range(6):
+    for _ in range(20):
         try:
             with urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5) as response:
                 if response.status == 200:
