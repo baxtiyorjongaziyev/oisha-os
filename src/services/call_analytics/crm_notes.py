@@ -72,8 +72,11 @@ class CallCrmNotesMixin:
 
     def _note_score_lines(self, analysis: Dict[str, Any], rubrik_amal_qiladi: bool, mood: str) -> list:
         if rubrik_amal_qiladi:
+            svetofor = str(analysis.get("svetofor") or "").upper()
+            badge = f" {'🟢' if 'YASHIL' in svetofor else '🟡' if 'SARIQ' in svetofor else '🔴'}" if svetofor else ""
+            score_val = int(analysis.get('sifat_bahosi') or 0)
             lines = [
-                f"Sifat bahosi:  {self._score_bar(int(analysis.get('sifat_bahosi') or 0))}",
+                f"Sifat bahosi:  {self._score_bar(score_val)}{badge}",
                 f"Lead bahosi:   {self._score_bar(int(analysis.get('lead_bahosi') or 0))}",
             ]
         else:
@@ -142,9 +145,28 @@ class CallCrmNotesMixin:
         kuchli = [str(x) for x in (analysis.get("kuchli_tomonlar") or [])]
         zaif = [str(x) for x in (analysis.get("zaif_tomonlar") or [])]
         tavsiyalar = [str(x) for x in (analysis.get("konversiya_tavsiyalari") or analysis.get("tavsiyalar") or [])]
-        if not (kuchli or zaif or tavsiyalar):
+        svetofor = str(analysis.get("svetofor") or "").upper()
+        motivatsiya = str(analysis.get("motivatsiya_va_coaching") or "").strip()
+        mijozga_gap = str(analysis.get("mijozga_aytiladigan_gap") or "").strip()
+
+        if not (kuchli or zaif or tavsiyalar or motivatsiya or mijozga_gap):
             return []
-        lines = ["", "──── MURABBIY IZOHI VA KONVERSIYA ────"]
+
+        header = "──── MURABBIY TAHLILI VA YO'L-YO'RIQ ────" if (motivatsiya or mijozga_gap or svetofor) else "──── MURABBIY IZOHI VA KONVERSIYA ────"
+        lines = ["", header]
+        if svetofor and motivatsiya:
+            if "YASHIL" in svetofor:
+                badge_title = "🟢 A'LO MULOQOT (MOTIVATSIYA):"
+            elif "SARIQ" in svetofor:
+                badge_title = "🟡 O'RTACHA MULOQOT (O'RGATISH & TUZATISH):"
+            else:
+                badge_title = "🔴 PAST / MUAMMOLI MULOQOT (QUTQARISH YO'LI):"
+            lines += [badge_title, f"  {motivatsiya}"]
+        elif motivatsiya:
+            lines += ["💡 Motivatsiya:", f"  {motivatsiya}"]
+
+        if mijozga_gap:
+            lines += ["", "💬 MIJOZGA SO'ZMA-SO'Z AYTILADIGAN GAP (SKRIPT):", f"  «{mijozga_gap}»"]
         lines += [f"✅ {item}" for item in kuchli[:3]]
         lines += [f"⚠️ {item}" for item in zaif[:3]]
         lines += [f"💡 Tavsiya: {item}" for item in tavsiyalar[:3]]
@@ -158,7 +180,8 @@ class CallCrmNotesMixin:
         agent_talk_pct: int,
         talk_ratio_verdict: str,
     ) -> list:
-        _next = str(analysis.get("next_steps") or next_steps or "N/A").strip() or "N/A"
+        keyingi_qadam_aniq = str(analysis.get("keyingi_qadam_aniq") or "").strip()
+        _next = keyingi_qadam_aniq or str(analysis.get("next_steps") or next_steps or "N/A").strip() or "N/A"
         _client_pct = int(analysis.get("client_talk_pct") or client_talk_pct or 0)
         _agent_pct = int(analysis.get("agent_talk_pct") or agent_talk_pct or 0)
         _talk_verdict = str(analysis.get("talk_ratio_verdict") or talk_ratio_verdict or "")

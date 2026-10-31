@@ -71,10 +71,26 @@ def build_call_alert_message(
         f"⏱ <b>Davomiyligi:</b> {dur_m}m {dur_s}s",
         f"🎭 <b>Kayfiyat:</b> {client_mood} | <b>Toifa:</b> {category}",
     ]
+    raw_light = str(analysis.get("svetofor") or "").upper()
+    try:
+        score_int = int(score) if score != "" else 0
+    except (ValueError, TypeError):
+        score_int = 0
+
+    if "YASHIL" in raw_light or score_int >= 80:
+        badge = "🟢"
+        tier_label = "A'lo daraja"
+    elif "SARIQ" in raw_light or score_int >= 60:
+        badge = "🟡"
+        tier_label = "O'rtacha daraja"
+    else:
+        badge = "🔴"
+        tier_label = "Zaif / Qayta aloqa kerak"
+
     if status:
         msg_lines.append(f"📌 <b>Holati:</b> {status}")
     if score:
-        msg_lines.append(f"⭐️ <b>Sifat Bahosi:</b> {score}/100")
+        msg_lines.append(f"⭐️ <b>Sifat Bahosi:</b> {score}/100 {badge} (<i>{tier_label}</i>)")
     voice_score = analysis.get("ovoz_ohangi")
     clarity_score = analysis.get("nutq_aniqligi")
     if voice_score is not None or clarity_score is not None:
@@ -100,7 +116,23 @@ def build_call_alert_message(
     if agreed_time_str:
         msg_lines.append(agreed_time_str.strip())
 
-    msg_lines.append(f"🎯 <b>Keyingi qadam:</b> {next_steps}")
+    keyingi_qadam = str(analysis.get("keyingi_qadam_aniq") or next_steps or "").strip()
+    if keyingi_qadam:
+        msg_lines.append(f"🎯 <b>Keyingi qadam:</b> {keyingi_qadam}")
+
+    mijozga_gap = str(analysis.get("mijozga_aytiladigan_gap") or "").strip()
+    if mijozga_gap:
+        msg_lines.append(f"💬 <b>Mijozga aytiladigan gap (so'zma-so'z):</b>\n  <i>«{mijozga_gap}»</i>")
+
+    motivatsiya = str(analysis.get("motivatsiya_va_coaching") or "").strip()
+    if motivatsiya:
+        if badge == "🟢":
+            coach_title = "🏆 <b>Motivatsiya & E'tirof:</b>"
+        elif badge == "🟡":
+            coach_title = "🛠 <b>Murabbiylik (Nima qilsa yaxshi bo'ladi):</b>"
+        else:
+            coach_title = "🚨 <b>Qutqarish Yo'li:</b>"
+        msg_lines.append(f"{coach_title}\n  {motivatsiya}")
 
     rec_str = _format_conversion_recommendations(analysis)
     if rec_str:
@@ -178,6 +210,12 @@ def build_urgent_problem_alert(
         lines.append(f"⚠️ <b>E'tiroz:</b> <i>{objections}</i>")
     lines.append(f"📝 <b>Muammo xulosasi:</b> {summary}")
 
+    motivatsiya = str(analysis.get("motivatsiya_va_coaching") or "").strip()
+    if motivatsiya:
+        lines.append(f"🚨 <b>Qutqarish yo'li:</b> {motivatsiya}")
+    mijozga_gap = str(analysis.get("mijozga_aytiladigan_gap") or "").strip()
+    if mijozga_gap:
+        lines.append(f"💬 <b>Qutqarish skripti (Mijozga nima deyish kerak):</b>\n  <i>«{mijozga_gap}»</i>")
     rec_str = _format_conversion_recommendations(analysis)
     if rec_str:
         lines.append(rec_str)

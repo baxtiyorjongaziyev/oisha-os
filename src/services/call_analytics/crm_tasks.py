@@ -223,6 +223,8 @@ class CallCrmTasksMixin:
         next_steps: str,
         agreed_datetime: Optional[datetime] = None,
         conversion_advice: Optional[List[str]] = None,
+        client_script: Optional[str] = None,
+        coaching_note: Optional[str] = None,
     ) -> str:
         action = normalize_name_spellings(next_steps if next_steps and next_steps.lower() not in {"n/a", "na", "-"} else "Mijoz bilan follow-up")
         summary = normalize_name_spellings(summary)
@@ -230,7 +232,11 @@ class CallCrmTasksMixin:
         if agreed_datetime is not None:
             weekday = _WEEKDAY_UZ[agreed_datetime.weekday()] if 0 <= agreed_datetime.weekday() < len(_WEEKDAY_UZ) else ""
             lines.append(f"⏰ Kelishilgan vaqt: {agreed_datetime.strftime('%d.%m.%Y %H:%M')} ({weekday})")
-        if conversion_advice:
+        if client_script:
+            lines.append(f"💬 MIJOZGA AYTISH KERAK: «{normalize_name_spellings(client_script)}»")
+        if coaching_note:
+            lines.append(f"🏆 MURABBIYLIK / MOTIVATSIYA: {normalize_name_spellings(coaching_note)}")
+        elif conversion_advice:
             lines.append(f"💡 Konversiya tavsiyasi: {normalize_name_spellings(conversion_advice[0])}")
         lines.append(f"📝 Suhbat xulosasi: {summary}")
         lines.append(f"Toifa: {category} | Kayfiyat: {client_mood}")
@@ -246,7 +252,18 @@ class CallCrmTasksMixin:
         responsible_user_id: Optional[int] = None,
         agreed_datetime: Optional[datetime] = None,
         conversion_advice: Optional[List[str]] = None,
+        client_script: Optional[str] = None,
+        coaching_note: Optional[str] = None,
+        analysis: Optional[Dict[str, Any]] = None,
     ) -> str:
+        if analysis:
+            if not client_script:
+                client_script = analysis.get("mijozga_aytiladigan_gap")
+            if not coaching_note:
+                coaching_note = analysis.get("motivatsiya_va_coaching")
+            if not next_steps or next_steps.lower() in {"n/a", "na", "-"}:
+                next_steps = analysis.get("keyingi_qadam_aniq") or next_steps
+
         if not self._should_create_task(next_steps, agreed_datetime, conversion_advice):
             return ""
 
@@ -272,6 +289,8 @@ class CallCrmTasksMixin:
             next_steps=next_steps,
             agreed_datetime=agreed_datetime,
             conversion_advice=conversion_advice,
+            client_script=client_script,
+            coaching_note=coaching_note,
         )
 
         try:

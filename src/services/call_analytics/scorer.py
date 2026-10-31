@@ -127,6 +127,10 @@ class CallScorerMixin:
                 '  "uzilish_sababi": "Uzilish lahzasida AYNAN nima noto\'g\'ri ketdi '
                 '(masalan: \"Ehtiyoj aniqlanmadi\", \"E\'tirozga javob berilmadi\"). '
                 'uzilish_vaqti null bo\'lsa — null.",\n'
+                '  "svetofor": "YASHIL|SARIQ|QIZIL (ball >=80: YASHIL, 60-79: SARIQ, <60: QIZIL)",\n'
+                '  "motivatsiya_va_coaching": "YASHIL bo\'lsa — samimiy maqtov va motivatsiya; SARIQ bo\'lsa — nima qilsa yaxshi bo\'lishini o\'rgatish; QIZIL bo\'lsa — qutqarish va vaziyatni o\'nglash yo\'li",\n'
+                '  "keyingi_qadam_aniq": "Sotuvchi aynan nima qilishi kerak (aniq harakat va vaqt)",\n'
+                '  "mijozga_aytiladigan_gap": "Sotuvchi mijozga keyingi muloqotda AYNAN so\'zma-so\'z nima deyishi kerak (tayyor tabiiy replika)",\n'
                 '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta, aniq)"],\n'
                 '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi yoki xato qildi '
                 '(1-3 ta, aniq va tuzatib bo\'ladigan)"],\n'
@@ -212,7 +216,7 @@ class CallScorerMixin:
             f"{tg_block}\n"
             "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
             "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
-            "JSON schema: summary, category, client_mood, next_steps, keyingi_kelishuv, "
+            "JSON schema: summary, category, client_mood, next_steps, keyingi_kelishuv, svetofor (YASHIL|SARIQ|QIZIL), motivatsiya_va_coaching, keyingi_qadam_aniq, mijozga_aytiladigan_gap, "
             "suhbat_oilasi (Ehtiyoj aniqlash|Yechim taqdimoti|Narx muhokamasi|Follow-up|Shartnoma|Boshqa), "
             "servis_yonalishi (Brending|Dizayn|SMM|Sayt|Biznes transformatsiya|Reklama|Boshqa), "
             "rubrik_baholar (har bosqich uchun {ball: 0-100}), "
@@ -294,6 +298,10 @@ class CallScorerMixin:
             '  "nutq_aniqligi": <0-100>,\n'
             '  "natija_ishonch": "natija aniqligiga ishonch, 0.0-1.0 son '
             '(aniq kelishuv bo\'lsa 0.9+, taxmin bo\'lsa 0.5 dan past)",\n'
+            '  "svetofor": "YASHIL|SARIQ|QIZIL",\n'
+            '  "motivatsiya_va_coaching": "maqtov/o\'rgatish/qutqarish matni",\n'
+            '  "keyingi_qadam_aniq": "sotuvchining aniq harakati",\n'
+            '  "mijozga_aytiladigan_gap": "mijozga aytiladigan so\'zma-so\'z gap",\n'
             '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta)"],\n'
             '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi (1-3 ta)"],\n'
             '  "konversiya_tavsiyalari": ["konversiyani oshirish va savdoni yopish bo\'yicha 1-3 ta tavsiya"],\n'

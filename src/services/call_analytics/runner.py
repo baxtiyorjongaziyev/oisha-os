@@ -180,7 +180,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             lead_id=lead_id, category=category, summary=summary, client_mood=client_mood,
             next_steps=next_steps, responsible_user_id=responsible_user_id,
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
-            conversion_advice=analysis.get("konversiya_tavsiyalari"),
+            conversion_advice=analysis.get("konversiya_tavsiyalari"), analysis=analysis,
         )
         await run_crm_automation(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
         try:
@@ -212,7 +212,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             lead_id=lead_id, category=category, summary=summary, client_mood=client_mood,
             next_steps=next_steps, responsible_user_id=responsible_user_id,
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
-            conversion_advice=analysis.get("konversiya_tavsiyalari"),
+            conversion_advice=analysis.get("konversiya_tavsiyalari"), analysis=analysis,
         )
         await run_crm_automation(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
         await self._log_call_analysis(
