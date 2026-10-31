@@ -384,17 +384,15 @@ router.include_router(_fireflies_router)
 async def amocrm_register_webhook(request: Request):
     """Register a webhook for a given amoCRM event (Requires Admin/Owner auth)."""
     from src.api.security import require_admin_access
-    from src.amocrm_sync import register_webhook
 
     require_admin_access(request)
     try:
+        from src.amocrm_sync import register_webhook
         payload = await request.json()
-        event = payload.get("event")
-        target_url = payload.get("target_url")
+        event, target_url = payload.get("event"), payload.get("target_url")
         if not event or not target_url:
             raise HTTPException(status_code=400, detail="'event' and 'target_url' required")
-        result = await asyncio.to_thread(register_webhook, event, target_url)
-        return {"status": "registered", "result": result}
+        return {"status": "registered", "result": await asyncio.to_thread(register_webhook, event, target_url)}
     except HTTPException:
         raise
     except Exception as exc:
