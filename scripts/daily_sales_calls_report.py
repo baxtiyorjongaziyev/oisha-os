@@ -354,7 +354,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         from dotenv import find_dotenv, load_dotenv
-
         load_dotenv(find_dotenv(usecwd=True))
     except ImportError:
         pass
@@ -365,7 +364,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         logger.error("MOIZVONKI_EMAIL / MOIZVONKI_API_KEY topilmadi")
         return 1
     domain = os.environ.get("MOIZVONKI_DOMAIN", "")
-
     start, end = _day_bounds(args.date)
     now_ts = int(datetime.now(TASHKENT).timestamp())
     calls = fetch_calls(email, api_key, int(start.timestamp()), int(end.timestamp()) - 1, domain)

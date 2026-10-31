@@ -157,28 +157,17 @@ class HermesCrmBridge:
         rows = []
         for s in sellers:
             c = _find_seller_calls(s.name, today_calls)
-            solid = int(c.get('solid_calls', 0))
-            total = int(c.get('total', 0))
-            answered = int(c.get('answered', 0))
-            talk_sec = int(c.get('talk_seconds', 0))
-            no_cb = int(c.get('no_callback', 0))
+            solid, total = int(c.get('solid_calls', 0)), int(c.get('total', 0))
+            ans, talk_sec, no_cb = int(c.get('answered', 0)), int(c.get('talk_seconds', 0)), int(c.get('no_callback', 0))
+            tgt = funnel_targets['answered_calls']
             rows.append({
-                'slug': s.slug,
-                'name': s.name,
-                'tg_user_id': s.tg_user_id,
-                'tg_username': s.tg_username,
-                'tg_markdown_mention': s.tg_markdown_mention(),
-                'amocrm_user_id': s.amocrm_user_id,
+                'slug': s.slug, 'name': s.name, 'tg_user_id': s.tg_user_id, 'tg_username': s.tg_username,
+                'tg_markdown_mention': s.tg_markdown_mention(), 'amocrm_user_id': s.amocrm_user_id,
                 'funnel_targets': dict(funnel_targets),
                 'today_telephony': {
-                    'total_calls': total,
-                    'answered_calls': answered,
-                    'solid_calls_ge_3m': solid,
-                    'solid_calls_target': funnel_targets['answered_calls'],
-                    'solid_calls_pct': round(solid / funnel_targets['answered_calls'] * 100, 1)
-                    if funnel_targets['answered_calls'] else 0.0,
-                    'talk_minutes': round(talk_sec / 60, 1),
-                    'missed_no_callback': no_cb,
+                    'total_calls': total, 'answered_calls': ans, 'solid_calls_ge_3m': solid,
+                    'solid_calls_target': tgt, 'solid_calls_pct': round(solid / tgt * 100, 1) if tgt else 0.0,
+                    'talk_minutes': round(talk_sec / 60, 1), 'missed_no_callback': no_cb,
                 },
             })
 
