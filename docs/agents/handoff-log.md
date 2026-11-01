@@ -2155,3 +2155,17 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Merged current main into PR tree without switching the shared working branch or touching unrelated dirty files. Preserved PR pattern matching and unknown savings semantics; carried main Chat Manager inbound/draft recording into the extracted Instagram webhook processor. Preserved both handoff histories.
 - Validation: syntax and focused tests recorded in the PR follow-up; merge/deploy remain separate.
 - Verified: 72 focused tests passed against Git-tree source modules (pattern detector, Instagram security/integration, Chat Manager); Bandit -ll on four resolved production modules: no medium/high findings; diff --check passed. Full suite and filesystem-dependent PR regressions not validated by the in-memory tree harness.
+
+
+## 2026-11-01 - Antigravity: Group Chat Guard & System Leak Blocker
+- **Vazifa / Muammo:** Jamoa guruhida botning har bir xabarga asossiz javob berishi (spam), nooʻrin variantli savollar tashlashi, ichki texnik xatolar (`[The tool failed...]`, `[NO TOOL CALL...]`, loop warninglar) guruhga sizib chiqishi va sunʼiy/buzuq oʻzbek tilida xodimlar bilan bahslashishi bartaraf etildi.
+- **Yechim:**
+  1. `src/handlers/messages.py`: Guruh/superguruhlarda bot faqat toʻgʻridan-toʻgʻri unga qaratilgan xabarlarga (`@mention` yoki botga `reply`) javob beradigan qilindi; guruhdagi boshqa xabarlar jim kuzatiladi.
+  2. `src/handlers/messages.py`: `is_leaked_response` filtri qoʻshildi — agent xatoliklari, loop warninglar va ichki prompt sizishlari guruhlarda butunlay bloklanadi, shaxsiy chatda muloyim uzr bilan almashtiriladi.
+  3. `src/services/core/jamoa_ritm/texts.py`: `HAMROH_SYSTEM` koʻrsatmasi yangilandi — faqat "siz" bilan hurmatli muloqot, bahslashish va oʻzini oqlash qatʼiy taqiqlandi, oʻzbek tili lotin meʼyorlariga moslandi.
+  4. `tests/test_message_handler.py`: Guruh jimligi, mentionga javob va leak filtratsiyasi boʻyicha 4 ta yangi test yozildi.
+- **Oʻzgargan fayllar:** `src/handlers/messages.py`, `src/services/core/jamoa_ritm/texts.py`, `tests/test_message_handler.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py --staged` -> Toza (0 xato).
+  - `bandit -r src/handlers/messages.py src/services/core/jamoa_ritm/texts.py -ll` -> 0 issues.
+  - `pytest tests/test_message_handler.py tests/test_jamoa_ritm.py -v` -> 29/29 passed (100%).
