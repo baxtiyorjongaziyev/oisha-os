@@ -8,6 +8,27 @@ from src.services.core.telegram.telegram_ai_features import TelegramBotAPI10Clie
 
 logger = structlog.get_logger()
 
+_LEAK_PATTERNS = (
+    "[the tool failed",
+    "[no tool call",
+    "[tool loop warning",
+    "same_tool_failure_warning",
+    "never invent fake data",
+    "review the latest error message",
+    "reply \"skip\" to skip this question",
+    "skill_manage has failed",
+    "[lead_report:",
+    "[contact_info:",
+    "[save_info:",
+    "interrupting current task",
+)
+
+
+def is_leaked_response(text: str) -> bool:
+    """Tekshiruv: agentning xom xatoliklari yoki tizim xabarlari Telegramga chiqib ketmasligi kerak."""
+    low = (text or "").lower()
+    return any(p in low for p in _LEAK_PATTERNS)
+
 
 async def process_message_logic(
     update: Update,
@@ -82,26 +103,21 @@ async def process_message_logic(
         if chat_type == "private":
             should_respond = True
         elif chat_type in ["group", "supergroup"]:
-            if is_team_group:
-                # Team guruhida har bir xabarni AI tahlil qiladi.
-                # Faqat bot xabarlarini va juda qisqa (emoji/salomlashish) xabarlarni o'tkazib yuboradi.
-                if user.is_bot:
-                    should_respond = False
-                elif len(text_content.strip()) < 3:
-                    should_respond = False
-                else:
-                    should_respond = True
-            else:
-                # Oddiy guruhda faqat @mention yoki reply
-                if bot_username in text_content:
-                    should_respond = True
-                reply_to = message.reply_to_message
-                if (
-                    reply_to
-                    and reply_to.from_user
-                    and reply_to.from_user.username == bot_username.replace("@", "")
-                ):
-                    should_respond = True
+            # Guruhlarda (oddiy yoki jamoa guruhi boʻlishidan qatʼiy nazar)
+            # bot faqat unga toʻgʻridan-toʻgʻri murojaat qilinganda (@mention yoki reply) javob beradi.
+            # Boshqa paytda jim turadi va suhbatga aslo xalaqit bermaydi.
+            clean_username = bot_username.replace("@", "").lower()
+            is_mentioned = bot_username.lower() in text_content.lower() or f"@{clean_username}" in text_content.lower()
+            reply_to = getattr(message, "reply_to_message", None)
+            is_reply_to_bot = False
+            if reply_to and getattr(reply_to, "from_user", None):
+                target_user = reply_to.from_user
+                is_reply_to_bot = (
+                    getattr(target_user, "is_bot", False)
+                    or (bool(target_user.username) and target_user.username.lower() == clean_username)
+                )
+
+            should_respond = is_mentioned or is_reply_to_bot
 
         if not should_respond:
             return
@@ -151,6 +167,12 @@ async def process_message_logic(
 
         # 6. Send Reply
         if final_text:
+            if is_leaked_response(final_text):
+                logger.warning("system_leak_blocked", preview=final_text[:120], chat_id=chat.id)
+                if chat_type != "private":
+                    return
+                final_text = "Kechirasiz, tizimda vaqtinchalik xatolik yuz berdi. Iltimos, qayta urinib koʻring."
+
             if is_business:
                 await message.get_bot().send_message(
                     chat_id=chat.id,
