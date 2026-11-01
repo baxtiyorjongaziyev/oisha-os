@@ -85,7 +85,7 @@
 
 ## Locks
 - Codex: prospect discovery modules, admin command hook, channel scout scheduler hook, focused tests (2026-10-13).
-- Antigravity: strong free AI model defaults (Gemini 2.5 Flash, Groq Llama 3.3 70B fallbacks) for OpenClaw, Hermes, and Oisha-OS (2026-11-01).
+- Antigravity: personas alignment (OpenClaw as Mr.Jon, Hermes as Oisha) (2026-11-02).
  
 
 

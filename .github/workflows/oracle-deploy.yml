@@ -445,8 +445,12 @@ jobs:
               echo "oisha-leads.service topilmadi — o'tkazib yuborildi"
             fi
 
-            # Hermes Agent (agar Contabo'da sozlangan bo'lsa)
+            # Hermes Agent (Oisha personasi va modellari)
             if id -u hermes >/dev/null 2>&1; then
+              if [ -f "$OISHA_DIR/deploy/hermes/SOUL.md" ]; then
+                sudo cp "$OISHA_DIR/deploy/hermes/SOUL.md" /home/hermes/.hermes/SOUL.md || true
+                sudo chown hermes:hermes /home/hermes/.hermes/SOUL.md 2>/dev/null || true
+              fi
               sudo -iu hermes bash -c '
                 if command -v hermes >/dev/null 2>&1; then
                   hermes config set model.provider gemini || true
@@ -457,6 +461,19 @@ jobs:
                 sudo systemctl restart hermes-gateway || true
               fi
             fi
+
+            # OpenClaw (Mr.Jon personasi va modellari)
+            for u in openclaw ubuntu root; do
+              if id -u "$u" >/dev/null 2>&1; then
+                U_HOME=$(eval echo "~$u")
+                OC_WS="$U_HOME/.openclaw/workspace/oisha"
+                if [ -d "$OC_WS" ] && [ -f "$OISHA_DIR/deploy/openclaw/workspace/SOUL.md" ]; then
+                  sudo cp "$OISHA_DIR/deploy/openclaw/workspace/SOUL.md" "$OC_WS/SOUL.md" || true
+                  sudo cp "$OISHA_DIR/deploy/openclaw/workspace/IDENTITY.md" "$OC_WS/IDENTITY.md" 2>/dev/null || true
+                  sudo chown -R "$u:$u" "$OC_WS" 2>/dev/null || true
+                fi
+              fi
+            done
 
             # Liveness gate: the PROCESS must come up and stay up. /healthz is
             # an always-200 liveness probe (process alive + event loop
