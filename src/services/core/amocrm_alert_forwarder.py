@@ -22,7 +22,13 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient, events
-from telethon.tl.types import KeyboardButtonUrl
+try:
+    from telethon.tl.types import KeyboardButtonUrl
+except ImportError:
+    try:
+        from telethon.tl.types import KeyboardButtonURL as KeyboardButtonUrl
+    except ImportError:
+        KeyboardButtonUrl = None
 
 from src.settings import settings
 
