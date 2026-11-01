@@ -117,4 +117,4 @@ jobs:
         with:
           name: dependabot-remediation
           path: ${{ runner.temp }}/oisha-dependency-audit/
-          retention-days: 7
+          retention-days: 1
