@@ -5,10 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr, Field, model_validator
 from typing import Optional
 from dotenv import load_dotenv
-
 # Load environment variables from .env if present
 load_dotenv()
-
 # Simplified Structured Logging Setup
 structlog.configure(
     processors=[
@@ -20,7 +18,6 @@ structlog.configure(
     logger_factory=structlog.PrintLoggerFactory(),
     cache_logger_on_first_use=True,
 )
-
 from src.settings_helpers import (
     normalize_empty_env_values as _normalize_env_dict,
     normalize_telegram_chat_id,
@@ -79,7 +76,7 @@ class AppSettings(BaseSettings):
     GEMINI_API_KEY: SecretStr = SecretStr("")
     GEMINI_CALL_MODEL: str = "gemini-2.5-flash"
     GEMINI_VISION_MODEL: str = "gemini-2.0-flash"
-    FREE_AI_GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    FREE_AI_GEMINI_MODEL: str = "gemini-2.5-flash"
     GROQ_API_KEY: Optional[SecretStr] = None
     GROQ_TEXT_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"

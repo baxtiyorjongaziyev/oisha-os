@@ -445,6 +445,19 @@ jobs:
               echo "oisha-leads.service topilmadi — o'tkazib yuborildi"
             fi
 
+            # Hermes Agent (agar Contabo'da sozlangan bo'lsa)
+            if id -u hermes >/dev/null 2>&1; then
+              sudo -iu hermes bash -c '
+                if command -v hermes >/dev/null 2>&1; then
+                  hermes config set model.provider gemini || true
+                  hermes config set model.default gemini-2.5-flash || true
+                fi
+              ' || true
+              if systemctl is-active --quiet hermes-gateway; then
+                sudo systemctl restart hermes-gateway || true
+              fi
+            fi
+
             # Liveness gate: the PROCESS must come up and stay up. /healthz is
             # an always-200 liveness probe (process alive + event loop
             # responsive) — it does NOT reflect DB/userbot/AmoCRM, which are
