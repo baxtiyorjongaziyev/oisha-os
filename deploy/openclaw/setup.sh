@@ -33,8 +33,9 @@ echo "[...] Workspace sozlanmoqda: $WORKSPACE"
 mkdir -p "$WORKSPACE/skills/oisha-crm"
 mkdir -p "$WORKSPACE/skills/oisha-web"
 
-cp "$OPENCLAW_DIR/workspace/SOUL.md"   "$WORKSPACE/SOUL.md"
-cp "$OPENCLAW_DIR/workspace/AGENTS.md" "$WORKSPACE/AGENTS.md"
+cp "$OPENCLAW_DIR/workspace/SOUL.md"     "$WORKSPACE/SOUL.md"
+cp "$OPENCLAW_DIR/workspace/IDENTITY.md" "$WORKSPACE/IDENTITY.md" 2>/dev/null || true
+cp "$OPENCLAW_DIR/workspace/AGENTS.md"   "$WORKSPACE/AGENTS.md"
 cp "$OPENCLAW_DIR/workspace/skills/oisha-crm/SKILL.md" \
    "$WORKSPACE/skills/oisha-crm/SKILL.md"
 cp "$OPENCLAW_DIR/workspace/skills/oisha-web/SKILL.md" \
