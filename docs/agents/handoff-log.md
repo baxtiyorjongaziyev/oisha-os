@@ -2193,3 +2193,24 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - `python scripts/check_uzbek_text.py` -> Toza (0 xato).
   - `bandit -r src/services/core/onboarding/ src/controllers/message_controller.py -ll` -> 0 issues.
   - `pytest tests/test_self_onboarding.py tests/test_message_handler.py tests/test_jamoa_ritm.py` -> 35/35 passed (100%).
+
+## 2026-11-02 — Antigravity: GitHub Actions Runtime, Caching and Storage Optimization
+- **Vazifa / Kontekst:** GitHub bepul limitlarini (oyiga 2,000 daqiqa Actions, 500 MB saqlash xotirasi, API soʻrovlari) maksimal darajada tejash va CI tezligini oshirish boʻyicha optimizatsiyalar amalga oshirildi.
+- **Amalga oshirilgan ishlar:**
+  1. `test.yml`:
+     - `pull-request-tests`, `marketing_backend` va `trusted-main-tests` ishlariga `astral-sh/setup-uv@v5` ulandi (`enable-cache: true`). Standart `pip` oʻrniga `uv pip install --system` oʻrnatildi (bogʻliqliklar oʻrnatilishi 2 daqiqadan 5–10 soniyaga tushirildi).
+     - `changes` ishida `dorny/paths-filter@v3` ga `token` qoʻshildi va checkout sozlamasi toʻgʻrilandi (git 128 xatosi bartaraf etildi).
+  2. `oracle-deploy.yml`:
+     - `import-guard` ishiga `astral-sh/setup-uv@v5` ulandi, importlarni tekshirish vaqti 58 soniyadan 10–15 soniyaga tezlashdi.
+  3. `ai-studio-sync.yml`:
+     - `concurrency: cancel-in-progress: true` qoʻshildi.
+     - `pip` oʻrniga `setup-uv` ga oʻtkazildi.
+     - Artefakt saqlash muddati 14 kundan 1 kunga (`retention-days: 1`) tushirildi (500 MB limit tejaladi).
+  4. `dependabot-remediation.yml`:
+     - Artefakt saqlash muddati 7 kundan 1 kunga (`retention-days: 1`) tushirildi.
+  5. `labeler.yml`:
+     - PR ga takroriy commit qilinganda eski tekshiruvlarni toʻxtatuvchi `concurrency` ulandi.
+- **Oʻzgargan fayllar:** `.github/workflows/test.yml`, `.github/workflows/oracle-deploy.yml`, `.github/workflows/ai-studio-sync.yml`, `.github/workflows/dependabot-remediation.yml`, `.github/workflows/labeler.yml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py --staged` -> Toza.
+  - Pre-flight testlar: 1038 passed, Bandit 0 issues.

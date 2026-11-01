@@ -85,7 +85,7 @@
 
 ## Locks
 - Codex: prospect discovery modules, admin command hook, channel scout scheduler hook, focused tests (2026-10-13).
-- Antigravity: personas alignment (OpenClaw as Mr.Jon, Hermes as Oisha) (2026-11-02).
+- Antigravity: github actions optimization (uv caching, concurrency, retention) (2026-11-02).
  
 
 
