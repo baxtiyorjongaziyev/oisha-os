@@ -56,6 +56,7 @@ if [ ! -f "$OPENCLAW_CONFIG" ]; then
     echo ""
     echo "[MUHIM] Quyidagi muhit o'zgaruvchilarini .env ga qo'shing:"
     echo "  GEMINI_API_KEY=<Google AI Studio dan oling>"
+    echo "  GROQ_API_KEY=<Groq Cloud dan oling (ixtiyoriy fallback)>"
     echo "  OPENCLAW_SECRET=$OC_SECRET"
     echo "  OISHA_API_URL=https://your-service.run.app"
     echo "  TELEGRAM_BOT_TOKEN=<ixtiyoriy>"
