@@ -2155,3 +2155,13 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Merged current main into PR tree without switching the shared working branch or touching unrelated dirty files. Preserved PR pattern matching and unknown savings semantics; carried main Chat Manager inbound/draft recording into the extracted Instagram webhook processor. Preserved both handoff histories.
 - Validation: syntax and focused tests recorded in the PR follow-up; merge/deploy remain separate.
 - Verified: 72 focused tests passed against Git-tree source modules (pattern detector, Instagram security/integration, Chat Manager); Bandit -ll on four resolved production modules: no medium/high findings; diff --check passed. Full suite and filesystem-dependent PR regressions not validated by the in-memory tree harness.
+
+### 2026-11-01 — Antigravity: Strong Free AI Models Alignment (OpenClaw, Hermes & Oisha-OS)
+- **Vazifa / Ish**: Owner topshirig'iga ko'ra agentlar birinchi navbatda eng kuchli bepul modellardan foydalanadigan qilindi:
+  1. `deploy/openclaw/openclaw.json`: asosiy model `google/gemini-2.5-flash` qilib belgilandi; zaxira (fallbacks) zanjiriga `["groq/llama-3.3-70b-versatile", "google/gemini-2.5-flash-lite"]` qo'shildi hamda `groq` provayderi ulandi.
+  2. `deploy/openclaw/setup.sh`: `GROQ_API_KEY` ko'rsatmasi bilan boyitildi.
+  3. `src/settings.py`: `FREE_AI_GEMINI_MODEL` qiymati `gemini-2.5-flash-lite` dan `gemini-2.5-flash` ga yangilandi; fayl hajmi 399 qatorda (<= 400 LOC standarti) saqlandi.
+  4. `.github/workflows/oracle-deploy.yml` va `.github/workflows/oracle-diagnose.yml`: serverda `hermes` agenti mavjud bo'lganda uning modeli `gemini / gemini-2.5-flash` ga sozlanishi va OpenClaw modellarini avtomatik sinxronlash imkoniyati qo'shildi.
+- **O'zgargan fayllar**: `deploy/openclaw/openclaw.json`, `deploy/openclaw/setup.sh`, `src/settings.py`, `.github/workflows/oracle-deploy.yml`, `.github/workflows/oracle-diagnose.yml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili**: Pytest 20/20 passed (`test_free_ai_router.py`, `test_security_audit_regressions.py`, `test_pairing_security_gate.py`); Bandit clean (`bandit -r src/settings.py -ll`); O'zbekcha matn guard toza; `src/settings.py` 399 LOC (<= 400 LOC standarti).
+- **Qolgan ish**: PR ochish, CI tekshiruvi va serverda sinxronlashni ishga tushirish.

@@ -10,12 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "diagnose = faqat o'qish; stop-service = oisha-os servisini to'xtatish"
+        description: "diagnose = faqat o'qish; sync-models = Hermes va OpenClaw modellarini yangilash; stop-service = oisha-os servisini to'xtatish"
         required: true
         default: diagnose
         type: choice
         options:
           - diagnose
+          - sync-models
           - stop-service
 
 concurrency:
@@ -140,4 +141,57 @@ jobs:
           systemctl is-active oisha-os
           echo "--- to'xtatishdan keyin qolgan process'lar ---"
           ps -eo pid,lstart,cmd | grep -E "python3?.*(src/main|oisha)" | grep -v grep
+          exit 0
+
+      - name: Sync Hermes and OpenClaw models
+        if: inputs.mode == 'sync-models'
+        run: |
+          set +e
+          echo "=== 1. Hermes Agent model sozlamalari ==="
+          if id -u hermes >/dev/null 2>&1; then
+            echo "Hermes foydalanuvchisi topildi."
+            sudo -iu hermes bash -c '
+              if command -v hermes >/dev/null 2>&1; then
+                echo "Hozirgi model:"
+                hermes config get model.default 2>/dev/null || true
+                echo "Yangi model o‘rnatilmoqda: gemini / gemini-2.5-flash..."
+                hermes config set model.provider gemini || true
+                hermes config set model.default gemini-2.5-flash || true
+                echo "Tasdiq:"
+                hermes config get model.provider 2>/dev/null || true
+                hermes config get model.default 2>/dev/null || true
+              else
+                echo "hermes CLI buyrug‘i topilmadi."
+              fi
+            '
+            if systemctl is-active --quiet hermes-gateway; then
+              echo "hermes-gateway qayta ishga tushirilmoqda..."
+              sudo systemctl restart hermes-gateway || true
+              echo "hermes-gateway holati: $(systemctl is-active hermes-gateway)"
+            fi
+          else
+            echo "hermes foydalanuvchisi topilmadi."
+          fi
+
+          echo
+          echo "=== 2. OpenClaw model sozlamalari ==="
+          for u in openclaw ubuntu root; do
+            if id -u "$u" >/dev/null 2>&1; then
+              sudo -iu "$u" bash -c '
+                if command -v openclaw >/dev/null 2>&1; then
+                  echo "[$USER] openclaw topildi."
+                  echo "Asosiy model: google/gemini-2.5-flash o‘rnatilmoqda..."
+                  openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash" || openclaw config set agents.defaults.model "google/gemini-2.5-flash" || true
+                  echo "Zaxira modellar: groq/llama-3.3-70b-versatile va google/gemini-2.5-flash-lite..."
+                  openclaw config set agents.defaults.model.fallbacks '\''["groq/llama-3.3-70b-versatile", "google/gemini-2.5-flash-lite"]'\'' || true
+                  echo "Tasdiq:"
+                  openclaw config get agents.defaults.model 2>/dev/null || true
+                fi
+              '
+            fi
+          done
+
+          echo
+          echo "=== 3. Jarayonlar tekshiruvi ==="
+          ps -eo pid,cmd | grep -E "hermes|openclaw" | grep -v grep || true
           exit 0

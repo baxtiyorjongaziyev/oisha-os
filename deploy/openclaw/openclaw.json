@@ -1,18 +1,21 @@
 {
   "$schema": "https://openclaw.ai/config.schema.json",
-
   "gateway": {
     "port": 18789,
     "mode": "local"
   },
-
   "agents": {
     "defaults": {
       "workspace": "~/.openclaw/workspace/oisha",
-      "model": "google/gemini-2.0-flash"
+      "model": {
+        "primary": "google/gemini-2.5-flash",
+        "fallbacks": [
+          "groq/llama-3.3-70b-versatile",
+          "google/gemini-2.5-flash-lite"
+        ]
+      }
     }
   },
-
   "models": {
     "providers": {
       "google": {
@@ -20,17 +23,26 @@
           "source": "env",
           "id": "GEMINI_API_KEY"
         }
+      },
+      "groq": {
+        "apiKey": {
+          "source": "env",
+          "id": "GROQ_API_KEY"
+        }
       }
     }
   },
-
   "skills": {
     "load": {
-      "extraDirs": ["~/.openclaw/workspace/oisha/skills"]
+      "extraDirs": [
+        "~/.openclaw/workspace/oisha/skills"
+      ]
     },
-    "allowBundled": ["weather", "github"]
+    "allowBundled": [
+      "weather",
+      "github"
+    ]
   },
-
   "channels": {
     "telegram": {
       "enabled": false,
@@ -49,7 +61,6 @@
       "enabled": false
     }
   },
-
   "hooks": {
     "enabled": true,
     "path": "/hooks/oisha",
