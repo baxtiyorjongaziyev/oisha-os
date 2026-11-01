@@ -85,7 +85,6 @@
 
 ## Locks
 - Codex: prospect discovery modules, admin command hook, channel scout scheduler hook, focused tests (2026-10-13).
-- Antigravity: agent self-onboarding service, company context ingestion, role & workflow guards (2026-11-01).
 - Antigravity: strong free AI model defaults (Gemini 2.5 Flash, Groq Llama 3.3 70B fallbacks) for OpenClaw, Hermes, and Oisha-OS (2026-11-01).
  
 

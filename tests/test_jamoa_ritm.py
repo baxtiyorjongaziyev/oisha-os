@@ -209,7 +209,7 @@ async def test_friday_retro_to_group_and_review_to_owner():
     assert await sched.run_due_slots(at(4, 17, 0), **kwargs) == ["ozini_tahlil"]
     assert bot.sent[0] == (GROUP, "Hafta yakuni 🔁 ...")
     assert bot.sent[1][0] == OWNER
-    assert bot.sent[1][1].startswith("Hamroh: haftalik o'z-o'zini tahlil")
+    assert bot.sent[1][1].startswith(("Hamroh: haftalik oʻz-oʻzini tahlil", "Hamroh: haftalik o'z-o'zini tahlil"))
     assert "Logotip tayyor" in calls[0]
 
 

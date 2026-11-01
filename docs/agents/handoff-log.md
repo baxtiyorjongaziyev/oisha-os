@@ -2179,3 +2179,17 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - `python scripts/check_uzbek_text.py --staged` -> Toza (0 xato).
   - `bandit -r src/handlers/messages.py src/services/core/jamoa_ritm/texts.py -ll` -> 0 issues.
   - `pytest tests/test_message_handler.py tests/test_jamoa_ritm.py -v` -> 29/29 passed (100%).
+
+## 2026-11-01 - Antigravity: Autonomous Self-Onboarding for Oisha
+- **Vazifa / Kontekst:** Foydalanuvchi talabi: "Oʻzini oʻzi birinchi onboarding qilsin". Oisha Jon Branding jamoasi, rollar, operatsion yoʻriqnomalar va moliya jarayonlarini avtonom oʻrganishi hamda guruhda jamoa aʼzolariga (Baxtiyorjon, Dilbar PM) "Kunlik balansni qayerdan olasiz?" kabi nooʻrin savollar bermasligi taʼminlandi.
+- **Amalga oshirilgan ishlar:**
+  1. `src/services/core/onboarding/`: Oisha uchun toʻliq avtonom self-onboarding moduli yaratildi (`models.py`, `knowledge_source.py`, `service.py`, `__init__.py`). Kompaniya profili (Jon Branding xizmatlari va narxlari), jamoa tarkibi (Baxtiyorjon — CEO, Dilbar — PM & Hisobchi, Rayxon/Mumtozmaxal/Shahnoza — sotuv, Ahrorbek — dizayn/texnik) va 3 ta asosiy operatsion yoʻriqnoma (`moliya`, `sales_discipline`, `jamoa_ritmi`) avtomatik jamlanadi va `data/self_onboarding_profile.json` ga keshlanadi.
+  2. `src/services/core/jamoa_ritm/texts.py` & `brain.py`: `HAMROH_SYSTEM` koʻrsatmasiga kompaniya konteksti va "Kunlik balansni qayerdan olasiz?" kabi soʻrovlarni qatʼiyan taqiqlovchi qoida singdirildi. `HamrohBrain.answer()` da murojaat qiluvchi (`asker`) roli onboarding orqali aniqlanib, promptga uzatiladigan qilindi.
+  3. `src/controllers/message_controller.py`: `MessageController` ishga tushganda self-onboarding maʼlumotlari barcha agentlar tizim promptiga singdiriladi. Guruhda jamoa eslatmasi takroriy qoʻshilib xotira sizishiga olib keluvchi xato (`_team_mode_active` flag orqali) tuzatildi va Dilbar opa balans kiritganda toʻgʻridan-toʻgʻri qabul qilinadigan mantiq ulandi.
+  4. `src/services/core/amocrm_alert_forwarder.py`: `KeyboardButtonUrl` importi Linux muhitida xavfsiz qilindi.
+  5. `tests/test_self_onboarding.py`: 6 ta toʻliq birlik testi yozildi (onboarding, member lookup, clarify guard, prompt context, brain enrichment, singleton).
+- **Oʻzgargan fayllar:** `src/services/core/onboarding/*`, `src/controllers/message_controller.py`, `src/services/core/jamoa_ritm/brain.py`, `src/services/core/jamoa_ritm/texts.py`, `src/services/core/amocrm_alert_forwarder.py`, `tests/test_self_onboarding.py`, `tests/test_jamoa_ritm.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py` -> Toza (0 xato).
+  - `bandit -r src/services/core/onboarding/ src/controllers/message_controller.py -ll` -> 0 issues.
+  - `pytest tests/test_self_onboarding.py tests/test_message_handler.py tests/test_jamoa_ritm.py` -> 35/35 passed (100%).
