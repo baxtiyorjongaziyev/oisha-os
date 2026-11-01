@@ -2165,3 +2165,17 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - **O'zgargan fayllar**: `deploy/openclaw/openclaw.json`, `deploy/openclaw/setup.sh`, `src/settings.py`, `.github/workflows/oracle-deploy.yml`, `.github/workflows/oracle-diagnose.yml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalili**: Pytest 20/20 passed (`test_free_ai_router.py`, `test_security_audit_regressions.py`, `test_pairing_security_gate.py`); Bandit clean (`bandit -r src/settings.py -ll`); O'zbekcha matn guard toza; `src/settings.py` 399 LOC (<= 400 LOC standarti).
 - **Qolgan ish**: PR ochish, CI tekshiruvi va serverda sinxronlashni ishga tushirish.
+
+
+## 2026-11-01 - Antigravity: Group Chat Guard & System Leak Blocker
+- **Vazifa / Muammo:** Jamoa guruhida botning har bir xabarga asossiz javob berishi (spam), nooʻrin variantli savollar tashlashi, ichki texnik xatolar (`[The tool failed...]`, `[NO TOOL CALL...]`, loop warninglar) guruhga sizib chiqishi va sunʼiy/buzuq oʻzbek tilida xodimlar bilan bahslashishi bartaraf etildi.
+- **Yechim:**
+  1. `src/handlers/messages.py`: Guruh/superguruhlarda bot faqat toʻgʻridan-toʻgʻri unga qaratilgan xabarlarga (`@mention` yoki botga `reply`) javob beradigan qilindi; guruhdagi boshqa xabarlar jim kuzatiladi.
+  2. `src/handlers/messages.py`: `is_leaked_response` filtri qoʻshildi — agent xatoliklari, loop warninglar va ichki prompt sizishlari guruhlarda butunlay bloklanadi, shaxsiy chatda muloyim uzr bilan almashtiriladi.
+  3. `src/services/core/jamoa_ritm/texts.py`: `HAMROH_SYSTEM` koʻrsatmasi yangilandi — faqat "siz" bilan hurmatli muloqot, bahslashish va oʻzini oqlash qatʼiy taqiqlandi, oʻzbek tili lotin meʼyorlariga moslandi.
+  4. `tests/test_message_handler.py`: Guruh jimligi, mentionga javob va leak filtratsiyasi boʻyicha 4 ta yangi test yozildi.
+- **Oʻzgargan fayllar:** `src/handlers/messages.py`, `src/services/core/jamoa_ritm/texts.py`, `tests/test_message_handler.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py --staged` -> Toza (0 xato).
+  - `bandit -r src/handlers/messages.py src/services/core/jamoa_ritm/texts.py -ll` -> 0 issues.
+  - `pytest tests/test_message_handler.py tests/test_jamoa_ritm.py -v` -> 29/29 passed (100%).
