@@ -33,8 +33,9 @@ echo "[...] Workspace sozlanmoqda: $WORKSPACE"
 mkdir -p "$WORKSPACE/skills/oisha-crm"
 mkdir -p "$WORKSPACE/skills/oisha-web"
 
-cp "$OPENCLAW_DIR/workspace/SOUL.md"   "$WORKSPACE/SOUL.md"
-cp "$OPENCLAW_DIR/workspace/AGENTS.md" "$WORKSPACE/AGENTS.md"
+cp "$OPENCLAW_DIR/workspace/SOUL.md"     "$WORKSPACE/SOUL.md"
+cp "$OPENCLAW_DIR/workspace/IDENTITY.md" "$WORKSPACE/IDENTITY.md" 2>/dev/null || true
+cp "$OPENCLAW_DIR/workspace/AGENTS.md"   "$WORKSPACE/AGENTS.md"
 cp "$OPENCLAW_DIR/workspace/skills/oisha-crm/SKILL.md" \
    "$WORKSPACE/skills/oisha-crm/SKILL.md"
 cp "$OPENCLAW_DIR/workspace/skills/oisha-web/SKILL.md" \
@@ -56,6 +57,7 @@ if [ ! -f "$OPENCLAW_CONFIG" ]; then
     echo ""
     echo "[MUHIM] Quyidagi muhit o'zgaruvchilarini .env ga qo'shing:"
     echo "  GEMINI_API_KEY=<Google AI Studio dan oling>"
+    echo "  GROQ_API_KEY=<Groq Cloud dan oling (ixtiyoriy fallback)>"
     echo "  OPENCLAW_SECRET=$OC_SECRET"
     echo "  OISHA_API_URL=https://your-service.run.app"
     echo "  TELEGRAM_BOT_TOKEN=<ixtiyoriy>"

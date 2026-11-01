@@ -1,6 +1,6 @@
-"""Hamroh AI javoblari: mention'ga javob, haftalik retro va egaga o'z-o'zini tahlil.
+"""Hamroh AI javoblari: mentionʼga javob, haftalik retro va egaga oʻz-oʻzini tahlil.
 
-LLM chaqiruvlari ``free_ai_router`` orqali o'tadi (provayder ishlamasa boshqasiga o'tadi).
+LLM chaqiruvlari ``free_ai_router`` orqali oʻtadi (provayder ishlamasa boshqasiga oʻtadi).
 AI javob bermasa, har bir funksiya xavfsiz zaxira matnini qaytaradi.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 Generate = Callable[..., Awaitable[str]]
 
 TELEGRAM_LIMIT = 3500
-ANSWER_FALLBACK = "Hozir javob tayyorlay olmadim. Birozdan keyin qayta so'rab ko'ring."
+ANSWER_FALLBACK = "Hozir javob tayyorlay olmadim. Birozdan keyin qayta soʻrab koʻring."
 
 
 async def _router_generate(prompt: str, *, system: str, max_tokens: int, temperature: float) -> str:
@@ -40,7 +40,7 @@ def _clip(text: str, limit: int = TELEGRAM_LIMIT) -> str:
 
 
 def format_transcript(messages: list[dict], max_chars: int = 12000, tz: Optional[tzinfo] = None) -> str:
-    """Xabarlarni ``HH:MM Ism: matn`` qatorlariga aylantiradi; sig'masa eng yangilari qoladi."""
+    """Xabarlarni ``HH:MM Ism: matn`` qatorlariga aylantiradi; sigʻmasa eng yangilari qoladi."""
     if tz is None:
         from src.time_utils import get_local_timezone
 
@@ -55,7 +55,7 @@ def format_transcript(messages: list[dict], max_chars: int = 12000, tz: Optional
         elif role == ROLE_RITM:
             name = "Oisha (ritm)"
         else:
-            name = item.get("user_name") or "A'zo"
+            name = item.get("user_name") or "Aʼzo"
         line = f"{stamp} {name}: {' '.join(str(item.get('text') or '').split())}"
         if used + len(line) + 1 > max_chars:
             break
@@ -81,11 +81,22 @@ class HamrohBrain:
         return _clip(text)
 
     async def answer(self, question: str, context: list[dict], asker: str = "") -> str:
-        transcript = format_transcript(context, max_chars=6000, tz=self._tz) or "(suhbat yo'q)"
-        who = asker or "Jamoa a'zosi"
+        transcript = format_transcript(context, max_chars=6000, tz=self._tz) or "(suhbat yoʻq)"
+        who = asker or "Jamoa aʼzosi"
+
+        asker_context = ""
+        try:
+            from src.services.core.onboarding import get_self_onboarding
+
+            member = get_self_onboarding().lookup_member(asker)
+            if member:
+                asker_context = f"\n(Murojaat qiluvchi: {member.name}, vazifasi/roli: {member.role})\n"
+        except Exception:
+            logger.debug("onboarding_lookup_failed", exc_info=True)
+
         prompt = (
             f"Guruhdagi oxirgi suhbat:\n{transcript}\n\n---\n"
-            f"{who} senga murojaat qildi:\n{question.strip()}"
+            f"{who}{asker_context} senga murojaat qildi:\n{question.strip()}"
         )
         return await self._ask(prompt, max_tokens=600, temperature=0.3) or ANSWER_FALLBACK
 
@@ -94,14 +105,14 @@ class HamrohBrain:
         if not members:
             return RETRO_FALLBACK
         prompt = (
-            f"{RETRO_TASK}\nSuhbat (haftaning oxirgi {len(members)} ta xabari, to'liq bo'lmasligi mumkin):\n"
+            f"{RETRO_TASK}\nSuhbat (haftaning oxirgi {len(members)} ta xabari, toʻliq boʻlmasligi mumkin):\n"
             f"{format_transcript(members, tz=self._tz)}"
         )
         return await self._ask(prompt, max_tokens=700, temperature=0.4) or RETRO_FALLBACK
 
     async def self_review(self, messages: list[dict], counts: Optional[dict[str, int]] = None) -> str:
-        """``counts`` — butun hafta bo'yicha ``{role: soni}``. Berilmasa, raqamlar faqat
-        namunadan hisoblanadi va bu matnda ochiq aytiladi (to'liq hisob deb ko'rsatilmaydi)."""
+        """``counts`` — butun hafta boʻyicha ``{role: soni}``. Berilmasa, raqamlar faqat
+        namunadan hisoblanadi va bu matnda ochiq aytiladi (toʻliq hisob deb koʻrsatilmaydi)."""
         if counts is not None:
             stats = (
                 "Statistika (butun hafta): kuzatilgan xabarlar — "
@@ -111,11 +122,11 @@ class HamrohBrain:
             answered = sum(1 for m in messages if m.get("role") == ROLE_HAMROH)
             observed = sum(1 for m in messages if m.get("role", ROLE_MEMBER) == ROLE_MEMBER)
             stats = (
-                f"Statistika (faqat oxirgi {len(messages)} ta yozuv bo'yicha, butun hafta emas): "
+                f"Statistika (faqat oxirgi {len(messages)} ta yozuv boʻyicha, butun hafta emas): "
                 f"kuzatilgan xabarlar — {observed}, Hamroh javoblari — {answered}."
             )
         fallback = (
-            "Hamroh: haftalik o'z-o'zini tahlil\n"
+            "Hamroh: haftalik oʻz-oʻzini tahlil\n"
             f"{stats}\n"
             "AI tahlil hozir tayyorlanmadi; batafsil hisobot keyingi haftada."
         )
@@ -123,8 +134,8 @@ class HamrohBrain:
             return fallback
         prompt = (
             f"{TAHLIL_TASK}\n{stats}\n\n"
-            f"Suhbat (haftaning oxirgi {len(messages)} ta yozuvi, to'liq bo'lmasligi mumkin):\n"
+            f"Suhbat (haftaning oxirgi {len(messages)} ta yozuvi, toʻliq boʻlmasligi mumkin):\n"
             f"{format_transcript(messages, tz=self._tz)}"
         )
         text = await self._ask(prompt, max_tokens=900, temperature=0.3)
-        return f"Hamroh: haftalik o'z-o'zini tahlil\n{text}" if text else fallback
+        return f"Hamroh: haftalik oʻz-oʻzini tahlil\n{text}" if text else fallback

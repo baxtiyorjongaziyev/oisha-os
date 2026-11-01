@@ -2164,3 +2164,63 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - `GEMINI.md`, `.cursor/rules/preflight.mdc`, `.agents/skills/preflight/SKILL.md` va `.claude/skills/preflight/SKILL.md` ga ham `--staged` buyrug'i qo'shildi — barcha agentlar bir xil tekshiradi.
 - Tekshiruv: `tests/test_check_uzbek_text.py` 11 passed; `--all --baseline` toza (1575 fayl); legacy fayl baseline bilan toza; workflow YAML parse OK.
 - Ochiq: GitHub Actions CI joblari billing/spending-limit sabab ishlamaydi (PR #991 da kuzatilgan; kod emas); baseline hozircha fayl darajasida, so'z darajasida emas.
+
+
+### 2026-11-01 — Antigravity: Strong Free AI Models Alignment (OpenClaw, Hermes & Oisha-OS)
+- **Vazifa / Ish**: Owner topshirig'iga ko'ra agentlar birinchi navbatda eng kuchli bepul modellardan foydalanadigan qilindi:
+  1. `deploy/openclaw/openclaw.json`: asosiy model `google/gemini-2.5-flash` qilib belgilandi; zaxira (fallbacks) zanjiriga `["groq/llama-3.3-70b-versatile", "google/gemini-2.5-flash-lite"]` qo'shildi hamda `groq` provayderi ulandi.
+  2. `deploy/openclaw/setup.sh`: `GROQ_API_KEY` ko'rsatmasi bilan boyitildi.
+  3. `src/settings.py`: `FREE_AI_GEMINI_MODEL` qiymati `gemini-2.5-flash-lite` dan `gemini-2.5-flash` ga yangilandi; fayl hajmi 399 qatorda (<= 400 LOC standarti) saqlandi.
+  4. `.github/workflows/oracle-deploy.yml` va `.github/workflows/oracle-diagnose.yml`: serverda `hermes` agenti mavjud bo'lganda uning modeli `gemini / gemini-2.5-flash` ga sozlanishi va OpenClaw modellarini avtomatik sinxronlash imkoniyati qo'shildi.
+- **O'zgargan fayllar**: `deploy/openclaw/openclaw.json`, `deploy/openclaw/setup.sh`, `src/settings.py`, `.github/workflows/oracle-deploy.yml`, `.github/workflows/oracle-diagnose.yml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili**: Pytest 20/20 passed (`test_free_ai_router.py`, `test_security_audit_regressions.py`, `test_pairing_security_gate.py`); Bandit clean (`bandit -r src/settings.py -ll`); O'zbekcha matn guard toza; `src/settings.py` 399 LOC (<= 400 LOC standarti).
+- **Qolgan ish**: PR ochish, CI tekshiruvi va serverda sinxronlashni ishga tushirish.
+
+
+## 2026-11-01 - Antigravity: Group Chat Guard & System Leak Blocker
+- **Vazifa / Muammo:** Jamoa guruhida botning har bir xabarga asossiz javob berishi (spam), nooʻrin variantli savollar tashlashi, ichki texnik xatolar (`[The tool failed...]`, `[NO TOOL CALL...]`, loop warninglar) guruhga sizib chiqishi va sunʼiy/buzuq oʻzbek tilida xodimlar bilan bahslashishi bartaraf etildi.
+- **Yechim:**
+  1. `src/handlers/messages.py`: Guruh/superguruhlarda bot faqat toʻgʻridan-toʻgʻri unga qaratilgan xabarlarga (`@mention` yoki botga `reply`) javob beradigan qilindi; guruhdagi boshqa xabarlar jim kuzatiladi.
+  2. `src/handlers/messages.py`: `is_leaked_response` filtri qoʻshildi — agent xatoliklari, loop warninglar va ichki prompt sizishlari guruhlarda butunlay bloklanadi, shaxsiy chatda muloyim uzr bilan almashtiriladi.
+  3. `src/services/core/jamoa_ritm/texts.py`: `HAMROH_SYSTEM` koʻrsatmasi yangilandi — faqat "siz" bilan hurmatli muloqot, bahslashish va oʻzini oqlash qatʼiy taqiqlandi, oʻzbek tili lotin meʼyorlariga moslandi.
+  4. `tests/test_message_handler.py`: Guruh jimligi, mentionga javob va leak filtratsiyasi boʻyicha 4 ta yangi test yozildi.
+- **Oʻzgargan fayllar:** `src/handlers/messages.py`, `src/services/core/jamoa_ritm/texts.py`, `tests/test_message_handler.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py --staged` -> Toza (0 xato).
+  - `bandit -r src/handlers/messages.py src/services/core/jamoa_ritm/texts.py -ll` -> 0 issues.
+  - `pytest tests/test_message_handler.py tests/test_jamoa_ritm.py -v` -> 29/29 passed (100%).
+
+## 2026-11-01 - Antigravity: Autonomous Self-Onboarding for Oisha
+- **Vazifa / Kontekst:** Foydalanuvchi talabi: "Oʻzini oʻzi birinchi onboarding qilsin". Oisha Jon Branding jamoasi, rollar, operatsion yoʻriqnomalar va moliya jarayonlarini avtonom oʻrganishi hamda guruhda jamoa aʼzolariga (Baxtiyorjon, Dilbar PM) "Kunlik balansni qayerdan olasiz?" kabi nooʻrin savollar bermasligi taʼminlandi.
+- **Amalga oshirilgan ishlar:**
+  1. `src/services/core/onboarding/`: Oisha uchun toʻliq avtonom self-onboarding moduli yaratildi (`models.py`, `knowledge_source.py`, `service.py`, `__init__.py`). Kompaniya profili (Jon Branding xizmatlari va narxlari), jamoa tarkibi (Baxtiyorjon — CEO, Dilbar — PM & Hisobchi, Rayxon/Mumtozmaxal/Shahnoza — sotuv, Ahrorbek — dizayn/texnik) va 3 ta asosiy operatsion yoʻriqnoma (`moliya`, `sales_discipline`, `jamoa_ritmi`) avtomatik jamlanadi va `data/self_onboarding_profile.json` ga keshlanadi.
+  2. `src/services/core/jamoa_ritm/texts.py` & `brain.py`: `HAMROH_SYSTEM` koʻrsatmasiga kompaniya konteksti va "Kunlik balansni qayerdan olasiz?" kabi soʻrovlarni qatʼiyan taqiqlovchi qoida singdirildi. `HamrohBrain.answer()` da murojaat qiluvchi (`asker`) roli onboarding orqali aniqlanib, promptga uzatiladigan qilindi.
+  3. `src/controllers/message_controller.py`: `MessageController` ishga tushganda self-onboarding maʼlumotlari barcha agentlar tizim promptiga singdiriladi. Guruhda jamoa eslatmasi takroriy qoʻshilib xotira sizishiga olib keluvchi xato (`_team_mode_active` flag orqali) tuzatildi va Dilbar opa balans kiritganda toʻgʻridan-toʻgʻri qabul qilinadigan mantiq ulandi.
+  4. `src/services/core/amocrm_alert_forwarder.py`: `KeyboardButtonUrl` importi Linux muhitida xavfsiz qilindi.
+  5. `tests/test_self_onboarding.py`: 6 ta toʻliq birlik testi yozildi (onboarding, member lookup, clarify guard, prompt context, brain enrichment, singleton).
+- **Oʻzgargan fayllar:** `src/services/core/onboarding/*`, `src/controllers/message_controller.py`, `src/services/core/jamoa_ritm/brain.py`, `src/services/core/jamoa_ritm/texts.py`, `src/services/core/amocrm_alert_forwarder.py`, `tests/test_self_onboarding.py`, `tests/test_jamoa_ritm.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py` -> Toza (0 xato).
+  - `bandit -r src/services/core/onboarding/ src/controllers/message_controller.py -ll` -> 0 issues.
+  - `pytest tests/test_self_onboarding.py tests/test_message_handler.py tests/test_jamoa_ritm.py` -> 35/35 passed (100%).
+
+## 2026-11-02 — Antigravity: GitHub Actions Runtime, Caching and Storage Optimization
+- **Vazifa / Kontekst:** GitHub bepul limitlarini (oyiga 2,000 daqiqa Actions, 500 MB saqlash xotirasi, API soʻrovlari) maksimal darajada tejash va CI tezligini oshirish boʻyicha optimizatsiyalar amalga oshirildi.
+- **Amalga oshirilgan ishlar:**
+  1. `test.yml`:
+     - `pull-request-tests`, `marketing_backend` va `trusted-main-tests` ishlariga `astral-sh/setup-uv@v5` ulandi (`enable-cache: true`). Standart `pip` oʻrniga `uv pip install --system` oʻrnatildi (bogʻliqliklar oʻrnatilishi 2 daqiqadan 5–10 soniyaga tushirildi).
+     - `changes` ishida `dorny/paths-filter@v3` ga `token` qoʻshildi va checkout sozlamasi toʻgʻrilandi (git 128 xatosi bartaraf etildi).
+  2. `oracle-deploy.yml`:
+     - `import-guard` ishiga `astral-sh/setup-uv@v5` ulandi, importlarni tekshirish vaqti 58 soniyadan 10–15 soniyaga tezlashdi.
+  3. `ai-studio-sync.yml`:
+     - `concurrency: cancel-in-progress: true` qoʻshildi.
+     - `pip` oʻrniga `setup-uv` ga oʻtkazildi.
+     - Artefakt saqlash muddati 14 kundan 1 kunga (`retention-days: 1`) tushirildi (500 MB limit tejaladi).
+  4. `dependabot-remediation.yml`:
+     - Artefakt saqlash muddati 7 kundan 1 kunga (`retention-days: 1`) tushirildi.
+  5. `labeler.yml`:
+     - PR ga takroriy commit qilinganda eski tekshiruvlarni toʻxtatuvchi `concurrency` ulandi.
+- **Oʻzgargan fayllar:** `.github/workflows/test.yml`, `.github/workflows/oracle-deploy.yml`, `.github/workflows/ai-studio-sync.yml`, `.github/workflows/dependabot-remediation.yml`, `.github/workflows/labeler.yml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py --staged` -> Toza.
+  - Pre-flight testlar: 1038 passed, Bandit 0 issues.

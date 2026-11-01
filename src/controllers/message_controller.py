@@ -65,20 +65,36 @@ class MessageController:
             config=config,
         )
 
-        # Agentlarni ro'yxatdan o'tkazish
-        # Barcha agentlar uchun Oisha (Biznes ToV) asosiy ko'rsatma bo'ladi
-        system_instruction = getattr(
+        # Agentlarni roʻyxatdan oʻtkazish
+        # Oisha oʻz-oʻzini onboarding qilish jarayoni
+        try:
+            from src.services.core.onboarding import get_self_onboarding
+
+            self.onboarding = get_self_onboarding()
+            onboarding_context = self.onboarding.get_system_context()
+        except Exception as exc:
+            logger.warning("[MessageController] Onboarding context yuklanmadi: %s", exc)
+            self.onboarding = None
+            onboarding_context = ""
+
+        # Barcha agentlar uchun Oisha (Biznes ToV) asosiy koʻrsatma boʻladi
+        base_instruction = getattr(
             settings, "SYSTEM_INSTRUCTION", "Siz JonBranding yordamchisisiz."
+        )
+        system_instruction = (
+            f"{base_instruction}\n\n{onboarding_context}"
+            if onboarding_context
+            else base_instruction
         )
 
         self.agent_manager.register_agent(
             SalesAgent("sales", system_instruction, api_keys, self.executor, self.db)
         )
 
-        # PM va Researcher uchun faqat vazifa qo'shamiz, lekin Oisha obrazini saqlaymiz
+        # PM va Researcher uchun faqat vazifa qoʻshamiz, lekin Oisha obrazini saqlaymiz
         pm_prompt = (
             system_instruction
-            + "\n\nSiz ayniqsa loyihalarni rejalashtirish va ularni boshqarish bo'yicha masuliyatlisiz."
+            + "\n\nSiz ayniqsa loyihalarni rejalashtirish va ularni boshqarish boʻyicha masuliyatlisiz."
         )
         self.agent_manager.register_agent(
             PMAgent("strategist", pm_prompt, api_keys, self.executor, self.db)
@@ -139,7 +155,7 @@ class MessageController:
             )
 
     def set_bot_app(self, bot_app):
-        """Telegram application built bo'lgandan so'ng executorga uzatish."""
+        """Telegram application built boʻlgandan soʻng executorga uzatish."""
         self.executor.bot_app = bot_app
         logger.info("[AGENT CONTROLLER] Bot application connected to executor.")
 
@@ -164,7 +180,7 @@ class MessageController:
         if not message:
             return ""
 
-        # 1. CRM dan user haqida ma'lumot olish (agar tel bo'lsa va mehmon bo'lmasa)
+        # 1. CRM dan user haqida maʼlumot olish (agar tel boʻlsa va mehmon boʻlmasa)
         crm_status = "Yangi mijoz"
         phone = None
         user_info = {}
@@ -229,25 +245,35 @@ class MessageController:
             message, history=history_str
         )
 
+        # Standart moliya va kunlik balans boʻyicha ortiqcha savollarni toʻxtatish
+        if context.get("is_team_group") and self.onboarding and self.onboarding.should_suppress_clarify_question(message):
+            member = self.onboarding.lookup_member(user_name or "")
+            if member and member.id == "dilbar":
+                if any(w in message.lower() for w in ["kiritdim", "tayyor", "balans", "hisobot"]):
+                    return "Balans qabul qilindi, Dilbar opa."
+
         # Team group: inject internal-mode note and smart silence logic
         if context.get("is_team_group"):
             agent = self.agent_manager.get_agent(agent_id)
-            if agent:
+            if agent and "_team_mode_active" not in getattr(agent, "_flags", set()):
                 _team_note = (
                     "\n\n[ICHKI REJIM — JAMOA GURUHI]"
                     "\nSen hozir Jon Branding jamoasi guruhida har bir xabarni kuzatyapsan."
                     "\nFAQAT quyidagi hollarda javob ber:"
-                    "\n  • Senga savol berilgan yoki ma'lumot so'ralgan"
-                    "\n  • Raqam, sana, miqdor, holat haqida so'rov bor"
+                    "\n  • Senga savol berilgan yoki maʼlumot soʻralgan"
+                    "\n  • Raqam, sana, miqdor, holat haqida soʻrov bor"
                     "\n  • Amaliy yordam kerak (topshiriq, deadline, nima qilish kerak)"
-                    "\nQuyidagi hollarda HECH NARSA YOZMA (bo'sh satr qaytariladi):"
-                    "\n  • Oddiy salomlashish yoki gap ('ha', 'ok', 'yaxshi', emoji)"
-                    "\n  • Jamoa ichki munozarasi (Oishadan savoal yo'q)"
+                    "\nQuyidagi hollarda HECH NARSA YOZMA (boʻsh satr qaytariladi):"
+                    "\n  • Oddiy salomlashish yoki gap (ha, ok, yaxshi, emoji)"
+                    "\n  • Jamoa ichki munozarasi (Oishadan savol yoʻq)"
                     "\n  • Xabar faqat boshqa birovga qaratilgan"
-                    "\nJavob berayotganda — real ma'lumotlar: search_crm_leads, "
+                    "\nJavob berayotganda — real maʼlumotlar: search_crm_leads, "
                     "get_airtable_projects, get_today_stats toollarini ishlatib faktlarga asoslan."
-                    "\nJavob qisqa va aniq bo'lsin."
+                    "\nJavob qisqa va aniq boʻlsin."
                 )
+                if not hasattr(agent, "_flags"):
+                    agent._flags = set()
+                agent._flags.add("_team_mode_active")
                 agent.system_prompt += _team_note
                 context["_team_prompt_injected"] = True
 
