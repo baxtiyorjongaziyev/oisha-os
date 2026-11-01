@@ -47,7 +47,7 @@ def _extract_crm_url(message) -> str | None:
     rows = getattr(markup, "rows", None) or []
     for row in rows:
         for button in getattr(row, "buttons", None) or []:
-            if isinstance(button, KeyboardButtonUrl) and button.url:
+            if getattr(button, "url", None):
                 return button.url
     return None
 
@@ -102,10 +102,10 @@ class AmoCrmAlertForwarder:
             task_id = task.get("id")
             entity_id = task.get("entity_id")
             entity_type = task.get("entity_type") or "leads"
-            text_body = (task.get("text") or "Muddati o'tgan vazifa").strip()
+            text_body = (task.get("text") or "Muddati oʻtgan vazifa").strip()
             deadline = datetime.fromtimestamp(int(task["complete_till"]), tz=TASHKENT_TZ)
             message = (
-                "⏰ Muddati o'tgan AmoCRM vazifasi\n\n"
+                "⏰ Muddati oʻtgan AmoCRM vazifasi\n\n"
                 f"{text_body}\n\n"
                 f"Muddat: {deadline.strftime('%d.%m.%Y %H:%M')}"
             )
