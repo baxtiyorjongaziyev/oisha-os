@@ -1,23 +1,25 @@
 import os
 import uuid
 import logging
-import pickle
 from typing import Any, Dict, Optional
+
+from src.services.core.google_oauth import (
+    GOOGLE_USER_SCOPES,
+    load_user_credentials,
+)
 
 try:
     from google.oauth2.service_account import Credentials as ServiceAccountCredentials
-    from google.auth.transport.requests import Request
     from googleapiclient.discovery import build
 except ImportError:
     ServiceAccountCredentials = None
-    Request = None
     build = None
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CALENDAR_ID = "primary"
 DEFAULT_CREDENTIALS_PATH = "service_account.json"
-DEFAULT_TOKEN_PATH = "token.pickle"
+DEFAULT_OAUTH_FILE = "token.json"
 CALENDAR_TIMEZONE = "Asia/Tashkent"
 
 
@@ -49,27 +51,17 @@ class GoogleCalendarSync:
             calendar_id or os.getenv("GOOGLE_CALENDAR_ID") or DEFAULT_CALENDAR_ID
         )
         self.token_path = token_path or os.getenv(
-            "GOOGLE_CALENDAR_TOKEN_PATH", DEFAULT_TOKEN_PATH
+            "GOOGLE_CALENDAR_TOKEN_PATH", DEFAULT_OAUTH_FILE
         )
         self.service = None
-        self.scopes = ["https://www.googleapis.com/auth/calendar.events"]
+        self.scopes = list(GOOGLE_USER_SCOPES)
         self._authenticate()
 
     def _authenticate(self) -> None:
-        """Google API bilan avtorizatsiya (Token yoki Service Account)."""
-        creds = None
-        if os.path.exists(self.token_path):
-            try:
-                with open(self.token_path, "rb") as token:
-                    creds = pickle.load(token)  # nosec
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                    with open(self.token_path, "wb") as token:
-                        pickle.dump(creds, token)
-                logger.info("[GCALENDAR OK] Shaxsiy Google akkaunti (Token) ishga tushdi.")
-            except Exception as e:
-                logger.error(f"[GCALENDAR] Token yangilashda xato: {e}")
-                creds = None
+        """Google API bilan avtorizatsiya (JSON token yoki Service Account)."""
+        creds = load_user_credentials(self.token_path, self.scopes)
+        if creds:
+            logger.info("[GCALENDAR OK] Shaxsiy Google akkaunti (Token) ishga tushdi.")
 
         if not creds:
             if os.path.exists(self.credentials_path):

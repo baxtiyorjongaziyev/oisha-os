@@ -4,20 +4,25 @@ Ishlatish (lokal kompyuterda):
 
     python scripts/google_calendar_auth.py \
         --client-secrets credentials.json \
-        --token token.pickle
+        --token token.json
 
-Soʻng `token.pickle` ni prod serverdagi `/home/ubuntu/oisha-os/` ga qoʻying,
-`chmod 600 token.pickle` qiling va `oisha-os.service` ni restart qiling.
+Token JSON formatda saqlanadi (pickle emas), shuning uchun uni ochish kod
+ijrosiga olib kelmaydi. Soʻng `token.json` ni prod serverdagi
+`/home/ubuntu/oisha-os/` ga qoʻying, `chmod 600 token.json` qiling va
+`oisha-os.service` ni restart qiling.
 """
 from __future__ import annotations
 
 import argparse
 import os
-import pickle
-import stat
 import sys
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.services.core.google_oauth import (  # noqa: E402
+    GOOGLE_USER_SCOPES,
+    save_user_credentials,
+)
 
 
 def _parse_args(argv=None) -> argparse.Namespace:
@@ -29,8 +34,8 @@ def _parse_args(argv=None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--token",
-        default=os.getenv("GOOGLE_CALENDAR_TOKEN_PATH", "token.pickle"),
-        help="Yaratiladigan token fayli (default: token.pickle).",
+        default=os.getenv("GOOGLE_CALENDAR_TOKEN_PATH", "token.json"),
+        help="Yaratiladigan token fayli (default: token.json).",
     )
     parser.add_argument(
         "--force",
@@ -62,14 +67,13 @@ def main(argv=None) -> int:
         )
         return 1
 
-    flow = InstalledAppFlow.from_client_secrets_file(args.client_secrets, SCOPES)
+    flow = InstalledAppFlow.from_client_secrets_file(
+        args.client_secrets, list(GOOGLE_USER_SCOPES)
+    )
     credentials = flow.run_local_server(port=0, prompt="consent")
-    with open(args.token, "wb") as token_file:
-        pickle.dump(credentials, token_file)
-    try:
-        os.chmod(args.token, stat.S_IRUSR | stat.S_IWUSR)
-    except OSError:
-        pass
+    if not save_user_credentials(args.token, credentials):
+        print(f"Tokenni yozib boʻlmadi: {args.token}", file=sys.stderr)
+        return 1
 
     print(f"Token yozildi: {args.token}")
     print(

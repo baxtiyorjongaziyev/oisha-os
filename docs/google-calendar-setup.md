@@ -1,4 +1,4 @@
-# Google Calendar integratsiyasi
+﻿# Google Calendar integratsiyasi
 
 Oisha Telegram suhbatidan uchrashuvni ajratib, Google Calendar tizimiga event yaratadi.
 Vaqt oʻzgarsa eski event oʻchiriladi va yangisi kiritiladi.
@@ -7,7 +7,7 @@ Vaqt oʻzgarsa eski event oʻchiriladi va yangisi kiritiladi.
 
 `service_account.json` faqat oʻziga ulashilgan kalendarga yoza oladi.
 `calendarId="primary"` service account uchun ishlamaydi, shuning uchun shaxsiy
-akkauntning OAuth tokeni (`token.pickle`) ishlatiladi.
+akkauntning OAuth tokeni (`token.json`, oddiy JSON) ishlatiladi.
 
 ## Owner bajaradigan qadamlar (bir marta)
 
@@ -16,7 +16,7 @@ akkauntning OAuth tokeni (`token.pickle`) ishlatiladi.
 2. **APIs & Services → Library** dan **Google Calendar API** ni yoqing.
 3. **OAuth consent screen** ni sozlang:
    - User type: **External** (oddiy Gmail uchun) yoki **Internal** (Workspace).
-   - Scope: `https://www.googleapis.com/auth/calendar.events`.
+   - Scope: `calendar.events`, `contacts`, `directory.readonly` (bitta token Calendar va Contacts uchun).
    - Test users ga eventlar tushadigan Google akkauntni qoʻshing.
 4. **Credentials → Create credentials → OAuth client ID → Desktop app**.
    JSON faylni yuklab, lokal kompyuterda `credentials.json` deb saqlang.
@@ -25,15 +25,15 @@ akkauntning OAuth tokeni (`token.pickle`) ishlatiladi.
    ```powershell
    python scripts/google_calendar_auth.py `
      --client-secrets credentials.json `
-     --token token.pickle
+     --token token.json
    ```
 
    Brauzer ochiladi. Eventlar tushadigan Google akkaunt bilan ruxsat bering.
-6. `token.pickle` ni prod serverga qoʻying:
+6. `token.json` ni prod serverga qoʻying:
 
    ```bash
-   scp token.pickle root@109.199.100.137:/home/ubuntu/oisha-os/token.pickle
-   ssh root@109.199.100.137 "chown ubuntu:ubuntu /home/ubuntu/oisha-os/token.pickle && chmod 600 /home/ubuntu/oisha-os/token.pickle"
+   scp token.json root@109.199.100.137:/home/ubuntu/oisha-os/token.json
+   ssh root@109.199.100.137 "chown ubuntu:ubuntu /home/ubuntu/oisha-os/token.json && chmod 600 /home/ubuntu/oisha-os/token.json"
    ```
 
 7. Servisni restart qiling va logni tekshiring:
@@ -64,13 +64,13 @@ akkauntning OAuth tokeni (`token.pickle`) ishlatiladi.
 | Env | Default | Maʼnosi |
 |---|---|---|
 | `GOOGLE_CALENDAR_ID` | `primary` | Event yoziladigan kalendar ID. |
-| `GOOGLE_CALENDAR_TOKEN_PATH` | `token.pickle` | OAuth token fayli yoʻli. |
+| `GOOGLE_CALENDAR_TOKEN_PATH` | `token.json` | OAuth token fayli yoʻli. |
 | `ENABLE_CALENDAR_AUTOSCHEDULE` | `1` | Har bir xabarda avtomatik aniqlash. |
 | `ENABLE_CALENDAR_AUTOSCAN` | `1` | Davriy dialog skani. |
 
 ## Muammolar
 
-- `Avtorizatsiya fayli topilmadi` — `token.pickle` yoʻq yoki notoʻgʻri yoʻlda.
+- `Avtorizatsiya fayli topilmadi` — `token.json` yoʻq yoki notoʻgʻri yoʻlda.
 - `Token yangilashda xato` — token bekor qilingan; `--force` bilan qayta yarating.
 - Event yaratilmadi, lekin token bor — scope yetarli emas yoki kalendar ID
   notoʻgʻri. `GOOGLE_CALENDAR_ID` ni tekshiring.
