@@ -64,6 +64,31 @@ LEAD_TERMS = (
     "konsultatsiya",
 )
 
+# Uchrashuv sababini sarlavhaga chiqarish uchun kalit soʻzlar.
+# Tartib muhim: aniqroq atama umumiy "dizayn" dan oldin turadi.
+REASON_TERMS = (
+    ("branding", "Brending"),
+    ("brending", "Brending"),
+    ("brandbook", "Brendbuk"),
+    ("brendbuk", "Brendbuk"),
+    ("logotip", "Logo dizayni"),
+    ("logo", "Logo dizayni"),
+    ("naming", "Naming"),
+    ("nomlash", "Naming"),
+    ("qadoq", "Qadoqlash"),
+    ("patent", "Patent"),
+    ("narx", "Narx kelishuvi"),
+    ("tijoriy taklif", "Tijoriy taklif"),
+    ("konsultatsiya", "Konsultatsiya"),
+    ("brief", "Brif"),
+    ("brif", "Brif"),
+    ("dizayn", "Dizayn"),
+    ("loyiha", "Loyiha"),
+    ("xizmat", "Xizmat"),
+)
+
+DEFAULT_REASON = "Uchrashuv"
+
 
 @dataclass
 class ContextMessage:
@@ -80,12 +105,22 @@ class MeetingCandidate:
     end_time: datetime
     description: str
     location: str = ""
+    reason: str = DEFAULT_REASON
     confidence: float = 0.0
     evidence: List[str] = field(default_factory=list)
 
 
 def _clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _extract_reason(text: str) -> str:
+    """Suhbat matnidan uchrashuv sababini ajratib oladi."""
+    lowered = (text or "").lower()
+    for keyword, label in REASON_TERMS:
+        if keyword in lowered:
+            return label
+    return DEFAULT_REASON
 
 
 def _parse_explicit_date(text: str, reference: datetime) -> Optional[datetime]:
@@ -213,18 +248,21 @@ def extract_meeting_candidate(
     end = start + timedelta(hours=1)
 
     location = _extract_location(ordered)
+    reason = _extract_reason(combined)
     evidence = [
         f"Sana: {_clean_text(date_evidence)}",
         f"Vaqt: {_clean_text(time_evidence)}",
+        f"Sabab: {reason}",
     ]
     if location:
         evidence.append("Manzil: Telegram kontekstdan olindi")
 
     return MeetingCandidate(
-        summary=f"Suhbat: {participant_name}",
+        summary=f"{participant_name} - {reason}",
         start_time=start,
         end_time=end,
         location=location,
+        reason=reason,
         description=(
             "Oisha Telegram suhbatidan avtomatik yaratdi.\n\n"
             + "\n".join(f"{'Baxtiyorjon' if m.is_outgoing else participant_name}: {m.text}" for m in ordered[-8:])
