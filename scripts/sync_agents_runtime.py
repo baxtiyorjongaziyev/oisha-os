@@ -20,6 +20,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEPLOY_DIR = REPO_ROOT / "deploy"
 OPENCLAW_DEPLOY_DIR = DEPLOY_DIR / "openclaw"
 HERMES_DEPLOY_DIR = DEPLOY_DIR / "hermes"
+HERMES_HOME = pathlib.Path("/home/hermes/.hermes")
 
 
 def update_openclaw_config_file(config_path: pathlib.Path) -> bool:
@@ -79,15 +80,18 @@ def sync_openclaw_workspace(workspace_dir: pathlib.Path, owner_user: str | None 
         return False
 
 
-def sync_all_openclaw_installations() -> None:
+def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None) -> None:
     """Search and sync all openclaw directories on the server."""
-    possible_homes: list[pathlib.Path] = [pathlib.Path.home()]
-    if pathlib.Path("/home").is_dir():
-        for p in pathlib.Path("/home").iterdir():
-            if p.is_dir():
-                possible_homes.append(p)
-    if pathlib.Path("/root").is_dir():
-        possible_homes.append(pathlib.Path("/root"))
+    if base_homes is not None:
+        possible_homes = base_homes
+    else:
+        possible_homes = [pathlib.Path.home()]
+        if pathlib.Path("/home").is_dir():
+            for p in pathlib.Path("/home").iterdir():
+                if p.is_dir():
+                    possible_homes.append(p)
+        if pathlib.Path("/root").is_dir():
+            possible_homes.append(pathlib.Path("/root"))
 
     seen_homes = set()
     for home in possible_homes:
@@ -125,14 +129,14 @@ def sync_all_openclaw_installations() -> None:
             subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False)
 
 
-def sync_hermes_agent() -> None:
+def sync_hermes_agent(hermes_dir: pathlib.Path | None = None) -> None:
     """Sync Hermes agent persona and model settings."""
-    hermes_home = pathlib.Path("/home/hermes/.hermes")
+    hermes_home = hermes_dir or HERMES_HOME
     if not hermes_home.is_dir():
-        logger.info("[Hermes] /home/hermes/.hermes katalogi topilmadi, oʻtkazib yuborildi.")
+        logger.info("[Hermes] %s katalogi topilmadi, oʻtkazib yuborildi.", hermes_home)
         return
 
-    logger.info("[Hermes] Hermes agent sozlanmoqda...")
+    logger.info("[Hermes] Hermes agent sozlanmoqda: %s", hermes_home)
     soul_src = HERMES_DEPLOY_DIR / "SOUL.md"
     if soul_src.is_file():
         soul_dst = hermes_home / "SOUL.md"

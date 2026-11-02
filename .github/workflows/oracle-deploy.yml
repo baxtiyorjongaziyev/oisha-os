@@ -448,7 +448,7 @@ jobs:
             fi
 
             # Hermes va OpenClaw agentlarini sinxronlash (Mr.Jon va Oisha)
-            python3 scripts/sync_agents_runtime.py || echo "Agents sync ogohlantirish bilan o'tdi"
+            sudo python3 scripts/sync_agents_runtime.py || echo "Agents sync ogohlantirish bilan o'tdi"
 
             # Liveness gate: the PROCESS must come up and stay up. /healthz is
             # an always-200 liveness probe (process alive + event loop

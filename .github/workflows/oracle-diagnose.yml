@@ -148,7 +148,7 @@ jobs:
         run: |
           set +e
           cd /home/ubuntu/oisha-os 2>/dev/null || cd "$GITHUB_WORKSPACE"
-          python3 scripts/sync_agents_runtime.py
+          sudo python3 scripts/sync_agents_runtime.py
           echo
           echo "=== Jarayonlar tekshiruvi ==="
           ps -eo pid,cmd | grep -E "hermes|openclaw" | grep -v grep || true
