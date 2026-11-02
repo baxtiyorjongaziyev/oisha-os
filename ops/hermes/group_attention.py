@@ -16,6 +16,18 @@ CHATS = {-1003792973489, -1003854308552, -1003967389019,
 QUESTION = re.compile(r"\?|\b(kim|qachon|qayerda|nega|nimaga|qancha|qanday)\b", re.I)
 
 
+def is_real_reply(msg):
+    reply = getattr(msg, 'reply_to_message', None)
+    if not reply:
+        return False
+    if getattr(reply, 'forum_topic_created', None):
+        return False
+    thread_id = getattr(msg, 'message_thread_id', None)
+    if thread_id and getattr(reply, 'message_id', None) == thread_id:
+        return False
+    return True
+
+
 class Attention:
     def __init__(self, adapter):
         self.adapter = adapter
@@ -37,12 +49,12 @@ class Attention:
         allowed = self.adapter._telegram_allowed_chats()
         if allowed and str(msg.chat.id) not in allowed:
             return
-        reply = msg.reply_to_message
-        targets = {str(msg.from_user.id), '@' + (msg.from_user.username or '').lower()}
-        if reply:
-            for target in targets | {''}:
-                self.db.execute("UPDATE questions SET status='answered' WHERE chat=? AND message=? AND target=? AND status='pending'",
-                                (msg.chat.id, reply.message_id, target))
+        real_reply = msg.reply_to_message if is_real_reply(msg) else None
+        if real_reply:
+            if not (real_reply.from_user and real_reply.from_user.id == msg.from_user.id):
+                self.db.execute("UPDATE questions SET status='answered' WHERE chat=? AND message=? AND status='pending'",
+                                (msg.chat.id, real_reply.message_id))
+                self.db.commit()
         text = msg.text or ''
         # Explicitly addressed Oisha turns are handled immediately by the main adapter.
         if self.adapter._message_mentions_bot(msg) or self.adapter._message_matches_mention_patterns(msg):
@@ -57,8 +69,9 @@ class Attention:
                 people.add(msg.parse_entity(entity).lower())
             elif entity.type == 'text_mention' and entity.user and not entity.user.is_bot:
                 people.add(str(entity.user.id))
-        if reply and reply.from_user and not reply.from_user.is_bot:
-            people.add('@' + reply.from_user.username.lower() if reply.from_user.username else str(reply.from_user.id))
+        if real_reply and real_reply.from_user and not real_reply.from_user.is_bot:
+            people.add('@' + real_reply.from_user.username.lower() if real_reply.from_user.username else str(real_reply.from_user.id))
+        targets = {str(msg.from_user.id), '@' + (msg.from_user.username or '').lower()}
         people -= targets
         payload = json.dumps(msg.to_dict(), ensure_ascii=False, default=str)
         # Seven-day retention; old questions are not revived after long downtime.
