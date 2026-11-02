@@ -2358,53 +2358,13 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - Kod hajmi standarti: barcha fayllar 92-198 qator oraligʻida (<= 400 qator qoidasiga toʻliq mos).
 
 
-## 2026-11-02 — Antigravity: Oisha-OS Native Sales Cockpit & Communication Infrastructure
-- **Vazifa / Kontekst:** Foydalanuvchi koʻrsatmasi: "Metasell console bizniki emas, boshqa pullik servis. Bizga oʻzimizniki kerak." Metasellʼga xos barcha ilgʻor imkoniyatlar (Speed to Lead SLA, Stuck Deals radari, Reklama ROI atributsiyasi, Ovozli AI Simulyator, Savdo Playbook attestatsiyasi, Ertalabki trijaj) va tashqi pullik provayderlar (Utel, OnlinePBX, Eskiz) oʻrnini bosuvchi toʻliq mustaqil **Oisha Sales Cockpit** hamda **Native Voice (SIP/WebRTC) & Native SMS (GSM/SMPP)** tizimi ishlab chiqildi.
+## 2026-11-02 — Antigravity: OpenClaw Gateway Daemon Lifecycle and Startup Fix
+- **Vazifa / Kontekst:** OpenClaw gateway jarayoni toʻxtatilgandan soʻng qayta ishga tushmay qolgani sababli Telegram boti (`@jon_clawbot`) javob bermayotgan edi. Gateway daemonʼini toʻgʻri start/restart qilish va tekshirish mantiqi qoʻshildi.
 - **Amalga oshirilgan ishlar:**
-  1. `src/services/command_center/`:
-     - `speed_to_lead.py`: 15/30/60 daqiqalik javob vaqti taqsimoti, SLA foizi va eng uzoq kutayotgan mijoz hisoblagichi.
-     - `stuck_deals.py`: 3+ kun qotib qolgan bitimlar radari, bosqichlar boʻyicha muzlatilgan summa va masʼullar.
-     - `ad_attribution.py`: Meta/Instagram reklama xarajati, CPL, CPS, umumiy tushum va marketing ROI hisoblagichi.
-     - `morning_tasks.py`: Bugungi va muddati oʻtgan topshiriqlarni trijaj qilish xizmati.
-     - `live_db_bridge.py`: Turso (libsql) / SQLite jadvallaridan jonli maʼlumotlarni tortish va barqaror fallback zanjiri.
-  2. `src/services/ai/`:
-     - `sales_simulator.py`: B2B va B2C ssenariylari, yashirin ehtiyojlarni ochiqlash va muzokara murabbiyi.
-     - `audio_simulator.py`: Real-vaqt ovozli mashgʻulotlar uchun STT (nutqni aniqlash) va TTS (oʻzbekcha ovoz sintezi) koʻprigi.
-     - `knowledge_quiz.py`: Sotuvchilar uchun 10 ta meʼyoriy savol, avtomatik baholash va toifaviy hisobot.
-  3. `src/services/telephony/`:
-     - `unified_gateway.py`: Tashqi webhook adapterlar (Utel, OnlinePBX, Eskiz SMS) hamda har bir sotuvchi uchun oylik toʻlov talab qilmaydigan **Native Oisha Voice (WebRTC Softphone / SIP PBX)** va **Native Oisha SMS (Android GSM Modem)** integratsiyasi.
-  4. `src/api/routes/metasell_dashboard.py` & `src/api/templates/metasell_dashboard.html`:
-     - Barcha modullarni birlashtiruvchi REST API (`/oisha-console`, `/cockpit`, `/metasell-console`, `/telephony/webrtc-session`, `/sms/dispatch`, `/simulator/voice-turn`).
-     - Jon Branding uslubidagi interaktiv toʻliq veb-interfeys (Executive Cockpit, WebRTC softphone pleyeri, Ovozli AI Simulyator, Savdo attestatsiyasi va Trijaj).
-  5. `src/handlers/metasell_menu.py`:
-     - Telegram bot menyusi uchun WebApp tugmalari (`/console`, `/cockpit`, `/simulator`, `/triage`), tezkor ROP xulosasi va aiogram moslashuvi.
-- **Oʻzgargan / Yangi fayllar:**
-  - `src/services/command_center/*` (5 ta modul)
-  - `src/services/ai/*` (3 ta modul)
-  - `src/services/telephony/unified_gateway.py`
-  - `src/handlers/metasell_menu.py`
-  - `src/api/routes/metasell_dashboard.py`
-  - `src/api/templates/metasell_dashboard.html`
-  - `tests/*` (11 ta toʻliq test toʻplami)
+  1. `scripts/sync_agents_runtime.py`: `restart_openclaw_gateway()` funksiyasi takomillashtirildi. OpenClaw CLI orqali `openclaw gateway restart || openclaw gateway start || openclaw gateway install` ishga tushiriladi; agar jarayon boʻlmasa fon rejimida start beriladi va `openclaw gateway status` orqali tekshiriladi.
+  2. `tests/test_sync_agents_runtime.py`: CLI va systemd orqali gateway qayta yuklanishini tekshiruvchi testlar yangilandi (9/9 passed).
+  3. `.github/workflows/oracle-diagnose.yml`: Gateway statusini va tizim jarayonlarini toʻliq loglaydigan qadam qoʻshildi.
+- **Oʻzgargan fayllar:** `scripts/sync_agents_runtime.py`, `tests/test_sync_agents_runtime.py`, `.github/workflows/oracle-diagnose.yml`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalili:**
-  - `pytest tests/test_*.py` -> 43/43 passed (100%).
-  - `check_uzbek_text.py` -> 11 fayl toza (0 xato).
-  - `bandit -r src/ -ll` -> 0 medium / 0 high issues.
-  - Kod standarti: har bir fayl qatʼiy 150 – 400 qator oraligʻida.
-
-## 2026-10-30 - OpenCode: Google Calendar autoschedule hardening
-- Ish: `GoogleCalendarSync` endi event resursini (id bilan) qaytaradi; `update_event`/`delete_event` qoʻshildi; `calendar_id` va token yoʻli env orqali sozlanadi; `extendedProperties` ga Telegram chat id va sabab yoziladi.
-- Scheduler: chat boʻyicha oxirgi event holati `calendar:event:<chat_id>` da saqlanadi. Vaqt oʻzgarsa eski event oʻchiriladi; oʻchirish fail boʻlsa event patch qilinadi; bir xil vaqt takror yaratilmaydi.
-- Sarlavha formati: `Mijoz ismi - Uchrashuv sababi` (masalan, `Ozodbek - Logo dizayni`). Sabab suhbatdagi kalit soʻzlardan ajratiladi, topilmasa `Uchrashuv`.
-- Owner uchun: `scripts/google_calendar_auth.py` (OAuth Desktop flow, `token.json` yozadi; pickle ishlatilmaydi) va `docs/google-calendar-setup.md` qoʻllanmasi. Service account `primary` kalendariga yoza olmasligi hujjatlashtirildi.
-- Fayllar: `src/services/core/gcalendar.py`, `src/services/core/meetings/{models,scheduler,crm_sync}.py`, `scripts/google_calendar_auth.py`, `tests/{test_gcalendar,test_meeting_scheduler}.py`, `.env.example`, `docs/google-calendar-setup.md`.
-- Tekshiruv: `SKIP_LIVE=1 python -m pytest tests/test_meeting_scheduler.py tests/test_gcalendar.py -q` — 17 passed. `py_compile` OK.
-- Ochiq: owner Google Cloud'da OAuth Desktop client yaratib, brauzerda ruxsat berishi va `token.json` ni prod serverga qoʻyishi kerak. Prodda haqiqiy event yaratish/oʻchirish hali sinalmagan.
-
-## 2026-11-02 - OpenCode: Google OAuth token JSON ga oʻtkazildi
-- Ish: `pickle` bilan token saqlash olib tashlandi. Yangi `src/services/core/google_oauth.py` tokenlarni `Credentials.to_json()` orqali yozadi va `chmod 600` qiladi; yuklashda eski `.pickle` fayl rad etiladi va aniq xabar beriladi.
-- `GoogleCalendarSync` va `GoogleContactsSync` endi bitta `token.json` ni ishlatadi (scope: `calendar.events`, `contacts`, `directory.readonly`).
-- `scripts/google_calendar_auth.py` endi JSON yozadi (default `--token token.json`); `.env.example` va `docs/google-calendar-setup.md` yangilandi.
-- Fayllar: `src/services/core/{google_oauth,gcalendar,gcontacts}.py`, `scripts/google_calendar_auth.py`, `tests/test_google_oauth.py`, `.env.example`, `docs/google-calendar-setup.md`.
-- Tekshiruv: `pytest tests/test_google_oauth.py tests/test_gcalendar.py tests/test_meeting_scheduler.py tests/test_agent_skills_sync.py -q` — 23 passed. `bandit` (low+medium+high) — 0 issue. `check_uzbek_text.py --staged` — toza.
-- Sabab: Codacy/Bandit `pickle` (B301/B403) ogohlantirishlari; pickle faylini ochish kod ijrosiga olib kelishi mumkin edi.
+  - `python -m unittest tests.test_sync_agents_runtime` -> 9/9 passed (0.06s).
+  - `python scripts/check_uzbek_text.py --staged` -> Toza (0 xato).
