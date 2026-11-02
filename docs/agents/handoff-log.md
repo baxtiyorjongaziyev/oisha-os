@@ -2155,6 +2155,16 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Merged current main into PR tree without switching the shared working branch or touching unrelated dirty files. Preserved PR pattern matching and unknown savings semantics; carried main Chat Manager inbound/draft recording into the extracted Instagram webhook processor. Preserved both handoff histories.
 - Validation: syntax and focused tests recorded in the PR follow-up; merge/deploy remain separate.
 - Verified: 72 focused tests passed against Git-tree source modules (pattern detector, Instagram security/integration, Chat Manager); Bandit -ll on four resolved production modules: no medium/high findings; diff --check passed. Full suite and filesystem-dependent PR regressions not validated by the in-memory tree harness.
+## 2026-10-30 - Guard: ASCII apostrof uchun baseline, pre-commit va CI
+- `scripts/check_uzbek_text.py`: `--baseline [fayl]` va `--write-baseline` qo'shildi; xatolar `Violation` dataclass orqali yig'iladi. Baseline soni tugagach keyingi xato qaytariladi (ratchet). `--staged`/`--base` diff rejimlarida baseline qo'llanmaydi — har bir qo'shilgan qator tekshiriladi.
+- `config/uzbek_text_baseline.txt`: 772 faylda 7570 mavjud xato fayl bo'yicha qulflandi (`<son>\t<path>`, 32 KB). Yangi fayl yoki fayldagi son oshsa CI qizil.
+- `.githooks/pre-commit` (staged tekshiruv) + `Makefile` da `make hooks` va `make uzbek-text`. `AGENTS.md` pre-flight ro'yxatiga `python scripts/check_uzbek_text.py --staged` qo'shildi.
+- `.github/workflows/uzbek-text-guard.yml`: PR da `--base` diff, main pushda `--all --baseline`, alohida guard testlari.
+- `.agents/skills/uzbek-text/SKILL.md`: baseline, hook va CI bo'limlari bilan yangilandi.
+- `GEMINI.md`, `.cursor/rules/preflight.mdc`, `.agents/skills/preflight/SKILL.md` va `.claude/skills/preflight/SKILL.md` ga ham `--staged` buyrug'i qo'shildi — barcha agentlar bir xil tekshiradi.
+- Tekshiruv: `tests/test_check_uzbek_text.py` 11 passed; `--all --baseline` toza (1575 fayl); legacy fayl baseline bilan toza; workflow YAML parse OK.
+- Ochiq: GitHub Actions CI joblari billing/spending-limit sabab ishlamaydi (PR #991 da kuzatilgan; kod emas); baseline hozircha fayl darajasida, so'z darajasida emas.
+
 
 ### 2026-11-01 — Antigravity: Strong Free AI Models Alignment (OpenClaw, Hermes & Oisha-OS)
 - **Vazifa / Ish**: Owner topshirig'iga ko'ra agentlar birinchi navbatda eng kuchli bepul modellardan foydalanadigan qilindi:
@@ -2214,6 +2224,138 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - **Tekshiruv dalili:**
   - `python scripts/check_uzbek_text.py --staged` -> Toza.
   - Pre-flight testlar: 1038 passed, Bandit 0 issues.
+
+
+## 2026-11-02 — Antigravity: OpenClaw Mr.Jon and Hermes Oisha Runtime Sync
+- **Vazifa / Kontekst:** `@jon_clawbot` Telegram boti hali ham oʻzini "Men Oishaman" deb tanishtirayotgani va `gemini-3.5-flash-lite` modelida ishlayotgani sababli, OpenClaw (Mr.Jon) va Hermes (Oisha) runtime sozlamalari, modellari va xotira keshini jonli serverda sinxronlashtirish va qayta ishga tushirish.
+- **Amalga oshirilgan ishlar:**
+  1. `scripts/sync_agents_runtime.py`: Serverdagi barcha foydalanuvchilar (`/home/*/.openclaw`, `/root/.openclaw`) boʻyicha `openclaw.json` konfiguratsiyasini avtomatik topib, asosiy modelni `google/gemini-2.5-flash` ga, zaxira (fallback) modellarini esa `["groq/llama-3.3-70b-versatile", "google/gemini-2.5-flash-lite"]` ga yangilaydigan, Mr.Jon `SOUL.md` va `IDENTITY.md` fayllarini barcha workspaceʼlarga koʻchiradigan, Hermes uchun Oisha personasi va `gemini-2.5-flash` modelini oʻrnatib `hermes-gateway` hamda OpenClaw gateway jarayonlarini xavfsiz qayta ishga tushiradigan mustahkam Python skripti yaratildi.
+  2. `.github/workflows/oracle-deploy.yml` va `.github/workflows/oracle-diagnose.yml`: Moʻrt inline bash komandalar oʻrniga xatoliklarni toʻliq ushlaydigan va loglaydigan `python3 scripts/sync_agents_runtime.py` chaqiruvi ulandi.
+- **Oʻzgargan fayllar:** `scripts/sync_agents_runtime.py`, `.github/workflows/oracle-deploy.yml`, `.github/workflows/oracle-diagnose.yml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py` -> Toza (0 xato).
+  - Production implementatsiya qoidalari: 199 LOC (<= 400 LOC), funksiyalar <= 60 LOC.
+
+
+## 2026-11-02 — Antigravity: Telegram Seamless Web Authentication (Deep Link + OTP)
+- **Vazifa / Kontekst:** `/api/auth/telegram/login` sahifasidagi eski Telegram Login Widget (`telegram-widget.js`) @BotFather domen tekshiruvi (`Bot domain invalid`) tufayli bloklanishi bartaraf etildi. Oisha-OS uchun qatʼiy Whitelist himoyasiga ega 1-bosish Telegram Deep-Link va 6 xonali OTP kod orqali avtomatik kirish tizimi joriy etildi.
+- **Amalga oshirilgan ishlar:**
+  1. `src/services/api_server/telegram_seamless_auth.py`:
+     - 1-bosish Telegram Deep-Link (`t.me/{bot}?start=login_{state}`) va real-time polling orqali avtomatik brauzer sessiyasi ochuvchi HTML interfeys yaratildi.
+     - 6 xonali bir martalik kod (OTP) va favqulodda kirish uchun Token (API Secret) kirish maydonlari qoʻshildi.
+     - Polling (`/api/auth/telegram/poll`) va OTP (`/api/auth/telegram/otp`) ishlovchi handlerlari modulga ajratildi (330 LOC, <= 400 LOC qoidasiga toʻliq mos).
+  2. `src/services/core/dispatcher/handlers_web_auth.py`:
+     - Aiogram botida `/start login_<state>` deep-link tasdiqlash handleri qoʻshildi.
+     - `/login`, `/kirish` buyruqlari orqali 6 xonali bir martalik OTP kod generatsiya qilish handleri qoʻshildi.
+     - Qatʼiy Whitelist tekshiruvi: faqat `OWNER_ID` (owner), `WHITELIST_IDS` (admin) va ruxsat berilgan xodimlargina tasdiqlanadi; begona Telegram foydalanuvchilariga darhol rad javobi beriladi.
+  3. `src/services/core/dispatcher/builder.py`:
+     - Aiogram Dispatcherʼga `register_web_auth_handlers` ulandi.
+  4. `src/services/api_server/oauth.py`:
+     - Yangi modulli funksiyalarga yoʻnaltirildi (321 LOC, god-file qoidasiga toʻliq mos).
+  5. `src/api/security.py`:
+     - `_PUBLIC_PATHS` roʻyxatiga `/api/auth/telegram/poll` va `/api/auth/telegram/otp` qoʻshildi.
+  6. `tests/test_telegram_seamless_auth.py`:
+     - 7 ta yangi integratsion va birlik testlari yozildi (deep link render, poll pending/expired, poll approved cookie, OTP flow, unauthorized bot reject, authorized owner start, authorized whitelist otp).
+- **Oʻzgargan fayllar:**
+  - `src/services/api_server/telegram_seamless_auth.py`
+  - `src/services/core/dispatcher/handlers_web_auth.py`
+  - `src/services/api_server/oauth.py`
+  - `src/services/core/dispatcher/builder.py`
+  - `src/api/security.py`
+  - `tests/test_telegram_seamless_auth.py`
+  - `AGENTS.md`
+  - `docs/agents/handoff-log.md`
+- **Tekshiruv dalili:**
+  - `pytest tests/test_telegram_seamless_auth.py` -> 7 passed (100%).
+  - `pytest tests/test_oauth_api_endpoints.py` -> 11 passed (100%).
+  - `bandit -r src/services/api_server/telegram_seamless_auth.py src/services/core/dispatcher/handlers_web_auth.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py` -> Toza (0 xato).
+  - Barcha fayllar <= 400 qator: `telegram_seamless_auth.py` (330), `handlers_web_auth.py` (126), `oauth.py` (321), `builder.py` (243), `security.py` (316).
+
+## 2026-11-02 — Antigravity: GoodSales Parity Suite (NextSteps, 1:1 Coaching, Daily Brief, Voice Exam, Compensation/Davomat)
+- **Vazifa / Kontekst:** demo.goodsales.uz platformasining chuqur tahlili asosida Oisha-OS uchun eng zarur 5 ta operatsion komponent (1 dan 5 gacha) toʻliq ishlab chiqildi va integratsiya qilindi.
+- **Amalga oshirilgan ishlar:**
+  1. **NextStepsEngine** (src/services/command_center/next_steps_engine.py, 337 qator):
+     - Maqsad va fakt taqqosi, teskari voronka matematikasi (Target -> Sotuv -> Sifatli lid -> Jami lid).
+     - Jamoa pulsi (reja, konversiya, AI skoring, oʻrtacha chek, issiq bitimlar, kechikkan qoʻngʻiroqlar va vazifalar).
+     - 18 ta operatsion harakatning moliyaviy taʼsiri (UZS da baholangan ustuvorlik navbati).
+     - Yoʻqotilgan daromad sabablari (jarayon, lid sifati, sababsiz yopilish).
+     - Lid manbalari sifati va konversiya benchmarkingi.
+  2. **OneOnOneCoachService** (src/services/command_center/one_on_one.py, 159 qator):
+     - 1:1 uchrashuv dosyesi: 4 ta aniq blok (Yutuqlar, Muammolar, Kelishuvlar, Savollar).
+     - Menejer malaka darajasi (1-Boshlangʻichdan 5-Top Mastergacha) klassifikatsiyasi.
+     - Chop etishga tayyor mustaqil HTML (window.print()).
+  3. **DailyBriefService** (src/services/proactive/daily_brief.py, 160 qator):
+     - Menejerlar uchun Telegram tonggi brifingi (oylik maqsad, voronka qadamlari, issiq bitimlar, kechikkan vazifalar, haftaning koʻnikmasi).
+  4. **VoiceExamEngine** (src/services/ai/voice_exam.py, 197 qator):
+     - Ovozli/matnli rol oʻyini simulyatori va koʻp mezonli baholash rubrikasi (salomlashish, ehtiyoj aniqlash, taqdimot, eʼtirozlar, yakunlash).
+     - Imtihon sertifikati generatsiyasi.
+  5. **CompensationDavomatEngine** (src/services/command_center/compensation_davomat.py, 168 qator):
+     - Ish haqi kompensatsiyasi matritsasi (asosiy maosh, suhbat vaqti, qoʻngʻiroq sifati, CRM intizomi, kechikish/kelmaslik jarimalari, sotuv KPI bonusi).
+  6. **REST API & Router** (src/api/routes/goodsales_parity.py, 225 qator):
+     - /api/next-steps, /api/next-steps/brief/send, /api/next-steps/1on1/{id}, /api/voice-exam/*, /api/compensation-davomat endpointlari yaratildi va src/services/api_server/core.py ga ulandi.
+- **Oʻzgargan fayllar:**
+  - src/services/command_center/next_steps_engine.py (yangi)
+  - src/services/command_center/one_on_one.py (yangi)
+  - src/services/proactive/daily_brief.py (yangi)
+  - src/services/ai/voice_exam.py (yangi)
+  - src/services/command_center/compensation_davomat.py (yangi)
+  - src/api/routes/goodsales_parity.py (yangi)
+  - src/services/api_server/core.py
+  - 	ests/test_next_steps_engine.py (yangi)
+  - 	ests/test_one_on_one.py (yangi)
+  - 	ests/test_daily_brief.py (yangi)
+  - 	ests/test_voice_exam.py (yangi)
+  - 	ests/test_compensation_davomat.py (yangi)
+  - 	ests/test_goodsales_parity_api.py (yangi)
+- **Tekshiruv dalili:**
+  - pytest: 20/20 test muvaffaqiyatli oʻtdi (	ests/test_next_steps_engine.py, 	ests/test_one_on_one.py, 	ests/test_daily_brief.py, 	ests/test_voice_exam.py, 	ests/test_compensation_davomat.py, 	ests/test_goodsales_parity_api.py).
+  - andit -r ... -ll: 0 issues (1059 lines scanned).
+  - python scripts/check_uzbek_text.py --staged: Toza (0 xato).
+  - Kod hajmi standarti: Barcha yangi ishlab chiqilgan production fayllar 150–400 qator oraligʻida, funksiyalar <= 60 qator.
+
+
+## 2026-11-02 — Antigravity (Particum B2B & Agency ERP Intelligence Parity)
+
+- **Agent:** Antigravity (AI Surgical Strategist / Coordinator)
+- **Bajarilgan ish:**
+  1. **B2B Akt Sverka (Solishtirma Dalolatnoma)** (`src/services/reporter/reconciliation.py`, 142 qator):
+     - Mijozlar bilan rasmiy oʻzaro hisob-kitoblar, boshlangʻich/yakuniy qoldiq, debit/kredit aylanmasi va rasmiy matnli akt sverka hujjati generatori.
+  2. **Soviyotgan Mijozlar (Retention & Upsell Engine)** (`src/services/customer_360/cooling_customers.py`, 115 qator):
+     - Uzoq vaqt aloqaga chiqmagan mijozlarni (60+ kun) va churn xavfini aniqlash, hisob menejerlari uchun 3 bosqichli Surgical Mission yaratish.
+  3. **Loyiha Tannarxi va Sof Marja (Unit Economics)** (`src/services/finance/project_margin.py`, 136 qator):
+     - Frilanserlar, ichki dizayner soatlari, aylanma soliq va marja tahlili (foydali, past marja, zararli) hamda amaliy tavsiyalar.
+  4. **Investor & Hamkor Bitimlari (Investor Deals & Dividend Ledger)** (`src/services/finance/investor_ledger.py`, 160 qator):
+     - Investor kapitali hisobi, mahsulot/loyiha partiyasiga pul tikish, sof foydadan investor ulushini hisoblash va dividendlar daftari.
+  5. **Dinamik Pivot Konstruktor (Jadval Yigʻish)** (`src/services/reporter/pivot_builder.py`, 126 qator):
+     - Foydalanuvchi oʻlchamlarni (mijoz, xizmat turi, menejer, dizayner, oy) va metrikalarni tanlab erkin guruhlaydigan pivot jadval tizimi.
+  6. **20-Vidjetli Agentlik Boshqaruv Paneli Routeri** (`src/api/routes/agency_dashboard.py`, 198 qator):
+     - 6 toifadagi (Moliya, Savdo, Qarz, Loyihalar, Jamoa, Mijozlar) 20 ta vidjet, `/widgets`, `/summary`, `/pivot`, `/reconciliation` API endpointlari.
+  7. **AI Brand Mockup Generator Blueprint** (`src/services/ai/mockup_generator.py`, 92 qator):
+     - Brend identifikatsiyasini saqlagan holda bilbord, qadoq, korporativ mahsulotlar va ijtimoiy tarmoq maketlari uchun muhandislik prompti generatori.
+- **Oʻzgargan va yangi yaratilgan fayllar:**
+  - `src/services/reporter/reconciliation.py` (yangi)
+  - `src/services/customer_360/cooling_customers.py` (yangi)
+  - `src/services/finance/project_margin.py` (yangi)
+  - `src/services/finance/investor_ledger.py` (yangi)
+  - `src/services/reporter/pivot_builder.py` (yangi)
+  - `src/api/routes/agency_dashboard.py` (yangi)
+  - `src/services/ai/mockup_generator.py` (yangi)
+  - `src/services/reporter/__init__.py`
+  - `src/services/finance/__init__.py` (yangi)
+  - `tests/test_reconciliation.py` (yangi)
+  - `tests/test_cooling_customers.py` (yangi)
+  - `tests/test_project_margin.py` (yangi)
+  - `tests/test_investor_ledger.py` (yangi)
+  - `tests/test_pivot_builder.py` (yangi)
+  - `tests/test_agency_dashboard.py` (yangi)
+  - `tests/test_mockup_generator.py` (yangi)
+  - `docs/superpowers/plans/2026-11-02-agency-erp-parity.md` (yangi)
+- **Tekshiruv dalili:**
+  - `pytest`: 12/12 yangi test muvaffaqiyatli oʻtdi (`test_reconciliation`, `test_cooling_customers`, `test_project_margin`, `test_investor_ledger`, `test_pivot_builder`, `test_agency_dashboard`, `test_mockup_generator`).
+  - `bandit -r ... -ll`: 0 issues (811 qator tekshirildi).
+  - `python scripts/check_uzbek_text.py`: Toza (7 fayl tekshirildi, 0 xato).
+  - Kod hajmi standarti: barcha fayllar 92-198 qator oraligʻida (<= 400 qator qoidasiga toʻliq mos).
 
 
 ## 2026-11-02 — Antigravity: Oisha-OS Native Sales Cockpit & Communication Infrastructure

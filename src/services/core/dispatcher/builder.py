@@ -198,7 +198,9 @@ def build_admin_aiogram_dispatcher(
 
     from src.services.core.dispatcher.handlers_attendance import register_attendance_handlers
 
+    from src.services.core.dispatcher.handlers_web_auth import register_web_auth_handlers
     register_attendance_handlers(dp)
+    register_web_auth_handlers(dp, db=db, is_admin=is_admin)
     return dp
 
 
