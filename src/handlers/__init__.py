@@ -5,6 +5,10 @@ from src.handlers.meeting import meeting_scheduler_handler
 from src.handlers.case_publisher import case_publisher_handler
 from src.handlers.negotiation import negotiation_agent_handler
 from src.handlers.kirim import kirim_topic_handler
+from src.handlers.kirim_payment import (
+    kirim_payment_handler,
+    kirim_payment_reply_handler,
+)
 from src.handlers.message_handler import (
     advance_checkpoint,
     process_admin_commands,
@@ -25,6 +29,8 @@ __all__ = [
     "case_publisher_handler",
     "negotiation_agent_handler",
     "kirim_topic_handler",
+    "kirim_payment_handler",
+    "kirim_payment_reply_handler",
     "advance_checkpoint",
     "process_admin_commands",
     "process_hisobchi",

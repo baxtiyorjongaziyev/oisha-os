@@ -27,6 +27,10 @@ from src.services.core.finance.handlers import (
 )
 from src.settings import settings
 from src.handlers.kirim import kirim_topic_handler
+from src.handlers.kirim_payment import (
+    kirim_payment_handler,
+    kirim_payment_reply_handler,
+)
 from src.handlers.case_publisher import case_publisher_handler
 from src.handlers.negotiation import negotiation_agent_handler
 from src.handlers.shadow_advisor import shadow_advisor_handler
@@ -117,6 +121,14 @@ def register_event_handlers(
         if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
             client.add_event_handler(
                 kirim_topic_handler,
+                events.NewMessage(chats=settings.TEAM_GROUP_ID),
+            )
+            client.add_event_handler(
+                kirim_payment_handler,
+                events.NewMessage(chats=settings.TEAM_GROUP_ID),
+            )
+            client.add_event_handler(
+                kirim_payment_reply_handler,
                 events.NewMessage(chats=settings.TEAM_GROUP_ID),
             )
             logger.info(f"[KIRIM] Listener active team={settings.TEAM_GROUP_ID} topic={settings.TOPIC_KIRIM_ID}")

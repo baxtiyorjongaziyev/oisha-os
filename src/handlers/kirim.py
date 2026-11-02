@@ -11,6 +11,11 @@ from src.handlers.income_workflow import (
     is_group_open_confirmation,
     is_finance_rejection,
 )
+from src.handlers.kirim_shared import (
+    is_kirim_topic_message,
+    is_payment_confirmation_card,
+    seller_display_name,
+)
 
 logger = structlog.get_logger()
 
@@ -59,24 +64,14 @@ def _format_income_amount_for_celebration(amount: Dict[str, Any]) -> str:
 
 
 def _sender_display_name(sender: Any) -> str:
-    username = (getattr(sender, "username", None) or "").strip()
-    if username:
-        return username if username.startswith("@") else f"@{username}"
-
-    full_name = " ".join(
-        part
-        for part in (
-            getattr(sender, "first_name", None),
-            getattr(sender, "last_name", None),
-        )
-        if part
-    ).strip()
-    return full_name or "Sotuvchi"
+    return seller_display_name(sender)
 
 
 def _looks_like_income_announcement(text: str) -> bool:
     lowered = (text or "").lower().strip()
     if not lowered or lowered.startswith("/"):
+        return False
+    if is_payment_confirmation_card(lowered):
         return False
     if is_group_open_confirmation(lowered):
         return False
@@ -97,22 +92,7 @@ def _looks_like_income_announcement(text: str) -> bool:
 
 
 def _is_kirim_topic_message(message: Any) -> bool:
-    if not settings.TOPIC_KIRIM_ID:
-        return False
-
-    topic_id = settings.TOPIC_KIRIM_ID
-    direct_reply_id = getattr(message, "reply_to_msg_id", None)
-    reply_to = getattr(message, "reply_to", None)
-    reply_top_id = getattr(message, "reply_to_top_id", None) or getattr(
-        reply_to, "reply_to_top_id", None
-    )
-    forum_topic = getattr(reply_to, "forum_topic", False)
-
-    return bool(
-        direct_reply_id == topic_id
-        or reply_top_id == topic_id
-        or (forum_topic and direct_reply_id == topic_id)
-    )
+    return is_kirim_topic_message(message, settings.TOPIC_KIRIM_ID)
 
 
 async def _send_kirim_celebration(event, celebration: str) -> None:
