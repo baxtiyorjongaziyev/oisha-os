@@ -86,6 +86,14 @@ class CallScorerMixin:
                 f"  Ideal: mijoz ≥{IDEAL_CLIENT_TALK_PCT}%.\n\n"
                 f"{rubric_prompt_uz()}\n"
                 f"{outcome_prompt_uz()}\n"
+                "QAT'IY TALAB — UMUMIY GAPLAR VA SHABLON MASLAHATLAR MUTLAQO TAQIQLANADI:\n"
+                "- Hech qachon 'xushmuomala bo'ling', 'ehtiyojni aniqlang', 'assalomu alaykum taklif bo'yicha bog'lanyapman' kabi umumiy/quruq tavsiya bermang!\n"
+                "- Tahlil, baho, motivatsiya va skript FAQAT ushbu mijoz aytgan ANIQ faktlarga (loyiha/brend nomi, soha, mahsulot, aytilgan narx/byudjet, muddat, e'tiroz sababi) va 360° kontekstga (AmoCRM maydonlari, avvalgi primecheniyalar, Telegram/Instagram yozishmalari) tayanishi SHART!\n"
+                "- 'mijozga_aytiladigan_gap': Umumiy shablon emas! Aynan shu mijozning ismi/kompaniyasi, suhbatda ko'tarilgan aniq mavzu va kelishuvga tayangan holda sotuvchi zudlik bilan ishlatadigan so'zma-so'z to'liq O'zbekcha jumla bo'lsin.\n"
+                "- 'motivatsiya_va_coaching':\n"
+                "  * YASHIL (>=80): Menejer suhbatda aynan qaysi og'riqli nuqtani ochgani yoki qaysi e'tirozni qanday yopgani bo'yicha aniq dalil bilan maqtab motivatsiya bering.\n"
+                "  * SARIQ (60-79): Aynan qaysi nuqtada xato ketgani (masalan: muddat noaniq aytilgani, narx oldidan qiymat berilmagani)ni ko'rsatib, keyingi safar aynan nima deyishni amaliy o'rgating.\n"
+                "  * QIZIL (<60): Suhbat nima sababdan uzilgani va mijozni yo'qotmaslik uchun qanday aniq yangi taklif/format bilan qutqarish (rescue) yo'lini bering.\n\n"
                 "IMLO VA NOMLAR STANDARTI:\n"
                 "- Hech qachon 'Rayhonajon' yoki 'Rayhona' deb yozmang — doimo 'Rayxon' deb yozilsin (xodim, loyiha va brend nomi uchun).\n\n"
                 "Rubrik faqat Mijoz toifasiga taalluqli. Agar toifa Mijoz emas "
@@ -128,9 +136,9 @@ class CallScorerMixin:
                 '(masalan: \"Ehtiyoj aniqlanmadi\", \"E\'tirozga javob berilmadi\"). '
                 'uzilish_vaqti null bo\'lsa — null.",\n'
                 '  "svetofor": "YASHIL|SARIQ|QIZIL (ball >=80: YASHIL, 60-79: SARIQ, <60: QIZIL)",\n'
-                '  "motivatsiya_va_coaching": "YASHIL bo\'lsa — samimiy maqtov va motivatsiya; SARIQ bo\'lsa — nima qilsa yaxshi bo\'lishini o\'rgatish; QIZIL bo\'lsa — qutqarish va vaziyatni o\'nglash yo\'li",\n'
-                '  "keyingi_qadam_aniq": "Sotuvchi aynan nima qilishi kerak (aniq harakat va vaqt)",\n'
-                '  "mijozga_aytiladigan_gap": "Sotuvchi mijozga keyingi muloqotda AYNAN so\'zma-so\'z nima deyishi kerak (tayyor tabiiy replika)",\n'
+                '  "motivatsiya_va_coaching": "Umumiy gaplar EMAS! Aynan suhbat va 360° kontekstdan kelib chiqqan aniq dalilli tahlil (YASHIL: qaysi yutug\'i uchun maqtov; SARIQ: aynan qaysi xatoni qanday tuzatish; QIZIL: aynan qanday muammo va aniq qutqarish yo\'li)",\n'
+                '  "keyingi_qadam_aniq": "Sotuvchi o\'zi qiladigan aniq amaliy harakat (kimga, nima, qachon)",\n'
+                '  "mijozga_aytiladigan_gap": "Umumiy shablon EMAS! Aynan shu mijozning ismi/kompaniyasi va suhbatdagi aniq mavzusi bo\'yicha so\'zma-so\'z aytiladigan tayyor replika",\n'
                 '  "kuchli_tomonlar": ["menejer aynan nimani YAXSHI qildi (1-3 ta, aniq)"],\n'
                 '  "zaif_tomonlar": ["menejer nimani o\'tkazib yubordi yoki xato qildi '
                 '(1-3 ta, aniq va tuzatib bo\'ladigan)"],\n'

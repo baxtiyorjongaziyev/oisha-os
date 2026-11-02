@@ -58,17 +58,19 @@ def _derive_client_script(
     coaching: Optional[List[Dict[str, str]]] = None,
     next_steps: str = "",
     keyingi_kelishuv: str = "",
+    company: str = "",
 ) -> str:
     raw_str = str(raw_val or "").strip()
     if raw_str:
         return normalize_name_spellings(raw_str)
     if coaching and coaching[0].get("better_phrase"):
         return normalize_name_spellings(coaching[0]["better_phrase"])
+    subj = f" {company}" if company and company not in {"N/A", "na", "-"} else ""
     if keyingi_kelishuv and keyingi_kelishuv.lower() not in {"n/a", "na", "-"}:
-        return f"Assalomu alaykum! Kelishganimizdek, {keyingi_kelishuv} bo'yicha bog'lanyapman. Taklifimizni ko'rib chiqa oldingizmi?"
+        return f"Assalomu alaykum! Kelishganimizdek{subj} bo'yicha {keyingi_kelishuv} masalasini ko'rib chiqishga bog'lanyapman."
     if next_steps and next_steps.lower() not in {"n/a", "na", "-"}:
-        return f"Assalomu alaykum! {next_steps} yuzasidan sizga ma'lumotlarni yubordim, qachon qisqa gaplashib olsak bo'ladi?"
-    return "Assalomu alaykum! Kechagi suhbatimiz bo'yicha loyiha tafsilotlarini aniqlashtirib olsak bo'ladimi?"
+        return f"Assalomu alaykum!{subj} yuzasidan {next_steps} bo'yicha sizga ma'lumotlarni yubordim, qachon qisqa gaplashib olsak bo'ladi?"
+    return f"Assalomu alaykum!{subj} loyihasi bo'yicha suhbatimizni davom ettirib, keyingi qadamni aniqlashtirib olsak bo'ladimi?"
 
 class CallNormalizerMixin:
     def _normalise_analysis(
@@ -209,7 +211,7 @@ class CallNormalizerMixin:
             str(data.get("keyingi_qadam_aniq") or keyingi_kelishuv or next_steps or "Mijoz bilan follow-up").strip()
         )
         mijozga_gap = _derive_client_script(
-            data.get("mijozga_aytiladigan_gap"), coaching, next_steps, keyingi_kelishuv
+            data.get("mijozga_aytiladigan_gap"), coaching, next_steps, keyingi_kelishuv, normalize_name_spellings(str(data.get("mijoz_kompaniya") or ""))
         )
 
         return {

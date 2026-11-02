@@ -7,7 +7,7 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
 SRC_VAULT = r"C:\Users\baxti\OneDrive\Документы\Obsidian Vault"
-DEST_VAULT = r"C:\Users\baxti\Documents\JonBranding Second Brain"
+DEST_VAULT = r"C:\Users\baxti\Documents\Baxtiyorjon Gaziyev Second Brain"
 
 print(f"[*] Syncing from:\n    {SRC_VAULT}\n  to:\n    {DEST_VAULT}")
 

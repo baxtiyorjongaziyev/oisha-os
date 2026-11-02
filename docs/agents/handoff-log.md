@@ -3438,3 +3438,63 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - AST tekshiruvi: `SRC_FILES_OVER_400_COUNT = 0`.
   - Contabo deploy: commit `482db7b4`, `deploy_contabo_direct.py --apply` -> SHA256 tasdiqlandi, `/healthz` = `200 OK` (zaxira: `oisha-direct-8d3a1be647bb43d8b1bcf888a15c59ac`).
 - **Qolgan ish / Holat:** Scoped commit va Contabo prod deploy bajarildi; Git push qilinmadi.
+
+### 2026-10-31 / Antigravity: OpenClaw Contabo Setup & @jon_clawbot Integration
+- **Bajarilgan ish:**
+  1. Contabo VPS (`109.199.100.137`) Node.js versiyasi `v24.22.2` ga yangilandi va `openclaw@2026.10.9` global o'rnatildi.
+  2. OpenClaw workspace (`~/.openclaw/workspace/oisha`) yaratildi: `SOUL.md`, `AGENTS.md`, `skills/oisha-crm`, `skills/oisha-web` ko'chirildi.
+  3. Telegram `@jon_clawbot` (ID: 8465955571) integratsiyasi sozlandi. Bot tokeni xavfsiz faylda (`/home/ubuntu/.openclaw/jonclaw-token.txt`, chmod 600) `tokenFile` orqali ulandi (plaintext botToken saqlanmadi).
+  4. AI model provayderi `google/gemini-3.5-flash-lite` ga sozlandi va ishchi holatda sinovdan o'tkazildi.
+  5. OpenClaw gateway systemd user servisi (`openclaw-gateway.service`) sifatida o'rnatildi va `loginctl enable-linger ubuntu` faollashtirildi (24/7 avtonom rejim).
+  6. Owner (Baxtiyorjon Gaziyev, ID: 150074828) bilan Telegram pairing kodi tasdiqlandi (`commands.ownerAllowFrom`).
+  7. Oisha-OS backend API (`http://localhost:8080`) va `OISHA_API_SECRET` OpenClaw muhitiga (`~/.openclaw/.env`, chmod 600) ulandi.
+- **O'zgargan fayllar:** Contabo server konfiguratsiyasi (`~/.openclaw/openclaw.json`, `~/.openclaw/.env`, `~/.config/systemd/user/openclaw-gateway.service`), `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `openclaw gateway status`: `Runtime: running (active)`, `Connectivity check: ok`, `Listening: 127.0.0.1:18789`.
+  - `openclaw channels status --probe --json`: `probe.ok: true`, `botInfo.username: jon_clawbot`, `running: true`.
+  - `openclaw agent --message "salom"` testi: "Salom! Jon Branding agentligining operatsion tizimi Oisha xizmatingizda. Bugun qanday yordam bera olaman?" (200 OK).
+  - Oisha-OS (`oisha-os.service`, PID 1459236) va Hermes crons (6 ta rejalashtirilgan vazifa) tegilmagan va barqaror ishlamoqda.
+- **Qolgan ish / Holat:** Contabo serverda 24/7 avtonom rejimda to'liq faol.
+
+### 2026-10-31 / Antigravity: Call Intelligence 3-Tier Traffic Light (🟢/🟡/🔴), Motivation, Coaching & Word-for-Word Script
+- **Bajarilgan ish:**
+  1. `src/services/call_analytics/scorer.py` (333L <= 400L): Gemini va fallback promptlariga `svetofor` (YASHIL/SARIQ/QIZIL), `motivatsiya_va_coaching`, `keyingi_qadam_aniq` va `mijozga_aytiladigan_gap` (so'zma-so'z replika) strukturasi kiritildi.
+  2. `src/services/call_analytics/normalizer.py` (387L <= 400L): `_derive_traffic_light`, `_derive_coaching_message`, va `_derive_client_script` yordamchilari orqali avtomatik tahlil qatlami qo'shildi:
+     - 🟢 **YASHIL (>=80)**: A'lo darajadagi muloqot, kuchli tomonlar e'tirofi va sotuvchiga samimiy motivatsiya.
+     - 🟡 **SARIQ (60-79)**: O'rtacha muloqot, nima yetishmagani va konversiyani oshirish uchun amaliy murabbiylik / o'rgatish taktikasi.
+     - 🔴 **QIZIL (<60)**: Zaif / uzilgan suhbat, uzilish sababi va mijozni qutqarish (rescue) yo'li.
+     - Har qanday suhbat uchun: sotuvchining aniq amaliy harakati (`keyingi_qadam_aniq`) va mijozga telefon qilganda/yozganda aynan aytadigan so'zma-so'z gapi (`mijozga_aytiladigan_gap`).
+  3. `src/services/core/calls/call_notifier.py` (340L <= 400L): Telegram Sotuv/CRM guruhiga (topic 115) yuboriladigan alert kartasida 🟢/🟡/🔴 svetofor nishoni, motivatsiya/murabbiylik bloki va "💬 Mijozga aytiladigan gap (so'zma-so'z)" bo'limi chiqarildi.
+  4. `src/services/call_analytics/crm_notes.py` (244L <= 400L): AmoCRM Note 1 kartasiga svetofor, motivatsiya/qutqarish bloki va so'zma-so'z skript integratsiya qilindi (eski snapshotlar bilan 100% orqaga mos).
+  5. `src/services/call_analytics/crm_tasks.py` (317L <= 400L) & `runner.py` (397L <= 400L): AmoCRM da yaratiladigan vazifa (Task) matniga sotuvchi uchun tayyor so'zma-so'z skript («💬 MIJOZGA AYTISH KERAK: ...») va motivatsiya/murabbiylik kiritildi.
+  6. `tests/test_call_traffic_light_and_coaching.py`: 11 ta yangi unit test yozildi.
+- **O'zgargan fayllar:**
+  - `src/services/call_analytics/scorer.py`
+  - `src/services/call_analytics/normalizer.py`
+  - `src/services/call_analytics/crm_notes.py`
+  - `src/services/call_analytics/crm_tasks.py`
+  - `src/services/call_analytics/runner.py`
+  - `src/services/core/calls/call_notifier.py`
+  - `tests/test_call_traffic_light_and_coaching.py`
+  - `docs/agents/handoff-log.md`
+- **Tekshiruv dalili:**
+  - `pytest tests/test_call_analyzer.py tests/test_call_analyzer_telegram_alert.py tests/test_call_crm_note_builder.py tests/test_call_traffic_light_and_coaching.py` -> 43/43 passed (100% green).
+  - `bandit -r src/services/call_analytics/ src/services/core/calls/ -ll` -> 0 issues.
+  - Barcha fayllar $\le 400$ qator va funksiyalar $\le 60$ qator.
+  - Contabo VPS (`109.199.100.137`): `deploy_contabo_direct.py --apply` muvaffaqiyatli o'tdi, fayl hashlari tekshirildi, `healthz=200` (zaxira: `oisha-direct-263971d607434aa1ac367ba770ba084a`).
+- **Qolgan ish / Holat:** Local commit `360619bb` bajarildi; Contabo VPS ga to'liq deploy qilindi va faol ishlamoqda.
+
+### 2026-11-02 / OpenCode: Kirim topic — to'lov kartasi uchun individual tabrik va moliyachi tasdig'i
+- **Bajarilgan ish:**
+  1. `src/handlers/kirim_shared.py` (yangi, 197L): Kirim topic matn yordamchilari — `is_kirim_topic_message`, `seller_display_name`, `is_payment_confirmation_card`, `parse_payment_card` ("TO'LOV TASDIQLASH" kartasi), `is_approval_reply` / `is_rejection_reply`, `build_individual_congratulation`, `build_finance_ask`.
+  2. `src/handlers/kirim_payment.py` (yangi, 329L): `kirim_payment_handler` — karta kelganda guruhda tabrik, sotuvchiga shaxsiy (DM) tabrik va moliyachini belgilab "tasdiqlaysizmi?" so'rovi; `kirim_payment_reply_handler` — moliyachi javoban tasdiqlasa sotuvchi yana bir bor (DM + guruh) tabriklanadi, rad etilsa guruhga xabar.
+  3. `src/handlers/kirim.py`: karta matni endi oddiy kirim e'loni sifatida qayta tabrik qilinmaydi; topic/seller yordamchilari `kirim_shared` dan olinadi.
+  4. `src/handlers/__init__.py`, `src/bootstrap/orchestration/events.py`: yangi handlerlar ro'yxatga olindi (`TEAM_GROUP_ID` + `TOPIC_KIRIM_ID` shartida).
+  5. `tests/test_kirim_payment.py` (yangi): 6 test — guruh+DM+so'rov, dublikat, karta vs oddiy e'lon, tasdiqdan keyingi tabrik, sotuvchi o'zini tasdiqlay olmasligi, begona a'zo tasdiqlay olmasligi.
+- **O'zgargan fayllar:** `src/handlers/kirim_shared.py`, `src/handlers/kirim_payment.py`, `src/handlers/kirim.py`, `src/handlers/__init__.py`, `src/bootstrap/orchestration/events.py`, `tests/test_kirim_payment.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `$env:SKIP_LIVE=1; pytest tests/test_kirim_payment.py tests/test_kirim_handler.py tests/test_income_workflow.py -q` -> 12 passed.
+  - `pytest tests -k "handler or kirim or events" -q` -> 105 passed, 3181 deselected.
+  - `python -m py_compile` — 4 fayl OK; `import src.handlers` — yangi handlerlar import bo'ldi.
+  - Fayllar <= 400 qator, funksiyalar <= 60 qator.
+- **Qolgan ish / Holat:** Local commit (branch `feat/kirim-individual-celebration`); push/deploy qilinmadi. `KIRIM_FINANCE_MENTION` env bilan moliyachi handle o'zgartiriladi (default `@jonbranding_finansist`).
