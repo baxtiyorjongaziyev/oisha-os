@@ -145,6 +145,9 @@ jobs:
       - name: Verify braces depth protection
         run: node scripts/check_braces_security.cjs
 
+      - name: Verify deepmerge prototype protection
+        run: node scripts/check_deepmerge_security.cjs
+
       - name: Typecheck workspace
         run: pnpm run typecheck
 
@@ -183,6 +186,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: node ../scripts/check_braces_security.cjs
+      - run: node ../scripts/check_deepmerge_security.cjs
       - run: pnpm run type-check
       - run: pnpm run test
       - run: pnpm run build
