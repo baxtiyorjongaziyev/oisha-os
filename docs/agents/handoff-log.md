@@ -2224,3 +2224,14 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - **Tekshiruv dalili:**
   - `python scripts/check_uzbek_text.py --staged` -> Toza.
   - Pre-flight testlar: 1038 passed, Bandit 0 issues.
+
+
+## 2026-11-02 — Antigravity: OpenClaw Mr.Jon and Hermes Oisha Runtime Sync
+- **Vazifa / Kontekst:** `@jon_clawbot` Telegram boti hali ham oʻzini "Men Oishaman" deb tanishtirayotgani va `gemini-3.5-flash-lite` modelida ishlayotgani sababli, OpenClaw (Mr.Jon) va Hermes (Oisha) runtime sozlamalari, modellari va xotira keshini jonli serverda sinxronlashtirish va qayta ishga tushirish.
+- **Amalga oshirilgan ishlar:**
+  1. `scripts/sync_agents_runtime.py`: Serverdagi barcha foydalanuvchilar (`/home/*/.openclaw`, `/root/.openclaw`) boʻyicha `openclaw.json` konfiguratsiyasini avtomatik topib, asosiy modelni `google/gemini-2.5-flash` ga, zaxira (fallback) modellarini esa `["groq/llama-3.3-70b-versatile", "google/gemini-2.5-flash-lite"]` ga yangilaydigan, Mr.Jon `SOUL.md` va `IDENTITY.md` fayllarini barcha workspaceʼlarga koʻchiradigan, Hermes uchun Oisha personasi va `gemini-2.5-flash` modelini oʻrnatib `hermes-gateway` hamda OpenClaw gateway jarayonlarini xavfsiz qayta ishga tushiradigan mustahkam Python skripti yaratildi.
+  2. `.github/workflows/oracle-deploy.yml` va `.github/workflows/oracle-diagnose.yml`: Moʻrt inline bash komandalar oʻrniga xatoliklarni toʻliq ushlaydigan va loglaydigan `python3 scripts/sync_agents_runtime.py` chaqiruvi ulandi.
+- **Oʻzgargan fayllar:** `scripts/sync_agents_runtime.py`, `.github/workflows/oracle-deploy.yml`, `.github/workflows/oracle-diagnose.yml`, `AGENTS.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python scripts/check_uzbek_text.py` -> Toza (0 xato).
+  - Production implementatsiya qoidalari: 199 LOC (<= 400 LOC), funksiyalar <= 60 LOC.
