@@ -3514,3 +3514,25 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - `bandit -r ops/hermes/ -ll` -> 0 issues.
   - Contabo VPS: `python3 -m py_compile oisha_attention.py` -> OK, `systemctl status hermes-gateway` -> `active (running)`.
 - **Qolgan ish / Holat:** Local committed, Contabo VPS ga deploy qilindi va faol ishlamoqda.
+
+### 2026-11-02 / Antigravity: MoiZvonki ko'p xodimli hisobot, jamoaviy guruh so'rovi va minimal dizayn
+- **Bajarilgan ish:**
+  1. `scripts/hourly_sales_control.py`:
+     - Barcha faol sotuvchilar (`mumtozmaxal@jonbranding.uz`, `rayxona@jonbranding.uz`, `shahnoza@jonbranding.uz`) bo'yicha ketma-ket so'rov yuborish va umumlashtirish qo'shildi (bitta API kalit har bir xodim nomidan ishlaydi).
+     - Hisobotdagi ortiqcha emojilar olib tashlanib, toza, professional va rasmiy ko'rinishga keltirildi.
+     - Oxirgi daqiqalargacha bo'lgan qo'ng'iroqlarni qamrab olish va dotenv avtomatik yuklash ta'minlandi.
+  2. `scripts/daily_sales_calls_report.py`:
+     - `fetch_calls` funksiyasiga `accounts` parametri qo'shildi, barcha jamoa a'zolarining qo'ng'iroqlari avtomatik yig'iladi (382L <= 400L).
+  3. `src/handlers/group_mention.py`:
+     - Oishaga bevosita reply qilinganda (`replied_to_bot=True`) yoki "Sotuv hisobotini qayta yubor" / "hisobot" deb so'ralganda darhol yangilangan jonli hisobotni chiqarib berish mantiqi qo'shildi (196L <= 400L).
+  4. Contabo VPS (`109.199.100.137`):
+     - `deploy_contabo_direct.py --apply` orqali `scripts/hourly_sales_control.py`, `scripts/daily_sales_calls_report.py` va `src/handlers/group_mention.py` deploy qilindi (`healthz=200`).
+     - Telegram guruh (`-1003854308552`, topic `115`) ga to'liq va yangilangan jonli hisobot muvaffaqiyatli jo'natildi.
+     - `oisha-sales-hourly.service` va `.timer` muvaffaqiyatli ishga tushirildi.
+- **O'zgargan fayllar:** `scripts/hourly_sales_control.py`, `scripts/daily_sales_calls_report.py`, `src/handlers/group_mention.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_daily_sales_calls_report.py tests/test_group_mention.py -q` -> 20/20 passed.
+  - Jonli Moizvonki API tekshirildi: Mumtozmaxal (22 ta), Rayxon (14 ta), Shahnoza (18 ta) 100% real ma'lumotlar bilan guruhga yuborildi.
+  - Contabo VPS `systemctl status oisha-os` -> `active (running)`, userbot va API server barqaror.
+- **Qolgan ish / Holat:** Barcha vazifalar to'liq bajarildi va jonli serverda ishga tushirildi.
+
