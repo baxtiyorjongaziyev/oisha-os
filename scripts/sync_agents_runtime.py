@@ -160,6 +160,43 @@ def sync_hermes_agent(hermes_dir: pathlib.Path | None = None) -> None:
             logger.info("[Hermes] hermes-gateway xizmati qayta ishga tushirildi.")
 
 
+def ensure_openclaw_gateway_active() -> bool:
+    """Poll the gateway until it is considered healthy, else return False."""
+    if os.name == "nt":
+        return True
+
+    for attempt in range(1, 6):
+        pgrep = subprocess.run(["pgrep", "-af", "openclaw.*gateway"], capture_output=True, text=True, check=False)
+        if pgrep.stdout.strip():
+            logger.info("[OpenClaw] Gateway processlari topildi: %s", pgrep.stdout.strip())
+            return True
+
+        status = subprocess.run(
+            [
+                "sudo",
+                "-iu",
+                "ubuntu",
+                "bash",
+                "-c",
+                "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        output = (status.stdout or status.stderr or "").strip()
+        if output and any(token in output.lower() for token in ["running", "active", "ready", "healthy"]):
+            logger.info("[OpenClaw] Gateway holati: %s", output)
+            return True
+
+        if attempt < 5:
+            logger.warning("[OpenClaw] Gateway hali ham faol emas, %s/5 qadamda qayta tekshirilmoqda...", attempt)
+            time.sleep(2)
+
+    logger.warning("[OpenClaw] Gateway faol holatda emas. Manual tekshiruv kerak.")
+    return False
+
+
 def restart_openclaw_gateway() -> None:
     """Restart or start OpenClaw gateway service and verify it is running."""
     if os.name == "nt":
@@ -174,7 +211,9 @@ def restart_openclaw_gateway() -> None:
         if u in check.stdout:
             logger.info("[OpenClaw] Systemd unit %s topildi, qayta ishga tushirilmoqda...", u)
             subprocess.run(["sudo", "systemctl", "restart", u], check=False)
-            return
+            if ensure_openclaw_gateway_active():
+                return
+            break
 
     # 2. OpenClaw CLI orqali start / restart
     for user in ["ubuntu", "root"]:
@@ -194,11 +233,13 @@ def restart_openclaw_gateway() -> None:
         )
         if cli_res.returncode == 0:
             logger.info("[OpenClaw] CLI gateway (%s): %s", user, cli_res.stdout.strip())
+            if ensure_openclaw_gateway_active():
+                return
             break
 
     # 3. Agar jarayon hali ham koʻrinmasa, fon rejimida start berish
     time.sleep(1)
-    ps_check = subprocess.run(["pgrep", "-f", "openclaw.*gateway"], capture_output=True, text=True, check=False)
+    ps_check = subprocess.run(["pgrep", "-af", "openclaw.*gateway"], capture_output=True, text=True, check=False)
     if not ps_check.stdout.strip():
         logger.warning("[OpenClaw] Gateway fon rejimida ishga tushirilmoqda...")
         subprocess.run(
@@ -207,8 +248,18 @@ def restart_openclaw_gateway() -> None:
         )
 
     # 4. Status va tekshiruv
+    if ensure_openclaw_gateway_active():
+        return
+
     status_check = subprocess.run(
-        ["sudo", "-iu", "ubuntu", "bash", "-c", "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true"],
+        [
+            "sudo",
+            "-iu",
+            "ubuntu",
+            "bash",
+            "-c",
+            "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true",
+        ],
         capture_output=True,
         text=True,
         check=False,
