@@ -85,7 +85,6 @@
 
 ## Locks
 - Codex: prospect discovery modules, admin command hook, channel scout scheduler hook, focused tests (2026-10-13).
-- Antigravity: openclaw mr.jon and hermes oisha runtime sync (2026-11-02).
  
 
 

@@ -170,49 +170,26 @@ def _safe_login_next(target: Optional[str]) -> str:
 
 @router.get("/api/auth/telegram/login")
 async def telegram_login(next: Optional[str] = None):
-    """Return an HTML page with Telegram Login Widget and Token Login fallback."""
-    bot_username = getattr(settings, "BOT_USERNAME", "jonairobot")
-    safe_next = _safe_login_next(next)
-    raw_auth_url = (
-        f"/api/auth/telegram/callback?next={safe_next}"
-        if safe_next
-        else "/api/auth/telegram/callback"
-    )
-    auth_url = html.escape(raw_auth_url, quote=True)
-    safe_bot_username = html.escape(str(bot_username).replace("@", ""), quote=True)
-    escaped_next = html.escape(safe_next, quote=True)
-    html_content = f"""
-    <html>
-        <head>
-            <title>Oisha-OS Enterprise Login</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {{ font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f3f4f6; color: #1f2937; margin: 0; }}
-                .card {{ background: white; padding: 36px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; box-sizing: border-box; }}
-                h2 {{ color: #2563eb; margin: 0 0 16px; }}
-                p {{ color: #4b5563; margin-bottom: 24px; font-size: 14px; line-height: 1.5; }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h2>Oisha-OS Enterprise</h2>
-                <p>Tizimga kirish uchun Telegram orqali tasdiqlang:</p>
-                <div style="min-height: 44px; margin-bottom: 20px;">
-                    <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{safe_bot_username}" data-size="large" data-auth-url="{auth_url}" data-request-access="write"></script>
-                </div>
-                <div style="margin-top: 16px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
-                    <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Yoki kirish kaliti (Token) orqali kiring:</p>
-                    <form method="POST" action="/api/auth/token/login" style="display: flex; flex-direction: column; gap: 8px;">
-                        <input type="hidden" name="next" value="{escaped_next}">
-                        <input type="password" name="token" placeholder="Kirish kaliti (API Secret yoki Token)" required style="padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box;">
-                        <button type="submit" style="background: #2563eb; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 13px;">Tizimga kirish</button>
-                    </form>
-                </div>
-            </div>
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+    """Return an HTML page with seamless Telegram Deep-Link and OTP login."""
+    from src.services.api_server.telegram_seamless_auth import render_telegram_login_response
+
+    return render_telegram_login_response(next=next)
+
+
+@router.get("/api/auth/telegram/poll")
+async def telegram_poll(state: str, next: Optional[str] = None):
+    """Poll deep-link authorization state and issue JWT session cookie on approval."""
+    from src.services.api_server.telegram_seamless_auth import handle_telegram_poll
+
+    return handle_telegram_poll(state=state, next=next)
+
+
+@router.post("/api/auth/telegram/otp")
+async def telegram_otp(otp: str = Form(...), next: Optional[str] = Form(None)):
+    """Authenticate via 6-digit Telegram OTP code."""
+    from src.services.api_server.telegram_seamless_auth import handle_telegram_otp
+
+    return handle_telegram_otp(otp=otp, next=next)
 
 
 @router.post("/api/auth/token/login")
