@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleCalendarSync:
-    def __init__(self, credentials_path="service_account.json"):
+    def __init__(self, credentials_path="service_account.json", calendar_id=None):
         self.credentials_path = credentials_path
+        self.calendar_id = calendar_id or os.getenv("GOOGLE_CALENDAR_ID", "baxtiyorjongaziyev@gmail.com")
         self.service = None
         self.scopes = ["https://www.googleapis.com/auth/calendar.events"]
         self._authenticate()
@@ -41,12 +42,19 @@ class GoogleCalendarSync:
 
         # 2. service_account.json (Fallback)
         if not creds:
-            if os.path.exists(self.credentials_path):
+            candidate_paths = [
+                self.credentials_path,
+                os.getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+                "/home/ubuntu/.secrets/service_account.json",
+                "data/service_account.json",
+            ]
+            valid_path = next((p for p in candidate_paths if p and os.path.exists(p)), None)
+            if valid_path:
                 try:
                     creds = ServiceAccountCredentials.from_service_account_file(
-                        self.credentials_path, scopes=self.scopes
+                        valid_path, scopes=self.scopes
                     )
-                    logger.info("[GCALENDAR OK] Service Account ulandi.")
+                    logger.info(f"[GCALENDAR OK] Service Account ulandi ({valid_path}).")
                 except Exception as e:
                     logger.error(
                         f"[GCALENDAR] Service Account avtorizatsiyasida xato: {e}"
@@ -59,13 +67,15 @@ class GoogleCalendarSync:
         else:
             logger.error("[GCALENDAR] Avtorizatsiya muvaffaqiyatsiz tugadi.")
 
-    def create_event(self, summary, start_time, end_time, description="", location=""):
+    def create_event(self, summary, start_time, end_time, description="", location="", calendar_id=None):
         """Yangi kalendar tadbiri yaratish.
         start_time va end_time ISO formatda bo'lishi kerak (masalan: 2024-05-28T10:00:00Z)
         """
         if not self.service:
             logger.error("[GCALENDAR] Service ulanmagan.")
             return False
+
+        cid = calendar_id or self.calendar_id or "primary"
 
         try:
             import uuid
@@ -97,7 +107,7 @@ class GoogleCalendarSync:
             try:
                 event = (
                     self.service.events()
-                    .insert(calendarId="primary", body=event, conferenceDataVersion=1)
+                    .insert(calendarId=cid, body=event, conferenceDataVersion=1)
                     .execute()
                 )
             except Exception as conference_exc:
@@ -109,7 +119,7 @@ class GoogleCalendarSync:
                 event.pop("conferenceData", None)
                 event = (
                     self.service.events()
-                    .insert(calendarId="primary", body=event)
+                    .insert(calendarId=cid, body=event)
                     .execute()
                 )
 
@@ -119,12 +129,14 @@ class GoogleCalendarSync:
             logger.error(f"[GCALENDAR ERROR] Tadbir yaratishda xato: {e}")
             return False
 
-    def get_upcoming_events(self, date_str=None, limit=10):
+    def get_upcoming_events(self, date_str=None, limit=10, calendar_id=None):
         """Ma'lum bir kun (yoki bugun) uchun barcha tadbirlarni ro'yxatini olish.
         date_str: YYYY-MM-DD
         """
         if not self.service:
             return []
+
+        cid = calendar_id or self.calendar_id or "primary"
 
         import datetime
         from zoneinfo import ZoneInfo
@@ -149,7 +161,7 @@ class GoogleCalendarSync:
             events_result = (
                 self.service.events()
                 .list(
-                    calendarId="primary",
+                    calendarId=cid,
                     timeMin=time_min,
                     timeMax=time_max,
                     maxResults=limit,
@@ -163,10 +175,12 @@ class GoogleCalendarSync:
             logger.error(f"[GCALENDAR ERROR] Tadbirlarni ro'yxatlashda xato: {e}")
             return []
 
-    def get_current_event(self):
+    def get_current_event(self, calendar_id=None):
         """Hozirgi vaqtda davom etayotgan tadbirni olish."""
         if not self.service:
             return None
+
+        cid = calendar_id or self.calendar_id or "primary"
 
         import datetime
 
@@ -177,7 +191,7 @@ class GoogleCalendarSync:
             events_result = (
                 self.service.events()
                 .list(
-                    calendarId="primary",
+                    calendarId=cid,
                     timeMin=now,
                     maxResults=1,
                     singleEvents=True,
@@ -207,12 +221,14 @@ class GoogleCalendarSync:
             logger.error(f"[GCALENDAR ERROR] Tadbirni olishda xato: {e}")
             return None
 
-    def get_free_slots(self, date_str=None):
+    def get_free_slots(self, date_str=None, calendar_id=None):
         """Ma'lum bir kun (yoki bugun/ertaga) uchun bo'sh uchrashuv vaqtlarini olish (10:00-18:00 oraliqda).
         Kutilayotgan date_str formati: YYYY-MM-DD
         """
         import datetime
         from zoneinfo import ZoneInfo
+
+        cid = calendar_id or self.calendar_id or "primary"
 
         tz = ZoneInfo("Asia/Tashkent")
         if not date_str:
@@ -246,7 +262,7 @@ class GoogleCalendarSync:
             events_result = (
                 self.service.events()
                 .list(
-                    calendarId="primary",
+                    calendarId=cid,
                     timeMin=time_min,
                     timeMax=time_max,
                     singleEvents=True,
