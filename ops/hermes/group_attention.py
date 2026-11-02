@@ -60,7 +60,8 @@ class Attention:
         if self.adapter._message_mentions_bot(msg) or self.adapter._message_matches_mention_patterns(msg):
             self.db.commit()
             return
-        if not QUESTION.search(text) or text.startswith('/'):
+        if (not QUESTION.search(text) or text.startswith('/')
+                or text.startswith('🔔') or 'eslatma:' in text.lower()):
             self.db.commit()
             return
         people = set()
@@ -73,10 +74,13 @@ class Attention:
             people.add('@' + real_reply.from_user.username.lower() if real_reply.from_user.username else str(real_reply.from_user.id))
         targets = {str(msg.from_user.id), '@' + (msg.from_user.username or '').lower()}
         people -= targets
+        if not people:
+            self.db.commit()
+            return
         payload = json.dumps(msg.to_dict(), ensure_ascii=False, default=str)
         # Seven-day retention; old questions are not revived after long downtime.
         self.db.execute('DELETE FROM questions WHERE due<?', (time.time() - 7 * 86400,))
-        for person in people or {''}:
+        for person in people:
             self.db.execute('INSERT OR IGNORE INTO questions(chat,message,topic,target,payload,due) VALUES(?,?,?,?,?,?)',
                             (msg.chat.id, msg.message_id, msg.message_thread_id, person, payload, time.time() + 1800))
         self.db.commit()
@@ -109,24 +113,15 @@ class Attention:
             self.db.commit()
 
     async def deliver(self, chat, mid, topic, target, payload):
-        from telegram import Message, ReplyParameters
-        if target:
-            mention = target if target.startswith('@') else f'<a href="tg://user?id={int(target)}">Hamkasb</a>'
-            await self.adapter._bot.send_message(
-                chat_id=chat, message_thread_id=topic,
-                reply_parameters=ReplyParameters(message_id=mid, allow_sending_without_reply=False),
-                text=f'{mention}, yuqoridagi savolga bog‘langan javobni ko‘rmadim. Imkon bo‘lsa, qisqacha javob yoki qachon aniqlashingizni yozib qo‘ysangiz.',
-                parse_mode='HTML')
+        if not target:
             return
-        from gateway.platforms.base import MessageType
-        msg = Message.de_json(json.loads(payload), self.adapter._bot)
-        if not self.adapter._is_user_authorized_from_message(msg):
-            return
-        event = self.adapter._build_message_event(msg, MessageType.TEXT)
-        event.text = ('Guruhdagi quyidagi savolga 30 daqiqa ichida bog‘langan reply kelmadi. '
-                      'Faqat tekshirilgan ma’lumot bilan qisqa javob ber; shaxslar nomidan va’da berma. '
-                      'Ma’lumot yetmasa buni ayt. Hech qanday tashqi yozish amalini bajarma.\n\n' + (msg.text or ''))
-        await self.adapter.handle_message(event)
+        from telegram import ReplyParameters
+        mention = target if target.startswith('@') else f'<a href="tg://user?id={int(target)}">Hamkasb</a>'
+        await self.adapter._bot.send_message(
+            chat_id=chat, message_thread_id=topic,
+            reply_parameters=ReplyParameters(message_id=mid, allow_sending_without_reply=False),
+            text=f'{mention}, yuqoridagi savolga bog‘langan javobni ko‘rmadim. Imkon bo‘lsa, qisqacha javob yoki qachon aniqlashingizni yozib qo‘ysangiz.',
+            parse_mode='HTML')
 
     async def loop(self):
         try:

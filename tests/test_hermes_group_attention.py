@@ -105,3 +105,50 @@ def test_observe_forum_topic_and_reply_cancellation(tmp_path, monkeypatch):
 
     rows = attention.db.execute("SELECT target, status FROM questions WHERE message=12891").fetchall()
     assert rows[0] == ("@rayxonjonbranding", "answered")
+
+
+def test_observe_ignores_automated_reminders(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    adapter = MagicMock()
+    adapter._topic_gates_pass.return_value = True
+    adapter._telegram_allowed_chats.return_value = set()
+    adapter._message_mentions_bot.return_value = False
+    adapter._message_matches_mention_patterns.return_value = False
+
+    attention = Attention(adapter)
+    msg = MagicMock()
+    msg.chat.id = -1003967389019
+    msg.message_id = 3174
+    msg.message_thread_id = None
+    msg.from_user = MagicMock(id=150074828, is_bot=False, username="BaxtiyorjonGaziyev")
+    msg.reply_to_message = None
+    msg.text = "🔔 Eslatma: @jonbranding_finansist — kunlik balansni kiritdingizmi?"
+    msg.entities = [MagicMock(type="mention")]
+    msg.parse_entity.return_value = "@jonbranding_finansist"
+
+    attention.observe(msg)
+    rows = attention.db.execute("SELECT * FROM questions WHERE message=3174").fetchall()
+    assert len(rows) == 0
+
+
+def test_observe_ignores_general_questions_without_target(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    adapter = MagicMock()
+    adapter._topic_gates_pass.return_value = True
+    adapter._telegram_allowed_chats.return_value = set()
+    adapter._message_mentions_bot.return_value = False
+    adapter._message_matches_mention_patterns.return_value = False
+
+    attention = Attention(adapter)
+    msg = MagicMock()
+    msg.chat.id = -1003854308552
+    msg.message_id = 9374
+    msg.message_thread_id = None
+    msg.from_user = MagicMock(id=150074828, is_bot=False, username="BaxtiyorjonGaziyev")
+    msg.reply_to_message = None
+    msg.text = "Kim oladi?"
+    msg.entities = []
+
+    attention.observe(msg)
+    rows = attention.db.execute("SELECT * FROM questions WHERE message=9374").fetchall()
+    assert len(rows) == 0
