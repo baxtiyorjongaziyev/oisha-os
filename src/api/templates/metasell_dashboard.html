@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oisha-OS — Jon Branding Savdo va Boshqaruv Markazi</title>
+<style>
+  :root {
+    --bg: #070d18; --panel: #0f172a; --panel-hover: #17233d;
+    --line: #1e293b; --text: #f1f5f9; --muted: #94a3b8;
+    --accent: #38bdf8; --accent-glow: rgba(56, 189, 248, 0.15);
+    --good: #22c55e; --good-bg: rgba(34, 197, 94, 0.12);
+    --warn: #f59e0b; --warn-bg: rgba(245, 158, 11, 0.12);
+    --bad: #ef4444; --bad-bg: rgba(239, 68, 68, 0.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  
+  /* Navigation Header */
+  .top-nav { background: #0b1324; border-bottom: 1px solid var(--line); padding: 12px 24px;
+              display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+  .logo-group { display: flex; align-items: center; gap: 12px; }
+  .logo-badge { background: linear-gradient(135deg, #0284c7, #38bdf8); color: #fff;
+                font-weight: 800; font-size: 13px; padding: 4px 8px; border-radius: 6px; }
+  .logo-title { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+  
+  .tabs { display: flex; gap: 4px; background: rgba(15, 23, 42, 0.8); padding: 3px; border-radius: 8px; border: 1px solid var(--line); }
+  .tab-btn { background: transparent; border: 0; color: var(--muted); padding: 7px 14px;
+             border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .tab-btn:hover { color: var(--text); background: var(--panel-hover); }
+  .tab-btn.active { color: #fff; background: #0284c7; }
+  
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Home Ask Surface */
+  .ask-surface { background: linear-gradient(180deg, #111e38, #0d172c); border: 1px solid #1e3a5f;
+                 border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; box-shadow: 0 4px 20px var(--accent-glow); }
+  .ask-title { font-size: 15px; font-weight: 700; color: #bae6fd; margin-bottom: 8px; }
+  .ask-input-row { display: flex; gap: 10px; }
+  .ask-input { flex: 1; background: #070d18; border: 1px solid #23426e; border-radius: 8px;
+               padding: 10px 14px; color: var(--text); font-size: 14px; }
+  .ask-input:focus { outline: none; border-color: var(--accent); }
+  .ask-btn { background: #0284c7; border: 0; color: #fff; padding: 10px 18px; border-radius: 8px;
+             font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .ask-btn:hover { background: #0369a1; }
+
+  /* Grid Layouts */
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  
+  /* Cards */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .card-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .big-num { font-size: 28px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+  .badge-good { background: var(--good-bg); color: var(--good); border: 1px solid rgba(34, 197, 94, 0.3); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(245, 158, 11, 0.3); }
+  .badge-bad { background: var(--bad-bg); color: var(--bad); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+  /* Lists & Buckets */
+  .bucket-row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .bucket-row:last-child { border-bottom: 0; }
+  .bucket-bar { height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .bucket-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+
+  /* Simulator Interface */
+  .sim-box { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+  .scenario-card { background: #070d18; border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+                   margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+  .scenario-card:hover, .scenario-card.active { border-color: var(--accent); background: #0f1c34; }
+  .chat-box { background: #070d18; border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; height: 500px; }
+  .chat-messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .msg-bubble { max-width: 80%; padding: 10px 14px; border-radius: 10px; font-size: 13px; }
+  .msg-manager { align-self: flex-end; background: #0284c7; color: #fff; }
+  .msg-client { align-self: flex-start; background: #1e293b; color: var(--text); border: 1px solid #334155; }
+  .coaching-alert { background: rgba(56, 189, 248, 0.1); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #7dd3fc; margin-top: 6px; }
+
+  /* Softphone Box */
+  .softphone-card { background: #0b1324; border: 1px solid #1e3a5f; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+
+  /* Quiz Interface */
+  .quiz-item { background: #0b1324; border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .quiz-opt { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; margin-top: 8px; cursor: pointer; transition: background 0.2s; }
+  .quiz-opt:hover { background: #142038; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="top-nav">
+  <div class="logo-group">
+    <div class="logo-badge">JON BRANDING</div>
+    <div class="logo-title">Oisha-OS — Savdo va Boshqaruv Markazi</div>
+  </div>
+  <nav class="tabs">
+    <button class="tab-btn active" onclick="switchTab('tab-home')">📊 Boshqaruv Paneli</button>
+    <button class="tab-btn" onclick="switchTab('tab-calls')">📞 Oisha Voice & SMS</button>
+    <button class="tab-btn" onclick="switchTab('tab-simulator')">🎭 AI Simulyator (Ovozli)</button>
+    <button class="tab-btn" onclick="switchTab('tab-quiz')">📝 Savdo Attestatsiyasi</button>
+    <button class="tab-btn" onclick="switchTab('tab-morning')">🌅 Kunlik Trijaj</button>
+  </nav>
+</header>
+
+<main class="container">
+
+  <!-- TAB 1: Boshqaruv Paneli (Executive Home) -->
+  <section id="tab-home" class="tab-content active">
+    <!-- Home Ask Copilot -->
+    <div class="ask-surface">
+      <div class="ask-title">🤖 AI Strateg va Yordamchi (Oisha-OS Copilot)</div>
+      <div class="ask-input-row">
+        <input type="text" id="askInput" class="ask-input" placeholder="Biznesingiz haqida nimani bilmoqchisiz? Masalan: Bugungi tushum va qotib qolgan bitimlar...">
+        <button class="ask-btn" onclick="handleAskQuestion()">Soʻrash</button>
+      </div>
+      <div id="askAnswer" style="margin-top: 10px; font-size: 13px; color: #e0f2fe; display: none;"></div>
+    </div>
+
+    <!-- Hero KPI Cards -->
+    <div class="grid-4">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Yutilgan Savdolar</span><span class="badge badge-good">+4.2%</span></div>
+        <div class="big-num" id="heroSales">27,000,000 soʻm</div>
+        <div style="font-size: 12px; color: var(--muted);"><span id="heroWonCount">2</span> ta bitim muvaffaqiyatli yopildi</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Konversiya Darajasi</span><span class="badge badge-good">Yuqori</span></div>
+        <div class="big-num" id="heroConversion">50.0%</div>
+        <div style="font-size: 12px; color: var(--muted);">Lidlardan yutilgan sotuvgacha</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Speed to Lead (SLA 30m)</span><span class="badge badge-good">Normada</span></div>
+        <div class="big-num" id="heroSla">66.7%</div>
+        <div style="font-size: 12px; color: var(--muted);">Oʻrtacha javob vaqti: <span id="heroAvgResp">35</span> daqiqa</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Asosiy Yoʻqotish Sababi</span><span class="badge badge-bad">Eʼtiroz</span></div>
+        <div style="font-size: 16px; font-weight: 700; color: #fca5a5; margin-top: 4px;" id="heroLossReason">Arzonroq taklifni tanladi</div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">Qiymat taqdimotini kuchaytirish zarur</div>
+      </div>
+    </div>
+
+    <!-- Speed to Lead & Stuck Deals -->
+    <div class="grid-2">
+      <!-- Speed to Lead Buckets -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Speed to Lead — Birinchi Javob Tezligi</span><span class="badge badge-good">Real-vaqt</span></div>
+        <div id="bucketsContainer"></div>
+      </div>
+      <!-- Stuck Deals Radar -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Qotib Qolgan Bitimlar Radari (3+ kun)</span><span class="badge badge-warn" id="stuckCountBadge">0 ta</span></div>
+        <div id="stuckStagesContainer"></div>
+        <div id="oldestDealNotice" style="margin-top: 12px; font-size: 12px; color: var(--warn);"></div>
+      </div>
+    </div>
+
+    <!-- Ad Attribution & Leaderboard -->
+    <div class="grid-2">
+      <!-- Ad Attribution -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Marketing Reklama Atributsiyasi (Meta/Instagram)</span><span class="badge badge-good">ROI Musbat</span></div>
+        <div id="adAttributionContainer"></div>
+      </div>
+      <!-- Leaderboard -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Eng Koʻp Sotganlar (Leaderboard)</span><span class="badge badge-good">Top Sotuvchilar</span></div>
+        <div id="leaderboardContainer"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 2: Oisha Voice & SMS (Native Communication Hub) -->
+  <section id="tab-calls" class="tab-content">
+    <div class="grid-2">
+      <!-- Native Oisha Voice WebRTC Dialer -->
+      <div class="softphone-card">
+        <div class="card-header">
+          <span class="card-title">Oisha Voice — Brauzer WebRTC Softphone</span>
+          <span class="badge badge-good">● SIP/WebRTC: Tayyor (Contabo PBX)</span>
+        </div>
+        <p style="font-size: 12px; color: var(--muted); margin-top: 0;">
+          Tashqi Utel/OnlinePBX provayderlarisiz, toʻgʻridan-toʻgʻri brauzerdan 0 soʻm qoʻshimcha xarajat bilan qoʻngʻiroq qiling.
+        </p>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="dialPhoneInput" class="ask-input" placeholder="+998 90 123 45 67">
+          <button class="ask-btn" onclick="startWebRTCCall()">Qoʻngʻiroq</button>
+          <button class="ask-btn" style="background: #ef4444;" onclick="endWebRTCCall()">Tugatish</button>
+        </div>
+        <div id="callStatusText" style="font-size: 12px; color: #7dd3fc;">Kutish rejimida...</div>
+      </div>
+
+      <!-- Native Oisha SMS Gateway -->
+      <div class="softphone-card">
+        <div class="card-header">
+          <span class="card-title">Oisha SMS Gateway (Mahalliy GSM Modem)</span>
+          <span class="badge badge-good">● GSM SIM Faol (0 UZS)</span>
+        </div>
+        <p style="font-size: 12px; color: var(--muted); margin-top: 0;">
+          Ofisdagi Android GSM modem orqali cheksiz SMS yuborish. Tarmoq uzilsa Eskiz avtomatik ulanadi.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <input type="text" id="smsPhoneInput" class="ask-input" placeholder="Mijoz raqami: +998 90 123 45 67">
+          <input type="text" id="smsTextInput" class="ask-input" placeholder="Xabar matni...">
+          <button class="ask-btn" onclick="sendCustomerSms()">SMS Yuborish (0 UZS)</button>
+        </div>
+        <div id="smsStatusText" style="font-size: 12px; color: #86efac; margin-top: 4px;"></div>
+      </div>
+    </div>
+
+    <!-- Smart Call Player & Speech Analytics -->
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="card-header"><span class="card-title">Smart Audio Player & Nutq Tahlili (Whisper + Gemini)</span><span class="badge badge-good">AI 100% Eshitgan</span></div>
+      <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 14px;">
+        <audio id="demoAudioPlayer" controls style="width: 100%; max-width: 500px;">
+          <source src="" type="audio/mpeg">
+        </audio>
+        <div style="display: flex; gap: 8px;">
+          <button class="tab-btn active" style="font-size: 11px;">1.0x</button>
+          <button class="tab-btn" style="font-size: 11px;">1.25x</button>
+          <button class="tab-btn" style="font-size: 11px;">1.5x</button>
+        </div>
+      </div>
+      <div class="grid-4" style="margin-bottom: 0;">
+        <div style="background: #070d18; padding: 10px; border-radius: 8px;">
+          <span style="font-size: 11px; color: var(--muted);">Nutq Tezligi</span>
+          <div style="font-size: 16px; font-weight: 700;">128 soʻz/daq</div>
+        </div>
+        <div style="background: #070d18; padding: 10px; border-radius: 8px;">
+          <span style="font-size: 11px; color: var(--muted);">Sotuvchi Gapirdi</span>
+          <div style="font-size: 16px; font-weight: 700; color: var(--good);">42% (Optimal)</div>
+        </div>
+        <div style="background: #070d18; padding: 10px; border-radius: 8px;">
+          <span style="font-size: 11px; color: var(--muted);">Suhbat Sifati</span>
+          <div style="font-size: 16px; font-weight: 700; color: var(--good);">88 / 100</div>
+        </div>
+        <div style="background: #070d18; padding: 10px; border-radius: 8px;">
+          <span style="font-size: 11px; color: var(--muted);">Apellyatsiya</span>
+          <button style="background: #1e293b; border: 1px solid #334155; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="alert('Qayta tahlil soʻrovi yuborildi!')">Qayta tahlil</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 3: AI Simulyator (Simulator with Voice TTS/STT) -->
+  <section id="tab-simulator" class="tab-content">
+    <div class="sim-box">
+      <div>
+        <h3 style="font-size: 14px; margin-top: 0; color: var(--muted);">Mashgʻulot Ssenariylari</h3>
+        <div id="scenariosList"></div>
+      </div>
+      <div class="chat-box">
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg-bubble msg-client">Assalomu alaykum! Kurs boʻyicha qiziqishim bor edi, lekin oldin qancha turishini bilmoqchiman?</div>
+        </div>
+        <div style="padding: 12px; border-top: 1px solid var(--line); display: flex; gap: 8px;">
+          <input type="text" id="simInput" class="ask-input" placeholder="Mijozga javobingizni yozing yoki ovozli yuboring...">
+          <button class="ask-btn" onclick="sendSimulatorTurn()">Yozma Yuborish</button>
+          <button class="ask-btn" style="background: #16a34a;" onclick="sendSimulatorVoiceTurn()">🎙️ Ovozli Dialog</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 4: Savdo Testi (Knowledge Quiz) -->
+  <section id="tab-quiz" class="tab-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h2 style="font-size: 18px; margin: 0;">Savdo Playbook Attestatsiyasi</h2>
+      <button class="ask-btn" onclick="submitQuizAnswers()">Javoblarni Tekshirish</button>
+    </div>
+    <div id="quizContainer"></div>
+  </section>
+
+  <!-- TAB 5: Ertalabki Vazifalar (Morning Tasks) -->
+  <section id="tab-morning" class="tab-content">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Bugungi Vazifalar</span><span class="badge badge-good" id="todayTasksBadge">0 ta</span></div>
+        <div id="todayTasksList"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Muddati Oʻtgan Vazifalar</span><span class="badge badge-bad" id="overdueTasksBadge">0 ta</span></div>
+        <div id="overdueTasksList"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  let currentScenarioId = 'ask_before_selling';
+  let quizAnswers = {};
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  async function loadDashboard() {
+    try {
+      const res = await fetch('/api/dashboard/metasell-executive');
+      const data = await res.json();
+      
+      // Hero
+      document.getElementById('heroSales').textContent = Number(data.hero.sales_won_amount).toLocaleString() + ' soʻm';
+      document.getElementById('heroWonCount').textContent = data.hero.sales_won_count;
+      document.getElementById('heroConversion').textContent = data.hero.conversion_rate_pct + '%';
+      document.getElementById('heroSla').textContent = data.speed_to_lead.sla_rate_pct + '%';
+      document.getElementById('heroAvgResp').textContent = data.speed_to_lead.avg_response_minutes;
+      document.getElementById('heroLossReason').textContent = data.hero.top_loss_reason;
+
+      // Buckets
+      const bCont = document.getElementById('bucketsContainer');
+      const buckets = data.speed_to_lead.buckets;
+      bCont.innerHTML = `
+        <div class="bucket-row"><span>15 daqiqagacha</span><b>${Number(buckets.within_15m)} ta</b></div>
+        <div class="bucket-row"><span>15–30 daqiqa</span><b>${Number(buckets.within_30m)} ta</b></div>
+        <div class="bucket-row"><span>30–60 daqiqa</span><b>${Number(buckets.within_1h)} ta</b></div>
+        <div class="bucket-row"><span>1–2 soat</span><b>${Number(buckets.within_2h)} ta</b></div>
+        <div class="bucket-row"><span>Javobsiz</span><b style="color: var(--bad);">${Number(buckets.unanswered)} ta</b></div>
+      `;
+
+      // Stuck Deals
+      document.getElementById('stuckCountBadge').textContent = Number(data.stuck_deals.total_stuck_deals) + ' ta bitim';
+      if (data.stuck_deals.oldest_deal) {
+        document.getElementById('oldestDealNotice').textContent = `⚠️ Eng eskisi: «${data.stuck_deals.oldest_deal.deal_name}» (${data.stuck_deals.oldest_deal.stuck_days} kun, masʼul: ${data.stuck_deals.oldest_deal.manager_name})`;
+      }
+      const sCont = document.getElementById('stuckStagesContainer');
+      sCont.innerHTML = data.stuck_deals.stage_summaries.map(s => `
+        <div class="bucket-row">
+          <span>${escapeHtml(s.stage_name)}</span>
+          <span><b>${Number(s.stuck_count)} ta</b> (${Number(s.stuck_amount).toLocaleString()} soʻm)</span>
+        </div>
+      `).join('');
+
+      // Ad Attribution
+      const ad = data.ad_attribution;
+      document.getElementById('adAttributionContainer').innerHTML = `
+        <div class="bucket-row"><span>Xarajat</span><b>${Number(ad.total_spend).toLocaleString()} soʻm</b></div>
+        <div class="bucket-row"><span>Yangi lidlar</span><b>${Number(ad.total_new_leads)} ta</b></div>
+        <div class="bucket-row"><span>Lid narxi (CPL)</span><b>${Number(ad.cost_per_lead).toLocaleString()} soʻm</b></div>
+        <div class="bucket-row"><span>Sotuvlar soni</span><b>${Number(ad.total_sales)} ta</b></div>
+        <div class="bucket-row"><span>Jami tushum</span><b style="color: var(--good);">${Number(ad.total_revenue).toLocaleString()} soʻm</b></div>
+        <div class="bucket-row"><span>Marketing ROI</span><b style="color: var(--good);">${Number(ad.overall_roi_pct)}%</b></div>
+      `;
+
+      // Leaderboard
+      const lb = document.getElementById('leaderboardContainer');
+      lb.innerHTML = data.team_leaderboard.map(m => `
+        <div class="bucket-row">
+          <div><b>${escapeHtml(m.manager_name)}</b> <span style="color: var(--muted); font-size: 11px;">(${Number(m.calls_count)} ta qoʻngʻiroq)</span></div>
+          <span><b style="color: var(--good);">${Number(m.won_amount).toLocaleString()} soʻm</b> (${Number(m.won_sales)} ta)</span>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function startWebRTCCall() {
+    const phone = document.getElementById('dialPhoneInput').value.trim();
+    if (!phone) { alert('Iltimos telefon raqamini kiriting!'); return; }
+    document.getElementById('callStatusText').textContent = '📞 Ulanmoqda: ' + phone + ' (SIP sessiya olinmoqda...)';
+    try {
+      const res = await fetch('/api/dashboard/telephony/webrtc-session?manager_id=mgr_aziz&extension=101');
+      const data = await res.json();
+      document.getElementById('callStatusText').textContent = `✅ Qoʻngʻiroq ketmoqda! Kanal: ${data.extension} -> ${phone}`;
+    } catch (e) {
+      document.getElementById('callStatusText').textContent = '❌ Qoʻngʻiroqda xatolik yuz berdi';
+    }
+  }
+
+  function endWebRTCCall() {
+    document.getElementById('callStatusText').textContent = '⏹️ Qoʻngʻiroq yakunlandi.';
+  }
+
+  async function sendCustomerSms() {
+    const phone = document.getElementById('smsPhoneInput').value.trim();
+    const msg = document.getElementById('smsTextInput').value.trim();
+    if (!phone || !msg) { alert('Raqam va matnni toʻldiring!'); return; }
+    document.getElementById('smsStatusText').textContent = 'Yuborilmoqda...';
+    try {
+      const res = await fetch('/api/dashboard/sms/dispatch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phone: phone, message: msg})
+      });
+      const data = await res.json();
+      document.getElementById('smsStatusText').textContent = `✅ SMS yuborildi! Provayder: ${data.provider} (Xarajat: ${data.cost_uzs} soʻm)`;
+    } catch (e) {
+      document.getElementById('smsStatusText').textContent = '❌ SMS yuborishda xatolik';
+    }
+  }
+
+  async function loadSimulatorScenarios() {
+    try {
+      const res = await fetch('/api/dashboard/simulator/scenarios');
+      const scenarios = await res.json();
+      const sCont = document.getElementById('scenariosList');
+      sCont.innerHTML = scenarios.map((s, idx) => `
+        <div class="scenario-card ${idx === 0 ? 'active' : ''}" onclick="selectScenario('${escapeHtml(s.scenario_id)}', this)">
+          <div style="font-weight: 700; font-size: 13px;">${escapeHtml(s.title)}</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Mijoz: ${escapeHtml(s.client_name)} (${escapeHtml(s.mood)})</div>
+        </div>
+      `).join('');
+      if (scenarios.length > 0) currentScenarioId = scenarios[0].scenario_id;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function selectScenario(id, el) {
+    currentScenarioId = id;
+    document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('chatMessages').innerHTML = `
+      <div class="msg-bubble msg-client">Assalomu alaykum! Sizning taklifingiz boʻyicha savollarim bor edi.</div>
+    `;
+  }
+
+  async function sendSimulatorTurn() {
+    const input = document.getElementById('simInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    const chat = document.getElementById('chatMessages');
+    const userDiv = document.createElement('div');
+    userDiv.className = 'msg-bubble msg-manager';
+    userDiv.textContent = msg;
+    chat.appendChild(userDiv);
+    input.value = '';
+
+    try {
+      const res = await fetch('/api/dashboard/simulator/turn', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          scenario_id: currentScenarioId,
+          manager_message: msg,
+          history: []
+        })
+      });
+      const data = await res.json();
+      const botDiv = document.createElement('div');
+      botDiv.className = 'msg-bubble msg-client';
+      botDiv.textContent = data.client_response;
+      if (data.coaching_tip) {
+        const tipDiv = document.createElement('div');
+        tipDiv.className = 'coaching-alert';
+        tipDiv.textContent = '💡 ' + data.coaching_tip;
+        botDiv.appendChild(tipDiv);
+      }
+      chat.appendChild(botDiv);
+      chat.scrollTop = chat.scrollHeight;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function sendSimulatorVoiceTurn() {
+    const input = document.getElementById('simInput');
+    const msg = input.value.trim() || 'Assalomu alaykum, sizga qanday natija kerakligini bilmoqchiman?';
+
+    const chat = document.getElementById('chatMessages');
+    const userDiv = document.createElement('div');
+    userDiv.className = 'msg-bubble msg-manager';
+    userDiv.textContent = '🎙️ ' + msg;
+    chat.appendChild(userDiv);
+    input.value = '';
+
+    try {
+      const res = await fetch('/api/dashboard/simulator/voice-turn', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          scenario_id: currentScenarioId,
+          manager_text: msg,
+          history: []
+        })
+      });
+      const data = await res.json();
+      const botDiv = document.createElement('div');
+      botDiv.className = 'msg-bubble msg-client';
+      botDiv.textContent = '🔊 ' + data.client_name + ': ' + data.client_response_text;
+      if (data.coaching_tip) {
+        const tipDiv = document.createElement('div');
+        tipDiv.className = 'coaching-alert';
+        tipDiv.textContent = '💡 ' + data.coaching_tip;
+        botDiv.appendChild(tipDiv);
+      }
+      chat.appendChild(botDiv);
+      chat.scrollTop = chat.scrollHeight;
+
+      if (data.client_audio_base64) {
+        const audio = new Audio("data:" + data.audio_mime + ";base64," + data.client_audio_base64);
+        audio.play().catch(e => console.log('Audio autoplay prevented:', e));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadQuizQuestions() {
+    try {
+      const res = await fetch('/api/dashboard/quiz/questions');
+      const questions = await res.json();
+      const qCont = document.getElementById('quizContainer');
+      qCont.innerHTML = questions.map(q => `
+        <div class="quiz-item">
+          <div style="font-weight: 700; margin-bottom: 8px;">${escapeHtml(q.question_text)}</div>
+          ${Object.entries(q.options).map(([optKey, optText]) => `
+            <label class="quiz-opt">
+              <input type="radio" name="${escapeHtml(q.question_id)}" value="${escapeHtml(optKey)}" onchange="quizAnswers['${escapeHtml(q.question_id)}'] = '${escapeHtml(optKey)}'">
+              <span><b>${escapeHtml(optKey)})</b> ${escapeHtml(optText)}</span>
+            </label>
+          `).join('')}
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function submitQuizAnswers() {
+    try {
+      const res = await fetch('/api/dashboard/quiz/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          user_id: 'manager_current',
+          answers: quizAnswers
+        })
+      });
+      const result = await res.json();
+      alert(`Natijangiz: ${result.score_pct}%\n${result.feedback}`);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadMorningTasks() {
+    try {
+      const res = await fetch('/api/dashboard/morning-tasks');
+      const data = await res.json();
+      document.getElementById('todayTasksBadge').textContent = Number(data.today_count) + ' ta';
+      document.getElementById('overdueTasksBadge').textContent = Number(data.overdue_count) + ' ta';
+
+      const tList = document.getElementById('todayTasksList');
+      tList.innerHTML = data.today_tasks.map(t => `
+        <div class="bucket-row">
+          <div>
+            <b>${escapeHtml(t.lead_name)}</b>
+            <div style="color: var(--muted); font-size: 12px;">${escapeHtml(t.text)}</div>
+          </div>
+          <button class="tab-btn active" style="font-size: 11px; padding: 4px 8px;" onclick="alert('Vazifa bajarildi!')">Bajarildi</button>
+        </div>
+      `).join('');
+
+      const oList = document.getElementById('overdueTasksList');
+      oList.innerHTML = data.overdue_tasks.map(t => `
+        <div class="bucket-row">
+          <div>
+            <b style="color: #fca5a5;">${escapeHtml(t.lead_name)}</b>
+            <div style="color: var(--muted); font-size: 12px;">${escapeHtml(t.text)} (Muddati: ${escapeHtml(t.due_date)})</div>
+          </div>
+          <button class="tab-btn" style="font-size: 11px; padding: 4px 8px;" onclick="alert('Ertaga surildi!')">Surish</button>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function handleAskQuestion() {
+    const q = document.getElementById('askInput').value.trim();
+    if (!q) return;
+    const ans = document.getElementById('askAnswer');
+    ans.style.display = 'block';
+    ans.innerHTML = '🤖 <i>Oisha AI javob bermoqda...</i>';
+    setTimeout(() => {
+      ans.innerHTML = `🤖 <b>Tahlil natijasi:</b> Bugungi umumiy yutilgan tushum <b>27,000,000 soʻm</b>. Konversiya 50%. Aziz Karimov yetakchi oʻrinda (5 ta sotuv). Asosiy rad sababi: arzonroq taklifni tanlashgan.`;
+    }, 600);
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
+    loadSimulatorScenarios();
+    loadQuizQuestions();
+    loadMorningTasks();
+  });
+</script>
+</body>
+</html>
