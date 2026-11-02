@@ -40,7 +40,21 @@ def main():
     free_parser.add_argument("--date", help="Sana (YYYY-MM-DD)", default=None)
 
     args = parser.parse_args()
-    sync = GoogleCalendarSync()
+    creds_candidate = next(
+        (
+            p
+            for p in [
+                os.getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+                str(PROJECT_ROOT / "service_account.json"),
+                str(PROJECT_ROOT / "data" / "service_account.json"),
+                "/home/ubuntu/.secrets/service_account.json",
+                "service_account.json",
+            ]
+            if p and os.path.exists(p)
+        ),
+        "service_account.json",
+    )
+    sync = GoogleCalendarSync(credentials_path=creds_candidate)
 
     if not sync.service:
         print(json.dumps({"error": "Google Calendar avtorizatsiyasi mavjud emas"}))

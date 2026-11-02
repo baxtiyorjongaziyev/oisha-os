@@ -44,25 +44,42 @@ def render(calls, names, end):
     grouped = {}
     for account, name in names.items():
         grouped.setdefault(name, set()).add(account.lower())
-    parts = [f'<b>Sotuv nazorati · {end:%d.%m.%Y %H:%M}</b>',
-             'Kunlik reja: 50 ta ≥3 daqiqalik suhbat · 3 uchrashuv · 1 sotuv.']
+    parts = [
+        f'🌸 <b>Oisha | Sotuv nazorati · {end:%d.%m.%Y %H:%M}</b>',
+        '🎯 <b>Kunlik maqsad:</b> 50 ta sifatli suhbat (≥3 daq) · 3 uchrashuv · 1 yopilgan savdo',
+        '━━━━━━━━━━━━━━━━━━━━',
+    ]
     for name, accounts in grouped.items():
         day = [c for c in calls if str(c.get('user_account', '')).lower() in accounts]
         hour = [c for c in day if int(c.get('start_time') or 0) >= int((end-timedelta(hours=1)).timestamp())]
         answered = [c for c in day if str(c.get('answered')) == '1']
         solid = sum(int(c.get('duration') or 0) >= 180 for c in answered)
         spoken = [c for c in hour if str(c.get('answered')) == '1']
-        parts += [f'\n<b>{escape(name)}</b>',
-                  f'Soatda: {len(hour)} urinish · {len(spoken)} javobli suhbat · {sum(int(c.get("duration") or 0) for c in spoken)/60:.1f} daqiqa.',
-                  f'Kun boshidan: {len(day)} urinish · {len(answered)} javobli · {sum(int(c.get("duration") or 0) for c in answered)/60:.1f} daqiqa.',
-                  f'≥3 daqiqa: {solid}/50 · qoldi: {max(0,50-solid)}.',
-                  'Uchrashuv: tekshirilmagan / 3. Sotuv: tekshirilmagan / 1.']
-        for c in spoken:
-            who = c.get('client_name') or c.get('client_number') or 'Mijoz nomi noma’lum'
-            parts.append(f'• {escape(str(who))} — {int(c.get("duration") or 0)/60:.1f} daq.')
-        parts.append('Suhbat mazmuni va savdo konversiyasi: CRM/transkripsiya bilan bog‘lanmagan.')
-    parts += ['\nManba: Moizvonki, to‘liq sahifalangan davr. Suhbat davomiyligi sifat yoki sotuv isboti emas.',
-              'Tavsiya: har suhbat oxirida keyingi qadam va vaqtni kelishing; bu umumiy tavsiya.']
+        qoldi = max(0, 50 - solid)
+
+        if solid >= 25:
+            cheer = '🔥 <i>Ajoyib temp, yarmidan oshdi!</i>'
+        elif solid > 0:
+            cheer = f'⚡️ <i>Qani, davom etamiz — yana {qoldi} ta qoldi!</i>'
+        else:
+            cheer = '⏳ <i>Hali suhbat boshlanmadi, tezroq faollashamiz!</i>'
+
+        parts += [
+            f'\n🧑‍💼 <b>{escape(name)}</b> — {cheer}',
+            f'• Oxirgi soatda: {len(hour)} urinish · {len(spoken)} javobli suhbat ({sum(int(c.get("duration") or 0) for c in spoken)/60:.1f} daq)',
+            f'• Kun boshidan: {len(day)} urinish · {len(answered)} javobli ({sum(int(c.get("duration") or 0) for c in answered)/60:.1f} daq)',
+            f'• 🎯 Sifatli suhbatlar (≥3 daqiqa): <b>{solid}/50</b> (qoldi: {qoldi})',
+        ]
+        if spoken:
+            parts.append('  <i>Soatdagi suhbatlar:</i>')
+            for c in spoken[:4]:
+                who = c.get('client_name') or c.get('client_number') or 'Mijoz'
+                parts.append(f'  • {escape(str(who))} — {int(c.get("duration") or 0)/60:.1f} daq')
+
+    parts += [
+        '\n━━━━━━━━━━━━━━━━━━━━',
+        '💡 <b>Oishadan maslahat:</b> Har bir qo\'ng\'iroqni muqobil tanlov (Alternative Closing) bilan aniq uchrashuvga yoki to\'lov sanasiga bog\'lang!',
+    ]
     return '\n'.join(parts)
 
 
