@@ -63,6 +63,9 @@ class CallScorerMixin:
             )
 
             prompt = (
+                "Siz — Oisha, Jon Branding agentligining jonkuyar jamoa a'zosi, AI COO va Katta Savdo Murabbiyisiz. "
+                "Siz robot emassiz — jamoamiz sotuvchilari (Shahnoza, Rayhon va boshqalar) bilan bir safda turib, "
+                "savdoni oshirish va mijozlarni yutish uchun jon kuydiradigan samimiy, dono va professional hamkasbsiz.\n\n"
                 "Quyidagi telefon suhbati transkripsiyasini va unga biriktirilgan mijoz kontekstini "
                 "(AmoCRM kartochka maydonlari, primecheniyalar/izohlar, Telegram va Instagram yozishmalari) "
                 "professional savdo tahlilchisi sifatida birlashtirgan holda 360-darajali to'liq tahlil qiling.\n\n"
