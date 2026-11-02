@@ -1,14 +1,13 @@
 import os
 import logging
-import pickle
+
+from src.services.core.google_oauth import load_user_credentials
 
 try:
     from google.oauth2.service_account import Credentials as ServiceAccountCredentials
-    from google.auth.transport.requests import Request
     from googleapiclient.discovery import build
 except ImportError:
     ServiceAccountCredentials = None
-    Request = None
     build = None
 
 logger = logging.getLogger(__name__)
@@ -25,23 +24,10 @@ class GoogleContactsSync:
         self._authenticate()
 
     def _authenticate(self):
-        """Google API bilan avtorizatsiya (Token yoki Service Account)."""
-        creds = None
-        # 1. token.json - Shaxsiy akkaunt (OAuth2)
-        if os.path.exists("token.pickle"):
-            try:
-                with open("token.pickle", "rb") as token:
-                    creds = pickle.load(token)  # nosec
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                    with open("token.pickle", "wb") as token:
-                        pickle.dump(creds, token)
-                logger.info(
-                    "[GCONTACTS OK] Shaxsiy Google akkaunti (Token) ishga tushdi."
-                )
-            except Exception as e:
-                logger.error(f"[GCONTACTS] Token yangilashda xato: {e}")
-                creds = None
+        """Google API bilan avtorizatsiya (JSON token yoki Service Account)."""
+        creds = load_user_credentials("token.json", self.scopes)
+        if creds:
+            logger.info("[GCONTACTS OK] Shaxsiy Google akkaunti (Token) ishga tushdi.")
 
         # 2. service_account.json (Fallback)
         if not creds:

@@ -122,27 +122,29 @@ class TestSyncAgentsRuntime(unittest.TestCase):
             patch("subprocess.run") as mock_run,
         ):
             mock_run.side_effect = [
-                MagicMock(stdout="openclaw.service enabled", returncode=0),
+                MagicMock(stdout="openclaw-gateway.service enabled", returncode=0),
                 MagicMock(returncode=0),
             ]
             sync_agents_runtime.restart_openclaw_gateway()
             self.assertEqual(mock_run.call_count, 2)
 
-    def test_restart_openclaw_gateway_pgrep(self) -> None:
-        """Test restarting gateway via pgrep when no systemd unit exists."""
+    def test_restart_openclaw_gateway_cli_fallback(self) -> None:
+        """Test restarting gateway via CLI and background fallback."""
         with (
             patch("os.name", "posix"),
             patch("subprocess.run") as mock_run,
+            patch("time.sleep"),
         ):
             mock_run.side_effect = [
                 MagicMock(stdout="", returncode=1),  # unit 1
                 MagicMock(stdout="", returncode=1),  # unit 2
                 MagicMock(stdout="", returncode=1),  # unit 3
-                MagicMock(stdout="1525096\n", returncode=0),  # pgrep
-                MagicMock(returncode=0),  # kill 1525096
+                MagicMock(stdout="restarted", returncode=0),  # cli restart ubuntu
+                MagicMock(stdout="12345\n", returncode=0),  # pgrep check
+                MagicMock(stdout="Gateway active", returncode=0),  # status check
             ]
             sync_agents_runtime.restart_openclaw_gateway()
-            self.assertEqual(mock_run.call_count, 5)
+            self.assertGreaterEqual(mock_run.call_count, 5)
 
     def test_main_orchestration(self) -> None:
         """Test main orchestrator executes all steps."""

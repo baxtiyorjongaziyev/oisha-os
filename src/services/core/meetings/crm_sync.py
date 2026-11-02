@@ -235,10 +235,11 @@ class MeetingCrmSyncMixin:
         if not self.admin_notifier:
             return
         try:
-            location_label = candidate.location or "Manzil ko'rsatilmagan"
+            location_label = candidate.location or "Manzil koʻrsatilmagan"
             text = (
-                "Oisha Google Calendar'ga uchrashuv qo'shdi\n"
+                "Tushundim, uchrashuv taqvimga kiritildi\n"
                 f"Mijoz: {participant_name}\n"
+                f"Mavzu: {candidate.summary}\n"
                 f"Vaqt: {candidate.start_time.strftime('%d.%m.%Y %H:%M')}\n"
                 f"Manzil: {location_label}"
             )

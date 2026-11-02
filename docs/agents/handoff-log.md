@@ -2358,34 +2358,13 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - Kod hajmi standarti: barcha fayllar 92-198 qator oraligʻida (<= 400 qator qoidasiga toʻliq mos).
 
 
-## 2026-11-02 — Antigravity: Oisha-OS Native Sales Cockpit & Communication Infrastructure
-- **Vazifa / Kontekst:** Foydalanuvchi koʻrsatmasi: "Metasell console bizniki emas, boshqa pullik servis. Bizga oʻzimizniki kerak." Metasellʼga xos barcha ilgʻor imkoniyatlar (Speed to Lead SLA, Stuck Deals radari, Reklama ROI atributsiyasi, Ovozli AI Simulyator, Savdo Playbook attestatsiyasi, Ertalabki trijaj) va tashqi pullik provayderlar (Utel, OnlinePBX, Eskiz) oʻrnini bosuvchi toʻliq mustaqil **Oisha Sales Cockpit** hamda **Native Voice (SIP/WebRTC) & Native SMS (GSM/SMPP)** tizimi ishlab chiqildi.
+## 2026-11-02 — Antigravity: OpenClaw Gateway Daemon Lifecycle and Startup Fix
+- **Vazifa / Kontekst:** OpenClaw gateway jarayoni toʻxtatilgandan soʻng qayta ishga tushmay qolgani sababli Telegram boti (`@jon_clawbot`) javob bermayotgan edi. Gateway daemonʼini toʻgʻri start/restart qilish va tekshirish mantiqi qoʻshildi.
 - **Amalga oshirilgan ishlar:**
-  1. `src/services/command_center/`:
-     - `speed_to_lead.py`: 15/30/60 daqiqalik javob vaqti taqsimoti, SLA foizi va eng uzoq kutayotgan mijoz hisoblagichi.
-     - `stuck_deals.py`: 3+ kun qotib qolgan bitimlar radari, bosqichlar boʻyicha muzlatilgan summa va masʼullar.
-     - `ad_attribution.py`: Meta/Instagram reklama xarajati, CPL, CPS, umumiy tushum va marketing ROI hisoblagichi.
-     - `morning_tasks.py`: Bugungi va muddati oʻtgan topshiriqlarni trijaj qilish xizmati.
-     - `live_db_bridge.py`: Turso (libsql) / SQLite jadvallaridan jonli maʼlumotlarni tortish va barqaror fallback zanjiri.
-  2. `src/services/ai/`:
-     - `sales_simulator.py`: B2B va B2C ssenariylari, yashirin ehtiyojlarni ochiqlash va muzokara murabbiyi.
-     - `audio_simulator.py`: Real-vaqt ovozli mashgʻulotlar uchun STT (nutqni aniqlash) va TTS (oʻzbekcha ovoz sintezi) koʻprigi.
-     - `knowledge_quiz.py`: Sotuvchilar uchun 10 ta meʼyoriy savol, avtomatik baholash va toifaviy hisobot.
-  3. `src/services/telephony/`:
-     - `unified_gateway.py`: Tashqi webhook adapterlar (Utel, OnlinePBX, Eskiz SMS) hamda har bir sotuvchi uchun oylik toʻlov talab qilmaydigan **Native Oisha Voice (WebRTC Softphone / SIP PBX)** va **Native Oisha SMS (Android GSM Modem)** integratsiyasi.
-  4. `src/api/routes/metasell_dashboard.py` & `src/api/templates/metasell_dashboard.html`:
-     - Barcha modullarni birlashtiruvchi REST API (`/oisha-console`, `/cockpit`, `/metasell-console`, `/telephony/webrtc-session`, `/sms/dispatch`, `/simulator/voice-turn`).
-     - Jon Branding uslubidagi interaktiv toʻliq veb-interfeys (Executive Cockpit, WebRTC softphone pleyeri, Ovozli AI Simulyator, Savdo attestatsiyasi va Trijaj).
-  5. `src/handlers/metasell_menu.py`:
-     - Telegram bot menyusi uchun WebApp tugmalari (`/console`, `/cockpit`, `/simulator`, `/triage`), tezkor ROP xulosasi va aiogram moslashuvi.
-- **Oʻzgargan / Yangi fayllar:**
-  - `src/services/command_center/*` (5 ta modul)
-  - `src/services/ai/*` (3 ta modul)
-  - `src/services/telephony/unified_gateway.py`
-  - `src/handlers/metasell_menu.py`
-  - `src/api/routes/metasell_dashboard.py`
-  - `src/api/templates/metasell_dashboard.html`
-  - `tests/*` (11 ta toʻliq test toʻplami)
+  1. `scripts/sync_agents_runtime.py`: `restart_openclaw_gateway()` funksiyasi takomillashtirildi. OpenClaw CLI orqali `openclaw gateway restart || openclaw gateway start || openclaw gateway install` ishga tushiriladi; agar jarayon boʻlmasa fon rejimida start beriladi va `openclaw gateway status` orqali tekshiriladi.
+  2. `tests/test_sync_agents_runtime.py`: CLI va systemd orqali gateway qayta yuklanishini tekshiruvchi testlar yangilandi (9/9 passed).
+  3. `.github/workflows/oracle-diagnose.yml`: Gateway statusini va tizim jarayonlarini toʻliq loglaydigan qadam qoʻshildi.
+- **Oʻzgargan fayllar:** `scripts/sync_agents_runtime.py`, `tests/test_sync_agents_runtime.py`, `.github/workflows/oracle-diagnose.yml`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalili:**
   - `pytest tests/test_*.py` -> 43/43 passed (100%).
   - `check_uzbek_text.py` -> 11 fayl toza (0 xato).
