@@ -3536,3 +3536,26 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - Contabo VPS `systemctl status oisha-os` -> `active (running)`, userbot va API server barqaror.
 - **Qolgan ish / Holat:** Barcha vazifalar to'liq bajarildi va jonli serverda ishga tushirildi.
 
+### 2026-11-02 / Antigravity: Baxtiyorjon AI Kloni (Digital Twin) — 3 yillik yozishmalar sintezi va Shadow rejim faollashtirildi
+- **Bajarilgan ish:**
+  1. **3 yillik Telegram & Obsidian bilimlari sintezi**:
+     - `data/telegram_2yr_extracted_knowledge.json` (90 KB), `data/private_chats_data.json` (79 KB), `00-SYSTEM/Baxtiyorjon (Dosye).md`, `90-AI/Yadro/Baxtiyorjon.md`, `20-CLIENTS/` (179 mijoz) va `70-AmoCRM/` (2,536 bitim) tahlil qilindi.
+     - Baxtiyorjonning shaxsiy identiteti ("Allohning quli -> branding expert -> Jon Branding egasi -> tadbirkor"), "tizimchi dangasa" falsafasi, shar'iy qadriyatlar filtri, minimal/luxury dizayn didi va lo'nda muloqot ohangi (Tone of Voice) klon miyasiga kiritildi.
+  2. **Hermes Context Engine yangilandi (`src/services/core/ai/hermes_context.py`, 161 LOC)**:
+     - `build_dm_responder_system_prompt()` Baxtiyorjonning 1-shaxsdagi ("men/biz") ovozi, quruq narx aytmaslik, brifing va 15 daqiqalik diagnostika uchrashuviga chaqirish mantig'i bilan boyitildi.
+     - `build_clone_decision_prompt()` 3 darajali qaror matritsasi (🟢 Yashil — to'liq avtonom; 🟡 Sariq — harakat + Baxtiyorjonga hisobot; 🔴 Qizil — egasining shaxsiy tasdig'i) bilan qo'shildi.
+     - `get_owner_philosophy_summary()` qo'shildi.
+  3. **Contabo VPS (`109.199.100.137`) konfiguratsiyasi & deploy**:
+     - `/home/ubuntu/oisha-os/.env` da `AUTO_REPLY_MODE=shadow` va `ENABLE_SHADOW_ADVISOR=1` faollashtirildi.
+     - `deploy_contabo_direct.py --apply src/services/core/ai/hermes_context.py` orqali jonli serverga yuklandi (`healthz=200`, backup `oisha-direct-da4bd8c57f7c45d2b289b316aaf21825`).
+     - `oisha-os.service` qayta yuklandi va barqaror `active (running)` holatda.
+  4. **Obsidian Second Brain Playbook yaratildi**:
+     - `20-Areas/Baxtiyorjon_AI_Clone_Playbook.md` yaratilib, klonning barcha muloqot, narx va qaror qoidalari muhrlandi.
+- **O'zgargan fayllar:** `src/services/core/ai/hermes_context.py`, `docs/agents/handoff-log.md`, `C:\Users\baxti\Documents\Baxtiyorjon Gaziyev Second Brain\20-Areas\Baxtiyorjon_AI_Clone_Playbook.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_hermes_provider.py tests/test_hermes_harness.py tests/test_delayed_dm_responder.py tests/test_sales_staff_copilot.py tests/test_hermes_crm_bridge.py` -> 61/61 passed.
+  - `bandit -r src/services/core/ai/hermes_context.py -ll` -> 0 issues.
+  - Kod hajmi: 161 qator (150–400 standartiga 100% mos).
+  - Contabo VPS jonli tekshiruv: `healthz=200`, `systemctl is-active oisha-os` -> `active`.
+- **Qolgan ish / Holat:** Shadow rejimda Baxtiyorjon shaxsiy Telegramiga kelgan yangi xabarlarga klon o'z qaror va tavsiyalarini Saved Messages / Admin Botga taqdim etadi. Live rejimga o'tish Baxtiyorjon tasdig'idan keyin bitta buyruq bilan yoqiladi.
+
