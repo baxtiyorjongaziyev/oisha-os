@@ -3559,3 +3559,24 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - Contabo VPS jonli tekshiruv: `healthz=200`, `systemctl is-active oisha-os` -> `active`.
 - **Qolgan ish / Holat:** Shadow rejimda Baxtiyorjon shaxsiy Telegramiga kelgan yangi xabarlarga klon o'z qaror va tavsiyalarini Saved Messages / Admin Botga taqdim etadi. Live rejimga o'tish Baxtiyorjon tasdig'idan keyin bitta buyruq bilan yoqiladi.
 
+### 2026-11-02 / Antigravity: Hermes Telegram to'liq tozalash va barqarorlashtirish (DM Leak, Attention, Gemini 3.8 Flash, No-Spam)
+- **Bajarilgan ish:**
+  1. **Telegram Business / DM Leak Butunlay To'xtatildi:**
+     - `/home/hermes/.hermes/hermes-agent/plugins/platforms/telegram/adapter.py`: `_effective_update_message` da `business_message` va `business_connection_id` li xabarlar to'liq bloklandi. Hermes hech qachon Baxtiyorjonning shaxsiy lichkasidagi suhbatlarga (Dilbar, Rayxona, Aishabonu va h.k.) javob qaytarmaydi.
+     - `config.yaml` da `allow_from: ["150074828"]`, `dm_policy: allowlist`, `group_allow_from: ["*"]` o'rnatildi. Shaxsiy chatda bot bilan faqat Baxtiyorjon gaplasha oladi, guruhlarda esa barcha xodimlar Oishani chaqira oladi.
+     - `/etc/systemd/system/hermes-gateway.service.d/allow-all.conf` olib tashlandi.
+  2. **Group Attention Tozalandi (`ops/hermes/group_attention.py`):**
+     - Avtomatlashtirilgan eslatmalar (`🔔`, `eslatma:`) savol sifatida olinmaydi.
+     - Aniq nishoni bo'lmagan umumiy savollarga (`Kim oladi?`, `Nimaga tushunarsiz xabar yubording?`) 30 minutdan keyin Oishaning sun'iy aralashishi to'xtatildi.
+     - `tests/test_hermes_group_attention.py` 4/4 passed.
+  3. **Gemini Modeli Yangilandi (`gemini-3.8-flash`):**
+     - `config.yaml` da 404 berayotgan `gemini-2.5-flash` o'rniga amaldagi `gemini-3.8-flash` ulandi. "Your request was not processed" xatosi bartaraf etildi.
+  4. **Biznes Asisstant Guruhiga Restart Spami To'xtatildi:**
+     - `/etc/systemd/system/hermes-gateway.service.d/notify.conf` dagi `ExecStartPost` va `ExecStopPost` restart xabarlari olib tashlandi.
+- **O'zgargan fayllar:** `ops/hermes/group_attention.py`, `tests/test_hermes_group_attention.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_hermes_group_attention.py` -> 4/4 passed.
+  - `bandit -r ops/hermes/ -ll` -> 0 issues.
+  - Contabo VPS `systemctl status hermes-gateway` -> `active (running)`, Telegram connection OK.
+- **Qolgan ish / Holat:** Local commit va VPS ga to'liq deploy qilindi.
+
