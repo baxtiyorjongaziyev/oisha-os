@@ -3498,3 +3498,19 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - `python -m py_compile` — 4 fayl OK; `import src.handlers` — yangi handlerlar import bo'ldi.
   - Fayllar <= 400 qator, funksiyalar <= 60 qator.
 - **Qolgan ish / Holat:** Local commit (branch `feat/kirim-individual-celebration`); push/deploy qilinmadi. `KIRIM_FINANCE_MENTION` env bilan moliyachi handle o'zgartiriladi (default `@jonbranding_finansist`).
+
+### 2026-11-02 / Antigravity: Hermes group attention — Telegram forum topic va reply bog'lanish tuzatildi
+- **Muammo tahlili:**
+  1. Telegram Forum superguruhlarida (`is_topic_message=True`) mavzu ichiga yuborilgan har bir xabar Bot API tomonidan mavzu yaratilish xabariga (`forum_topic_created`, `message_id == message_thread_id`) "reply" sifatida yuboriladi.
+  2. `ops/hermes/group_attention.py` buni haqiqiy odamga qilingan reply deb qabul qilib, mavzu yaratuvchi bot/admin ID (`8084726703`) ni savolning nishoni (`target`) sifatida SQLite (`questions` jadvali) ga yozgan.
+  3. Rayxona `@RayxonJonbranding` 15:18 da savolga javob berganida, faqat uning username targeti `answered` bo'lgan, ammo mavzu yaratuvchi (`8084726703`) targeti `pending` qolib ketgan. Natijada 30 daqiqadan so'ng (15:47 da) Oisha o'sha soxta targetga "bog'langan javobni ko'rmadim" deb xabar chiqargan.
+- **Bajarilgan ish:**
+  1. `ops/hermes/group_attention.py`: `is_real_reply(msg)` yordamchisi qo'shildi (`forum_topic_created` yoki `message_id == message_thread_id` bo'lsa soxta reply sifatida e'tiborga olinmaydi).
+  2. Savolga boshqa hamkasb reply berganda (`real_reply.from_user.id != msg.from_user.id`), shu xabarga bog'langan barcha pending savollar biryo'la `answered` qilib belgilanadi va darhol `commit` qilinadi.
+  3. `tests/test_hermes_group_attention.py` (88L): `is_real_reply` va forum mavzusida soxta target qo'shilmasligi hamda reply bilan `answered` ga o'tishi bo'yicha to'liq testlar yozildi.
+  4. Contabo VPS ga deploy qilindi: `/home/hermes/.hermes/hermes-agent/plugins/platforms/telegram/oisha_attention.py` yangilandi, `hermes-gateway.service` qayta ishga tushirildi va `active (running)` holatga keltirildi.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_hermes_group_attention.py` -> 2/2 passed.
+  - `bandit -r ops/hermes/ -ll` -> 0 issues.
+  - Contabo VPS: `python3 -m py_compile oisha_attention.py` -> OK, `systemctl status hermes-gateway` -> `active (running)`.
+- **Qolgan ish / Holat:** Local committed, Contabo VPS ga deploy qilindi va faol ishlamoqda.
