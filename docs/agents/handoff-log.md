@@ -2214,3 +2214,38 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - **Tekshiruv dalili:**
   - `python scripts/check_uzbek_text.py --staged` -> Toza.
   - Pre-flight testlar: 1038 passed, Bandit 0 issues.
+
+
+## 2026-11-02 — Antigravity: Oisha-OS Native Sales Cockpit & Communication Infrastructure
+- **Vazifa / Kontekst:** Foydalanuvchi koʻrsatmasi: "Metasell console bizniki emas, boshqa pullik servis. Bizga oʻzimizniki kerak." Metasellʼga xos barcha ilgʻor imkoniyatlar (Speed to Lead SLA, Stuck Deals radari, Reklama ROI atributsiyasi, Ovozli AI Simulyator, Savdo Playbook attestatsiyasi, Ertalabki trijaj) va tashqi pullik provayderlar (Utel, OnlinePBX, Eskiz) oʻrnini bosuvchi toʻliq mustaqil **Oisha Sales Cockpit** hamda **Native Voice (SIP/WebRTC) & Native SMS (GSM/SMPP)** tizimi ishlab chiqildi.
+- **Amalga oshirilgan ishlar:**
+  1. `src/services/command_center/`:
+     - `speed_to_lead.py`: 15/30/60 daqiqalik javob vaqti taqsimoti, SLA foizi va eng uzoq kutayotgan mijoz hisoblagichi.
+     - `stuck_deals.py`: 3+ kun qotib qolgan bitimlar radari, bosqichlar boʻyicha muzlatilgan summa va masʼullar.
+     - `ad_attribution.py`: Meta/Instagram reklama xarajati, CPL, CPS, umumiy tushum va marketing ROI hisoblagichi.
+     - `morning_tasks.py`: Bugungi va muddati oʻtgan topshiriqlarni trijaj qilish xizmati.
+     - `live_db_bridge.py`: Turso (libsql) / SQLite jadvallaridan jonli maʼlumotlarni tortish va barqaror fallback zanjiri.
+  2. `src/services/ai/`:
+     - `sales_simulator.py`: B2B va B2C ssenariylari, yashirin ehtiyojlarni ochiqlash va muzokara murabbiyi.
+     - `audio_simulator.py`: Real-vaqt ovozli mashgʻulotlar uchun STT (nutqni aniqlash) va TTS (oʻzbekcha ovoz sintezi) koʻprigi.
+     - `knowledge_quiz.py`: Sotuvchilar uchun 10 ta meʼyoriy savol, avtomatik baholash va toifaviy hisobot.
+  3. `src/services/telephony/`:
+     - `unified_gateway.py`: Tashqi webhook adapterlar (Utel, OnlinePBX, Eskiz SMS) hamda har bir sotuvchi uchun oylik toʻlov talab qilmaydigan **Native Oisha Voice (WebRTC Softphone / SIP PBX)** va **Native Oisha SMS (Android GSM Modem)** integratsiyasi.
+  4. `src/api/routes/metasell_dashboard.py` & `src/api/templates/metasell_dashboard.html`:
+     - Barcha modullarni birlashtiruvchi REST API (`/oisha-console`, `/cockpit`, `/metasell-console`, `/telephony/webrtc-session`, `/sms/dispatch`, `/simulator/voice-turn`).
+     - Jon Branding uslubidagi interaktiv toʻliq veb-interfeys (Executive Cockpit, WebRTC softphone pleyeri, Ovozli AI Simulyator, Savdo attestatsiyasi va Trijaj).
+  5. `src/handlers/metasell_menu.py`:
+     - Telegram bot menyusi uchun WebApp tugmalari (`/console`, `/cockpit`, `/simulator`, `/triage`), tezkor ROP xulosasi va aiogram moslashuvi.
+- **Oʻzgargan / Yangi fayllar:**
+  - `src/services/command_center/*` (5 ta modul)
+  - `src/services/ai/*` (3 ta modul)
+  - `src/services/telephony/unified_gateway.py`
+  - `src/handlers/metasell_menu.py`
+  - `src/api/routes/metasell_dashboard.py`
+  - `src/api/templates/metasell_dashboard.html`
+  - `tests/*` (11 ta toʻliq test toʻplami)
+- **Tekshiruv dalili:**
+  - `pytest tests/test_*.py` -> 43/43 passed (100%).
+  - `check_uzbek_text.py` -> 11 fayl toza (0 xato).
+  - `bandit -r src/ -ll` -> 0 medium / 0 high issues.
+  - Kod standarti: har bir fayl qatʼiy 150 – 400 qator oraligʻida.
