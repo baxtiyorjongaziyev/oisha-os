@@ -15,7 +15,12 @@ Ishlatish::
 
     python scripts/check_uzbek_text.py --staged
     python scripts/check_uzbek_text.py --base origin/main
-    python scripts/check_uzbek_text.py --all
+    python scripts/check_uzbek_text.py --all --baseline config/uzbek_text_baseline.txt
+    python scripts/check_uzbek_text.py --write-baseline
+
+Baseline (ratchet): mavjud qarz ``config/uzbek_text_baseline.txt`` da qulflanadi.
+``--all`` rejimida baseline'dagi sonlardan ortiq uchragan har bir yangi xato
+xato hisoblanadi. Qarz tuzatilganda baseline qayta yoziladi — son faqat kamayadi.
 """
 from __future__ import annotations
 
@@ -23,13 +28,16 @@ import argparse
 import re
 import subprocess
 import sys
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 TARGET_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx"}
 # Guard o'z namunasini va test fixture'larini tekshirmaydi.
 SKIP_DIRS = {"tests", "venv", ".venv", "node_modules"}
 SELF_PATH = Path(__file__).resolve()
+DEFAULT_BASELINE = Path("config/uzbek_text_baseline.txt")
 
 # Harf-apostrof-harf: faqat so'z ichidagi apostrofni oladi.
 WORD_APOSTROPHE = re.compile(r"(?<=[^\W\d_])'(?=[^\W\d_])", re.UNICODE)
@@ -48,6 +56,27 @@ ENGLISH_ALLOWLIST = {
 ENGLISH_SUFFIXES = ("'s", "'t", "'re", "'ve", "'ll", "'d", "'m")
 
 
+@dataclass(frozen=True)
+class Violation:
+    """Bitta xavfli apostrof: fayl, qator, ustun va so'z."""
+
+    path: str
+    line: int
+    column: int
+    word: str
+
+    @property
+    def key(self) -> str:
+        """Baseline kaliti: fayl (qator va so'z siljishidan mustaqil)."""
+        return self.path
+
+    def format(self) -> str:
+        return (
+            f"{self.path}:{self.line}:{self.column}: {self.word!r} — ASCII apostrof. "
+            "Ikki tirnoq ichida yozing va ö/ğ yoki ʼ (U+02BC) ishlating."
+        )
+
+
 def is_allowed_word(word: str) -> bool:
     """Inglizcha qisqartma/egalik bo'lsa True."""
     low = word.lower()
@@ -57,7 +86,7 @@ def is_allowed_word(word: str) -> bool:
 
 
 def find_violations(line: str) -> List[Tuple[int, str]]:
-    """Qatordagi xavfli apostrofii so'zlarni (ustun, so'z) qaytaradi."""
+    """Qatordagi xavfli apostrofii so'zlarni (ustun, so'z) ko'rinishida qaytaradi."""
     found: List[Tuple[int, str]] = []
     for match in WORD_WITH_APOSTROPHE.finditer(line):
         word = match.group(0)
@@ -111,22 +140,19 @@ def parse_added_lines(diff_text: str) -> Dict[str, Set[int]]:
     return files
 
 
-def scan_file(path: Path, allowed_lines: Optional[Set[int]] = None) -> List[str]:
+def scan_file(path: Path, allowed_lines: Optional[Set[int]] = None) -> List[Violation]:
     """Faylni tekshiradi; ``allowed_lines`` berilsa faqat shu qatorlar."""
-    problems: List[str] = []
+    violations: List[Violation] = []
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        return [f"{path}: o'qilmadi: {exc}"]
+        raise SystemExit(f"{path}: o'qilmadi: {exc}")
     for lineno, line in enumerate(text.splitlines(), 1):
         if allowed_lines is not None and lineno not in allowed_lines:
             continue
         for column, word in find_violations(line):
-            problems.append(
-                f"{path}:{lineno}:{column}: {word!r} — ASCII apostrof. "
-                "Ikki tirnoq ichida yozing va ö/ğ yoki ʼ (U+02BC) ishlating."
-            )
-    return problems
+            violations.append(Violation(path.as_posix(), lineno, column, word))
+    return violations
 
 
 def _diff_changes(mode: str, base: str) -> Dict[str, Set[int]]:
@@ -143,12 +169,73 @@ def _is_skipped(path: Path) -> bool:
     return bool(SKIP_DIRS.intersection(path.parts))
 
 
+def load_baseline(path: Path) -> Counter:
+    """Baseline faylidan fayl bo'yicha xato sonini qaytaradi.
+
+    Format: ``<son>\\t<path>``; son yo'q bo'lsa 1 deb olinadi.
+    """
+    if not path.exists():
+        return Counter()
+    counts: Counter = Counter()
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        count_text, sep, key = line.partition("\t")
+        if sep and count_text.isdigit():
+            counts[key] += int(count_text)
+        else:
+            counts[line] += 1
+    return counts
+
+
+def write_baseline(path: Path, violations: Sequence[Violation]) -> None:
+    """Joriy qarzni baseline fayliga yozadi (fayllar alifbo tartibida)."""
+    counts = Counter(v.key for v in violations)
+    lines = [f"{count}\t{key}" for key, count in sorted(counts.items())]
+    header = (
+        "# O'zbekcha matn guard baseline (ratchet).\n"
+        "# Format: <son>\\t<path>. Yangi xato qo'shilsa CI qizil.\n"
+        "# Qarz tuzatilganda: python scripts/check_uzbek_text.py --write-baseline\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(header + "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def apply_baseline(
+    violations: Sequence[Violation], baseline: Counter
+) -> List[Violation]:
+    """Baseline'dagi sonlarni iste'mol qilib, ortiqcha (yangi) xatolarni qaytaradi."""
+    remaining = Counter(baseline)
+    fresh: List[Violation] = []
+    for violation in violations:
+        if remaining[violation.key] > 0:
+            remaining[violation.key] -= 1
+            continue
+        fresh.append(violation)
+    return fresh
+
+
+def _collect_targets(args: argparse.Namespace) -> Tuple[List[Path], Optional[Dict[str, Set[int]]]]:
+    if args.write_baseline:
+        # Baseline har doim butun repo bo'yicha yoziladi — qism ro'yxat uni buzadi.
+        return [Path(p) for p in _tracked_files()], None
+    if args.paths:
+        return [Path(p) for p in args.paths if Path(p).suffix in TARGET_SUFFIXES], None
+    if args.all:
+        return [Path(p) for p in _tracked_files()], None
+    mode = "staged" if args.staged else "base"
+    line_map = _diff_changes(mode, args.base)
+    targets = [Path(p) for p in line_map if Path(p).suffix in TARGET_SUFFIXES]
+    return targets, line_map
+
+
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Butun repo (mavjud qarzlarni ko'rsatadi, CI uchun emas).",
+        help="Butun repo (mavjud qarzlarni ko'rsatadi; baseline bilan ishlatiladi).",
     )
     parser.add_argument(
         "--staged",
@@ -160,32 +247,48 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         default="origin/main",
         help="Shu ref bilan solishtirib, faqat qo'shilgan qatorlarni tekshirish.",
     )
+    parser.add_argument(
+        "--baseline",
+        nargs="?",
+        const=str(DEFAULT_BASELINE),
+        default=None,
+        help="Mavjud qarzni shu fayldan o'qib, faqat yangi xatolarni ko'rsatish.",
+    )
+    parser.add_argument(
+        "--write-baseline",
+        action="store_true",
+        help="Butun repo qarzini baseline fayliga yozish (ratchetni yangilash).",
+    )
     parser.add_argument("paths", nargs="*", help="Aniq fayllar (ixtiyoriy).")
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    line_map: Optional[Dict[str, Set[int]]] = None
-    if args.paths:
-        targets = [Path(p) for p in args.paths if Path(p).suffix in TARGET_SUFFIXES]
-    elif args.all:
-        targets = [Path(p) for p in _tracked_files()]
-    else:
-        mode = "staged" if args.staged else "base"
-        line_map = _diff_changes(mode, args.base)
-        targets = [Path(p) for p in line_map if Path(p).suffix in TARGET_SUFFIXES]
-
+    targets, line_map = _collect_targets(args)
     targets = [target for target in targets if not _is_skipped(target)]
 
-    problems: List[str] = []
+    violations: List[Violation] = []
     for target in targets:
         allowed = None if line_map is None else line_map.get(target.as_posix(), set())
-        problems.extend(scan_file(target, allowed))
+        violations.extend(scan_file(target, allowed))
 
-    if problems:
-        print("O'zbekcha matn guard: ASCII apostrof topildi.\n", file=sys.stderr)
-        for problem in problems:
-            print(problem, file=sys.stderr)
+    if args.write_baseline:
+        baseline_path = Path(args.baseline or DEFAULT_BASELINE)
+        write_baseline(baseline_path, violations)
         print(
-            f"\nJami {len(problems)} ta. Qoida: AGENTS.md / "
+            f"Baseline yozildi: {baseline_path} ({len(violations)} ta mavjud xato, "
+            f"{len({v.path for v in violations})} fayl)."
+        )
+        return 0
+
+    if args.baseline and line_map is None:
+        baseline = load_baseline(Path(args.baseline))
+        violations = apply_baseline(violations, baseline)
+
+    if violations:
+        print("O'zbekcha matn guard: ASCII apostrof topildi.\n", file=sys.stderr)
+        for violation in violations:
+            print(violation.format(), file=sys.stderr)
+        print(
+            f"\nJami {len(violations)} ta. Qoida: AGENTS.md / "
             ".agents/skills/uzbek-text/SKILL.md",
             file=sys.stderr,
         )

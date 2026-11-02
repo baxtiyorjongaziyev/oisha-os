@@ -1,0 +1,66 @@
+# O'zbekcha matn guard: so'z ichidagi ASCII apostrof (`qo'ng'iroq`) bloklanadi.
+# PR: faqat qo'shilgan qatorlar tekshiriladi (yangi qarz taqiqlanadi).
+# main push: butun repo baseline (config/uzbek_text_baseline.txt) bilan solishtiriladi.
+name: Uzbek text guard
+
+on:
+  pull_request:
+    paths:
+      - '**/*.py'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+      - 'config/uzbek_text_baseline.txt'
+      - 'scripts/check_uzbek_text.py'
+      - 'tests/test_check_uzbek_text.py'
+      - '.githooks/pre-commit'
+      - '.github/workflows/uzbek-text-guard.yml'
+  push:
+    branches: [ main, master ]
+    paths:
+      - '**/*.py'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.js'
+      - '**/*.jsx'
+      - 'config/uzbek_text_baseline.txt'
+      - 'scripts/check_uzbek_text.py'
+      - '.githooks/pre-commit'
+      - '.github/workflows/uzbek-text-guard.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uzbek-text-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apostrophe-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependency
+        run: python -m pip install -q pytest pytest-asyncio
+
+      - name: Guard unit tests
+        run: python -m pytest -q -p no:asyncio --noconftest tests/test_check_uzbek_text.py
+
+      - name: PR diff (yangi apostrof bloklanadi)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python scripts/check_uzbek_text.py --base "origin/${{ github.base_ref }}"
+
+      - name: Full repo ratchet (baseline)
+        if: github.event_name == 'push'
+        run: python scripts/check_uzbek_text.py --all --baseline config/uzbek_text_baseline.txt

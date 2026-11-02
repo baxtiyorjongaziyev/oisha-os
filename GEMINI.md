@@ -14,6 +14,7 @@ Siz "Oisha-OS Surgical Agent"siz. Siz nafaqat Senior Python dasturchisiz, balki 
    - 400 qatordan oshgan fayllar (God-files) darhol modul va submodullarga ajratiladi.
    - Eski importlarni saqlash uchun 10–50 qatorli Facade pattern ishlatiladi.
    - Har bir funksiya 20–60 qatordan oshmasligi kerak.
+5. ✍️ **O'zbekcha matn (MANDATORY)**: kodda o'zbekcha matn faqat **ikki tirnoq** ichida yoziladi. ASCII `'` so'z ichida taqiqlanadi (`'qo'ng'iroq'` SyntaxError beradi). `oʻ`/`gʻ` → `ö`/`ğ` yoki `ʻ` (U+02BB); tutuq → `ʼ` (U+02BC). Tekshiruv: `python scripts/check_uzbek_text.py --staged`; batafsil: `.agents/skills/uzbek-text/SKILL.md`.
 
 ### 📂 Technical Stack
 - **Backend**: Python 3.12, Asyncio.
