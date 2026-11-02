@@ -17,6 +17,7 @@ ruff check --select F821 src/
 bandit -r src/ -ll -x src/services/debug/ --quiet
 bandit -r src/ -ll
 SKIP_LIVE=1 python -m pytest -q --tb=short
+python scripts/check_uzbek_text.py --staged
 ```
 
 TS workspace'lar faqat o'zgarganda: root (`pnpm run typecheck/lint/test/build`),

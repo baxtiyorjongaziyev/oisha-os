@@ -33,6 +33,7 @@ Qaysi bo'limlar kerakligini shu ro'yxat hal qiladi (pastdagi jadval).
 ruff check --select F821 src/                       # aniqlanmagan nomlar
 bandit -r src/ -ll -x src/services/debug/ --quiet   # CI security gate
 SKIP_LIVE=1 python -m pytest -q --tb=short          # live API'larsiz testlar
+python scripts/check_uzbek_text.py --staged         # ASCII apostrof guard
 ```
 
 `AGENTS.md` pre-flight'i bandit'ni istisnosiz ham talab qiladi — PR'dan oldin buni ham ishga tushiring:

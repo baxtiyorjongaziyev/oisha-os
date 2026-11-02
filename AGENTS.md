@@ -101,7 +101,11 @@
 ```powershell
 $env:SKIP_LIVE=1; python -m pytest -q --tb=short
 bandit -r src/ -ll
+python scripts/check_uzbek_text.py --staged
 ```
+
+`check_uzbek_text.py` mavjud qarzni `config/uzbek_text_baseline.txt` da qulflaydi
+(`--all --baseline`); yangi xato qo'shilsa qizil. Batafsil: `.agents/skills/uzbek-text/SKILL.md`.
 
 ## Branch & Commit
 
