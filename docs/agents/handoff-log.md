@@ -2391,3 +2391,20 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - `check_uzbek_text.py` -> 11 fayl toza (0 xato).
   - `bandit -r src/ -ll` -> 0 medium / 0 high issues.
   - Kod standarti: har bir fayl qatʼiy 150 – 400 qator oraligʻida.
+
+## 2026-10-30 - OpenCode: Google Calendar autoschedule hardening
+- Ish: `GoogleCalendarSync` endi event resursini (id bilan) qaytaradi; `update_event`/`delete_event` qoʻshildi; `calendar_id` va token yoʻli env orqali sozlanadi; `extendedProperties` ga Telegram chat id va sabab yoziladi.
+- Scheduler: chat boʻyicha oxirgi event holati `calendar:event:<chat_id>` da saqlanadi. Vaqt oʻzgarsa eski event oʻchiriladi; oʻchirish fail boʻlsa event patch qilinadi; bir xil vaqt takror yaratilmaydi.
+- Sarlavha formati: `Mijoz ismi - Uchrashuv sababi` (masalan, `Ozodbek - Logo dizayni`). Sabab suhbatdagi kalit soʻzlardan ajratiladi, topilmasa `Uchrashuv`.
+- Owner uchun: `scripts/google_calendar_auth.py` (OAuth Desktop flow, `token.json` yozadi; pickle ishlatilmaydi) va `docs/google-calendar-setup.md` qoʻllanmasi. Service account `primary` kalendariga yoza olmasligi hujjatlashtirildi.
+- Fayllar: `src/services/core/gcalendar.py`, `src/services/core/meetings/{models,scheduler,crm_sync}.py`, `scripts/google_calendar_auth.py`, `tests/{test_gcalendar,test_meeting_scheduler}.py`, `.env.example`, `docs/google-calendar-setup.md`.
+- Tekshiruv: `SKIP_LIVE=1 python -m pytest tests/test_meeting_scheduler.py tests/test_gcalendar.py -q` — 17 passed. `py_compile` OK.
+- Ochiq: owner Google Cloud'da OAuth Desktop client yaratib, brauzerda ruxsat berishi va `token.json` ni prod serverga qoʻyishi kerak. Prodda haqiqiy event yaratish/oʻchirish hali sinalmagan.
+
+## 2026-11-02 - OpenCode: Google OAuth token JSON ga oʻtkazildi
+- Ish: `pickle` bilan token saqlash olib tashlandi. Yangi `src/services/core/google_oauth.py` tokenlarni `Credentials.to_json()` orqali yozadi va `chmod 600` qiladi; yuklashda eski `.pickle` fayl rad etiladi va aniq xabar beriladi.
+- `GoogleCalendarSync` va `GoogleContactsSync` endi bitta `token.json` ni ishlatadi (scope: `calendar.events`, `contacts`, `directory.readonly`).
+- `scripts/google_calendar_auth.py` endi JSON yozadi (default `--token token.json`); `.env.example` va `docs/google-calendar-setup.md` yangilandi.
+- Fayllar: `src/services/core/{google_oauth,gcalendar,gcontacts}.py`, `scripts/google_calendar_auth.py`, `tests/test_google_oauth.py`, `.env.example`, `docs/google-calendar-setup.md`.
+- Tekshiruv: `pytest tests/test_google_oauth.py tests/test_gcalendar.py tests/test_meeting_scheduler.py tests/test_agent_skills_sync.py -q` — 23 passed. `bandit` (low+medium+high) — 0 issue. `check_uzbek_text.py --staged` — toza.
+- Sabab: Codacy/Bandit `pickle` (B301/B403) ogohlantirishlari; pickle faylini ochish kod ijrosiga olib kelishi mumkin edi.
