@@ -44,6 +44,8 @@ _PUBLIC_PATHS = frozenset(
     {
         "/api/auth/telegram/login",
         "/api/auth/telegram/callback",
+        "/api/auth/telegram/poll",
+        "/api/auth/telegram/otp",
         "/api/auth/token/login",
         "/api/auth/airtable/login",
         "/api/auth/airtable/callback",
@@ -84,6 +86,15 @@ _PUBLIC_PATHS = frozenset(
         # Payme Merchant API endpoints (authenticated via Basic Auth in handler)
         "/payme",
         "/api/payme",
+        # amoCRM 1:1 (crm.jonbranding.uz / sotuv) ekran va auth yoʻllari
+        "/sotuv",
+        "/dialer",
+        "/crm",
+        "/api/crm/dialer/auth/sellers",
+        "/api/crm/dialer/auth/login",
+        "/api/crm/dialer/auth/login-by-phone",
+        "/api/crm/dialer/auth/logout",
+        "/api/moizvonki/webhook",
     }
 )
 
@@ -235,6 +246,8 @@ def require_admin_access(connection: HTTPConnection) -> Principal:
 def is_protected_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
     if normalized in _PUBLIC_PATHS:
+        return False
+    if normalized.startswith("/api/crm/dialer/") or normalized.startswith("/api/moizvonki/"):
         return False
     return any(
         normalized == prefix.rstrip("/") or normalized.startswith(prefix)
