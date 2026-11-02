@@ -3,6 +3,7 @@ TelegramMeetingScheduler main orchestrator for message events and dialog scans.
 """
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -167,22 +168,25 @@ class TelegramMeetingScheduler(MeetingCrmSyncMixin):
             logger.info(f"[MEETING] Duplicate calendar event skipped chat={chat_id}")
             return candidate
 
-        created = False
-        if self.gcalendar:
-            created = bool(
-                self.gcalendar.create_event(
-                    summary=candidate.summary,
-                    start_time=candidate.start_time.isoformat(),
-                    end_time=candidate.end_time.isoformat(),
-                    description=candidate.description,
-                    location=candidate.location,
-                )
-            )
-        if not created:
+        previous = await self._load_scheduled_event(chat_id)
+        if previous and previous.get("start_time") == candidate.start_time.isoformat():
+            if self.db:
+                await self.db.set_state(dedupe_key, "created")
+            logger.info(f"[MEETING] Meeting already scheduled chat={chat_id}")
+            return candidate
+
+        created_event = self._schedule_calendar_event(
+            chat_id=chat_id,
+            participant_name=participant_name,
+            candidate=candidate,
+            previous=previous,
+        )
+        if not created_event:
             logger.warning("[MEETING] Google Calendar event was not created.")
             return None
 
         if self.db:
+            await self._store_calendar_state(chat_id, candidate, created_event)
             await self.db.set_state(dedupe_key, "created")
             await self._save_meeting_state(peer, participant_name, candidate)
 
@@ -194,6 +198,107 @@ class TelegramMeetingScheduler(MeetingCrmSyncMixin):
             candidate.start_time.isoformat(),
         )
         return candidate
+
+    def _schedule_calendar_event(
+        self,
+        chat_id: int,
+        participant_name: str,
+        candidate: MeetingCandidate,
+        previous: Optional[Dict[str, Any]],
+    ) -> Any:
+        if not self.gcalendar:
+            return None
+        if previous:
+            deleted = self._delete_scheduled_event(previous)
+            if not deleted and previous.get("event_id"):
+                moved = self._move_scheduled_event(previous, candidate)
+                if moved:
+                    return moved
+        return self.gcalendar.create_event(
+            summary=candidate.summary,
+            start_time=candidate.start_time.isoformat(),
+            end_time=candidate.end_time.isoformat(),
+            description=candidate.description,
+            location=candidate.location,
+            extended_properties={
+                "oisha_source": "telegram",
+                "telegram_chat_id": chat_id,
+                "participant": participant_name,
+                "reason": candidate.reason,
+            },
+        )
+
+    def _move_scheduled_event(
+        self, state: Dict[str, Any], candidate: MeetingCandidate
+    ) -> Any:
+        update_event = getattr(self.gcalendar, "update_event", None)
+        if not callable(update_event):
+            return None
+        try:
+            moved = update_event(
+                str(state.get("event_id")),
+                summary=candidate.summary,
+                start_time=candidate.start_time.isoformat(),
+                end_time=candidate.end_time.isoformat(),
+                description=candidate.description,
+                location=candidate.location,
+            )
+        except Exception as exc:
+            logger.warning(f"[MEETING] Old calendar event move failed: {exc}")
+            return None
+        if moved:
+            logger.info(f"[MEETING] Old calendar event moved: {state.get('event_id')}")
+        return moved
+
+    async def _load_scheduled_event(self, chat_id: int) -> Optional[Dict[str, Any]]:
+        if not self.db:
+            return None
+        raw = await self.db.get_state(f"calendar:event:{chat_id}", "")
+        if not raw:
+            return None
+        try:
+            state = json.loads(str(raw))
+        except (TypeError, ValueError):
+            logger.warning("[MEETING] Invalid calendar state chat=%s", chat_id)
+            return None
+        return state if isinstance(state, dict) else None
+
+    def _delete_scheduled_event(self, state: Dict[str, Any]) -> bool:
+        event_id = state.get("event_id")
+        if not event_id or not self.gcalendar:
+            return False
+        delete_event = getattr(self.gcalendar, "delete_event", None)
+        if not callable(delete_event):
+            logger.warning("[MEETING] Calendar client cannot delete old events.")
+            return False
+        try:
+            deleted = bool(delete_event(str(event_id)))
+        except Exception as exc:
+            logger.warning(f"[MEETING] Old calendar event delete failed: {exc}")
+            return False
+        if deleted:
+            logger.info(f"[MEETING] Old calendar event deleted: {event_id}")
+        return deleted
+
+    async def _store_calendar_state(
+        self,
+        chat_id: int,
+        candidate: MeetingCandidate,
+        created_event: Any,
+    ) -> None:
+        event_id = ""
+        if isinstance(created_event, dict):
+            event_id = str(created_event.get("id") or "")
+        await self.db.set_state(
+            f"calendar:event:{chat_id}",
+            json.dumps(
+                {
+                    "event_id": event_id,
+                    "start_time": candidate.start_time.isoformat(),
+                    "summary": candidate.summary,
+                }
+            ),
+        )
 
     async def _recent_context(
         self, client: Any, chat_id: int, participant_name: str, limit: int = 10

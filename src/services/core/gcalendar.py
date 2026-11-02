@@ -1,6 +1,9 @@
 import os
+import uuid
 import logging
 import pickle
+from typing import Any, Dict, Optional
+
 try:
     from google.oauth2.service_account import Credentials as ServiceAccountCredentials
     from google.auth.transport.requests import Request
@@ -12,34 +15,62 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CALENDAR_ID = "primary"
+DEFAULT_CREDENTIALS_PATH = "service_account.json"
+DEFAULT_TOKEN_PATH = "token.pickle"
+CALENDAR_TIMEZONE = "Asia/Tashkent"
+
+
+def _stringify_private(properties: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    """Google Calendar extendedProperties faqat matn qiymatlarini qabul qiladi."""
+    result: Dict[str, str] = {}
+    for key, value in (properties or {}).items():
+        if value is None or value == "":
+            continue
+        result[str(key)] = str(value)
+    return result
+
+
+def _is_missing_event_error(exc: Exception) -> bool:
+    status = getattr(getattr(exc, "resp", None), "status", None)
+    text = str(exc)
+    return status in (404, 410) or "404" in text or "410" in text
+
 
 class GoogleCalendarSync:
-    def __init__(self, credentials_path="service_account.json"):
-        self.credentials_path = credentials_path
+    def __init__(
+        self,
+        credentials_path: str = DEFAULT_CREDENTIALS_PATH,
+        calendar_id: Optional[str] = None,
+        token_path: Optional[str] = None,
+    ):
+        self.credentials_path = credentials_path or DEFAULT_CREDENTIALS_PATH
+        self.calendar_id = (
+            calendar_id or os.getenv("GOOGLE_CALENDAR_ID") or DEFAULT_CALENDAR_ID
+        )
+        self.token_path = token_path or os.getenv(
+            "GOOGLE_CALENDAR_TOKEN_PATH", DEFAULT_TOKEN_PATH
+        )
         self.service = None
         self.scopes = ["https://www.googleapis.com/auth/calendar.events"]
         self._authenticate()
 
-    def _authenticate(self):
+    def _authenticate(self) -> None:
         """Google API bilan avtorizatsiya (Token yoki Service Account)."""
         creds = None
-        # 1. token.pickle - Shaxsiy akkaunt (OAuth2)
-        if os.path.exists("token.pickle"):
+        if os.path.exists(self.token_path):
             try:
-                with open("token.pickle", "rb") as token:
+                with open(self.token_path, "rb") as token:
                     creds = pickle.load(token)  # nosec
                 if creds and creds.expired and creds.refresh_token:
                     creds.refresh(Request())
-                    with open("token.pickle", "wb") as token:
+                    with open(self.token_path, "wb") as token:
                         pickle.dump(creds, token)
-                logger.info(
-                    "[GCALENDAR OK] Shaxsiy Google akkaunti (Token) ishga tushdi."
-                )
+                logger.info("[GCALENDAR OK] Shaxsiy Google akkaunti (Token) ishga tushdi.")
             except Exception as e:
                 logger.error(f"[GCALENDAR] Token yangilashda xato: {e}")
                 creds = None
 
-        # 2. service_account.json (Fallback)
         if not creds:
             if os.path.exists(self.credentials_path):
                 try:
@@ -52,75 +83,160 @@ class GoogleCalendarSync:
                         f"[GCALENDAR] Service Account avtorizatsiyasida xato: {e}"
                     )
             else:
-                logger.warning("[GCALENDAR] Avtorizatsiya fayli topilmadi.")
+                logger.warning(
+                    "[GCALENDAR] Avtorizatsiya fayli topilmadi: "
+                    f"{self.token_path} yoki {self.credentials_path}"
+                )
 
         if creds:
             self.service = build("calendar", "v3", credentials=creds)
+            logger.info(f"[GCALENDAR] Kalendar ID: {self.calendar_id}")
         else:
             logger.error("[GCALENDAR] Avtorizatsiya muvaffaqiyatsiz tugadi.")
 
-    def create_event(self, summary, start_time, end_time, description="", location=""):
-        """Yangi kalendar tadbiri yaratish.
-        start_time va end_time ISO formatda bo'lishi kerak (masalan: 2024-05-28T10:00:00Z)
+    def _build_event_body(
+        self,
+        summary: str,
+        start_time: str,
+        end_time: str,
+        description: str = "",
+        location: str = "",
+        extended_properties: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "summary": summary,
+            "location": location,
+            "description": description,
+            "start": {"dateTime": start_time, "timeZone": CALENDAR_TIMEZONE},
+            "end": {"dateTime": end_time, "timeZone": CALENDAR_TIMEZONE},
+            "conferenceData": {
+                "createRequest": {
+                    "requestId": str(uuid.uuid4()),
+                    "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                }
+            },
+            "reminders": {"useDefault": True},
+        }
+        private = _stringify_private(extended_properties)
+        if private:
+            body["extendedProperties"] = {"private": private}
+        return body
+
+    def _insert_event(self, body: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            return self.service.events().insert(
+                calendarId=self.calendar_id, body=body, conferenceDataVersion=1
+            ).execute()
+        except Exception as conference_exc:
+            if "Invalid conference type value" not in str(conference_exc):
+                raise
+            logger.warning(
+                "[GCALENDAR] Meet link yaratilmadi; oddiy event bilan qayta uriniladi."
+            )
+            fallback = dict(body)
+            fallback.pop("conferenceData", None)
+            return self.service.events().insert(
+                calendarId=self.calendar_id, body=fallback
+            ).execute()
+
+    def create_event(
+        self,
+        summary: str,
+        start_time: str,
+        end_time: str,
+        description: str = "",
+        location: str = "",
+        extended_properties: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Yangi kalendar tadbiri yaratadi va event resursini qaytaradi.
+
+        start_time va end_time ISO formatda boʻlishi kerak
+        (masalan: 2026-05-14T13:00:00+05:00).
         """
         if not self.service:
             logger.error("[GCALENDAR] Service ulanmagan.")
+            return None
+
+        try:
+            body = self._build_event_body(
+                summary=summary,
+                start_time=start_time,
+                end_time=end_time,
+                description=description,
+                location=location,
+                extended_properties=extended_properties,
+            )
+            event = self._insert_event(body)
+            logger.info(f"[GCALENDAR OK] Tadbir yaratildi: {event.get('htmlLink')}")
+            return event
+        except Exception as e:
+            logger.error(f"[GCALENDAR ERROR] Tadbir yaratishda xato: {e}")
+            return None
+
+    def update_event(
+        self,
+        event_id: str,
+        summary: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        extended_properties: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Mavjud tadbirni qisman yangilaydi (patch) va event resursini qaytaradi."""
+        if not self.service or not event_id:
+            logger.error("[GCALENDAR] Tadbirni yangilash uchun service yoki ID yoʻq.")
+            return None
+
+        body: Dict[str, Any] = {}
+        if summary is not None:
+            body["summary"] = summary
+        if description is not None:
+            body["description"] = description
+        if location is not None:
+            body["location"] = location
+        if start_time is not None:
+            body["start"] = {"dateTime": start_time, "timeZone": CALENDAR_TIMEZONE}
+        if end_time is not None:
+            body["end"] = {"dateTime": end_time, "timeZone": CALENDAR_TIMEZONE}
+        private = _stringify_private(extended_properties)
+        if private:
+            body["extendedProperties"] = {"private": private}
+        if not body:
+            return None
+
+        try:
+            event = self.service.events().patch(
+                calendarId=self.calendar_id, eventId=str(event_id), body=body
+            ).execute()
+            logger.info(f"[GCALENDAR OK] Tadbir yangilandi: {event_id}")
+            return event
+        except Exception as e:
+            logger.error(f"[GCALENDAR ERROR] Tadbirni yangilashda xato: {e}")
+            return None
+
+    def delete_event(self, event_id: str) -> bool:
+        """Tadbirni oʻchiradi. Allaqachon oʻchirilgan boʻlsa ham True qaytaradi."""
+        if not self.service or not event_id:
+            logger.error("[GCALENDAR] Tadbirni oʻchirish uchun service yoki ID yoʻq.")
             return False
 
         try:
-            import uuid
-
-            request_id = str(uuid.uuid4())
-            event = {
-                "summary": summary,
-                "location": location,
-                "description": description,
-                "start": {
-                    "dateTime": start_time,
-                    "timeZone": "Asia/Tashkent",
-                },
-                "end": {
-                    "dateTime": end_time,
-                    "timeZone": "Asia/Tashkent",
-                },
-                "conferenceData": {
-                    "createRequest": {
-                        "requestId": request_id,
-                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
-                    }
-                },
-                "reminders": {
-                    "useDefault": True,
-                },
-            }
-
-            try:
-                event = (
-                    self.service.events()
-                    .insert(calendarId="primary", body=event, conferenceDataVersion=1)
-                    .execute()
-                )
-            except Exception as conference_exc:
-                if "Invalid conference type value" not in str(conference_exc):
-                    raise
-                logger.warning(
-                    "[GCALENDAR] Meet link yaratilmadi; oddiy calendar event bilan qayta uriniladi."
-                )
-                event.pop("conferenceData", None)
-                event = (
-                    self.service.events()
-                    .insert(calendarId="primary", body=event)
-                    .execute()
-                )
-
-            logger.info(f"[GCALENDAR OK] Tadbir yaratildi: {event.get('htmlLink')}")
+            self.service.events().delete(
+                calendarId=self.calendar_id, eventId=str(event_id)
+            ).execute()
+            logger.info(f"[GCALENDAR OK] Tadbir oʻchirildi: {event_id}")
             return True
         except Exception as e:
-            logger.error(f"[GCALENDAR ERROR] Tadbir yaratishda xato: {e}")
+            if _is_missing_event_error(e):
+                logger.info(f"[GCALENDAR] Tadbir allaqachon yoʻq: {event_id}")
+                return True
+            logger.error(f"[GCALENDAR ERROR] Tadbirni oʻchirishda xato: {e}")
             return False
 
     def get_upcoming_events(self, date_str=None, limit=10):
-        """Ma'lum bir kun (yoki bugun) uchun barcha tadbirlarni ro'yxatini olish.
+        """Maʼlum bir kun (yoki bugun) uchun barcha tadbirlar roʻyxatini olish.
+
         date_str: YYYY-MM-DD
         """
         if not self.service:
@@ -129,7 +245,7 @@ class GoogleCalendarSync:
         import datetime
         from zoneinfo import ZoneInfo
 
-        tz = ZoneInfo("Asia/Tashkent")
+        tz = ZoneInfo(CALENDAR_TIMEZONE)
 
         if not date_str:
             target_date = datetime.datetime.now(tz)
@@ -138,18 +254,14 @@ class GoogleCalendarSync:
                 tzinfo=tz
             )
 
-        time_min = target_date.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
-        time_max = target_date.replace(
-            hour=23, minute=59, second=59, microsecond=0
-        ).isoformat()
+        time_min = target_date.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        time_max = target_date.replace(hour=23, minute=59, second=59, microsecond=0).isoformat()
 
         try:
             events_result = (
                 self.service.events()
                 .list(
-                    calendarId="primary",
+                    calendarId=self.calendar_id,
                     timeMin=time_min,
                     timeMax=time_max,
                     maxResults=limit,
@@ -160,7 +272,7 @@ class GoogleCalendarSync:
             )
             return events_result.get("items", [])
         except Exception as e:
-            logger.error(f"[GCALENDAR ERROR] Tadbirlarni ro'yxatlashda xato: {e}")
+            logger.error(f"[GCALENDAR ERROR] Tadbirlarni roʻyxatlashda xato: {e}")
             return []
 
     def get_current_event(self):
@@ -173,11 +285,10 @@ class GoogleCalendarSync:
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
         try:
-            # Hozirdan keyingi 1 ta tadbirni olish
             events_result = (
                 self.service.events()
                 .list(
-                    calendarId="primary",
+                    calendarId=self.calendar_id,
                     timeMin=now,
                     maxResults=1,
                     singleEvents=True,
@@ -192,10 +303,6 @@ class GoogleCalendarSync:
 
             event = events[0]
             start = event["start"].get("dateTime", event["start"].get("date"))
-
-            # Agar tadbir hozir boshlangan bo'lsa (yoki boshlanish arafasida bo'lsa)
-            # API da timeMin=now faqatgina kelajakdagilarni yoki hozir tugamaganlarni qaytaradi
-            # Biz tadbir haqiqatdan ham hozir faol ekanligini tekshiramiz
             start_dt = datetime.datetime.fromisoformat(start.replace("Z", "+00:00"))
             now_dt = datetime.datetime.now(datetime.timezone.utc)
 
@@ -208,13 +315,11 @@ class GoogleCalendarSync:
             return None
 
     def get_free_slots(self, date_str=None):
-        """Ma'lum bir kun (yoki bugun/ertaga) uchun bo'sh uchrashuv vaqtlarini olish (10:00-18:00 oraliqda).
-        Kutilayotgan date_str formati: YYYY-MM-DD
-        """
+        """Maʼlum bir kun (yoki bugun/ertaga) uchun boʻsh uchrashuv vaqtlarini olish."""
         import datetime
         from zoneinfo import ZoneInfo
 
-        tz = ZoneInfo("Asia/Tashkent")
+        tz = ZoneInfo(CALENDAR_TIMEZONE)
         if not date_str:
             target_date = datetime.datetime.now(tz)
         else:
@@ -225,17 +330,14 @@ class GoogleCalendarSync:
             except ValueError:
                 target_date = datetime.datetime.now(tz)
 
-        # 10:00 dan 18:00 gacha bo'lgan oraliq ish vaqti deb faraz qilinadi (1 soatlik slotlar)
         start_of_day = target_date.replace(hour=10, minute=0, second=0, microsecond=0)
         end_of_day = target_date.replace(hour=18, minute=0, second=0, microsecond=0)
 
         if not self.service:
             logger.error("[GCALENDAR ERROR] xizmat ulanmagan.")
-            # Default slolarni qaytarish (agar API ishlamay qolsa ehtiyot uchun)
             return ["11:00", "15:00", "17:00"]
 
         try:
-            # Shu kundagi barcha eventlarni olish
             time_min = target_date.replace(
                 hour=0, minute=0, second=0, microsecond=0
             ).isoformat()
@@ -246,7 +348,7 @@ class GoogleCalendarSync:
             events_result = (
                 self.service.events()
                 .list(
-                    calendarId="primary",
+                    calendarId=self.calendar_id,
                     timeMin=time_min,
                     timeMax=time_max,
                     singleEvents=True,
@@ -261,42 +363,34 @@ class GoogleCalendarSync:
                 start = event["start"].get("dateTime", event["start"].get("date"))
                 end = event["end"].get("dateTime", event["end"].get("date"))
                 if "T" in start:
-                    busy_slots.append(
-                        (
-                            datetime.datetime.fromisoformat(start).astimezone(tz),
-                            datetime.datetime.fromisoformat(end).astimezone(tz),
-                        )
-                    )
+                    busy_slots.append((
+                        datetime.datetime.fromisoformat(start).astimezone(tz),
+                        datetime.datetime.fromisoformat(end).astimezone(tz),
+                    ))
 
             free_slots = []
             current_slot = start_of_day
             while current_slot < end_of_day:
                 slot_end = current_slot + datetime.timedelta(hours=1)
 
-                # Check if this slot overlaps with any busy slot
                 is_free = True
                 for b_start, b_end in busy_slots:
                     if (current_slot < b_end) and (slot_end > b_start):
                         is_free = False
                         break
 
-                # Vaqt o'tib ketmaganligini tekshirish
                 if is_free and current_slot > datetime.datetime.now(tz):
-                    free_slots.append(current_slot.strftime("%H:%00"))
+                    free_slots.append(current_slot.strftime("%H:%M"))
 
                 current_slot += datetime.timedelta(hours=1)
 
-            # Agar bugun bo'sh bo'lmasa yoki vaqt o'tib ketgan bo'lsa, ertangi kunni qidiramiz
             if not free_slots and not date_str:
-                next_day = (target_date + datetime.timedelta(days=1)).strftime(
-                    "%Y-%m-%d"
-                )
+                next_day = (target_date + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
                 return self.get_free_slots(next_day)
 
-            # Qaysi kunga oidligini bildirish uchun sana bilan qo'shib qaytarish (ixtiyoriy, userbotga yordam)
             date_formatted = target_date.strftime("%Y-%m-%d")
             return (
-                [f"{date_formatted} tahriridagi: {slot}" for slot in free_slots]
+                [f"{date_formatted} sanasidagi: {slot}" for slot in free_slots]
                 if free_slots
                 else []
             )
@@ -304,17 +398,3 @@ class GoogleCalendarSync:
         except Exception as e:
             logger.error(f"[GCALENDAR SLOTS] xato: {e}")
             return ["10:00", "14:00", "16:00"]
-
-
-if __name__ == "__main__":
-    # Test qilish
-    logging.basicConfig(level=logging.INFO)
-    sync = GoogleCalendarSync()
-    if sync.service:
-        # Namuna: Bugun soat 15:00 dan 16:00 gacha
-        import datetime
-
-        now = datetime.datetime.now()
-        start = now.replace(hour=15, minute=0, second=0, microsecond=0).isoformat()
-        end = now.replace(hour=16, minute=0, second=0, microsecond=0).isoformat()
-        sync.create_event("Test Meeting", start, end, "AI tomonidan yaratildi")

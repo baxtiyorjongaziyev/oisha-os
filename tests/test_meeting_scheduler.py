@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -86,9 +87,14 @@ class _Peer:
 class _FakeCalendar:
     def __init__(self):
         self.events = []
+        self.deleted = []
 
     def create_event(self, **kwargs):
         self.events.append(kwargs)
+        return {"id": f"evt-{len(self.events)}", **kwargs}
+
+    def delete_event(self, event_id):
+        self.deleted.append(event_id)
         return True
 
 
@@ -156,7 +162,8 @@ def test_extracts_calendar_event_from_telegram_context():
     candidate = extract_meeting_candidate(messages, reference, "Axmedov Ozodbek")
 
     assert candidate is not None
-    assert candidate.summary == "Suhbat: Axmedov Ozodbek"
+    assert candidate.summary == "Axmedov Ozodbek - Uchrashuv"
+    assert candidate.reason == "Uchrashuv"
     assert candidate.start_time.isoformat() == "2026-05-14T13:00:00+05:00"
     assert candidate.end_time.isoformat() == "2026-05-14T14:00:00+05:00"
     assert "U Enter" in candidate.location
@@ -365,3 +372,85 @@ async def test_scan_recent_dialogs_finds_meeting_and_syncs_lead():
     assert result["created"] == 1
     assert calendar.events[0]["start_time"] == "2026-05-14T13:00:00+05:00"
     assert amo.ensure_calls[0]["phone"] == "+998901112233"
+
+
+def test_summary_uses_client_and_meeting_reason():
+    reference = datetime(2026, 5, 13, 20, 36, tzinfo=TZ)
+    messages = [
+        ContextMessage(
+            text="Ertaga soat 13:00 da logo boʻyicha suhbatga kelolasizmi?",
+            is_outgoing=True,
+            created_at=reference,
+        ),
+        ContextMessage(
+            text="Ha, kelaman",
+            is_outgoing=False,
+            created_at=reference,
+        ),
+    ]
+
+    candidate = extract_meeting_candidate(messages, reference, "Ozodbek")
+
+    assert candidate is not None
+    assert candidate.reason == "Logo dizayni"
+    assert candidate.summary == "Ozodbek - Logo dizayni"
+
+
+@pytest.mark.asyncio
+async def test_reschedule_deletes_old_event_and_creates_new():
+    db = _FakeDB()
+    db.state["calendar:event:9001"] = json.dumps(
+        {"event_id": "old-1", "start_time": "2026-05-14T13:00:00+05:00"}
+    )
+    calendar = _FakeCalendar()
+    scheduler = TelegramMeetingScheduler(db=db, gcalendar=calendar)
+    candidate = MeetingCandidate(
+        summary="Ozodbek - Brending",
+        start_time=datetime(2026, 5, 14, 15, 0, tzinfo=TZ),
+        end_time=datetime(2026, 5, 14, 16, 0, tzinfo=TZ),
+        description="",
+        reason="Brending",
+    )
+
+    result = await scheduler._create_calendar_and_sync(
+        chat_id=9001,
+        peer=_Peer(),
+        participant_name="Ozodbek",
+        messages=[ContextMessage(text="15:00 ga oʻtkazamiz", is_outgoing=False)],
+        candidate=candidate,
+    )
+
+    assert result is candidate
+    assert calendar.deleted == ["old-1"]
+    assert calendar.events[0]["start_time"] == "2026-05-14T15:00:00+05:00"
+    state = json.loads(db.state["calendar:event:9001"])
+    assert state["event_id"] == "evt-1"
+    assert state["start_time"] == "2026-05-14T15:00:00+05:00"
+
+
+@pytest.mark.asyncio
+async def test_same_time_does_not_create_duplicate_event():
+    db = _FakeDB()
+    db.state["calendar:event:9001"] = json.dumps(
+        {"event_id": "old-1", "start_time": "2026-05-14T13:00:00+05:00"}
+    )
+    calendar = _FakeCalendar()
+    scheduler = TelegramMeetingScheduler(db=db, gcalendar=calendar)
+    candidate = MeetingCandidate(
+        summary="Ozodbek - Uchrashuv",
+        start_time=datetime(2026, 5, 14, 13, 0, tzinfo=TZ),
+        end_time=datetime(2026, 5, 14, 14, 0, tzinfo=TZ),
+        description="",
+    )
+
+    result = await scheduler._create_calendar_and_sync(
+        chat_id=9001,
+        peer=_Peer(),
+        participant_name="Ozodbek",
+        messages=[ContextMessage(text="13:00 da uchrashamiz", is_outgoing=False)],
+        candidate=candidate,
+    )
+
+    assert result is candidate
+    assert calendar.events == []
+    assert calendar.deleted == []
