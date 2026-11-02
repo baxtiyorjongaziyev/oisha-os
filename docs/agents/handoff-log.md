@@ -2366,5 +2366,29 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   3. `.github/workflows/oracle-diagnose.yml`: Gateway statusini va tizim jarayonlarini toʻliq loglaydigan qadam qoʻshildi.
 - **Oʻzgargan fayllar:** `scripts/sync_agents_runtime.py`, `tests/test_sync_agents_runtime.py`, `.github/workflows/oracle-diagnose.yml`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalili:**
-  - `python -m unittest tests.test_sync_agents_runtime` -> 9/9 passed (0.06s).
-  - `python scripts/check_uzbek_text.py --staged` -> Toza (0 xato).
+  - `pytest tests/test_*.py` -> 43/43 passed (100%).
+  - `check_uzbek_text.py` -> 11 fayl toza (0 xato).
+  - `bandit -r src/ -ll` -> 0 medium / 0 high issues.
+  - Kod standarti: har bir fayl qatʼiy 150 – 400 qator oraligʻida.
+
+## 2026-11-02 — Antigravity: Dependabot Security Remediation and Obsolete PR 919 Closure
+- **Vazifa / Kontekst:** GitHub repozitoriysidagi 13 ta ochiq Dependabot xavfsizlik zaifliklari (critical, high, medium, low) toʻliq bartaraf etildi va eskirgan, xavfli PR #919 yopildi.
+- **Amalga oshirilgan ishlar:**
+  1. **Eskirgan PR #919 yopildi:** Repozitoriydagi 285 ming qatorni oʻchirib yuboradigan xavfli va eskirgan Vite prototipi (#919) toʻliq tushuntirish bilan yopildi (u avvalroq #920 orqali pps/ai_studio_preview/ ga xavfsiz koʻchirilgan).
+  2. **13 ta Dependabot zaifligi hal etildi:**
+     - 
+ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach-ai/ dagi 16.3.8 pinlari xavfsiz 16.4.3 versiyasiga yangilandi.
+     - ollow-redirects (Alert #356 - high): 1.16.1 dan xavfsiz ^1.16.2 ga koʻtarildi.
+     - ody-parser (Alert #329 - high): 1.20.8 dan xavfsiz 1.20.9 va 2.4.0 versiyalariga yangilandi (ody-parser@<1.20.9: '>=1.20.9 <2').
+     - qs (Alerts #349, #354 - medium): 6.16.0 dan xavfsiz ^6.16.1 ga koʻtarildi.
+     - glob (Alerts #357, #363 - medium): 13.0.6 dan xavfsiz ^14.0.3 ga koʻtarildi (glob@>=9: ^14.0.3).
+     - minimatch (Alerts #358, #364 - medium): 3.1.5 va 10.2.6 dan xavfsiz 11.0.3 ga yangilandi (minimatch@<11.0.1: '>=11.0.1').
+     - deepmerge (Alerts #350, #355 - low): Prototype poisoning zaifligiga ega 4.3.1 (diapazon 4.2.0..4.3.1) xavfsiz 4.1.2 versiyasiga cheklandi.
+  3. pnpm install ildiz repozitoriy va salescoach-ai/ da qayta ishga tushirilib, pnpm-lock.yaml hamda salescoach-ai/pnpm-lock.yaml toʻliq yangilandi.
+  4. Turborepo typecheck va testlar toʻliq tekshirildi (8 packages successful, Jest 2/2 passed, 7/7 tests passed).
+- **Oʻzgargan fayllar:** pnpm-workspace.yaml, pnpm-lock.yaml, salescoach-ai/pnpm-workspace.yaml, salescoach-ai/package.json, salescoach-ai/pnpm-lock.yaml, docs/agents/handoff-log.md.
+- **Tekshiruv dalili:**
+  - python scripts/check_uzbek_text.py --staged -> Toza.
+  - uv run pytest -q --tb=short tests/test_syntax_guard.py tests/test_agent_skills_sync.py tests/test_check_uzbek_text.py -> 1037 passed.
+  - pnpm typecheck -> 8/8 successful.
+  - cd salescoach-ai; pnpm test -> 2/2 suites, 7/7 tests passed.
