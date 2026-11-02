@@ -141,6 +141,11 @@ from src.api.routes.callback_widget import router as callback_widget_router
 from src.api.routes.telephony import router as telephony_router
 from src.api.routes.attendance_routes import router as attendance_router, pages_router as attendance_pages_router
 from src.api.routes.attendance_setup_routes import router as attendance_setup_router
+from src.api.routes.crm_dialer import router as crm_dialer_router
+from src.api.routes.crm_auth_routes import router as crm_auth_router
+from src.api.routes.crm_call_routes import router as crm_call_router
+from src.api.routes.crm_enterprise_routes import router as crm_enterprise_router
+from src.api.routes.twenty_moizvonki import router as twenty_moizvonki_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -175,13 +180,18 @@ app.include_router(telephony_router)
 app.include_router(attendance_router)
 app.include_router(attendance_pages_router)
 app.include_router(attendance_setup_router)
+app.include_router(crm_dialer_router)
+app.include_router(crm_auth_router)
+app.include_router(crm_call_router)
+app.include_router(crm_enterprise_router)
+app.include_router(twenty_moizvonki_router)
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz/", liveness_probe, methods=["GET"], include_in_schema=False)
 
 # Mount Static Files
-static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "src", "static")
+static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
