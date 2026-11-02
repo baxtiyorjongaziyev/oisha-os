@@ -11,6 +11,7 @@ import os
 import pathlib
 import shutil
 import subprocess
+import time
 from typing import Any
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -160,12 +161,14 @@ def sync_hermes_agent(hermes_dir: pathlib.Path | None = None) -> None:
 
 
 def restart_openclaw_gateway() -> None:
-    """Restart OpenClaw gateway service or running process."""
+    """Restart or start OpenClaw gateway service and verify it is running."""
     if os.name == "nt":
         return
 
-    # 1. Systemd servisi bormi tekshirish
-    units = ["openclaw.service", "openclaw-gateway.service", "claw.service"]
+    logger.info("[OpenClaw] Gateway jarayonini boshqarish...")
+
+    # 1. Systemd servislari bormi tekshirish
+    units = ["openclaw-gateway.service", "openclaw.service", "claw.service"]
     for u in units:
         check = subprocess.run(["systemctl", "list-unit-files", u], capture_output=True, text=True, check=False)
         if u in check.stdout:
@@ -173,22 +176,45 @@ def restart_openclaw_gateway() -> None:
             subprocess.run(["sudo", "systemctl", "restart", u], check=False)
             return
 
-    # 2. Ishlab turgan openclaw gateway jarayonini topish va qayta yuklash
-    try:
-        ps_check = subprocess.run(
-            ["pgrep", "-f", "openclaw.*gateway"],
+    # 2. OpenClaw CLI orqali start / restart
+    for user in ["ubuntu", "root"]:
+        cli_res = subprocess.run(
+            [
+                "sudo",
+                "-iu",
+                user,
+                "bash",
+                "-c",
+                "command -v openclaw >/dev/null 2>&1 && "
+                "(openclaw gateway restart || openclaw gateway start || openclaw gateway install)",
+            ],
             capture_output=True,
             text=True,
             check=False,
         )
-        pids = [p.strip() for p in ps_check.stdout.split() if p.strip()]
-        if pids:
-            logger.info("[OpenClaw] Ishlab turgan gateway jarayonlari topildi: %s. Qayta ishga tushirish uchun toʻxtatilmoqda...", pids)
-            for pid in pids:
-                subprocess.run(["sudo", "kill", pid], check=False)
-            logger.info("[OpenClaw] Jarayonlar toʻxtatildi. OpenClaw qayta boshlanadi.")
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("[OpenClaw] Jarayonlarni tekshirishda ogohlantirish: %s", exc)
+        if cli_res.returncode == 0:
+            logger.info("[OpenClaw] CLI gateway (%s): %s", user, cli_res.stdout.strip())
+            break
+
+    # 3. Agar jarayon hali ham koʻrinmasa, fon rejimida start berish
+    time.sleep(1)
+    ps_check = subprocess.run(["pgrep", "-f", "openclaw.*gateway"], capture_output=True, text=True, check=False)
+    if not ps_check.stdout.strip():
+        logger.warning("[OpenClaw] Gateway fon rejimida ishga tushirilmoqda...")
+        subprocess.run(
+            ["sudo", "-iu", "ubuntu", "bash", "-c", "nohup openclaw gateway run > ~/.openclaw/gateway.log 2>&1 &"],
+            check=False,
+        )
+
+    # 4. Status va tekshiruv
+    status_check = subprocess.run(
+        ["sudo", "-iu", "ubuntu", "bash", "-c", "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status_check.stdout.strip():
+        logger.info("[OpenClaw] Gateway holati:\n%s", status_check.stdout.strip())
 
 
 def main() -> None:

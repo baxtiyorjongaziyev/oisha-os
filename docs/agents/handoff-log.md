@@ -2356,3 +2356,15 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   - `bandit -r ... -ll`: 0 issues (811 qator tekshirildi).
   - `python scripts/check_uzbek_text.py`: Toza (7 fayl tekshirildi, 0 xato).
   - Kod hajmi standarti: barcha fayllar 92-198 qator oraligʻida (<= 400 qator qoidasiga toʻliq mos).
+
+
+## 2026-11-02 — Antigravity: OpenClaw Gateway Daemon Lifecycle and Startup Fix
+- **Vazifa / Kontekst:** OpenClaw gateway jarayoni toʻxtatilgandan soʻng qayta ishga tushmay qolgani sababli Telegram boti (`@jon_clawbot`) javob bermayotgan edi. Gateway daemonʼini toʻgʻri start/restart qilish va tekshirish mantiqi qoʻshildi.
+- **Amalga oshirilgan ishlar:**
+  1. `scripts/sync_agents_runtime.py`: `restart_openclaw_gateway()` funksiyasi takomillashtirildi. OpenClaw CLI orqali `openclaw gateway restart || openclaw gateway start || openclaw gateway install` ishga tushiriladi; agar jarayon boʻlmasa fon rejimida start beriladi va `openclaw gateway status` orqali tekshiriladi.
+  2. `tests/test_sync_agents_runtime.py`: CLI va systemd orqali gateway qayta yuklanishini tekshiruvchi testlar yangilandi (9/9 passed).
+  3. `.github/workflows/oracle-diagnose.yml`: Gateway statusini va tizim jarayonlarini toʻliq loglaydigan qadam qoʻshildi.
+- **Oʻzgargan fayllar:** `scripts/sync_agents_runtime.py`, `tests/test_sync_agents_runtime.py`, `.github/workflows/oracle-diagnose.yml`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `python -m unittest tests.test_sync_agents_runtime` -> 9/9 passed (0.06s).
+  - `python scripts/check_uzbek_text.py --staged` -> Toza (0 xato).
