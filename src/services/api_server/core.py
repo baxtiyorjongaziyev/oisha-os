@@ -134,6 +134,7 @@ from src.api.routes.crm_dialer import router as crm_dialer_router
 from src.api.routes.crm_enterprise_routes import router as crm_enterprise_router
 from src.api.routes.crm_auth_routes import router as crm_auth_routes_router
 from src.api.routes.crm_call_routes import router as crm_call_routes_router
+from src.api.routes.calendar_routes import router as calendar_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -166,6 +167,7 @@ app.include_router(crm_dialer_router)
 app.include_router(crm_enterprise_router)
 app.include_router(crm_auth_routes_router)
 app.include_router(crm_call_routes_router)
+app.include_router(calendar_router)
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
