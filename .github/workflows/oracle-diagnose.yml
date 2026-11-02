@@ -147,64 +147,9 @@ jobs:
         if: inputs.mode == 'sync-models'
         run: |
           set +e
-          echo "=== 1. Hermes Agent — Oisha personasi va modellari ==="
-          if id -u hermes >/dev/null 2>&1; then
-            echo "Hermes foydalanuvchisi topildi."
-            if [ -f /home/ubuntu/oisha-os/deploy/hermes/SOUL.md ]; then
-              echo "Hermes uchun Oisha SOUL.md ko'chirilmoqda..."
-              sudo cp /home/ubuntu/oisha-os/deploy/hermes/SOUL.md /home/hermes/.hermes/SOUL.md || true
-              sudo chown hermes:hermes /home/hermes/.hermes/SOUL.md 2>/dev/null || true
-            fi
-            sudo -iu hermes bash -c '
-              if command -v hermes >/dev/null 2>&1; then
-                echo "Hozirgi model:"
-                hermes config get model.default 2>/dev/null || true
-                echo "Yangi model o‘rnatilmoqda: gemini / gemini-2.5-flash..."
-                hermes config set model.provider gemini || true
-                hermes config set model.default gemini-2.5-flash || true
-                echo "Tasdiq:"
-                hermes config get model.provider 2>/dev/null || true
-                hermes config get model.default 2>/dev/null || true
-              else
-                echo "hermes CLI buyrug‘i topilmadi."
-              fi
-            '
-            if systemctl is-active --quiet hermes-gateway; then
-              echo "hermes-gateway qayta ishga tushirilmoqda..."
-              sudo systemctl restart hermes-gateway || true
-              echo "hermes-gateway holati: $(systemctl is-active hermes-gateway)"
-            fi
-          else
-            echo "hermes foydalanuvchisi topilmadi."
-          fi
-
+          cd /home/ubuntu/oisha-os 2>/dev/null || cd "$GITHUB_WORKSPACE"
+          sudo python3 scripts/sync_agents_runtime.py
           echo
-          echo "=== 2. OpenClaw — Mr.Jon personasi va modellari ==="
-          for u in openclaw ubuntu root; do
-            if id -u "$u" >/dev/null 2>&1; then
-              U_HOME=$(eval echo "~$u")
-              OC_WS="$U_HOME/.openclaw/workspace/oisha"
-              if [ -d "$OC_WS" ] && [ -f /home/ubuntu/oisha-os/deploy/openclaw/workspace/SOUL.md ]; then
-                echo "[$u] OpenClaw workspace'ga Mr.Jon SOUL.md va IDENTITY.md ko'chirilmoqda..."
-                sudo cp /home/ubuntu/oisha-os/deploy/openclaw/workspace/SOUL.md "$OC_WS/SOUL.md" || true
-                sudo cp /home/ubuntu/oisha-os/deploy/openclaw/workspace/IDENTITY.md "$OC_WS/IDENTITY.md" 2>/dev/null || true
-                sudo chown -R "$u:$u" "$OC_WS" 2>/dev/null || true
-              fi
-              sudo -iu "$u" bash -c '
-                if command -v openclaw >/dev/null 2>&1; then
-                  echo "[$USER] openclaw topildi."
-                  echo "Asosiy model: google/gemini-2.5-flash o‘rnatilmoqda..."
-                  openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash" || openclaw config set agents.defaults.model "google/gemini-2.5-flash" || true
-                  echo "Zaxira modellar: groq/llama-3.3-70b-versatile va google/gemini-2.5-flash-lite..."
-                  openclaw config set agents.defaults.model.fallbacks '\''["groq/llama-3.3-70b-versatile", "google/gemini-2.5-flash-lite"]'\'' || true
-                  echo "Tasdiq:"
-                  openclaw config get agents.defaults.model 2>/dev/null || true
-                fi
-              '
-            fi
-          done
-
-          echo
-          echo "=== 3. Jarayonlar tekshiruvi ==="
+          echo "=== Jarayonlar tekshiruvi ==="
           ps -eo pid,cmd | grep -E "hermes|openclaw" | grep -v grep || true
           exit 0
