@@ -87,14 +87,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
-    end = datetime.now(TASHKENT).replace(minute=0, second=0, microsecond=0)
-    start = end.replace(hour=9)
+    now = datetime.now(TASHKENT)
+    end = now.replace(second=0, microsecond=0)
+    start = now.replace(hour=9, minute=0, second=0, microsecond=0)
+    if start > end:
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     names = parse_rep_names(os.environ.get('MOIZVONKI_REP_NAMES', ''))
     if not names:
         raise ValueError('Roster unavailable')
     text = render(fetch(int(start.timestamp()), int(end.timestamp())), names, end)
     if args.dry_run:
         print('Read-only report built; roster size:', len(set(names.values())))
+        print(text)
         return
     for part in split_message(text):
         send_telegram(os.environ['BOT_TOKEN'], '-1003854308552', part, '115')
