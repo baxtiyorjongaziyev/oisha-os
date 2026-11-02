@@ -7,6 +7,11 @@ from datetime import datetime, timedelta
 from html import escape
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+try:
+    from dotenv import find_dotenv, load_dotenv
+    load_dotenv(find_dotenv(usecwd=True))
+except ImportError:
+    pass
 from scripts.daily_sales_calls_report import (
     TASHKENT, _api_url, parse_rep_names, send_telegram, split_message,
 )
@@ -101,7 +106,8 @@ def main():
     start = now.replace(hour=9, minute=0, second=0, microsecond=0)
     if start > end:
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    names = parse_rep_names(os.environ.get('MOIZVONKI_REP_NAMES', ''))
+    raw_roster = os.environ.get('MOIZVONKI_REP_NAMES', '') or 'mumtozmaxal@jonbranding.uz:Mumtozmaxal,rayxona@jonbranding.uz:Rayxon,xayrullayevna006@gmail.com:Rayxon,shahnoza@jonbranding.uz:Shahnoza'
+    names = parse_rep_names(raw_roster)
     if not names:
         raise ValueError('Roster unavailable')
     text = render(fetch(int(start.timestamp()), int(end.timestamp()), accounts=set(names.keys())), names, end)
