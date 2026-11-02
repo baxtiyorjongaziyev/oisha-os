@@ -3580,3 +3580,20 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - Contabo VPS `systemctl status hermes-gateway` -> `active (running)`, Telegram connection OK.
 - **Qolgan ish / Holat:** Local commit va VPS ga to'liq deploy qilindi.
 
+### 2026-11-02 / Antigravity: Hermes MCP AmoCRM va Moizvonki `source_unavailable` blokeri tuzatildi
+- **Muammo:** 02.11.2026 soat 18:30 dagi Kunlik fact-hisobotda Oisha/Hermes `crm_list_calls`, `crm_get_rop_digest` va `crm_search_leads` vositalarida `source_unavailable` xatosi qaytargan va xodimlar faolligi tasdiqlanmagan deb eskalatsiya qilgan.
+- **Ildiz sabablari (Root causes):**
+  1. `/home/ubuntu/oisha-os/.env` fayli `600` (`-rw------- 1 ubuntu ubuntu`) rejimida bo'lib, `hermes-gateway` (user: `hermes`) `settings.py` -> `load_dotenv()` orqali uni o'qishga uringanida `PermissionError: [Errno 13] Permission denied` yuzaga kelgan.
+  2. `src/services/sales_quality/funnel_policy.py` fayli Contabo VPS'da yo'q bo'lib, `crm_get_rop_digest` da `ModuleNotFoundError: No module named 'src.services.sales_quality.funnel_policy'` keltirib chiqargan.
+- **Bajarilgan tuzatishlar:**
+  1. `usermod -aG ubuntu hermes` bajarilib, `hermes` foydalanuvchisi `ubuntu` guruhiga qo'shildi.
+  2. `/home/ubuntu/oisha-os/.env` fayliga `chmod 640` berildi (faqat `ubuntu` guruhi o'qiy oladi).
+  3. `src/services/sales_quality/funnel_policy.py` Contabo VPS `/home/ubuntu/oisha-os/src/services/sales_quality/funnel_policy.py` ga joylashtirildi (`chmod 644`).
+  4. `hermes-gateway.service` qayta ishga tushirildi (`systemctl restart hermes-gateway`).
+- **Tekshiruv dalili:**
+  - Contabo VPS'da `hermes` foydalanuvchisi nomidan stdio JSON-RPC orqali to'g'ridan-to'g'ri test qilindi:
+    - `crm_list_calls` -> `success: true, status: "ok"`, jonli qo'ng'iroqlar muvaffaqiyatli qaytdi (shu jumladan bugungi 18:43 dagi Shahnozaning qo'ng'iroq yozuvi note_id: 336402005).
+    - `crm_get_rop_digest` -> `success: true, source: "ai_rop_live"`, 3 ta sotuvchi (Shahnoza, Rayxona, Mumtozmaxal) bo'yicha 50/20/10/3/1 voronka va bugungi Moizvonki faktlari muvaffaqiyatli hisoblandi.
+    - `crm_search_leads` -> `success: true, source: "amocrm_live"`, bitimlar ro'yxati qaytdi.
+- **Holat:** Muammo 100% bartaraf etildi, integratsiyalar jonli ishlayapti.
+
