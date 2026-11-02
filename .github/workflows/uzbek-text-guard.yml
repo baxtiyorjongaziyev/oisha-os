@@ -50,10 +50,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependency
-        run: python -m pip install -q pytest python-dotenv
+        run: python -m pip install -q pytest pytest-asyncio
 
       - name: Guard unit tests
-        run: python -m pytest -q --noconftest tests/test_check_uzbek_text.py
+        run: python -m pytest -q -p no:asyncio --noconftest tests/test_check_uzbek_text.py
 
       - name: PR diff (yangi apostrof bloklanadi)
         if: github.event_name == 'pull_request'
