@@ -78,6 +78,31 @@ def _team_chat_ids() -> set[int]:
         return set()
 
 
+async def _handle_sales_report_request(message: Any, text: str) -> bool:
+    norm_text = text.lower()
+    triggers = ("sotuv hisobot", "hisobotni qayta", "qayta yubor", "sotuv hisobotini", "hisobot")
+    if not any(kw in norm_text for kw in triggers):
+        return False
+    try:
+        import os
+        from datetime import datetime
+        from scripts.hourly_sales_control import fetch, render, parse_rep_names, TASHKENT
+        now = datetime.now(TASHKENT)
+        end = now.replace(second=0, microsecond=0)
+        start = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        if start > end:
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
+        if names:
+            calls = fetch(int(start.timestamp()), int(end.timestamp()))
+            report_text = render(calls, names, end)
+            await message.reply(report_text, parse_mode="HTML")
+            return True
+    except Exception as exc:
+        logger.error("[GROUP-CALL] Failed to render sales report on request: %s", exc)
+    return False
+
+
 def register_group_mention_handler(dispatcher: Any, *, msg_controller: Any) -> None:
     """Register LAST so slash-command handlers keep priority."""
     from aiogram import F
@@ -104,12 +129,15 @@ def register_group_mention_handler(dispatcher: Any, *, msg_controller: Any) -> N
         reply_from = getattr(reply_msg, "from_user", None)
         reply_to_text = getattr(reply_msg, "text", "") or getattr(reply_msg, "caption", "") or ""
         replied_to_bot = bool(reply_from and bot_id and reply_from.id == bot_id)
-        called = is_name_called(text, bot_username)
+        called = is_name_called(text, bot_username) or replied_to_bot
         if not called:
             return
 
         chat = message.chat
         if not is_team_chat(chat.id, getattr(chat, "title", None), _team_chat_ids()):
+            return
+
+        if await _handle_sales_report_request(message, text):
             return
 
         # Intercept sales staff check-in reply or client closing assistance
