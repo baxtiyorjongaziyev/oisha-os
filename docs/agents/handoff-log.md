@@ -3597,3 +3597,23 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
     - `crm_search_leads` -> `success: true, source: "amocrm_live"`, bitimlar ro'yxati qaytdi.
 - **Holat:** Muammo 100% bartaraf etildi, integratsiyalar jonli ishlayapti.
 
+### 2026-11-02 / Antigravity: AmoCRM yagona litsenziya va Teg-asosli sotuvchi atributsiyasi joriy etildi
+- **Biznes fakti (Owner ko'rsatmasi):**
+  1. Moizvonki'da har bir sotuvchi uchun alohida litsenziya/akkaunt to'langan (Shahnoza, Rayxona, Mumtozmaxal).
+  2. AmoCRM'da faqat 1 ta yagona asosiy akkauntga to'langan (`user_id: 13021974`). Sotuvchilar o'z mijozlarini **TEGLAR** orqali ajratadi (`Shahnoza`, `Mumtozmaxal`, `Rayxon` / `Rayxona`).
+- **Bajarilgan muhandislik ishlari:**
+  1. `src/services/core/crm/team_roster.py`:
+     - `find_staff_by_tags(tags)` va `get_lead_assigned_seller(lead)` funksiyalari qo'shildi. Bitimdagi teglar bo'yicha mas'ul sotuvchini to'g'ri aniqlaydi.
+  2. `src/services/core/hermes_crm_bridge.py`:
+     - `search_leads` vositasi har bir bitim uchun `tags`, `assigned_seller` va `assigned_seller_slug` ni qaytaradigan qilib kengaytirildi.
+  3. Contabo VPS:
+     - `SOUL.md` ga AmoCRM teglar bo'yicha sotuvchini aniqlash va Moizvonki alohida akkauntlar qoidasi kiritildi.
+     - `src/services/core/crm/team_roster.py` va `src/services/core/hermes_crm_bridge.py` jonli deploy qilindi (`healthz=200`).
+  4. Obsidian Second Brain:
+     - `20-Areas/AmoCRM_va_Moizvonki_Litsenziya_va_Teg_SOP.md` yaratilib, qoida ikkinchi miyaga muhrlandi.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_team_roster.py tests/test_hermes_crm_bridge.py` -> 22/22 passed.
+  - Jonli AmoCRM da sinov: Lead 54062739 (`Mirshod`) `responsible_user_id: 13021974` bo'lishiga qaramay, `'Mumtozmaxal'` tegi orqali to'g'ri `Mumtozmaxal Normurodova` ga biriktirildi.
+  - Bandit: 0 issues.
+
+
