@@ -59,8 +59,8 @@ def render(calls, names, end):
     for account, name in names.items():
         grouped.setdefault(name, set()).add(account.lower())
     parts = [
-        f'🌸 <b>Oisha | Sotuv nazorati · {end:%d.%m.%Y %H:%M}</b>',
-        '🎯 <b>Kunlik maqsad:</b> 50 ta sifatli suhbat (≥3 daq) · 3 uchrashuv · 1 yopilgan savdo',
+        f'<b>Oisha | Sotuv nazorati · {end:%d.%m.%Y %H:%M}</b>',
+        'Kunlik reja: 50 ta sifatli suhbat (≥3 daq) · 3 uchrashuv · 1 savdo',
         '━━━━━━━━━━━━━━━━━━━━',
     ]
     for name, accounts in grouped.items():
@@ -72,17 +72,17 @@ def render(calls, names, end):
         qoldi = max(0, 50 - solid)
 
         if solid >= 25:
-            cheer = '🔥 <i>Ajoyib temp, yarmidan oshdi!</i>'
+            cheer = '<i>Ajoyib temp, yarmidan oshdi!</i>'
         elif solid > 0:
-            cheer = f'⚡️ <i>Qani, davom etamiz — yana {qoldi} ta qoldi!</i>'
+            cheer = f'<i>Davom etamiz — yana {qoldi} ta qoldi</i>'
         else:
-            cheer = '⏳ <i>Hali suhbat boshlanmadi, tezroq faollashamiz!</i>'
+            cheer = '<i>Hali sifatli suhbat boshlanmadi</i>'
 
         parts += [
-            f'\n🧑‍💼 <b>{escape(name)}</b> — {cheer}',
+            f'\n<b>{escape(name)}</b> — {cheer}',
             f'• Oxirgi soatda: {len(hour)} urinish · {len(spoken)} javobli suhbat ({sum(int(c.get("duration") or 0) for c in spoken)/60:.1f} daq)',
             f'• Kun boshidan: {len(day)} urinish · {len(answered)} javobli ({sum(int(c.get("duration") or 0) for c in answered)/60:.1f} daq)',
-            f'• 🎯 Sifatli suhbatlar (≥3 daqiqa): <b>{solid}/50</b> (qoldi: {qoldi})',
+            f'• Sifatli suhbatlar (≥3 daqiqa): <b>{solid}/50</b> (qoldi: {qoldi})',
         ]
         if spoken:
             parts.append('  <i>Soatdagi suhbatlar:</i>')
@@ -92,7 +92,7 @@ def render(calls, names, end):
 
     parts += [
         '\n━━━━━━━━━━━━━━━━━━━━',
-        '💡 <b>Oishadan maslahat:</b> Har bir qo\'ng\'iroqni muqobil tanlov (Alternative Closing) bilan aniq uchrashuvga yoki to\'lov sanasiga bog\'lang!',
+        '<b>Tavsiya:</b> Har bir suhbatni muqobil tanlov (Alternative Closing) bilan aniq uchrashuv yoki to\'lov sanasiga bog\'lang.',
     ]
     return '\n'.join(parts)
 
