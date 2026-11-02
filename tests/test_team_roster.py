@@ -57,7 +57,9 @@ def test_find_staff_resolves_by_slug_alias_tg_id_username_and_email():
 
     # By Moizvonki email
     assert find_staff("mumtozmaxal@jonbranding.uz").slug == "mumtozmaxal"
-    assert find_staff("xayrullayevna006@gmail.com").slug == "rayxona"
+    assert find_staff("xayrullayevna006@gmail.com").slug == "shahnoza"
+    assert find_staff("shahnoza@jonbranding.uz").slug == "shahnoza"
+    assert find_staff("rayxona@jonbranding.uz").slug == "rayxona"
 
     # Excluded non-staff / clients must return None
     assert find_staff("Farangiz") is None
