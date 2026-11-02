@@ -43,12 +43,20 @@ class HermesCrmBridge:
     async def search_leads(self, query, limit=10):
         if not isinstance(query, str) or not 1 <= len(query.strip()) <= 200:
             raise ValueError('invalid_query')
+        from src.services.core.crm.team_roster import get_lead_assigned_seller
         data = await self.api.read('/leads', {
             'query': query.strip(), 'limit': min(positive(limit), 25), 'with': 'contacts'})
-        leads = [{k: n.get(k) for k in
-                  ['id', 'name', 'responsible_user_id', 'status_id', 'pipeline_id', 'updated_at']}
-                 | {'contact_ids': [c['id'] for c in n.get('_embedded', {}).get('contacts', [])]}
-                 for n in data.get('_embedded', {}).get('leads', [])]
+        leads = []
+        for n in data.get('_embedded', {}).get('leads', []):
+            tags = [t.get('name') for t in n.get('_embedded', {}).get('tags', []) if t.get('name')]
+            assigned = get_lead_assigned_seller(n)
+            entry = {k: n.get(k) for k in
+                     ['id', 'name', 'responsible_user_id', 'status_id', 'pipeline_id', 'updated_at']}
+            entry['contact_ids'] = [c['id'] for c in n.get('_embedded', {}).get('contacts', [])]
+            entry['tags'] = tags
+            entry['assigned_seller'] = assigned.name if assigned else None
+            entry['assigned_seller_slug'] = assigned.slug if assigned else None
+            leads.append(entry)
         return {'success': True, 'source': 'amocrm_live', 'leads': leads}
 
     async def list_calls(self, limit=10, entity_type=None, entity_id=None, page=1):

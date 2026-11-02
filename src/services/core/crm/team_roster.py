@@ -307,3 +307,23 @@ def format_hermes_roster_markdown(include_owner: bool = False, db_path: str = DE
     for m in get_active_staff(include_owner=include_owner, db_path=db_path):
         lines.append(f"• {m.tg_markdown_mention()} — {m.title}")
     return "\n".join(lines)
+
+
+def find_staff_by_tags(tags: Iterable[str], db_path: str = DEFAULT_DB_PATH) -> Optional[StaffMember]:
+    """Identify assigned sales manager based on AmoCRM lead tags (single-account license model)."""
+    if not tags:
+        return None
+    for tag in tags:
+        clean = str(tag).strip()
+        matched = find_staff(clean, db_path=db_path)
+        if matched and matched.role in ("seller", "admin"):
+            return matched
+    return None
+
+
+def get_lead_assigned_seller(lead: Dict[str, Any], db_path: str = DEFAULT_DB_PATH) -> Optional[StaffMember]:
+    """Extract lead tags and resolve the assigned seller StaffMember."""
+    raw_tags = (lead.get("_embedded") or {}).get("tags") or lead.get("tags") or []
+    tag_names = [t.get("name") if isinstance(t, dict) else str(t) for t in raw_tags]
+    return find_staff_by_tags(tag_names, db_path=db_path)
+

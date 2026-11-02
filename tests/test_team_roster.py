@@ -141,3 +141,24 @@ async def test_hermes_crm_bridge_get_team_roster():
     slugs = [s["slug"] for s in res["staff"]]
     assert slugs == ["shahnoza", "rayxona", "mumtozmaxal"]
     assert "dilnoza" in res["excluded_non_staff"]
+
+
+def test_find_staff_by_tags_and_lead():
+    from src.services.core.crm.team_roster import find_staff_by_tags, get_lead_assigned_seller
+
+    assert find_staff_by_tags(["Mumtozmaxal", "Target", "Oisha"]).slug == "mumtozmaxal"
+    assert find_staff_by_tags(["Rayxon", "PCG"]).slug == "rayxona"
+    assert find_staff_by_tags(["Shahnoza"]).slug == "shahnoza"
+    assert find_staff_by_tags(["dilnoza_muminova", "unknown"]) is None
+    assert find_staff_by_tags([]) is None
+
+    lead_sample = {
+        "id": 54062739,
+        "name": "Mirshod",
+        "_embedded": {"tags": [{"name": "Target"}, {"name": "Mumtozmaxal"}]}
+    }
+    seller = get_lead_assigned_seller(lead_sample)
+    assert seller is not None
+    assert seller.slug == "mumtozmaxal"
+    assert seller.name == "Mumtozmaxal Normurodova"
+
