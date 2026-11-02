@@ -60,5 +60,15 @@ def test_load_user_credentials_returns_none_for_broken_json(tmp_path):
     assert load_user_credentials(str(token_path), GOOGLE_USER_SCOPES) is None
 
 
+def test_load_user_credentials_returns_none_when_expired_without_refresh(tmp_path):
+    token_path = tmp_path / "token.json"
+    payload = dict(_TOKEN_PAYLOAD)
+    payload.pop("refresh_token")
+    payload["expiry"] = "2020-01-01T00:00:00Z"
+    token_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert load_user_credentials(str(token_path), GOOGLE_USER_SCOPES) is None
+
+
 def test_load_user_credentials_returns_none_when_file_missing(tmp_path):
     assert load_user_credentials(str(tmp_path / "missing.json")) is None

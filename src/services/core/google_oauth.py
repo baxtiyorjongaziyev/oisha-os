@@ -77,6 +77,12 @@ def load_user_credentials(
         logger.error(f"[GOOGLE OAUTH] Tokenni oʻqishda xato ({token_path}): {exc}")
         return None
 
+    if credentials.expired and not credentials.refresh_token:
+        logger.error(
+            f"[GOOGLE OAUTH] Token muddati oʻtgan va refresh token yoʻq: {token_path}"
+        )
+        return None
+
     if credentials.expired and credentials.refresh_token:
         try:
             credentials.refresh(Request())
