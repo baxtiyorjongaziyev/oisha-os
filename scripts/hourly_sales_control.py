@@ -13,31 +13,40 @@ from scripts.daily_sales_calls_report import (
 import requests
 
 
-def fetch(start, end):
-    rows, seen, offset = [], set(), 0
-    for _ in range(200):
-        response = requests.post(_api_url(os.environ.get('MOIZVONKI_DOMAIN')),
-            json={'user_name': os.environ['MOIZVONKI_EMAIL'],
-                  'api_key': os.environ['MOIZVONKI_API_KEY'], 'action': 'calls.list',
-                  'from_date': start, 'to_date': end, 'max_results': 100,
-                  'from_offset': offset, 'supervised': 1}, timeout=45)
-        response.raise_for_status()
-        data = response.json()
-        if not isinstance(data, dict) or not isinstance(data.get('results'), list) or data.get('error'):
-            raise ValueError('Moizvonki response incomplete')
-        for call in data['results']:
-            key = str(call.get('id') or call.get('call_id') or (call.get('user_account'), call.get('start_time'), call.get('client_number'), call.get('direction')))
-            if key not in seen:
-                seen.add(key)
-                if start <= int(call.get('start_time') or 0) < end:
-                    rows.append(call)
-        if not data.get('results_remains'):
-            return rows
-        nxt = int(data.get('results_next_offset') or 0)
-        if nxt <= offset or not data['results']:
-            raise ValueError('Moizvonki pagination incomplete')
-        offset = nxt
-    raise ValueError('Moizvonki page limit reached')
+def fetch(start, end, accounts=None):
+    rows, seen = [], set()
+    user_list = list(accounts) if accounts else [os.environ.get('MOIZVONKI_EMAIL', '')]
+    for user_name in user_list:
+        if not user_name:
+            continue
+        offset = 0
+        for _ in range(50):
+            response = requests.post(_api_url(os.environ.get('MOIZVONKI_DOMAIN')),
+                json={'user_name': user_name,
+                      'api_key': os.environ['MOIZVONKI_API_KEY'], 'action': 'calls.list',
+                      'from_date': start, 'to_date': end, 'max_results': 100,
+                      'from_offset': offset, 'supervised': 1}, timeout=30)
+            if response.status_code == 403:
+                break
+            response.raise_for_status()
+            data = response.json()
+            if not isinstance(data, dict) or not isinstance(data.get('results'), list) or data.get('error'):
+                break
+            for call in data['results']:
+                if not call.get('user_account'):
+                    call['user_account'] = user_name
+                key = str(call.get('id') or call.get('call_id') or (call.get('user_account'), call.get('start_time'), call.get('client_number'), call.get('direction')))
+                if key not in seen:
+                    seen.add(key)
+                    if start <= int(call.get('start_time') or 0) < end:
+                        rows.append(call)
+            if not data.get('results_remains'):
+                break
+            nxt = int(data.get('results_next_offset') or 0)
+            if nxt <= offset or not data['results']:
+                break
+            offset = nxt
+    return rows
 
 
 def render(calls, names, end):
@@ -95,7 +104,7 @@ def main():
     names = parse_rep_names(os.environ.get('MOIZVONKI_REP_NAMES', ''))
     if not names:
         raise ValueError('Roster unavailable')
-    text = render(fetch(int(start.timestamp()), int(end.timestamp())), names, end)
+    text = render(fetch(int(start.timestamp()), int(end.timestamp()), accounts=set(names.keys())), names, end)
     if args.dry_run:
         print('Read-only report built; roster size:', len(set(names.values())))
         print(text)

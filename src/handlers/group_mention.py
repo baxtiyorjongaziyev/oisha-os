@@ -94,7 +94,7 @@ async def _handle_sales_report_request(message: Any, text: str) -> bool:
             start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
         if names:
-            calls = fetch(int(start.timestamp()), int(end.timestamp()))
+            calls = fetch(int(start.timestamp()), int(end.timestamp()), accounts=set(names.keys()))
             report_text = render(calls, names, end)
             await message.reply(report_text, parse_mode="HTML")
             return True

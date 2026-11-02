@@ -1,21 +1,4 @@
-"""Kunlik sotuvchilar qo'ng'iroq hisoboti (Moizvonki -> Telegram).
-
-Admin API key + ``supervised=1`` bilan butun jamoaning qo'ng'iroqlari olinadi,
-har bir sotuvchi (Moizvonki hisobi / email) bo'yicha guruhlanadi.
-
-Ishlatish:
-    python scripts/daily_sales_calls_report.py                 # kecha
-    python scripts/daily_sales_calls_report.py --date 2026-09-28
-    python scripts/daily_sales_calls_report.py --dry-run       # faqat chop etish
-
-Env:
-    MOIZVONKI_EMAIL, MOIZVONKI_API_KEY   admin hisob
-    MOIZVONKI_DOMAIN                     default: jonbrandingagency.moizvonki.ru
-    MOIZVONKI_REP_NAMES                  ixtiyoriy: "email:Ism,email2:Ism2"
-    MOIZVONKI_EXCLUDE_ACCOUNTS           ixtiyoriy: hisobotdan chiqariladigan email'lar
-                                         (admin MOIZVONKI_EMAIL doim chiqariladi)
-    BOT_TOKEN; CRM_SALES_REPORT_GROUP_ID / _TOPIC_ID (default: settings.py qiymatlari)
-"""
+"""Kunlik sotuvchilar qo'ng'iroq hisoboti (Moizvonki -> Telegram)."""
 from __future__ import annotations
 
 import argparse
@@ -55,32 +38,37 @@ def _api_url(domain: str) -> str:
     return f"https://{domain}/api/v1"
 
 
-def fetch_calls(email: str, api_key: str, from_ts: int, to_ts: int, domain: str = "") -> List[dict]:
-    """Admin nomidan barcha xodimlar qo'ng'iroqlarini sahifalab oladi."""
-    url = _api_url(domain)
-    calls: List[dict] = []
-    offset = 0
-    while True:
-        payload = {
-            "user_name": email,
-            "api_key": api_key,
-            "action": "calls.list",
-            "from_date": from_ts,
-            "to_date": to_ts,
-            "max_results": PAGE_SIZE,
-            "from_offset": offset,
-            "supervised": 1,
-        }
-        resp = requests.post(url, json=payload, timeout=60)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Moizvonki calls.list http={resp.status_code}: {resp.text[:200]}")
-        data = resp.json()
-        batch = data.get("results") or []
-        calls.extend(batch)
-        next_offset = data.get("results_next_offset") or 0
-        if not batch or not data.get("results_remains") or next_offset <= offset:
-            break
-        offset = next_offset
+def fetch_calls(email: str, api_key: str, from_ts: int, to_ts: int, domain: str = "", accounts: Optional[Iterable[str]] = None) -> List[dict]:
+    """Admin yoki alohida xodimlar nomidan qo'ng'iroqlarni sahifalab oladi."""
+    url, calls, seen = _api_url(domain), [], set()
+    user_list = list(accounts) if accounts else [email]
+    for user_name in user_list:
+        if not user_name:
+            continue
+        offset = 0
+        while True:
+            resp = requests.post(url, json={
+                "user_name": user_name, "api_key": api_key, "action": "calls.list",
+                "from_date": from_ts, "to_date": to_ts, "max_results": PAGE_SIZE,
+                "from_offset": offset, "supervised": 1,
+            }, timeout=45)
+            if resp.status_code == 403:
+                break
+            if resp.status_code != 200:
+                raise RuntimeError(f"Moizvonki calls.list http={resp.status_code}: {resp.text[:200]}")
+            data = resp.json()
+            batch = data.get("results") or []
+            for call in batch:
+                if accounts and not call.get("user_account"):
+                    call["user_account"] = user_name
+                key = str(call.get("id") or call.get("call_id") or (call.get("user_account"), call.get("start_time"), call.get("client_number"), call.get("direction")))
+                if key not in seen:
+                    seen.add(key)
+                    calls.append(call)
+            next_offset = data.get("results_next_offset") or 0
+            if not batch or not data.get("results_remains") or next_offset <= offset:
+                break
+            offset = next_offset
     return calls
 
 
@@ -258,11 +246,7 @@ def _hhmm(ts: int) -> str:
 
 
 def parse_rep_names(raw: str) -> Dict[str, str]:
-    try:
-        from src.services.core.crm.team_roster import get_moizvonki_rep_names
-        names: Dict[str, str] = get_moizvonki_rep_names(include_owner=False)
-    except Exception:
-        names = {}
+    names: Dict[str, str] = {}
     for part in (raw or "").split(","):
         if ":" in part:
             email, name = part.split(":", 1)
@@ -366,14 +350,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     domain = os.environ.get("MOIZVONKI_DOMAIN", "")
     start, end = _day_bounds(args.date)
     now_ts = int(datetime.now(TASHKENT).timestamp())
-    calls = fetch_calls(email, api_key, int(start.timestamp()), int(end.timestamp()) - 1, domain)
+    names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
+    accs = set(names.keys()) if names else None
+    calls = fetch_calls(email, api_key, int(start.timestamp()), int(end.timestamp()) - 1, domain, accounts=accs)
     followup = []
     if int(end.timestamp()) < now_ts:
-        followup = fetch_calls(email, api_key, int(end.timestamp()), now_ts, domain)
-
-    # Admin hisobi sotuvchi emas; qo'shimcha istisnolar MOIZVONKI_EXCLUDE_ACCOUNTS orqali
+        followup = fetch_calls(email, api_key, int(end.timestamp()), now_ts, domain, accounts=accs)
     exclude = [email, *os.environ.get("MOIZVONKI_EXCLUDE_ACCOUNTS", "").split(",")]
-    names = parse_rep_names(os.environ.get("MOIZVONKI_REP_NAMES", ""))
     report = build_report(calls, start.strftime("%Y-%m-%d"), followup, exclude, known_accounts=names)
     text = format_report(report, names)
 
