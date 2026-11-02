@@ -285,7 +285,6 @@ async def list_quiz_questions() -> List[Dict[str, Any]]:
             "question_id": q.question_id,
             "question_text": q.question_text,
             "options": q.options,
-            "correct_option": q.correct_option,
             "category": q.category,
         }
         for q in questions

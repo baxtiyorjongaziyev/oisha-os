@@ -121,9 +121,10 @@ def test_quiz_endpoints(client):
 
     # Test POST submit
     first_q = questions[0]
+    first_opt = list(first_q["options"].keys())[0]
     sub_payload = {
         "user_id": "manager_777",
-        "answers": {first_q["question_id"]: first_q["correct_option"]},
+        "answers": {first_q["question_id"]: first_opt},
     }
     res_sub = client.post("/api/dashboard/quiz/submit", json=sub_payload)
     assert res_sub.status_code == 200

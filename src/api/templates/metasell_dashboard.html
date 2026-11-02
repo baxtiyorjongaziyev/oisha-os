@@ -293,6 +293,16 @@
   let currentScenarioId = 'ask_before_selling';
   let quizAnswers = {};
 
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -306,34 +316,34 @@
       const data = await res.json();
       
       // Hero
-      document.getElementById('heroSales').innerText = Number(data.hero.sales_won_amount).toLocaleString() + ' soʻm';
-      document.getElementById('heroWonCount').innerText = data.hero.sales_won_count;
-      document.getElementById('heroConversion').innerText = data.hero.conversion_rate_pct + '%';
-      document.getElementById('heroSla').innerText = data.speed_to_lead.sla_rate_pct + '%';
-      document.getElementById('heroAvgResp').innerText = data.speed_to_lead.avg_response_minutes;
-      document.getElementById('heroLossReason').innerText = data.hero.top_loss_reason;
+      document.getElementById('heroSales').textContent = Number(data.hero.sales_won_amount).toLocaleString() + ' soʻm';
+      document.getElementById('heroWonCount').textContent = data.hero.sales_won_count;
+      document.getElementById('heroConversion').textContent = data.hero.conversion_rate_pct + '%';
+      document.getElementById('heroSla').textContent = data.speed_to_lead.sla_rate_pct + '%';
+      document.getElementById('heroAvgResp').textContent = data.speed_to_lead.avg_response_minutes;
+      document.getElementById('heroLossReason').textContent = data.hero.top_loss_reason;
 
       // Buckets
       const bCont = document.getElementById('bucketsContainer');
       const buckets = data.speed_to_lead.buckets;
       bCont.innerHTML = `
-        <div class="bucket-row"><span>15 daqiqagacha</span><b>${buckets.within_15m} ta</b></div>
-        <div class="bucket-row"><span>15–30 daqiqa</span><b>${buckets.within_30m} ta</b></div>
-        <div class="bucket-row"><span>30–60 daqiqa</span><b>${buckets.within_1h} ta</b></div>
-        <div class="bucket-row"><span>1–2 soat</span><b>${buckets.within_2h} ta</b></div>
-        <div class="bucket-row"><span>Javobsiz</span><b style="color: var(--bad);">${buckets.unanswered} ta</b></div>
+        <div class="bucket-row"><span>15 daqiqagacha</span><b>${Number(buckets.within_15m)} ta</b></div>
+        <div class="bucket-row"><span>15–30 daqiqa</span><b>${Number(buckets.within_30m)} ta</b></div>
+        <div class="bucket-row"><span>30–60 daqiqa</span><b>${Number(buckets.within_1h)} ta</b></div>
+        <div class="bucket-row"><span>1–2 soat</span><b>${Number(buckets.within_2h)} ta</b></div>
+        <div class="bucket-row"><span>Javobsiz</span><b style="color: var(--bad);">${Number(buckets.unanswered)} ta</b></div>
       `;
 
       // Stuck Deals
-      document.getElementById('stuckCountBadge').innerText = data.stuck_deals.total_stuck_deals + ' ta bitim';
+      document.getElementById('stuckCountBadge').textContent = Number(data.stuck_deals.total_stuck_deals) + ' ta bitim';
       if (data.stuck_deals.oldest_deal) {
-        document.getElementById('oldestDealNotice').innerText = `⚠️ Eng eskisi: «${data.stuck_deals.oldest_deal.deal_name}» (${data.stuck_deals.oldest_deal.stuck_days} kun, masʼul: ${data.stuck_deals.oldest_deal.manager_name})`;
+        document.getElementById('oldestDealNotice').textContent = `⚠️ Eng eskisi: «${data.stuck_deals.oldest_deal.deal_name}» (${data.stuck_deals.oldest_deal.stuck_days} kun, masʼul: ${data.stuck_deals.oldest_deal.manager_name})`;
       }
       const sCont = document.getElementById('stuckStagesContainer');
       sCont.innerHTML = data.stuck_deals.stage_summaries.map(s => `
         <div class="bucket-row">
-          <span>${s.stage_name}</span>
-          <span><b>${s.stuck_count} ta</b> (${Number(s.stuck_amount).toLocaleString()} soʻm)</span>
+          <span>${escapeHtml(s.stage_name)}</span>
+          <span><b>${Number(s.stuck_count)} ta</b> (${Number(s.stuck_amount).toLocaleString()} soʻm)</span>
         </div>
       `).join('');
 
@@ -341,19 +351,19 @@
       const ad = data.ad_attribution;
       document.getElementById('adAttributionContainer').innerHTML = `
         <div class="bucket-row"><span>Xarajat</span><b>${Number(ad.total_spend).toLocaleString()} soʻm</b></div>
-        <div class="bucket-row"><span>Yangi lidlar</span><b>${ad.total_new_leads} ta</b></div>
+        <div class="bucket-row"><span>Yangi lidlar</span><b>${Number(ad.total_new_leads)} ta</b></div>
         <div class="bucket-row"><span>Lid narxi (CPL)</span><b>${Number(ad.cost_per_lead).toLocaleString()} soʻm</b></div>
-        <div class="bucket-row"><span>Sotuvlar soni</span><b>${ad.total_sales} ta</b></div>
+        <div class="bucket-row"><span>Sotuvlar soni</span><b>${Number(ad.total_sales)} ta</b></div>
         <div class="bucket-row"><span>Jami tushum</span><b style="color: var(--good);">${Number(ad.total_revenue).toLocaleString()} soʻm</b></div>
-        <div class="bucket-row"><span>Marketing ROI</span><b style="color: var(--good);">${ad.overall_roi_pct}%</b></div>
+        <div class="bucket-row"><span>Marketing ROI</span><b style="color: var(--good);">${Number(ad.overall_roi_pct)}%</b></div>
       `;
 
       // Leaderboard
       const lb = document.getElementById('leaderboardContainer');
       lb.innerHTML = data.team_leaderboard.map(m => `
         <div class="bucket-row">
-          <div><b>${m.manager_name}</b> <span style="color: var(--muted); font-size: 11px;">(${m.calls_count} ta qoʻngʻiroq)</span></div>
-          <span><b style="color: var(--good);">${Number(m.won_amount).toLocaleString()} soʻm</b> (${m.won_sales} ta)</span>
+          <div><b>${escapeHtml(m.manager_name)}</b> <span style="color: var(--muted); font-size: 11px;">(${Number(m.calls_count)} ta qoʻngʻiroq)</span></div>
+          <span><b style="color: var(--good);">${Number(m.won_amount).toLocaleString()} soʻm</b> (${Number(m.won_sales)} ta)</span>
         </div>
       `).join('');
     } catch (e) {
@@ -364,25 +374,25 @@
   async function startWebRTCCall() {
     const phone = document.getElementById('dialPhoneInput').value.trim();
     if (!phone) { alert('Iltimos telefon raqamini kiriting!'); return; }
-    document.getElementById('callStatusText').innerText = '📞 Ulanmoqda: ' + phone + ' (SIP sessiya olinmoqda...)';
+    document.getElementById('callStatusText').textContent = '📞 Ulanmoqda: ' + phone + ' (SIP sessiya olinmoqda...)';
     try {
       const res = await fetch('/api/dashboard/telephony/webrtc-session?manager_id=mgr_aziz&extension=101');
       const data = await res.json();
-      document.getElementById('callStatusText').innerText = `✅ Qoʻngʻiroq ketmoqda! Kanal: ${data.extension} -> ${phone}`;
+      document.getElementById('callStatusText').textContent = `✅ Qoʻngʻiroq ketmoqda! Kanal: ${data.extension} -> ${phone}`;
     } catch (e) {
-      document.getElementById('callStatusText').innerText = '❌ Qoʻngʻiroqda xatolik yuz berdi';
+      document.getElementById('callStatusText').textContent = '❌ Qoʻngʻiroqda xatolik yuz berdi';
     }
   }
 
   function endWebRTCCall() {
-    document.getElementById('callStatusText').innerText = '⏹️ Qoʻngʻiroq yakunlandi.';
+    document.getElementById('callStatusText').textContent = '⏹️ Qoʻngʻiroq yakunlandi.';
   }
 
   async function sendCustomerSms() {
     const phone = document.getElementById('smsPhoneInput').value.trim();
     const msg = document.getElementById('smsTextInput').value.trim();
     if (!phone || !msg) { alert('Raqam va matnni toʻldiring!'); return; }
-    document.getElementById('smsStatusText').innerText = 'Yuborilmoqda...';
+    document.getElementById('smsStatusText').textContent = 'Yuborilmoqda...';
     try {
       const res = await fetch('/api/dashboard/sms/dispatch', {
         method: 'POST',
@@ -390,9 +400,9 @@
         body: JSON.stringify({phone: phone, message: msg})
       });
       const data = await res.json();
-      document.getElementById('smsStatusText').innerText = `✅ SMS yuborildi! Provayder: ${data.provider} (Xarajat: ${data.cost_uzs} soʻm)`;
+      document.getElementById('smsStatusText').textContent = `✅ SMS yuborildi! Provayder: ${data.provider} (Xarajat: ${data.cost_uzs} soʻm)`;
     } catch (e) {
-      document.getElementById('smsStatusText').innerText = '❌ SMS yuborishda xatolik';
+      document.getElementById('smsStatusText').textContent = '❌ SMS yuborishda xatolik';
     }
   }
 
@@ -402,9 +412,9 @@
       const scenarios = await res.json();
       const sCont = document.getElementById('scenariosList');
       sCont.innerHTML = scenarios.map((s, idx) => `
-        <div class="scenario-card ${idx === 0 ? 'active' : ''}" onclick="selectScenario('${s.scenario_id}', this)">
-          <div style="font-weight: 700; font-size: 13px;">${s.title}</div>
-          <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Mijoz: ${s.client_name} (${s.mood})</div>
+        <div class="scenario-card ${idx === 0 ? 'active' : ''}" onclick="selectScenario('${escapeHtml(s.scenario_id)}', this)">
+          <div style="font-weight: 700; font-size: 13px;">${escapeHtml(s.title)}</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Mijoz: ${escapeHtml(s.client_name)} (${escapeHtml(s.mood)})</div>
         </div>
       `).join('');
       if (scenarios.length > 0) currentScenarioId = scenarios[0].scenario_id;
@@ -428,7 +438,10 @@
     if (!msg) return;
 
     const chat = document.getElementById('chatMessages');
-    chat.innerHTML += `<div class="msg-bubble msg-manager">${msg}</div>`;
+    const userDiv = document.createElement('div');
+    userDiv.className = 'msg-bubble msg-manager';
+    userDiv.textContent = msg;
+    chat.appendChild(userDiv);
     input.value = '';
 
     try {
@@ -442,12 +455,16 @@
         })
       });
       const data = await res.json();
-      chat.innerHTML += `
-        <div class="msg-bubble msg-client">
-          ${data.client_response}
-          ${data.coaching_tip ? `<div class="coaching-alert">💡 ${data.coaching_tip}</div>` : ''}
-        </div>
-      `;
+      const botDiv = document.createElement('div');
+      botDiv.className = 'msg-bubble msg-client';
+      botDiv.textContent = data.client_response;
+      if (data.coaching_tip) {
+        const tipDiv = document.createElement('div');
+        tipDiv.className = 'coaching-alert';
+        tipDiv.textContent = '💡 ' + data.coaching_tip;
+        botDiv.appendChild(tipDiv);
+      }
+      chat.appendChild(botDiv);
       chat.scrollTop = chat.scrollHeight;
     } catch (e) {
       console.error(e);
@@ -459,7 +476,10 @@
     const msg = input.value.trim() || 'Assalomu alaykum, sizga qanday natija kerakligini bilmoqchiman?';
 
     const chat = document.getElementById('chatMessages');
-    chat.innerHTML += `<div class="msg-bubble msg-manager">🎙️ ${msg}</div>`;
+    const userDiv = document.createElement('div');
+    userDiv.className = 'msg-bubble msg-manager';
+    userDiv.textContent = '🎙️ ' + msg;
+    chat.appendChild(userDiv);
     input.value = '';
 
     try {
@@ -473,12 +493,16 @@
         })
       });
       const data = await res.json();
-      chat.innerHTML += `
-        <div class="msg-bubble msg-client">
-          <b>🔊 ${data.client_name}:</b> ${data.client_response_text}
-          ${data.coaching_tip ? `<div class="coaching-alert">💡 ${data.coaching_tip}</div>` : ''}
-        </div>
-      `;
+      const botDiv = document.createElement('div');
+      botDiv.className = 'msg-bubble msg-client';
+      botDiv.textContent = '🔊 ' + data.client_name + ': ' + data.client_response_text;
+      if (data.coaching_tip) {
+        const tipDiv = document.createElement('div');
+        tipDiv.className = 'coaching-alert';
+        tipDiv.textContent = '💡 ' + data.coaching_tip;
+        botDiv.appendChild(tipDiv);
+      }
+      chat.appendChild(botDiv);
       chat.scrollTop = chat.scrollHeight;
 
       if (data.client_audio_base64) {
@@ -497,11 +521,11 @@
       const qCont = document.getElementById('quizContainer');
       qCont.innerHTML = questions.map(q => `
         <div class="quiz-item">
-          <div style="font-weight: 700; margin-bottom: 8px;">${q.question_text}</div>
+          <div style="font-weight: 700; margin-bottom: 8px;">${escapeHtml(q.question_text)}</div>
           ${Object.entries(q.options).map(([optKey, optText]) => `
             <label class="quiz-opt">
-              <input type="radio" name="${q.question_id}" value="${optKey}" onchange="quizAnswers['${q.question_id}'] = '${optKey}'">
-              <span><b>${optKey})</b> ${optText}</span>
+              <input type="radio" name="${escapeHtml(q.question_id)}" value="${escapeHtml(optKey)}" onchange="quizAnswers['${escapeHtml(q.question_id)}'] = '${escapeHtml(optKey)}'">
+              <span><b>${escapeHtml(optKey)})</b> ${escapeHtml(optText)}</span>
             </label>
           `).join('')}
         </div>
@@ -532,15 +556,15 @@
     try {
       const res = await fetch('/api/dashboard/morning-tasks');
       const data = await res.json();
-      document.getElementById('todayTasksBadge').innerText = data.today_count + ' ta';
-      document.getElementById('overdueTasksBadge').innerText = data.overdue_count + ' ta';
+      document.getElementById('todayTasksBadge').textContent = Number(data.today_count) + ' ta';
+      document.getElementById('overdueTasksBadge').textContent = Number(data.overdue_count) + ' ta';
 
       const tList = document.getElementById('todayTasksList');
       tList.innerHTML = data.today_tasks.map(t => `
         <div class="bucket-row">
           <div>
-            <b>${t.lead_name}</b>
-            <div style="color: var(--muted); font-size: 12px;">${t.text}</div>
+            <b>${escapeHtml(t.lead_name)}</b>
+            <div style="color: var(--muted); font-size: 12px;">${escapeHtml(t.text)}</div>
           </div>
           <button class="tab-btn active" style="font-size: 11px; padding: 4px 8px;" onclick="alert('Vazifa bajarildi!')">Bajarildi</button>
         </div>
@@ -550,8 +574,8 @@
       oList.innerHTML = data.overdue_tasks.map(t => `
         <div class="bucket-row">
           <div>
-            <b style="color: #fca5a5;">${t.lead_name}</b>
-            <div style="color: var(--muted); font-size: 12px;">${t.text} (Muddati: ${t.due_date})</div>
+            <b style="color: #fca5a5;">${escapeHtml(t.lead_name)}</b>
+            <div style="color: var(--muted); font-size: 12px;">${escapeHtml(t.text)} (Muddati: ${escapeHtml(t.due_date)})</div>
           </div>
           <button class="tab-btn" style="font-size: 11px; padding: 4px 8px;" onclick="alert('Ertaga surildi!')">Surish</button>
         </div>

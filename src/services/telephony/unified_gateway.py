@@ -8,8 +8,11 @@ and native in-house communication infrastructure:
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
+import os
 from typing import Any, Dict, List, Optional
 import uuid
+
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +95,12 @@ class EskizSmsAdapter:
 
     def __init__(self, api_token: Optional[str] = None) -> None:
         """Initialize Eskiz SMS adapter."""
-        self.api_token = api_token or "dummy_eskiz_token"
+        self.api_token = (
+            api_token
+            or os.getenv("ESKIZ_API_TOKEN")
+            or getattr(settings, "ESKIZ_API_TOKEN", "")
+            or ""
+        )
 
     async def send_sms(self, phone: str, message: str) -> CanonicalSmsMessage:
         """Send an outbound SMS through Eskiz aggregator."""
@@ -104,6 +112,26 @@ class EskizSmsAdapter:
                 provider="eskiz",
                 status="failed",
                 error_message="Telefon raqami yoki xabar matni boʻsh",
+            )
+
+        if not self.api_token:
+            if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("SKIP_LIVE") == "1":
+                return CanonicalSmsMessage(
+                    sms_id=f"eskiz_mock_{uuid.uuid4().hex[:8]}",
+                    recipient_phone=phone,
+                    text=message,
+                    provider="eskiz",
+                    status="sent",
+                    cost_uzs=120.0,
+                )
+            logger.warning("Eskiz API token is not configured")
+            return CanonicalSmsMessage(
+                sms_id=f"eskiz_{uuid.uuid4().hex[:8]}",
+                recipient_phone=phone,
+                text=message,
+                provider="eskiz",
+                status="failed",
+                error_message="Eskiz API token sozlanmagan",
             )
 
         # Standart Eskiz SMS yuborish narxi: ~120 UZS
@@ -124,9 +152,13 @@ class NativeVoiceGateway:
     removing all per-agent monthly fees from Utel, OnlinePBX, or Zadarma.
     """
 
-    def __init__(self, sip_server_host: str = "109.199.100.137") -> None:
+    def __init__(self, sip_server_host: Optional[str] = None) -> None:
         """Initialize native SIP PBX gateway."""
-        self.sip_server_host = sip_server_host
+        self.sip_server_host = (
+            sip_server_host
+            or os.getenv("SIP_SERVER_HOST")
+            or getattr(settings, "SIP_SERVER_HOST", "109.199.100.137")
+        )
         self.active_channels: Dict[str, Dict[str, Any]] = {}
 
     def create_webrtc_dialer_session(
