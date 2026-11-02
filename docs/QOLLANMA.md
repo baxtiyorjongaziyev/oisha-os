@@ -38,7 +38,7 @@ Akkauntingiz 10 yillik va juda qadrli bo'lgani uchun tizimga quyidagi cheklovlar
 - `userbot.py`: Asosiy bot xizmati.
 - `services/lead_scraper.py`: Ma'lumotlarni yig'ish va sinxronizatsiya qilish "miyasi".
 - `gcontacts.py`: Google Contacts bilan ishlash moduli.
-- `token.pickle`: Sizning shaxsiy Google ruxsatnomangiz (avtomatik yaratiladi).
+- `token.json`: Sizning shaxsiy Google ruxsatnomangiz (avtomatik yaratiladi, oddiy JSON).
 
 ---
 
