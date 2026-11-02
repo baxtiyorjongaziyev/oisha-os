@@ -63,7 +63,7 @@ def build_call_alert_message(
         objections = ", ".join(str(o) for o in objections if str(o).strip())
 
     msg_lines = [
-        "🎙 <b>AI Qo'ng'iroq Tahlili (Call Intelligence)</b>",
+        "🌸 <b>Oisha | Call Intelligence & Savdo Murabbiyi</b>",
         "━━━━━━━━━━━━━━━━━━━━",
         f"👤 <b>Lid:</b> <a href=\"{lead_url}\">AmoCRM Lead #{lead_id}</a>",
         f"📞 <b>Telefon:</b> {caller_phone or 'N/A'}",
@@ -120,18 +120,19 @@ def build_call_alert_message(
     if keyingi_qadam:
         msg_lines.append(f"🎯 <b>Keyingi qadam:</b> {keyingi_qadam}")
 
+    mgr_first = (manager_name or "Menejer").split()[0]
     mijozga_gap = str(analysis.get("mijozga_aytiladigan_gap") or "").strip()
     if mijozga_gap:
-        msg_lines.append(f"💬 <b>Mijozga aytiladigan gap (so'zma-so'z):</b>\n  <i>«{mijozga_gap}»</i>")
+        msg_lines.append(f"💬 <b>{mgr_first}, mijozga aytiladigan gap (skript):</b>\n  <i>«{mijozga_gap}»</i>")
 
     motivatsiya = str(analysis.get("motivatsiya_va_coaching") or "").strip()
     if motivatsiya:
         if badge == "🟢":
-            coach_title = "🏆 <b>Motivatsiya & E'tirof:</b>"
+            coach_title = f"👏 <b>Oishadan maqtov & motivatsiya ({mgr_first}ga):</b>"
         elif badge == "🟡":
-            coach_title = "🛠 <b>Murabbiylik (Nima qilsa yaxshi bo'ladi):</b>"
+            coach_title = f"💡 <b>Oishadan amaliy maslahat ({mgr_first}ga):</b>"
         else:
-            coach_title = "🚨 <b>Qutqarish Yo'li:</b>"
+            coach_title = f"🚨 <b>Oishadan qutqarish rejasi ({mgr_first} uchun):</b>"
         msg_lines.append(f"{coach_title}\n  {motivatsiya}")
 
     rec_str = _format_conversion_recommendations(analysis)
