@@ -1,6 +1,6 @@
 """Tests for Live DB & CRM data bridge."""
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from src.services.command_center.live_db_bridge import LiveDataBridge
 

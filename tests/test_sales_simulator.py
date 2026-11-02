@@ -1,11 +1,9 @@
 """Tests for AI Sales Practice Simulator Engine."""
-import pytest
 
 from src.services.ai.sales_simulator import (
     SimulationScenario,
     SimulationTurn,
     SalesSimulatorEngine,
-    PracticeSessionEvaluation,
 )
 
 

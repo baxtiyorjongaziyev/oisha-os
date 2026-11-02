@@ -5,7 +5,6 @@ from src.services.telephony.unified_gateway import (
     UnifiedTelephonyGateway,
     UtelWebhookAdapter,
     OnlinePBXWebhookAdapter,
-    EskizSmsAdapter,
     NativeVoiceGateway,
     NativeSmsGateway,
     CanonicalCallEvent,

@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 
 from src.services.ai.sales_simulator import (
     SalesSimulatorEngine,
-    SimulationScenario,
     SimulationTurn,
     TurnResult,
 )

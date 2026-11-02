@@ -1,11 +1,9 @@
 """Tests for Marketing Ad Attribution & ROI (CPL / CAC) engine."""
-import pytest
 
 from src.services.command_center.ad_attribution import (
     AdCampaignRecord,
     AdAttributedLead,
     AdAttributionEngine,
-    AdAttributionSummary,
 )
 
 

@@ -1,10 +1,8 @@
 """Tests for Speed to Lead (SLA) metrics calculation."""
 from datetime import datetime, timezone, timedelta
-import pytest
 
 from src.services.command_center.speed_to_lead import (
     LeadInteraction,
-    SpeedToLeadMetrics,
     SpeedToLeadCalculator,
 )
 

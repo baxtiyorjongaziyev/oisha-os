@@ -4,7 +4,7 @@ Connects advertising campaigns (Facebook / Instagram Ads) with CRM deal outcomes
 to compute acquisition costs, sales conversions, and post-level performance.
 """
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 @dataclass

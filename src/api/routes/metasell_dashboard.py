@@ -7,23 +7,19 @@ Knowledge Quizzes, and Morning Task Triage.
 """
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from src.services.command_center.speed_to_lead import (
-    LeadInteraction,
     SpeedToLeadCalculator,
 )
 from src.services.command_center.stuck_deals import (
-    DealStageRecord,
     StuckDealsRadar,
 )
 from src.services.command_center.ad_attribution import (
-    AdCampaignRecord,
-    AdAttributedLead,
     AdAttributionEngine,
 )
 from src.services.command_center.morning_tasks import (
@@ -33,7 +29,6 @@ from src.services.command_center.morning_tasks import (
 from src.services.command_center.live_db_bridge import LiveDataBridge
 from src.services.ai.sales_simulator import (
     SalesSimulatorEngine,
-    SimulationScenario,
     SimulationTurn,
 )
 from src.services.ai.audio_simulator import (

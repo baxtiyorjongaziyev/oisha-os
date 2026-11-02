@@ -4,7 +4,7 @@ Allows sales representatives to conduct simulated sales roleplay sessions
 with AI buyer personas, handles hidden facts revelation, and grades performance.
 """
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, List, Optional
 
 
@@ -97,14 +97,14 @@ class SalesSimulatorEngine:
             tip = "Ajoyib savol! Mijoz yashirin ehtiyojini ochiqladi."
         elif "narx" in msg_lower or "soʻm" in msg_lower or "dollar" in msg_lower:
             client_reply = (
-                f"Hali narxga kelishishdan oldin bu menga qanchalik mos kelishini bilmoqchiman. "
-                f"Nega aynan sizning taklifingizni tanlashim kerak?"
+                "Hali narxga kelishishdan oldin bu menga qanchalik mos kelishini bilmoqchiman. "
+                "Nega aynan sizning taklifingizni tanlashim kerak?"
             )
             tip = "Narxni aytishdan oldin mijoz ehtiyojini chuqurroq aniqlang."
         else:
             client_reply = (
-                f"Tushundim, lekin hozir aniq bir qarorga kelishim qiyin. "
-                f"Menga batafsilroq maʼlumot bera olasizmi?"
+                "Tushundim, lekin hozir aniq bir qarorga kelishim qiyin. "
+                "Menga batafsilroq maʼlumot bera olasizmi?"
             )
             tip = "Ochiq savollar berib, mijozning asosiy ogʻriqli nuqtasini toping."
 

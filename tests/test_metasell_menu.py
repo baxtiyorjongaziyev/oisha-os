@@ -7,12 +7,8 @@ from telegram.ext import ContextTypes
 
 from src.handlers.metasell_menu import (
     build_metasell_menu_keyboard,
-    build_aiogram_metasell_keyboard,
     format_executive_digest,
     console_command,
-    cockpit_command,
-    simulator_command,
-    morning_triage_command,
     handle_metasell_callback,
 )
 

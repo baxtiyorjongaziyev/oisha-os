@@ -1,11 +1,8 @@
 """Tests for Knowledge Base & AI Quiz Engine."""
-import pytest
 
 from src.services.ai.knowledge_quiz import (
-    QuizQuestion,
     QuizSubmission,
     KnowledgeQuizEngine,
-    QuizGradingResult,
 )
 
 

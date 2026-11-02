@@ -1,11 +1,9 @@
 """Tests for Stuck Deals (Qolib ketgan bitimlar) radar service."""
 from datetime import datetime, timezone, timedelta
-import pytest
 
 from src.services.command_center.stuck_deals import (
     DealStageRecord,
     StuckDealsRadar,
-    StuckDealsSummary,
 )
 
 
