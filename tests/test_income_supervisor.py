@@ -82,3 +82,29 @@ def test_linked_project_seller_is_used(_isolate_state, monkeypatch):
     rec = {"id": "recL", "fields": dict(REC["fields"], Loyiha=["recProj"])}
     res = asyncio.run(sup.resolve_seller_for_income(rec, airtable_sync=MagicMock(), amocrm_sync=None))
     assert res["seller_id"] == "recfj3ExodGmnN2VW" and res["source"] == "Loyiha kartasi"
+
+
+def test_shahnoza_alert_uses_canonical_handle(_isolate_state):
+    """Alert must show @jonbranding_assistant, not the retired @Shahnozzy handle."""
+    sent = _isolate_state
+    lead = {"id": 1, "name": "x", "responsible_user_id": 13021974}
+    asyncio.run(sup.supervise_recent_incomes(_at([REC]), _crm([lead])))
+    assert len(sent) == 1
+    assert "@jonbranding_assistant" in sent[0]
+    assert "Shahnozzy" not in sent[0]
+
+
+def test_seller_handles_match_canonical_roster():
+    """Alert handles for active sellers must not drift from team_roster (SSoT)."""
+    from src.services.core.crm.team_roster import CANONICAL_STAFF
+
+    sellers = [
+        m for m in CANONICAL_STAFF
+        if m.role == "seller" and m.airtable_record_id and m.tg_username
+    ]
+    assert sellers, "expected at least one canonical seller with an Airtable record"
+    for member in sellers:
+        info = sup.JAMOA_SELLER_INFO.get(member.airtable_record_id)
+        assert info is not None, f"missing JAMOA_SELLER_INFO entry for {member.slug}"
+        assert info["name"] == member.name
+        assert info["handle"] == member.tg_username
