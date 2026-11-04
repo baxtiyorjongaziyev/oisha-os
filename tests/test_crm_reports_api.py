@@ -61,3 +61,15 @@ def test_reports_endpoint_unavailable_without_amocrm(client, monkeypatch):
     r = client.get("/api/crm/reports?period=weekly")
     assert r.status_code == 200
     assert r.json() == {"available": False, "period": "weekly"}
+
+
+def test_failed_collection_exposes_no_fabricated_totals(client, monkeypatch):
+    from src.api.routes import crm_reports
+    from src.services.core.crm.daily_report.collection import CRMCollectionUnavailable
+
+    async def fail(self, ptype):
+        raise CRMCollectionUnavailable("synthetic incomplete collection")
+
+    monkeypatch.setattr(crm_reports.CRMPeriodReporter, "build", fail)
+    body = client.get("/api/crm/reports?period=daily").json()
+    assert body == {"available": False, "period": "daily", "reason": "source_unavailable"}

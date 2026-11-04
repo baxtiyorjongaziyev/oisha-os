@@ -204,78 +204,11 @@ class AmoFetcherMixin:
         max_pages: int = 100,
     ) -> List[Dict[str, Any]]:
         """Fetch an amoCRM collection with pagination and token refresh."""
-        if not self._crm:
-            return []
-
-        try:
-            if hasattr(self._crm, "_load_token") and not getattr(
-                self._crm, "access_token", None
-            ):
-                self._crm._load_token()
-
-            key = embedded_key or collection
-            url = f"{self._crm.base_url}/api/v4/{collection}"
-            items: List[Dict[str, Any]] = []
-
-            for page in range(1, max_pages + 1):
-                params = {
-                    "limit": page_size,
-                    "page": page,
-                }
-                if extra_params:
-                    params.update(extra_params)
-
-                if hasattr(self._crm, "_request_with_auth"):
-                    resp = await self._crm._request_with_auth(
-                        requests.get, url, params=params, timeout=30
-                    )
-                else:
-                    resp = await asyncio.to_thread(
-                        requests.get,
-                        url,
-                        headers=self._crm._get_headers(),
-                        params=params,
-                        timeout=30,
-                    )
-
-                if resp.status_code == 401 and hasattr(self._crm, "refresh_token"):
-                    refreshed = await asyncio.to_thread(self._crm.refresh_token)
-                    if refreshed:
-                        if hasattr(self._crm, "_request_with_auth"):
-                            resp = await self._crm._request_with_auth(
-                                requests.get, url, params=params, timeout=30
-                            )
-                        else:
-                            resp = await asyncio.to_thread(
-                                requests.get,
-                                url,
-                                headers=self._crm._get_headers(),
-                                params=params,
-                                timeout=30,
-                            )
-
-                if resp.status_code != 200:
-                    logger.warning(
-                        "[CRMDailyReporter] %s page %s -> HTTP %s",
-                        collection,
-                        page,
-                        resp.status_code,
-                    )
-                    break
-
-                batch = resp.json().get("_embedded", {}).get(key, [])
-                items.extend(batch)
-                if len(batch) < page_size:
-                    break
-
-            return items
-        except Exception as exc:
-            logger.warning(
-                "[CRMDailyReporter] _fetch_amocrm_collection(%s): %s",
-                collection,
-                exc,
-            )
-            return []
+        from .collection import fetch_collection
+        return await fetch_collection(
+            self._crm, collection, extra_params, embedded_key=embedded_key,
+            page_size=page_size, max_pages=max_pages,
+        )
 
     async def _get_all_active_leads(self) -> List[Dict]:
         """Hozirgi pipeline — won/lost bo'lmaganlar."""
@@ -336,13 +269,6 @@ class AmoFetcherMixin:
         t_from = int(datetime(start.year, start.month, start.day, 0, 0, 0).timestamp())
         t_to = int(datetime(end.year, end.month, end.day, 23, 59, 59).timestamp())
 
-        async def _safe(coll, extra=None, **kw):
-            try:
-                return await self._fetch_amocrm_collection(coll, extra, **kw)
-            except Exception as exc:
-                logger.warning("[CRMPeriodReporter] fetch %s failed: %s", coll, exc)
-                return []
-
         created = {"filter[created_at][from]": t_from, "filter[created_at][to]": t_to}
         closed = {"filter[closed_at][from]": t_from, "filter[closed_at][to]": t_to}
         done = {"filter[is_completed]": 1,
@@ -354,15 +280,15 @@ class AmoFetcherMixin:
             contacts_new, companies_new, calls,
             tasks_all, tasks_created, tasks_done,
         ) = await asyncio.gather(
-            _safe("leads"),
-            _safe("leads", created),
-            _safe("leads", closed),
-            _safe("contacts", created),
-            _safe("companies", created),
-            _safe("calls", created),
-            _safe("tasks", open_tasks),
-            _safe("tasks", {"filter[created_at][from]": t_from, "filter[created_at][to]": t_to}),
-            _safe("tasks", done),
+            self._fetch_amocrm_collection("leads"),
+            self._fetch_amocrm_collection("leads", created),
+            self._fetch_amocrm_collection("leads", closed),
+            self._fetch_amocrm_collection("contacts", created),
+            self._fetch_amocrm_collection("companies", created),
+            self._fetch_amocrm_collection("calls", created),
+            self._fetch_amocrm_collection("tasks", open_tasks),
+            self._fetch_amocrm_collection("tasks", {"filter[created_at][from]": t_from, "filter[created_at][to]": t_to}),
+            self._fetch_amocrm_collection("tasks", done),
         )
 
         uids = {l.get("responsible_user_id") for l in leads_closed if l.get("responsible_user_id")}
@@ -379,11 +305,7 @@ class AmoFetcherMixin:
             except Exception:
                 user_names[uid] = f"Manager #{uid}"
 
-        self._last_fetch_ok = any([
-            leads_all, leads_created, leads_closed,
-            contacts_new, companies_new, calls,
-            tasks_all, tasks_created, tasks_done,
-        ])
+        self._last_fetch_ok = True
 
         return self._aggregate_metrics(
             ptype, start, end,

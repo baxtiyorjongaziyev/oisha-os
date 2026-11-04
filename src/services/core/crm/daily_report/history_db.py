@@ -3,6 +3,8 @@ SQLite persistence mixin for CRM daily stats history.
 """
 import json
 import logging
+import sqlite3
+from pathlib import Path
 from contextlib import contextmanager
 from datetime import date, timedelta
 from typing import List, Optional
@@ -24,10 +26,13 @@ class HistoryDBMixin:
         WAL lock contention with the async pool. All access funnels through
         here so there is exactly one raw ``sqlite3.connect`` in this module.
         """
-        from src.database_pool import db_pool
-        conn = db_pool.get_connection()
-        # Yield the global connection, do not close it
-        yield conn
+        path = Path(self._db_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(path, timeout=10)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def _ensure_db(self) -> None:
         with self._history_conn() as conn:

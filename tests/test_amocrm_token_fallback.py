@@ -19,6 +19,13 @@ import pytest
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 
+@pytest.fixture(autouse=True)
+def isolate_operator_token_sources(monkeypatch):
+    for key in ("AMOCRM_TOKEN_SOURCE", "AMOCRM_ACCESS_TOKEN", "AMOCRM_LONG_LIVED_TOKEN",
+                "AMOCRM_TOKEN_JSON", "AMOCRM_REFRESH_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+
+
 @pytest.mark.asyncio
 async def test_raw_refresh_fallback_used_when_file_has_access_token_only(
     monkeypatch, tmp_path
