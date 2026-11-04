@@ -69,6 +69,17 @@ def test_hire_and_fire_ai_agent(tmp_path: Path):
     assert hired["success"] is True
     assert hired["action"] == "hired_new_agent"
     assert hired["agent"]["name"] == "kechki-sarhisob-18-00"
+    prompt = json.loads(jobs_file.read_text(encoding="utf-8"))["jobs"][0]["prompt"]
+    for username in (
+        "@jonbranding_assistant", "@RayxonJonbranding", "@MumtozmaxalJonbranding",
+        "@hasan_yahyo", "@MenejerIfora", "@AhroriyAbdulloh",
+        "@jonbranding_finansist", "@baxtiyorjongaziyev",
+    ):
+        assert username in prompt
+    assert "9. Baxtiyorjon Gaziyev @baxtiyorjongaziyev" in prompt
+    assert "7. Beslan\n" in prompt
+    for removed in ("Farangiz", "Oydin", "Dilnoza Muminova", "tg://user"):
+        assert removed not in prompt
 
     status = evaluate_fleet_status(jobs_path=str(jobs_file), db_path=str(tmp_path / "missing.db"))
     rec_slugs = {r["slug"] for r in status["recommended_hires"]}

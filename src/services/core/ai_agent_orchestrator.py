@@ -40,17 +40,19 @@ class AgentBlueprint:
 
 _EVENING_STANDUP_PROMPT = (
     "Soat 18:00 bo'ldi. Ish kunining kechki sarhisob vaqti! "
-    "Quyidagi barcha tasdiqlangan jamoa a'zolarini birma-bir teg qilib, bugun kun davomida "
-    "qaysi ishlarni yakunlaganliklarini qisqa va aniq yozishlarini so'ra:\n"
-    "1. [Shahnoza Abdijabborova](tg://user?id=8802892610)\n"
-    "2. [Rayxona Rahimova](tg://user?id=8878762085)\n"
-    "3. [Mumtozmaxal Normurodova](tg://user?id=8940413540)\n"
-    "4. [Hasanboy Gaziyev](tg://user?id=7833936570)\n"
-    "5. [Ifora](tg://user?id=7582376450)\n"
-    "6. [Ahroriy Abdulloh](tg://user?id=6400084966)\n"
-    "7. [Beslan](tg://user?id=6896432116)\n"
-    "8. [Dilbar](tg://user?id=7073391502)\n\n"
-    "Boshqa hech qanday begona ism (Farangiz, Oydin, Dilnoza Muminova) QO'SHILMASIN."
+    "Quyidagi matnni aynan qaytar: kirish va ro'yxatdagi ism hamda @username'larni saqla. "
+    "Qo'shimcha izoh, qoida yoki boshqa ism yozma. Xabarni vosita bilan yuborma; "
+    "faqat yakuniy matnni qaytar, tizim avtomatik yetkazadi.\n\n"
+    "Jamoa, bugun yakunlagan ishlaringizni qisqa va aniq yozib qoldiring:\n\n"
+    "1. Shahnoza Abdijabborova @jonbranding_assistant\n"
+    "2. Rayxona Rahimova @RayxonJonbranding\n"
+    "3. Mumtozmaxal Normurodova @MumtozmaxalJonbranding\n"
+    "4. Hasanboy Gaziyev @hasan_yahyo\n"
+    "5. Ifora @MenejerIfora\n"
+    "6. Ahroriy Abdulloh @AhroriyAbdulloh\n"
+    "7. Beslan\n"
+    "8. Dilbar @jonbranding_finansist\n"
+    "9. Baxtiyorjon Gaziyev @baxtiyorjongaziyev"
 )
 
 CANONICAL_AGENT_BLUEPRINTS: tuple[AgentBlueprint, ...] = (
@@ -91,7 +93,7 @@ CANONICAL_AGENT_BLUEPRINTS: tuple[AgentBlueprint, ...] = (
         "ai_hr_evening_18", "AI HR — Kechki Sarhisob / Standup (18:00)", "HR Evening Standup Collector",
         "HR & Operations", "hermes_cron", "0 18 * * 1-6", "telegram:-1003114662117",
         "Har bir xodimning kunlik bajargan ishlari hisoboti",
-        "Soat 18:00 da barcha 8 nafar xodimdan bugun yakunlagan ishlarini birma-bir so'raydi.",
+        "Soat 18:00 da tasdiqlangan 9 kishilik ro'yxatdan bugun yakunlagan ishlarini so'raydi.",
         _EVENING_STANDUP_PROMPT,
     ),
     AgentBlueprint(
