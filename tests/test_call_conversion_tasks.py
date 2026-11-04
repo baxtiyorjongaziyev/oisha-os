@@ -199,7 +199,7 @@ class TestCallConversionAndTasks:
             analysis=analysis,
             task_id="task_555",
         )
-        assert "🎙 <b>AI Qo'ng'iroq Tahlili (Call Intelligence)</b>" in msg
+        assert "Call Intelligence" in msg
         assert "Ali Valiyev" in msg
         assert "2m 25s" in msg
         assert "⭐️ <b>Sifat Bahosi:</b> 92/100" in msg

@@ -15,6 +15,7 @@ from src.api.rbac import Permission, Principal, require_permissions
 from src.api.routes.state import api_state
 from src.services.core.crm.daily_report import CRMPeriodReporter
 from src.services.core.crm.daily_report.models import PeriodType
+from src.services.core.crm.daily_report.collection import CRMCollectionUnavailable
 
 router = APIRouter(prefix="/api/crm", tags=["crm-reports"])
 logger = logging.getLogger(__name__)
@@ -43,7 +44,10 @@ async def crm_reports(
         return {"available": False, "period": period}
 
     ptype = PeriodType(period)
-    result = await CRMPeriodReporter(amocrm=amocrm).build(ptype)
+    try:
+        result = await CRMPeriodReporter(amocrm=amocrm).build(ptype)
+    except CRMCollectionUnavailable:
+        return {"available": False, "period": period, "reason": "source_unavailable"}
     return {
         "available": result.fetch_ok,
         "period": period,

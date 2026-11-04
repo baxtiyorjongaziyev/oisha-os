@@ -88,14 +88,14 @@ def test_managers_truncated_to_top_5(reporter):
 
 
 @pytest.mark.asyncio
-async def test_fetch_metrics_survives_total_amocrm_failure(tmp_path):
+async def test_fetch_metrics_rejects_total_amocrm_failure(tmp_path):
     class _Broken:
         base_url = "https://x.amocrm.ru"
 
-        async def _fetch_amocrm_collection(self, *a, **k):
+        async def _request_with_auth(self, *a, **k):
             raise RuntimeError("amocrm down")
 
     r = CRMDailyReporter(amocrm=_Broken(), db_path=str(tmp_path / "r.db"))
-    m = await r.fetch_metrics(PeriodType.DAILY, date(2026, 9, 7))
-    assert isinstance(m, PeriodMetrics)
-    assert m.new_leads == 0 and m.won_count == 0
+    from src.services.core.crm.daily_report.collection import CRMCollectionUnavailable
+    with pytest.raises(CRMCollectionUnavailable):
+        await r.fetch_metrics(PeriodType.DAILY, date(2026, 9, 7))

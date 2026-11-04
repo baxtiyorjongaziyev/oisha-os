@@ -8,6 +8,13 @@ import pytest
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 
+@pytest.fixture(autouse=True)
+def isolate_operator_token_sources(monkeypatch):
+    for key in ("AMOCRM_TOKEN_SOURCE", "AMOCRM_ACCESS_TOKEN", "AMOCRM_LONG_LIVED_TOKEN",
+                "AMOCRM_TOKEN_JSON", "AMOCRM_REFRESH_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+
+
 class _Response:
     def __init__(self, status_code: int, payload: dict | None = None):
         self.status_code = status_code

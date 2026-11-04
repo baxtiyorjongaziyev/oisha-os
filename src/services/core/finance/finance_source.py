@@ -71,6 +71,12 @@ def _row_value(row: dict[str, Any], *names: str, default: Any = "") -> Any:
 
 def _parse_time(value: Any) -> datetime:
     text = str(value or "").strip()
+    if "T" in text:
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+        except ValueError:
+            pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d.%m.%Y %H:%M", "%d.%m.%Y"):
         try:
             return datetime.strptime(text, fmt).replace(tzinfo=timezone.utc)
@@ -208,72 +214,55 @@ class DatabaseFinanceSource:
         self._db = db
         self._tracking_start_date = parse_tracking_start_date(tracking_start_date)
 
-    async def get_snapshot(self) -> FinanceSnapshot:
-        fetched_at = datetime.now(timezone.utc)
-        month = fetched_at.strftime("%Y-%m")
-        
-        income = Decimal("0")
-        expense = Decimal("0")
-        transactions: list[FinanceTransaction] = []
-
+    async def _read_transactions(self) -> tuple[FinanceTransaction, ...]:
         try:
-            conn = await self._db.get_connection() if hasattr(self._db, "get_connection") else None
-            if conn:
-                res = await conn.execute(
-                    "SELECT id, direction, amount, merchant, card_suffix, tx_time, balance, raw_text, category, currency, reason FROM hisobchi_transactions ORDER BY id DESC LIMIT 100"
-                )
-                rows = await res.fetchall() if hasattr(res, "fetchall") else res.fetchall()
-                for r in rows:
-                    tx_id = str(r[0])
-                    direction = str(r[1] or "").strip()
-                    amount = _decimal(r[2])
-                    merchant = str(r[3] or "").strip()
-                    tx_time = str(r[5] or "").strip()
-                    category = str(r[8] or "").strip()
-                    currency = str(r[9] or "UZS").strip().upper() or "UZS"
-                    reason = str(r[10] or "").strip()
-
-                    desc = reason or merchant or category or "Tranzaksiya"
-                    parsed_tx_time = _parse_time(tx_time)
-                    if not is_on_or_after_start(parsed_tx_time, self._tracking_start_date):
-                        continue
-
-                    normalized_direction = direction.casefold()
-                    is_income = normalized_direction in {"kirim", "in"}
-                    
-                    is_current_month = (
-                        tx_time.startswith(month)
-                        or (parsed_tx_time.year == fetched_at.year and parsed_tx_time.month == fetched_at.month)
-                    )
-                    if is_current_month:
-                        if is_income:
-                            income += amount
-                        else:
-                            expense += amount
-
-                    transactions.append(
-                        FinanceTransaction(
-                            id=tx_id,
-                            direction="Kirim" if is_income else "Chiqim",
-                            amount=amount,
-                            currency=currency,
-                            description=desc,
-                            occurred_at=tx_time or fetched_at.strftime("%Y-%m-%d"),
-                        )
-                    )
+            conn = await self._db.get_connection()
+            if conn is None:
+                raise FinanceSourceUnavailable('Hisobchi database connection is unavailable')
+            cursor = await conn.execute(
+                'SELECT id, direction, amount, merchant, tx_time, category, currency, reason '
+                'FROM hisobchi_transactions ORDER BY id DESC'
+            )
+            rows = await cursor.fetchall()
+            return tuple(tx for row in rows if (tx := self._transaction(row)) is not None)
+        except FinanceSourceUnavailable:
+            raise
         except Exception as exc:
-            logger.warning("[DatabaseFinanceSource] Error querying hisobchi_transactions: %s", exc)
+            logger.warning('[DatabaseFinanceSource] Query failed: %s', type(exc).__name__)
+            raise FinanceSourceUnavailable('Hisobchi database is unavailable') from exc
 
-        all_income = sum((tx.amount for tx in transactions if tx.direction == "Kirim"), Decimal("0"))
-        all_expense = sum((tx.amount for tx in transactions if tx.direction == "Chiqim"), Decimal("0"))
-
-        return FinanceSnapshot(
-            balance=all_income - all_expense,
-            monthly_income=income,
-            monthly_expense=expense,
-            transactions=tuple(transactions),
-            source="hisobchi_turso_db",
-            source_status="fresh",
-            fetched_at=fetched_at,
+    def _transaction(self, row) -> FinanceTransaction | None:
+        occurred_at = str(row[4] or '').strip()
+        if not is_on_or_after_start(_parse_time(occurred_at), self._tracking_start_date):
+            return None
+        currency = str(row[6] or 'UZS').strip().upper()
+        direction = str(row[1] or '').strip().casefold()
+        if currency != 'UZS':
+            raise FinanceSourceUnavailable('Hisobchi database currency conversion is unavailable')
+        if direction not in {'kirim', 'in', 'chiqim', 'out'}:
+            raise FinanceSourceUnavailable('Hisobchi transaction direction is unknown')
+        amount = _decimal(row[2])
+        if row[2] is None or row[2] == '' or not amount.is_finite():
+            raise FinanceSourceUnavailable('Hisobchi transaction amount is unknown')
+        return FinanceTransaction(
+            id=str(row[0]), direction='Kirim' if direction in {'kirim', 'in'} else 'Chiqim',
+            amount=amount, currency=currency,
+            description=str(row[7] or row[3] or row[5] or 'Tranzaksiya').strip(),
+            occurred_at=occurred_at,
         )
 
+    async def get_snapshot(self) -> FinanceSnapshot:
+        fetched_at = datetime.now(timezone.utc)
+        transactions = await self._read_transactions()
+        current = [tx for tx in transactions if (
+            _parse_time(tx.occurred_at).year, _parse_time(tx.occurred_at).month
+        ) == (fetched_at.year, fetched_at.month)]
+        def total(rows, direction):
+            return sum((tx.amount for tx in rows if tx.direction == direction), Decimal('0'))
+        return FinanceSnapshot(
+            balance=total(transactions, 'Kirim') - total(transactions, 'Chiqim'),
+            monthly_income=total(current, 'Kirim'),
+            monthly_expense=total(current, 'Chiqim'),
+            transactions=transactions, source='hisobchi_turso_db',
+            source_status='fresh', fetched_at=fetched_at,
+        )
