@@ -107,6 +107,16 @@ async def _wait_and_remind(
 ) -> None:
     """Wait the delay, re-verify no reply, then send the group reminder."""
     try:
+        await _wait_and_remind_inner(client, chat_id, sender_name, delay_minutes)
+    finally:
+        # Aks holda chat bir marta eslatilgach qayta eslatma bo'lmaydi (restartgacha).
+        _IS_SCHEDULED.discard(chat_id)
+
+
+async def _wait_and_remind_inner(
+    client: Any, chat_id: int, sender_name: str, delay_minutes: int
+) -> None:
+    try:
         await asyncio.sleep(delay_minutes * 60)
     except asyncio.CancelledError:
         return
