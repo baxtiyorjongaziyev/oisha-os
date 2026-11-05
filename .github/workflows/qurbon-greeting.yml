@@ -16,6 +16,10 @@ on:
     paths:
       - 'deploy/qurbon-trigger'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   send-greetings:
     name: Tez Natija Qurbon Hayit Tabrigi (Oracle VM)
