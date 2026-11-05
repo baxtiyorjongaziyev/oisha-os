@@ -3616,4 +3616,7 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
   - Jonli AmoCRM da sinov: Lead 54062739 (`Mirshod`) `responsible_user_id: 13021974` bo'lishiga qaramay, `'Mumtozmaxal'` tegi orqali to'g'ri `Mumtozmaxal Normurodova` ga biriktirildi.
   - Bandit: 0 issues.
 
-
+### 2026-11-05 — Codex: Hermes attendance prompt correction
+- Live source: /home/hermes/.hermes/cron/jobs.json on Contabo. Job 3375a5b1e741 (10:00) had the 14:00 prompt; job 6f582e23da97 (14:00) had the 10:00 prompt.
+- Swapped only the two prompts using an atomic replacement; backup: jobs.json.before-attendance-prompt-fix-20261105T100331. Read-back confirmed correct prompts, enabled state and next runs on 2026-11-06 at 10:00/14:00 Asia/Tashkent.
+- No Oisha code deployment or Telegram test message. Future scheduled delivery remains unverified. Existing unrelated local changes preserved. This handoff is local, uncommitted.
