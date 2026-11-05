@@ -2564,3 +2564,10 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - Live source: /home/hermes/.hermes/cron/jobs.json on Contabo. Job 3375a5b1e741 (10:00) had the 14:00 prompt; job 6f582e23da97 (14:00) had the 10:00 prompt.
 - Swapped only the two prompts using an atomic replacement; backup: jobs.json.before-attendance-prompt-fix-20261105T100331. Read-back confirmed correct prompts, enabled state and next runs on 2026-11-06 at 10:00/14:00 Asia/Tashkent.
 - No Oisha code deployment or Telegram test message. Future scheduled delivery remains unverified. Existing unrelated local changes preserved. This handoff is local, uncommitted.
+
+### 2026-11-05 — Claude: Hermes standup, Actions, runner, PR #1013
+- Hermes (Contabo jobs.json, zaxira *.bak-standup-name-20261105 / *.bak-standup-followup-20261105): ertalab-standup (883372a46b8d) nomi Loyihalar, reply so'rovi qo'shildi, enabled; yangi vazifa-nazorati (037479dd6a18) 11:30/15:30/17:30 Dush-Shan. Birinchi yetkazish 2026-11-06 kuzatilmagan.
+- PR #1012 merged: 6 workflowga concurrency. Oracle workflowlar faqat workflow_dispatch, tegilmadi. instagram-plus-campaign soatlik cron owner ruxsati bilan, tegilmadi.
+- Runner contabo-vps GitHub'da offline edi (log 11-04 11:52 dan jim); servis restart qilindi, online.
+- #1011 main bilan konfliktli bo'lgani uchun CI ishlamadi; cherry-pick bilan #1013 ochildi, merged, Production Deploy success, oisha active, /readyz 200. Amobot hisobot 19:00 yetkazilishi kuzatilmagan.
+- Ochiq: GitGuardian topilmasi (eski #1011), test_cors_does_not_reflect_origin_with_credentials main'da ham fail, main/dev tarix ajralishi, 5 ta stash, eski Locks.
