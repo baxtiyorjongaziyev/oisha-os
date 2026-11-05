@@ -2571,3 +2571,8 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - Runner contabo-vps GitHub'da offline edi (log 11-04 11:52 dan jim); servis restart qilindi, online.
 - #1011 main bilan konfliktli bo'lgani uchun CI ishlamadi; cherry-pick bilan #1013 ochildi, merged, Production Deploy success, oisha active, /readyz 200. Amobot hisobot 19:00 yetkazilishi kuzatilmagan.
 - Ochiq: GitGuardian topilmasi (eski #1011), test_cors_does_not_reflect_origin_with_credentials main'da ham fail, main/dev tarix ajralishi, 5 ta stash, eski Locks.
+
+### 2026-11-05 — Claude: Locks va stash tozalash
+- AGENTS.md Locks: main'da allaqachon bo'sh (qulflar yo'q); eski 4 qulf faqat eskirgan feat branchda edi. Ishlar branchlarda saqlanadi.
+- 7 ta stash refs/archive/stash-* ga va C:\Users\baxti\backups\oisha-stashes\*.patch ga arxivlandi, so'ng stash ro'yxatidan olib tashlandi.
+- Toza (clean) worktreelar `git worktree remove` bilan olib tashlandi (branchlar saqlandi); dirty/bugungi/detached-unique worktreelar qoldi.
