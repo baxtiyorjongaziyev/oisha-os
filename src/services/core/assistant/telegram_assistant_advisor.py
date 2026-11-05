@@ -6,11 +6,17 @@ delivers notifications via @jonairobot, and records recommendations in the Obsid
 """
 from __future__ import annotations
 
-import os
 import logging
+import os
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
+
+from .calendar_appointment import (
+    OWNER_USER_ID, _normalize_text, detect_calendar_appointment, source_timestamp,
+    is_canceled_meeting,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +55,8 @@ class TelegramAssistantAdvisor:
         chat_id: int,
         chat_title: str,
         messages: List[Dict[str, Any]],
-        owner_id: int = 150074828,
+        owner_id: int = OWNER_USER_ID,
+        reference_dt: Optional[datetime] = None,
     ) -> Optional[Dict[str, Any]]:
         """Analyzes a conversation and extracts an actionable recommendation for Shahnoza."""
         if not messages:
@@ -66,20 +73,61 @@ class TelegramAssistantAdvisor:
         text = last_msg.get("text", "").strip()
         sender_id = last_msg.get("sender_id")
 
-        # Ignore messages sent by Baxtiyorjon or Shahnoza herself
-        if sender_id in (owner_id, self.assistant_id):
-            return None
-
         if len(text) < 3:
             return None
 
-        # Categorize action trigger
+        # Uchrashuv kelishuvi boʼlsa, xabar egasidan boʼlsa ham kalendar taklifi beriladi
+        if is_canceled_meeting(text):
+            return None
+        appointment = detect_calendar_appointment(
+            text, reference=reference_dt, source_dt=source_timestamp(last_msg.get("date")),
+            require_source=True,
+        )
+
+        # Ignore messages sent by Baxtiyorjon or Shahnoza herself (calendar kelishuvi bundan mustasno)
+        if sender_id in (owner_id, self.assistant_id) and appointment is None:
+            return None
+
+        result = self._recommendation(text, chat_title, appointment)
+        if result is None:
+            return None
+        action_type, recommendation = result
+
+        self._processed_msg_ids.add(unique_key)
+        task: Dict[str, Any] = {
+            "chat_id": chat_id,
+            "chat_title": chat_title,
+            "sender": sender,
+            "text": text,
+            "action_type": action_type,
+            "recommendation": recommendation,
+            "date": last_msg.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")),
+        }
+        if appointment:
+            task["calendar"] = {
+                "start_iso": appointment["start_iso"],
+                "end_iso": appointment["end_iso"],
+                "when_label": appointment["when_label"],
+            }
+        return task
+
+    @staticmethod
+    def _recommendation(text: str, chat_title: str, appointment):
+        """Choose the next action without formatting user text as HTML."""
         action_needed = False
-        action_type = "Umumiy so'rov"
+        action_type = "Umumiy soʼrov"
         recommendation = ""
 
-        lower_text = text.lower()
-        if any(k in lower_text for k in ["narx", "qancha", "narxi", "qimmat", "tolov", "to'lov", "byudjet"]):
+        lower_text = _normalize_text(text)
+        if appointment:
+            action_needed = True
+            action_type = "Uchrashuv / Kalendar"
+            recommendation = (
+                f"Kelishilgan uchrashuv: {appointment['when_label']} — \"{text[:120]}\". "
+                "Baxtiyorjon Gaziyev kalendariga kiritib qoʻyaymi, deb soʻrab tasdiq oling. "
+                "Tasdiqlansa, Google Calendar ilovasida tadbirni yarating."
+            )
+        elif any(k in lower_text for k in ["narx", "qancha", "narxi", "qimmat", "tolov", "to'lov", "byudjet"]):
             action_needed = True
             action_type = "Narx / Byudjet so'rovi"
             recommendation = (
@@ -117,26 +165,25 @@ class TelegramAssistantAdvisor:
         if not action_needed:
             return None
 
-        self._processed_msg_ids.add(unique_key)
-        return {
-            "chat_id": chat_id,
-            "chat_title": chat_title,
-            "sender": sender,
-            "text": text,
-            "action_type": action_type,
-            "recommendation": recommendation,
-            "date": last_msg.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")),
-        }
+        return action_type, recommendation
 
     def format_telegram_alert(self, task: Dict[str, Any]) -> str:
         """Formats an executive Uzbek notification for Shahnoza."""
+        calendar_block = ""
+        calendar = task.get("calendar")
+        if calendar:
+            calendar_block = (
+                f"📅 <b>Kalendar:</b> {escape(str(calendar['when_label']))}\n"
+                f"❓ <b>Savol:</b> Baxtiyorjon Gaziyev kalendariga kiritib qoʻyaymi?\n\n"
+            )
         return (
             f"⚡ <b>Yangi Tavsiya (Shaxsiy Yordamchi Shahnoza uchun)</b>\n\n"
-            f"👤 <b>Mijoz / Chat:</b> {task['chat_title']}\n"
-            f"📌 <b>Yo'nalish:</b> {task['action_type']}\n"
-            f"💬 <b>Mijoz xabari:</b> <i>\"{task['text'][:150]}\"</i>\n\n"
+            f"👤 <b>Mijoz / Chat:</b> {escape(str(task['chat_title']))}\n"
+            f"📌 <b>Yo'nalish:</b> {escape(str(task['action_type']))}\n"
+            f"💬 <b>Mijoz xabari:</b> <i>\"{escape(str(task['text'][:150]))}\"</i>\n\n"
+            f"{calendar_block}"
             f"🎯 <b>Qilinishi kerak bo'lgan vazifa:</b>\n"
-            f"👉 {task['recommendation']}\n\n"
+            f"👉 {escape(str(task['recommendation']))}\n\n"
             f"⏱ <i>Real-time Telegram Audit</i>"
         )
 
@@ -153,6 +200,12 @@ class TelegramAssistantAdvisor:
         new_lines = [f"\n### ⚡ Audit: {now_str}"]
         for t in tasks:
             new_lines.append(f"- [ ] **{t['chat_title']}** ({t['action_type']}): {t['recommendation']}")
+            calendar = t.get("calendar")
+            if calendar:
+                new_lines.append(
+                    f"  - Kalendar taklifi: **{calendar['when_label']}** "
+                    f"(`{calendar['start_iso']}` → `{calendar['end_iso']}`)"
+                )
             new_lines.append(f"  > _\"{t['text'][:100]}\"_")
 
         content_to_append = "\n".join(new_lines) + "\n"

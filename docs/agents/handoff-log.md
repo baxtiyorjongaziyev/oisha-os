@@ -3703,3 +3703,10 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
 - Live source: /home/hermes/.hermes/cron/jobs.json on Contabo. Job 3375a5b1e741 (10:00) had the 14:00 prompt; job 6f582e23da97 (14:00) had the 10:00 prompt.
 - Swapped only the two prompts using an atomic replacement; backup: jobs.json.before-attendance-prompt-fix-20261105T100331. Read-back confirmed correct prompts, enabled state and next runs on 2026-11-06 at 10:00/14:00 Asia/Tashkent.
 - No Oisha code deployment or Telegram test message. Future scheduled delivery remains unverified. Existing unrelated local changes preserved. This handoff is local, uncommitted.
+
+
+### 2026-11-05 — Codex: PR #1005 confirmed review fixes
+- GitHub inspection: PR already MERGED, 8 unresolved threads. Current branch feat/amobot-daily-report-uzbek lacked PR code; restored relevant advisor/test implementation from c7f965fd without switching branches or changing unrelated files.
+- Changed: src/services/core/assistant/telegram_assistant_advisor.py, new calendar_appointment.py, tests/test_telegram_assistant_advisor.py. Split date/time spans, source-timestamp anchor plus audit-time past rejection, cancellations skipped, payment apostrophes normalized, dynamic Telegram HTML escaped, nonexistent route instruction replaced by manual Google Calendar after confirmation.
+- Checks: rtk pytest tests/test_telegram_assistant_advisor.py -q --tb=short (32 passed); rtk ruff check src/services/core/assistant/calendar_appointment.py src/services/core/assistant/telegram_assistant_advisor.py tests/test_telegram_assistant_advisor.py (passed); rtk proxy python -m bandit -q src/services/core/assistant/calendar_appointment.py src/services/core/assistant/telegram_assistant_advisor.py -ll (passed); rtk git diff --check (passed). Production modules 237/225 lines, functions <=60.
+- Qolgan ish: push/integration PR, full PR preflight and deployment/live verification remain. GitHub review threads unchanged; local changes do not resolve remote threads. Missing/invalid source timestamps suppress calendar proposals. Unrelated existing AGENTS/handoff/backlog edits and package deletions preserved.
