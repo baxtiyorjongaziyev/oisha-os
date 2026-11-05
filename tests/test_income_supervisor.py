@@ -108,3 +108,25 @@ def test_seller_handles_match_canonical_roster():
         assert info is not None, f"missing JAMOA_SELLER_INFO entry for {member.slug}"
         assert info["name"] == member.name
         assert info["handle"] == member.tg_username
+
+
+def test_amocrm_ids_map_to_canonical_jamoa_records():
+    """Every staff member with both IDs must be attributable via AmoCRM."""
+    from src.services.core.crm.team_roster import CANONICAL_STAFF
+
+    checked = 0
+    for member in CANONICAL_STAFF:
+        if not (member.airtable_record_id and member.amocrm_user_id):
+            continue
+        assert sup.AMOCRM_USER_TO_JAMOA.get(member.amocrm_user_id) == member.airtable_record_id, (
+            f"AmoCRM id {member.amocrm_user_id} does not map to {member.airtable_record_id} ({member.slug})"
+        )
+        checked += 1
+    assert checked >= 4
+
+
+def test_mumtozmaxal_record_is_not_labelled_farangiz():
+    """recndwD6R8Wk3CNtY belongs to Mumtozmaxal; the old Farangiz label was wrong."""
+    info = sup.JAMOA_SELLER_INFO["recndwD6R8Wk3CNtY"]
+    assert info["name"] == "Mumtozmaxal Normurodova"
+    assert not any(v["name"].startswith("Farangiz") for v in sup.JAMOA_SELLER_INFO.values())
