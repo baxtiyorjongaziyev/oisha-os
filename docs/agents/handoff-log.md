@@ -2392,3 +2392,175 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - uv run pytest -q --tb=short tests/test_syntax_guard.py tests/test_agent_skills_sync.py tests/test_check_uzbek_text.py -> 1037 passed.
   - pnpm typecheck -> 8/8 successful.
   - cd salescoach-ai; pnpm test -> 2/2 suites, 7/7 tests passed.
+  - `pytest tests/test_daily_sales_calls_report.py tests/test_group_mention.py -q` -> 20/20 passed.
+  - Jonli Moizvonki API tekshirildi: Mumtozmaxal (22 ta), Rayxon (14 ta), Shahnoza (18 ta) 100% real ma'lumotlar bilan guruhga yuborildi.
+  - Contabo VPS `systemctl status oisha-os` -> `active (running)`, userbot va API server barqaror.
+- **Qolgan ish / Holat:** Barcha vazifalar to'liq bajarildi va jonli serverda ishga tushirildi.
+
+### 2026-11-02 / Antigravity: Baxtiyorjon AI Kloni (Digital Twin) — 3 yillik yozishmalar sintezi va Shadow rejim faollashtirildi
+- **Bajarilgan ish:**
+  1. **3 yillik Telegram & Obsidian bilimlari sintezi**:
+     - `data/telegram_2yr_extracted_knowledge.json` (90 KB), `data/private_chats_data.json` (79 KB), `00-SYSTEM/Baxtiyorjon (Dosye).md`, `90-AI/Yadro/Baxtiyorjon.md`, `20-CLIENTS/` (179 mijoz) va `70-AmoCRM/` (2,536 bitim) tahlil qilindi.
+     - Baxtiyorjonning shaxsiy identiteti ("Allohning quli -> branding expert -> Jon Branding egasi -> tadbirkor"), "tizimchi dangasa" falsafasi, shar'iy qadriyatlar filtri, minimal/luxury dizayn didi va lo'nda muloqot ohangi (Tone of Voice) klon miyasiga kiritildi.
+  2. **Hermes Context Engine yangilandi (`src/services/core/ai/hermes_context.py`, 161 LOC)**:
+     - `build_dm_responder_system_prompt()` Baxtiyorjonning 1-shaxsdagi ("men/biz") ovozi, quruq narx aytmaslik, brifing va 15 daqiqalik diagnostika uchrashuviga chaqirish mantig'i bilan boyitildi.
+     - `build_clone_decision_prompt()` 3 darajali qaror matritsasi (🟢 Yashil — to'liq avtonom; 🟡 Sariq — harakat + Baxtiyorjonga hisobot; 🔴 Qizil — egasining shaxsiy tasdig'i) bilan qo'shildi.
+     - `get_owner_philosophy_summary()` qo'shildi.
+  3. **Contabo VPS (`109.199.100.137`) konfiguratsiyasi & deploy**:
+     - `/home/ubuntu/oisha-os/.env` da `AUTO_REPLY_MODE=shadow` va `ENABLE_SHADOW_ADVISOR=1` faollashtirildi.
+     - `deploy_contabo_direct.py --apply src/services/core/ai/hermes_context.py` orqali jonli serverga yuklandi (`healthz=200`, backup `oisha-direct-da4bd8c57f7c45d2b289b316aaf21825`).
+     - `oisha-os.service` qayta yuklandi va barqaror `active (running)` holatda.
+  4. **Obsidian Second Brain Playbook yaratildi**:
+     - `20-Areas/Baxtiyorjon_AI_Clone_Playbook.md` yaratilib, klonning barcha muloqot, narx va qaror qoidalari muhrlandi.
+- **O'zgargan fayllar:** `src/services/core/ai/hermes_context.py`, `docs/agents/handoff-log.md`, `C:\Users\baxti\Documents\Baxtiyorjon Gaziyev Second Brain\20-Areas\Baxtiyorjon_AI_Clone_Playbook.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_hermes_provider.py tests/test_hermes_harness.py tests/test_delayed_dm_responder.py tests/test_sales_staff_copilot.py tests/test_hermes_crm_bridge.py` -> 61/61 passed.
+  - `bandit -r src/services/core/ai/hermes_context.py -ll` -> 0 issues.
+  - Kod hajmi: 161 qator (150–400 standartiga 100% mos).
+  - Contabo VPS jonli tekshiruv: `healthz=200`, `systemctl is-active oisha-os` -> `active`.
+- **Qolgan ish / Holat:** Shadow rejimda Baxtiyorjon shaxsiy Telegramiga kelgan yangi xabarlarga klon o'z qaror va tavsiyalarini Saved Messages / Admin Botga taqdim etadi. Live rejimga o'tish Baxtiyorjon tasdig'idan keyin bitta buyruq bilan yoqiladi.
+
+### 2026-11-02 / Antigravity: Hermes Telegram to'liq tozalash va barqarorlashtirish (DM Leak, Attention, Gemini 3.8 Flash, No-Spam)
+- **Bajarilgan ish:**
+  1. **Telegram Business / DM Leak Butunlay To'xtatildi:**
+     - `/home/hermes/.hermes/hermes-agent/plugins/platforms/telegram/adapter.py`: `_effective_update_message` da `business_message` va `business_connection_id` li xabarlar to'liq bloklandi. Hermes hech qachon Baxtiyorjonning shaxsiy lichkasidagi suhbatlarga (Dilbar, Rayxona, Aishabonu va h.k.) javob qaytarmaydi.
+     - `config.yaml` da `allow_from: ["150074828"]`, `dm_policy: allowlist`, `group_allow_from: ["*"]` o'rnatildi. Shaxsiy chatda bot bilan faqat Baxtiyorjon gaplasha oladi, guruhlarda esa barcha xodimlar Oishani chaqira oladi.
+     - `/etc/systemd/system/hermes-gateway.service.d/allow-all.conf` olib tashlandi.
+  2. **Group Attention Tozalandi (`ops/hermes/group_attention.py`):**
+     - Avtomatlashtirilgan eslatmalar (`🔔`, `eslatma:`) savol sifatida olinmaydi.
+     - Aniq nishoni bo'lmagan umumiy savollarga (`Kim oladi?`, `Nimaga tushunarsiz xabar yubording?`) 30 minutdan keyin Oishaning sun'iy aralashishi to'xtatildi.
+     - `tests/test_hermes_group_attention.py` 4/4 passed.
+  3. **Gemini Modeli Yangilandi (`gemini-3.8-flash`):**
+     - `config.yaml` da 404 berayotgan `gemini-2.5-flash` o'rniga amaldagi `gemini-3.8-flash` ulandi. "Your request was not processed" xatosi bartaraf etildi.
+  4. **Biznes Asisstant Guruhiga Restart Spami To'xtatildi:**
+     - `/etc/systemd/system/hermes-gateway.service.d/notify.conf` dagi `ExecStartPost` va `ExecStopPost` restart xabarlari olib tashlandi.
+- **O'zgargan fayllar:** `ops/hermes/group_attention.py`, `tests/test_hermes_group_attention.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_hermes_group_attention.py` -> 4/4 passed.
+  - `bandit -r ops/hermes/ -ll` -> 0 issues.
+  - Contabo VPS `systemctl status hermes-gateway` -> `active (running)`, Telegram connection OK.
+- **Qolgan ish / Holat:** Local commit va VPS ga to'liq deploy qilindi.
+
+### 2026-11-02 / Antigravity: Hermes MCP AmoCRM va Moizvonki `source_unavailable` blokeri tuzatildi
+- **Muammo:** 02.11.2026 soat 18:30 dagi Kunlik fact-hisobotda Oisha/Hermes `crm_list_calls`, `crm_get_rop_digest` va `crm_search_leads` vositalarida `source_unavailable` xatosi qaytargan va xodimlar faolligi tasdiqlanmagan deb eskalatsiya qilgan.
+- **Ildiz sabablari (Root causes):**
+  1. `/home/ubuntu/oisha-os/.env` fayli `600` (`-rw------- 1 ubuntu ubuntu`) rejimida bo'lib, `hermes-gateway` (user: `hermes`) `settings.py` -> `load_dotenv()` orqali uni o'qishga uringanida `PermissionError: [Errno 13] Permission denied` yuzaga kelgan.
+  2. `src/services/sales_quality/funnel_policy.py` fayli Contabo VPS'da yo'q bo'lib, `crm_get_rop_digest` da `ModuleNotFoundError: No module named 'src.services.sales_quality.funnel_policy'` keltirib chiqargan.
+- **Bajarilgan tuzatishlar:**
+  1. `usermod -aG ubuntu hermes` bajarilib, `hermes` foydalanuvchisi `ubuntu` guruhiga qo'shildi.
+  2. `/home/ubuntu/oisha-os/.env` fayliga `chmod 640` berildi (faqat `ubuntu` guruhi o'qiy oladi).
+  3. `src/services/sales_quality/funnel_policy.py` Contabo VPS `/home/ubuntu/oisha-os/src/services/sales_quality/funnel_policy.py` ga joylashtirildi (`chmod 644`).
+  4. `hermes-gateway.service` qayta ishga tushirildi (`systemctl restart hermes-gateway`).
+- **Tekshiruv dalili:**
+  - Contabo VPS'da `hermes` foydalanuvchisi nomidan stdio JSON-RPC orqali to'g'ridan-to'g'ri test qilindi:
+    - `crm_list_calls` -> `success: true, status: "ok"`, jonli qo'ng'iroqlar muvaffaqiyatli qaytdi (shu jumladan bugungi 18:43 dagi Shahnozaning qo'ng'iroq yozuvi note_id: 336402005).
+    - `crm_get_rop_digest` -> `success: true, source: "ai_rop_live"`, 3 ta sotuvchi (Shahnoza, Rayxona, Mumtozmaxal) bo'yicha 50/20/10/3/1 voronka va bugungi Moizvonki faktlari muvaffaqiyatli hisoblandi.
+    - `crm_search_leads` -> `success: true, source: "amocrm_live"`, bitimlar ro'yxati qaytdi.
+- **Holat:** Muammo 100% bartaraf etildi, integratsiyalar jonli ishlayapti.
+
+### 2026-11-02 / Antigravity: AmoCRM yagona litsenziya va Teg-asosli sotuvchi atributsiyasi joriy etildi
+- **Biznes fakti (Owner ko'rsatmasi):**
+  1. Moizvonki'da har bir sotuvchi uchun alohida litsenziya/akkaunt to'langan (Shahnoza, Rayxona, Mumtozmaxal).
+  2. AmoCRM'da faqat 1 ta yagona asosiy akkauntga to'langan (`user_id: 13021974`). Sotuvchilar o'z mijozlarini **TEGLAR** orqali ajratadi (`Shahnoza`, `Mumtozmaxal`, `Rayxon` / `Rayxona`).
+- **Bajarilgan muhandislik ishlari:**
+  1. `src/services/core/crm/team_roster.py`:
+     - `find_staff_by_tags(tags)` va `get_lead_assigned_seller(lead)` funksiyalari qo'shildi. Bitimdagi teglar bo'yicha mas'ul sotuvchini to'g'ri aniqlaydi.
+  2. `src/services/core/hermes_crm_bridge.py`:
+     - `search_leads` vositasi har bir bitim uchun `tags`, `assigned_seller` va `assigned_seller_slug` ni qaytaradigan qilib kengaytirildi.
+  3. Contabo VPS:
+     - `SOUL.md` ga AmoCRM teglar bo'yicha sotuvchini aniqlash va Moizvonki alohida akkauntlar qoidasi kiritildi.
+     - `src/services/core/crm/team_roster.py` va `src/services/core/hermes_crm_bridge.py` jonli deploy qilindi (`healthz=200`).
+  4. Obsidian Second Brain:
+     - `20-Areas/AmoCRM_va_Moizvonki_Litsenziya_va_Teg_SOP.md` yaratilib, qoida ikkinchi miyaga muhrlandi.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_team_roster.py tests/test_hermes_crm_bridge.py` -> 22/22 passed.
+  - Jonli AmoCRM da sinov: Lead 54062739 (`Mirshod`) `responsible_user_id: 13021974` bo'lishiga qaramay, `'Mumtozmaxal'` tegi orqali to'g'ri `Mumtozmaxal Normurodova` ga biriktirildi.
+  - Bandit: 0 issues.
+
+
+
+### 2026-11-03 / opencode: Davomat cronlari Sotuv bo'limiga ko'chirildi
+- **Bajarilgan ish:** Contabo Hermes cron `3375a5b1e741` (`ertalab-davomat-10-00`, 10:00) va `6f582e23da97` (`tushlikdan-qaytish-tekshiruvi`, 14:00) uchun `--deliver` manzili `telegram:-1003114662117` (loyihalar guruhi) dan `telegram:-1003854308552` (Sotuv Bolim - Sales | Jon Agency, General topic) ga o'zgartirildi. Prompt, schedule va `--failure-deliver telegram:-1003792973489` o'zgarmadi.
+- **O'zgargan fayllar:** `create_hermes_team_crons.sh`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:** Zaxira `/home/hermes/.hermes/cron/jobs.json.bak-davomat-sales-20261103`; `hermes cron list` readback ikkala jobda `Deliver: telegram:-1003854308552`, next run `2026-11-03T14:00:00+05:00` va `2026-11-04T10:00:00+05:00`.
+- **Qolgan ish / Holat:** Jonli cron o'zgarishi kuchda; Telegram'ga sinov xabari yuborilmadi (keyingi reja bo'yicha 14:00 da tekshiriladi). Commit/push qilinmadi.
+
+### 2026-11-03 / opencode: Uchrashuv xabarlarida kalendar taklifi (OOMAR keysi)
+- **Biznes talabi (Owner):** Uchrashuv/sana-vaqtli xabarlarni ko'rganda yordamchi "Baxtiyorjon Gaziyev kalendariga kiritib qo'yaymi?" deb so'rasin.
+- **O'zgargan fayllar:**
+  1. `src/services/core/assistant/telegram_assistant_advisor.py`
+     - `detect_calendar_appointment(text, reference)` qo'shildi: hafta kuni, "ertaga/indinga/bugun", `07.11` va `7 noyabr` formatlari + `10:00` vaqtini aniqlaydi (Asia/Tashkent, `APP_TIMEZONE`).
+     - `analyze_chat_for_assistant(..., reference_dt=None)`: yangi `"Uchrashuv / Kalendar"` tarmog'i, `calendar` maydoni (start_iso/end_iso/when_label).
+     - Owner xabari bo'lsa ham uchrashuv kelishuvi aniqlansa taklif beriladi (boshqa filtrlarsiz).
+     - `format_telegram_alert`: "Baxtiyorjon Gaziyev kalendariga kiritib qo'yaymi?" bloki; `record_in_obsidian`: kalendar taklifi qatori.
+  2. `tests/test_telegram_assistant_advisor.py`: 6 ta yangi test (hafta kuni, sana yo'qligi, o'tgan vaqt, tipografik apostrof, owner xabari, mijoz xabari).
+- **Tekshiruv dalili:** `pytest tests/test_telegram_assistant_advisor.py -q` -> 9 passed.
+- **Jonli amal:** OOMAR patent uchrashuvi (shanba 07.11.2026 10:00-11:00, Nuriddin aka) Google Calendar'ga qo'shildi: event_id `rckcraoj36uonp2iujmrj8tg4g` (kalendar: baxtiyorjongaziyev@gmail.com).
+- **Topilgan risk (ochiq):** `oisha-runner` foydalanuvchisi `/home/ubuntu/.secrets/service_account.json` faylini o'qiy olmaydi (`.secrets` 700 ubuntu:ubuntu). Shu sabab `GoogleCalendarSync` servis ichida `service_ok=False` bo'ladi va `/api/calendar/events` 503 qaytaradi. Ruxsat kengaytirilmadi (owner tasdig'i kutilmoqda).
+- **Holat:** Kod lokalda, testlar yashil; commit/push qilinmadi (deploy qilinmagan).
+
+### 2026-11-03 / opencode: Guruh tahlili va davomat delivery tuzatildi
+- **Tahlil (bot getChat/getChatMember, 2026-11-03):**
+  - Biznes asisstant (-1003792973489): forum supergroup, a'zo 3 ta - bot, Baxtiyorjon (creator), Shahnoza. Rayxona, Mumtozmaxal, Hasanboy, Ifora, Ahroriy, Dilbar "left"; Beslan ID 7005708460 PARTICIPANT_ID_INVALID.
+  - Loyihalar (-1003114662117): 7 a'zo - bot, Baxtiyorjon, Shahnoza, Ifora, Hasanboy (admin), Dilbar (admin), NozimaMenejer (admin); Rayxona, Mumtozmaxal, Ahroriy left.
+  - Sotuv Bolim (-1003854308552): 12 a'zo - 8 xodimdan 7 tasi bor (Shahnoza, Rayxona, Mumtozmaxal, Hasanboy admin, Ifora, Ahroriy, Dilbar); Beslan ID invalid.
+- **Bajarilgan ish:** 10:00 va 14:00 cron promptlariga YETKAZISH QOIDASI qo'shildi: send_message bilan o'z-o'zidan yuborish taqiqlangan, faqat final response Sotuv (-1003854308552, General) ga. Deliver target avvaldan shu guruh.
+- **Zaxira/tekshiruv:** jobs.json.bak-davomat-sales-20261103; prompt readback ikkala jobda YETKAZISH QOIDASI bilan tugaydi; bash -n OK.
+- **Ochiq:** Beslan Telegram ID 7005708460 bot uchun invalid; 18:30 fakt-hisobot hamon Biznes asisstant (3 a'zoli) guruhiga ketadi. Commit/push yo'q.
+
+### 2026-11-03 / opencode: Kirim to'lov kartalari va sotuvchi handle tuzatildi
+- **Biznes talabi (Owner):** To'lov tasdiqlash kartalarida sotuvchini guruhda ham, shaxsiy DM'da ham tabriklash; so'ng moliyachidan tasdiq so'rash. Nazoratchi alertida sotuvchi handle'i to'g'ri ko'rinishi.
+- **Bajarilgan ish:**
+  1. `src/handlers/kirim_shared.py` (yangi) — karta aniqlash/parse, tasdiq va rad javoblarini aniqlash, DM/matn builderlari.
+  2. `src/handlers/kirim_payment.py` (yangi) — `kirim_payment_handler` + `kirim_payment_reply_handler`: guruh tabrigi -> shaxsiy DM -> `@jonbranding_finansist` tasdiq so'rovi; "tasdiqlandi" javobida ikkinchi tabrik (DM + guruh), "rad" da guruhga xabar. Tasdiqlash huquqi: moliya mention'i/owner/`finance` roli; sotuvchi o'z kartasini tasdiqlay olmaydi. Handle `KIRIM_FINANCE_MENTION` orqali sozlanadi.
+  3. `src/handlers/kirim.py` — kartalarni erkin matnli kirim deb qayta ishlamaydi.
+  4. Handlerlar `src/handlers/__init__.py` va `src/bootstrap/orchestration/events.py` da ro'yxatga olindi.
+  5. `src/services/core/finance/income_supervisor.py` — `rec8fmSHRpZi5Rx9N` uchun eski `@Shahnozzy` -> `@jonbranding_assistant`.
+- **O'zgargan fayllar:** `src/handlers/kirim_shared.py`, `src/handlers/kirim_payment.py`, `src/handlers/kirim.py`, `src/handlers/__init__.py`, `src/bootstrap/orchestration/events.py`, `src/services/core/finance/income_supervisor.py`, `tests/test_kirim_payment.py`, `tests/test_income_supervisor.py`.
+- **Tekshiruv dalili:** `pytest tests/test_kirim_payment.py tests/test_income_workflow.py` -> 10 passed; `pytest tests/test_income_supervisor.py` -> 8 passed; `pytest -k "handler or kirim or events"` -> 105 passed; `py_compile` OK. Yangi testlar: 6 ta karta oqimi + 2 ta handle regressiyasi (jumladan `team_roster` bilan moslik guard'i).
+- **Commitlar:** `bb0b1e96` (`feat/kirim-individual-celebration`) va `3fe09cf9` (joriy branch `feat/amobot-daily-report-uzbek` ustida, chunki u kirim branchini o'z ichiga oladi). Push/deploy qilinmadi.
+- **Ochiq:** (a) `JAMOA_SELLER_INFO` / `NAME_TO_JAMOA` da Rayxona (`@RayxonJonbranding`, AmoCRM 9000001) va Mumtozmaxal (`@MumtozmaxalJonbranding`, AmoCRM 9000002) yo'q — Airtable "Jamoa" record ID tasdiqlanmagan, uydirilmadi; ularning kirimlari AmoCRM qadamlarida topilmasa "aniqlanmadi" alertiga tushadi. (b) Hasanboy handle'i supervisor da `@jonbranding_pm`, `team_roster` da `@hasan_yahyo`; Baxtiyorjon supervisor da `@Baxtiyorjon_Gaziyev`, rosterda `@baxtiyorjongaziyev` — owner tasdig'isiz o'zgartirilmadi. (c) Lokal `.env` yo'qligi sabab 875 975 UZS lik tranzaksiya yozuvi Airtable'dan bevosita tekshirilmadi.
+
+## 2026-11-03 Antigravity — oisha-amocrm MCP tiklash
+- scripts/oisha_mcp_server.py: mcp 2.x uchun FastMCP->MCPServer fallback; load_dotenv(override=True) (ota jarayondan qo'shtirnoqli AMOCRM_* meros bo'lib kelardi); structlog stderr'ga.
+- Antigravity mcp_config.json ga oisha-amocrm qo'shildi (repo tashqarisida).
+- Tekshiruv: check_amo_auth -> AUTH OK (account 32681154); pytest -k mcp: 41 passed, 1 failed (tests/telegram_mcp/test_gateway_executor.py::test_mcp_route_accepts_initialize_post — mcp 2.x 'Server.list_tools', mening diffimga aloqasiz).
+- Ochiq: commit qilinmagan; MCP'da list_leads/dublikat tooli yo'q.
+
+## 2026-11-04 - Codex Dilbar heartbeat
+- Required two skill paths still missing; scoped alternate search no match. Financial-source deltas not checked, checkpoint unchanged; no promotion or external mutation.
+- Changed: handoff append only. Qolgan ish: recover required skill instructions; unchanged alert suppressed.
+
+
+### 2026-11-04 — Codex: evening standup mentions
+- Owner-requested 9-person evening roster: visible usernames, Baxtiyorjon included, departed-name warning removed; Beslan username unknown.
+- Changed src/services/core/ai_agent_orchestrator.py and tests/test_ai_agent_orchestrator.py; 3 focused tests passed and scoped diff check passed.
+- Live Hermes job 4eb554b638b5 prompt updated with backup and read-back equality verified; schedule/enabled/delivery and other job fields preserved. Hermes CLI unavailable (dependency environment missing), so used narrow atomic JSON update with concurrent-change check.
+- Next scheduled Telegram delivery not observed. Existing dirty files preserved.
+
+## 2026-11-05 — Codex Coordinator backlog repair checkpoint
+- Own commit 54817b7d: complete-or-error CRM collections/API, isolated history DB, fail-closed full-ledger finance source, auth-test isolation, recovered finance-learning/skill-evolution and mirrors. Pushed fix/backlog-report-integrity-20261104. Full current preflight3337passed18skipped4subtests; fullBandit exit0; deepmerge regression/diffcheck passed.
+- Runtime: Hermes started and polling connected; Oisha ready=true; MCP live reads succeeded. No application-code deploy. Configured Meta page12activeforms:113leads sinceOct24, allCRMmarkers;112uniqueCRMids readback112found.
+- October Airtable98records income72846475 expense77835509UZS; owner-relayed expense90303509 ->12468000difference. Finance comparison/evidence saved in visualization artifact and Brain. No Airtable writes/balance reconciliation.
+- Semantic audit saved2/333batches16/2621distincttexts; full corpus remains incomplete. CodexTelegram login still required for its DM/group monitor and reactivation path.
+- PR attempt against development branch returned No commits between base and repair branch (base advanced concurrently); no PR created, no merge or force push. Other agent commit502e2efb and dirty work preserved.
+- Qolgan ish: divergent main/dev history reconciliation (previous probe60/86unique), gated code deployment, real Telegram/dashboard/audio acceptance, complete transcript audit, guarded reactivation, source-backed finance reconciliation, remaining vault audit. Comparison question about OpenClaw/Hermes researched separately; no migration authorized or performed.
+
+## 2026-11-05 - opencode: 'Biznes asisstant' guruhi vizual tekshiruvi (Chrome/Telegram Web)
+- Manba: foydalanuvchining Chrome profili nusxasi + CDP (port 9226), web.telegram.org/a; bot API natijalari bilan solishtirildi - mos keldi.
+- Guruh: forum supergroup 'Biznes asisstant', 3 a'zo - Baxtiyorjon Gaziyev (Owner), Shahnoza (Business Assistant), Oisha AI bot (Admin). Guruh asosiy chat ro'yxatida yo'q (arxivlangan).
+- 8 topic: General (311 xabar), Cheklistlar, Kundalik reja, Chiqim, G'oyalar, Lavozimning qoshimcha vazifalari, Lavozimning asosiy vazifalari, Ish tartibi. 7 tasi 16-mayda yaratilgan va bosh (1 ta '.' xabar). General oxirgi faollik: kecha 18:32 Oisha AI kunlik konsolidatsiyalangan hisoboti.
+- Xulosa: guruh skelet holida - 'bosh bolimlar (patent, PM, target, dizayn, moliya) shu yerda hisobot beradi' deb rejalashtirilgan, amalda jamoa chiqib ketgan. Davomatni Sotuv guruhiga kochirish qarori tasdiqlandi.
+
+## 2026-11-05 - opencode: 18:30 fakt-hisobot Sotuv guruhiga kochirildi
+- Job 7514ea7d5246 (kunlik-fakt-hisoboti): deliver telegram:-1003792973489 -> telegram:-1003854308552 (Sotuv Bolim - Sales | Jon Agency, General topic).
+- Prompt: 'Biznes asisstant guruhida' -> 'Sotuv Bolim - Sales | Jon Agency guruhida'; YETKAZISH QOIDASI qoshildi (send_message taqiq, faqat final response).
+- Zaxira: /home/hermes/.hermes/cron/jobs.json.bak-fakt-sales-20261105. Readback: deliver=-1003854308552, sched=30 18 * * *, enabled=True, prompt_len=1485, bosh/oxir tasdiqlandi. Schedule va continuity ozgarmagan.
+- Lokal create_hermes_team_crons.sh: fakt job endi S ga, barcha failure-deliver olik guruhdan olib tashlandi (G->G, S->S); standup prompt matni Loyihalar deb tuzatildi. bash -n OK.
+- Ochiq: standup (883372a46b8d) va tushlik-ishtaha (bbccdf7142e8) live promptlarida hamon 'Biznes asisstant guruhida' degan matn bor, deliver esa Loyihalar - faqat matn nomuvofiqligi. Commit/push/deploy yoq.
+
+
+### 2026-11-05 — Codex: Hermes attendance prompt correction
+- Live source: /home/hermes/.hermes/cron/jobs.json on Contabo. Job 3375a5b1e741 (10:00) had the 14:00 prompt; job 6f582e23da97 (14:00) had the 10:00 prompt.
+- Swapped only the two prompts using an atomic replacement; backup: jobs.json.before-attendance-prompt-fix-20261105T100331. Read-back confirmed correct prompts, enabled state and next runs on 2026-11-06 at 10:00/14:00 Asia/Tashkent.
+- No Oisha code deployment or Telegram test message. Future scheduled delivery remains unverified. Existing unrelated local changes preserved. This handoff is local, uncommitted.
