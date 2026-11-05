@@ -43,7 +43,7 @@ JAMOA_SELLER_INFO: Dict[str, Dict[str, str]] = {
     "recfj3ExodGmnN2VW": {"name": "Oydin Ermuhammadova", "handle": "@oydin_jonbranding"},
     "recDbMupPcviBctAd": {"name": "Rayxona Rahimova", "handle": "@RayxonJonbranding"},
     "recndwD6R8Wk3CNtY": {"name": "Mumtozmaxal Normurodova", "handle": "@MumtozmaxalJonbranding"},
-    "recPi9SROzJNK8SX7": {"name": "Hasanboy Gaziyev", "handle": "@hasan_yahyo"},
+    "recPi9SROzJNK8SX7": {"name": "Hasanboy Gaziyev", "handle": "@jonbranding_pm"},
 }
 
 NAME_TO_JAMOA: Dict[str, str] = {
