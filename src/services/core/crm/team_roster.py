@@ -97,6 +97,7 @@ CANONICAL_STAFF: Tuple[StaffMember, ...] = (
         phone="+998777411397",
         amocrm_user_id=9000001,
         moizvonki_emails=("rayxona@jonbranding.uz",),
+        airtable_record_id="recDbMupPcviBctAd",
         aliases=("rayxona", "rayxon", "rayhona", "rayxonjonbranding"),
     ),
     StaffMember(
@@ -109,6 +110,7 @@ CANONICAL_STAFF: Tuple[StaffMember, ...] = (
         phone="+998773220098",
         amocrm_user_id=9000002,
         moizvonki_emails=("mumtozmaxal@jonbranding.uz",),
+        airtable_record_id="recndwD6R8Wk3CNtY",
         aliases=("mumtozmaxal", "mumtozmahal", "mumtoz", "mumtozmaxaljonbranding"),
     ),
     StaffMember(
