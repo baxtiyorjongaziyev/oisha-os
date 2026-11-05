@@ -7,6 +7,10 @@ on:
       - 'deploy/billing-email-trigger'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   send:
     name: Send waiver requests to Google Cloud Support
