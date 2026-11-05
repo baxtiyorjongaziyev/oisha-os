@@ -2573,6 +2573,6 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - Ochiq: GitGuardian topilmasi (eski #1011), test_cors_does_not_reflect_origin_with_credentials main'da ham fail, main/dev tarix ajralishi, 5 ta stash, eski Locks.
 
 ### 2026-11-05 — Claude: Locks va stash tozalash
-- AGENTS.md Locks: Dependabot (main'da 11-02 va 11-05 landed) va 3 haftadan eski Google sign-in (10-17), prospect discovery (10-13) qulflari olib tashlandi; ularning tugallanmagan ishi branchlarda saqlanadi. Call script qulfi (10-30) qoldi.
+- AGENTS.md Locks: main'da allaqachon bo'sh (qulflar yo'q); eski 4 qulf faqat eskirgan feat branchda edi. Ishlar branchlarda saqlanadi.
 - 7 ta stash refs/archive/stash-* ga va C:\Users\baxti\backups\oisha-stashes\*.patch ga arxivlandi, so'ng stash ro'yxatidan olib tashlandi.
 - Toza (clean) worktreelar `git worktree remove` bilan olib tashlandi (branchlar saqlandi); dirty/bugungi/detached-unique worktreelar qoldi.

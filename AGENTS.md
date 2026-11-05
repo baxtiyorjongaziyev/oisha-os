@@ -84,6 +84,7 @@
 | **Code Quality** | dead code, naming, type hints | — |
 
 ## Locks
+- Codex: prospect discovery modules, admin command hook, channel scout scheduler hook, focused tests (2026-10-13).
  
 
 
