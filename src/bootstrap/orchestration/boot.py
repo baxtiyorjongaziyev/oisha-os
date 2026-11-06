@@ -180,6 +180,10 @@ async def boot_application():
             logger.warning("[HISOBCHI] HisobchiAnalyst init failed: %s", exc)
 
     me = await client.get_me() if client else None
+    # Telegram<->amoCRM chat bridge (flag-gated, no-op by default). Must be
+    # registered before the handlers below: some raise StopPropagation.
+    from src.services.core.crm.tg_amo_bridge import runtime as tg_amo_runtime
+    await tg_amo_runtime.start_from_app_ctx()
     register_event_handlers(client, bot_client, bot_runtime, hisobchi_engine, hisobchi_analyst, m, me)
 
     # Restore the Aiogram bot-token head (dropped by the bootstrap split in
