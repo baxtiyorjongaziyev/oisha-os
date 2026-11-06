@@ -289,6 +289,14 @@ def render_telegram_login_response(next: Optional[str] = None) -> HTMLResponse:
             </div>
         </form>
 
+        <div class="divider">Yoki email va parol bilan</div>
+        <form method="POST" action="/api/auth/email/login" style="text-align: left;">
+            <input type="hidden" name="next" value="{escaped_next}">
+            <input type="email" name="email" placeholder="Email" required autocomplete="username" class="inp" style="margin-bottom: 8px;">
+            <input type="password" name="password" placeholder="Parol" required autocomplete="current-password" class="inp">
+            <button type="submit" class="btn-secondary">Parol bilan kirish</button>
+        </form>
+
         <div class="details-box">
             <details>
                 <summary>Admin / Master Token orqali kirish</summary>
