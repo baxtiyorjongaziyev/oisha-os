@@ -203,3 +203,28 @@ async def test_inbound_filters():
     skip = AsyncMock(return_value=(True, "mijoz emas"))
     assert not await inbound.handle_message(_event(), ACC, amojo, store, is_non_client=skip)
     amojo.send_event.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_resolve_amojo_id_from_crm(monkeypatch):
+    from src.services.core.crm.tg_amo_bridge import runtime
+
+    monkeypatch.delenv("AMOCRM_AMOJO_ID", raising=False)
+    seen = {}
+
+    class R:
+        status_code = 200
+        def json(self): return {"amojo_id": "uuid-123"}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        seen.update(url=url, params=params)
+        return R()
+
+    monkeypatch.setattr("requests.get", fake_get)
+    crm = SimpleNamespace(base_url="https://x.amocrm.ru", _get_headers=lambda: {"Authorization": "t"})
+    assert await runtime.resolve_amojo_id(crm) == "uuid-123"
+    assert seen["params"] == {"with": "amojo_id"}
+    import os
+    assert os.environ["AMOCRM_AMOJO_ID"] == "uuid-123"
+    monkeypatch.delenv("AMOCRM_AMOJO_ID", raising=False)
+    assert await runtime.resolve_amojo_id(None) is None
