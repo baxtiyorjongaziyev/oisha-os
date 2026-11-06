@@ -117,6 +117,17 @@ async def handle_amocrm_chat_outbound(
     if not isinstance(data, dict):
         return JSONResponse(status_code=400, content={"error": "invalid_payload"})
 
+    from src.services.core.crm.tg_amo_bridge import config as bridge_config
+
+    if bridge_config.bridge_enabled():
+        from src.services.core.crm.tg_amo_bridge import outbound, runtime
+
+        amojo = runtime.get_amojo()
+        if amojo is None:
+            raise HTTPException(status_code=503, detail="Bridge is not configured")
+        status, body = await outbound.dispatch(data, amojo, runtime.get_store())
+        return JSONResponse(status_code=status, content=body)
+
     message = data.get("message", {})
     text = message.get("text", "")
     if not isinstance(message, dict) or not isinstance(text, str):
