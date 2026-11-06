@@ -228,3 +228,20 @@ async def test_resolve_amojo_id_from_crm(monkeypatch):
     assert os.environ["AMOCRM_AMOJO_ID"] == "uuid-123"
     monkeypatch.delenv("AMOCRM_AMOJO_ID", raising=False)
     assert await runtime.resolve_amojo_id(None) is None
+
+
+@pytest.mark.asyncio
+async def test_start_from_app_ctx_noop_when_disabled(monkeypatch):
+    from src.services.core.crm.tg_amo_bridge import runtime
+
+    monkeypatch.delenv("TG_AMO_BRIDGE_ENABLED", raising=False)
+    assert await runtime.start_from_app_ctx() is False
+
+
+@pytest.mark.asyncio
+async def test_start_from_app_ctx_never_raises(monkeypatch):
+    from src.services.core.crm.tg_amo_bridge import runtime
+
+    monkeypatch.setenv("TG_AMO_BRIDGE_ENABLED", "1")
+    monkeypatch.setattr(runtime, "start", AsyncMock(side_effect=RuntimeError("boom")))
+    assert await runtime.start_from_app_ctx() is False
