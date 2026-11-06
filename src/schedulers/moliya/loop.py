@@ -18,6 +18,7 @@ from src.schedulers.moliya.helpers import run_once_per_day
 from src.schedulers.moliya.kuzatuv import run_kuzatuv_report
 from src.schedulers.moliya.pnl import run_pnl_report
 from src.schedulers.moliya.qarzdorlik import run_qarzdorlik_report
+from src.schedulers.moliya.soliq import SOLIQ_KUNLARI, run_soliq_eslatma
 
 from src.schedulers.moliya.moliyachi_skill import run_skill_update
 
@@ -51,6 +52,10 @@ async def moliya_hisobotlari_loop() -> None:
                     "moliyachi_skill", day,
                     lambda: run_skill_update(yesterday, send=yesterday.weekday() == 6),
                 )
+
+            # Soliq eslatmasi — egasiga; Hisobchi toʼxtatilgan boʼlsa ham ishlaydi
+            if now.day in SOLIQ_KUNLARI and now.hour == 9 and now.minute < 5:
+                await run_once_per_day("soliq_eslatma", day, lambda: run_soliq_eslatma(now))
 
             if not hisobchi_active():
                 # Hisobchi to'xtatilgan: guruhga hisobot/eslatma yuborilmaydi,
