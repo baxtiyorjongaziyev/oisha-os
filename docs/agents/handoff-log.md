@@ -2576,3 +2576,13 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - AGENTS.md Locks: main'da allaqachon bo'sh (qulflar yo'q); eski 4 qulf faqat eskirgan feat branchda edi. Ishlar branchlarda saqlanadi.
 - 7 ta stash refs/archive/stash-* ga va C:\Users\baxti\backups\oisha-stashes\*.patch ga arxivlandi, so'ng stash ro'yxatidan olib tashlandi.
 - Toza (clean) worktreelar `git worktree remove` bilan olib tashlandi (branchlar saqlandi); dirty/bugungi/detached-unique worktreelar qoldi.
+
+
+### 2026-11-07 — Antigravity: OpenClaw schema validatsiyasi va Mr.Jon gateway tiklanishi
+- **Muammo**: OpenClaw gateway Contabo VPS serverida exit 78 bilan toʻxtab qolgan (Runtime: stopped, connectivity check: failed), natijada bot Telegramʼda javob bermayotgan edi. Sabab: openclaw.json ichidagi models.providers.google.apiKey va groq.apiKey obyektlari {source: env} formati tufayli OpenClaw 2026 schema validatsiyasidan oʻtmagan.
+- **Tuzatish**:
+  - deploy/openclaw/openclaw.json: keraksiz models.providers bloki olib tashlandi (bundled Gemini va Groq API kalitlari muhit oʻzgaruvchilaridan olinadi).
+  - scripts/sync_agents_runtime.py: update_openclaw_config_file() funksiyasida notoʻgʻri apiKey obyektlarini tozalash logikasi qoʻshildi; openclaw doctor --fix kiritildi.
+  - tests/test_sync_agents_runtime.py: yangilangan xatti-harakat uchun testlar moslashtirildi (9/9 testlar yashil).
+- **Tekshiruv**: python -m unittest tests.test_sync_agents_runtime -v (9 ta test muvaffaqiyatli oʻtdi), python scripts/check_uzbek_text.py --staged (toza).
+- **Qolgan ish**: PR ochish, main ga birlashtirish va Contabo VPS deployida openclaw gateway status holatini kuzatish.

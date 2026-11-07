@@ -16,22 +16,6 @@
       }
     }
   },
-  "models": {
-    "providers": {
-      "google": {
-        "apiKey": {
-          "source": "env",
-          "id": "GEMINI_API_KEY"
-        }
-      },
-      "groq": {
-        "apiKey": {
-          "source": "env",
-          "id": "GROQ_API_KEY"
-        }
-      }
-    }
-  },
   "skills": {
     "load": {
       "extraDirs": [
