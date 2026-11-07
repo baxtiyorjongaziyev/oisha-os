@@ -106,10 +106,19 @@ class ActionParser:
             start_str = cal_data.get("start")
             if start_str and cal_data.get("summary"):
                 end_str = cal_data.get("end") or start_str
-                self.gcalendar.create_event(
+                # create_event is a blocking Google API call that returns None on
+                # failure; only a real event may be recorded as a scheduled meeting.
+                event = await asyncio.to_thread(
+                    self.gcalendar.create_event,
                     summary=cal_data.get("summary"), start_time=start_str,
                     end_time=end_str, description=cal_data.get("description", ""),
                 )
+                if not event:
+                    logger.warning(
+                        "[ACTION_PARSER] Calendar event not created; meeting not recorded (sender_id=%s)",
+                        sender_id,
+                    )
+                    return re.sub(r"\[CALENDAR_EVENT:.*?\]", "", reply_text, flags=re.IGNORECASE).strip()
                 if self.db:
                     try:
                         await self.db.upsert_user(

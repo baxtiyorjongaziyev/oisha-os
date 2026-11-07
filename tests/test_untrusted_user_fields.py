@@ -120,3 +120,39 @@ async def test_save_lead_info_reports_failure_when_nothing_saved():
     result = await tool._save_lead_info(5, name="Ali")
 
     assert result["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_failed_calendar_insert_is_not_recorded_as_meeting():
+    db = MagicMock()
+    db.upsert_user = AsyncMock()
+    gcalendar = MagicMock(create_event=MagicMock(return_value=None))  # no credentials / API error
+    parser = ActionParser(db=db, gcalendar=gcalendar)
+
+    with patch.object(parser, "_notify_meeting_group") as notify:
+        text = await parser.parse_and_execute(
+            "[CALENDAR_EVENT: summary=Brif|start=2026-11-10T10:00] Kelishdik",
+            sender_id=7, sender_name="Ali", username="ali",
+        )
+
+    gcalendar.create_event.assert_called_once()
+    db.upsert_user.assert_not_awaited()
+    notify.assert_not_called()
+    assert text == "Kelishdik"
+
+
+@pytest.mark.asyncio
+async def test_save_lead_info_without_name_keeps_stored_name():
+    from src.agents.agent_tools.crm_actions import CrmActionsMixin
+
+    tool = CrmActionsMixin.__new__(CrmActionsMixin)
+    tool.db = MagicMock()
+    tool.db.upsert_user = AsyncMock()
+    tool.gsheet = MagicMock()
+    tool.amocrm = MagicMock()
+    tool._log_action = AsyncMock()
+
+    await tool._save_lead_info(5, region="Samarqand")
+
+    # first_name=None: the repository leaves an existing name untouched.
+    tool.db.upsert_user.assert_awaited_once_with(5, None, None, phone=None, region="Samarqand")
