@@ -45,10 +45,17 @@ class GoogleContactsSync:
 
         # 2. service_account.json (Fallback)
         if not creds:
-            if os.path.exists(self.credentials_path):
+            candidate_paths = [
+                self.credentials_path,
+                "/home/ubuntu/.secrets/service_account.json",
+                "data/service_account.json",
+                "service_account.json",
+            ]
+            valid_path = next((p for p in candidate_paths if p and os.path.exists(p)), None)
+            if valid_path:
                 try:
                     creds = ServiceAccountCredentials.from_service_account_file(
-                        self.credentials_path, scopes=self.scopes
+                        valid_path, scopes=self.scopes
                     )
                     logger.info("[GCONTACTS OK] Service Account ulandi.")
                 except Exception as e:
