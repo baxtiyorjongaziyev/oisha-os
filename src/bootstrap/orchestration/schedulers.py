@@ -175,4 +175,10 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         )
         start_cockpit_autopilot_scheduler(bot_runtime)
     except ImportError as exc:
-        logger.warning('COCKPIT AUTOPILOT scheduler unavailable: %s', exc)
+        logger.warning("COCKPIT AUTOPILOT scheduler unavailable: %s", exc)
+
+    try:
+        from src.handlers.metasell_menu import configure_telegram_menu_button
+        asyncio.create_task(configure_telegram_menu_button(), name="configure_telegram_menu_button")
+    except (ImportError, RuntimeError, OSError) as exc:
+        logger.debug("[TELEGRAM MENU] configuration skipped: %s", exc)

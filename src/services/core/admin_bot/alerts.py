@@ -1,19 +1,19 @@
 import os
 import time
+
 import structlog
 from telethon import Button
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
 
 logger = structlog.get_logger()
 
 class AdminAlertsMixin:
     def _get_buttons_for_role(self, role: str):
         """Har bir rol uchun maxsus tugmalar."""
+        from src.handlers.metasell_menu import build_telethon_cockpit_buttons
+        cockpit_rows = build_telethon_cockpit_buttons()
+
         if role == "OWNER":
-            return [
+            return cockpit_rows + [
                 [
                     Button.inline("📊 ROI Dashboard", b"dashboard"),
                     Button.inline("📅 Haftalik Hisobot", b"weekly_report"),
@@ -33,13 +33,13 @@ class AdminAlertsMixin:
                 ],
             ]
         elif role == "CEO":
-            return [
+            return cockpit_rows + [
                 [Button.inline("📈 Biznes Overview", b"overview")],
                 [Button.inline("💰 Moliyaviy Holat", b"finance")],
                 [Button.inline("🔍 Global Search", b"search")],
             ]
         elif role == "PM":
-            return [
+            return cockpit_rows + [
                 [Button.inline("📋 Loyihalar Statusi", b"projects")],
                 [Button.inline("⏳ Muddatlar", b"deadlines")],
                 [Button.inline("🔍 Deal Search", b"search")],
@@ -285,7 +285,7 @@ class AdminAlertsMixin:
 
         except Exception as e:
             logger.error(f"[SOCIAL_SPY ERROR] {e}")
-            await wait_msg.edit(f"⚠️ Tahlil jarayonida xatolik: `{str(e)}`")
+            await wait_msg.edit(f"⚠️ Tahlil jarayonida xatolik: `{e!s}`")
 
     async def send_draft_for_approval(self, user_id: int, name: str, draft: str):
         """AI tomonidan tayyorlangan javobni ownerga tasdiq uchun yuboradi.
