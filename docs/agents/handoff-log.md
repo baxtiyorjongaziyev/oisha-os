@@ -3704,9 +3704,70 @@ Commit 69bdfdaa: contextual quality/reviews/intelligence UI and evidence-bound c
 - Swapped only the two prompts using an atomic replacement; backup: jobs.json.before-attendance-prompt-fix-20261105T100331. Read-back confirmed correct prompts, enabled state and next runs on 2026-11-06 at 10:00/14:00 Asia/Tashkent.
 - No Oisha code deployment or Telegram test message. Future scheduled delivery remains unverified. Existing unrelated local changes preserved. This handoff is local, uncommitted.
 
+### 2026-11-05 — Claude: Hermes standup yoqildi + vazifa-nazorati
+- Live /home/hermes/.hermes/cron/jobs.json (Contabo). Zaxira: jobs.json.bak-standup-name-20261105, jobs.json.bak-standup-followup-20261105.
+- ertalab-standup (883372a46b8d): "Biznes asisstant" -> "Loyihalar", prompt oxiriga "har kim reply qilib bugungi ishini yozsin" qo'shildi, enabled=True, next 2026-11-06 09:00.
+- Yangi job vazifa-nazorati (037479dd6a18): 11:30/15:30/17:30 Dush-Shan, Loyihalar guruhi. Standup javoblarini o'qib, dalilsiz/tugamagan ishlar egasidan ismi bilan so'raydi, tugaganini qayta so'ramaydi. Stateless (guruh tarixidan).
+- Tushlik-ishtaha promptida eski nom yo'q ekan. Birinchi real yetkazish (2026-11-06) kuzatilmagan. Lokal commit yo'q.
+
 
 ### 2026-11-05 — Codex: PR #1005 confirmed review fixes
 - GitHub inspection: PR already MERGED, 8 unresolved threads. Current branch feat/amobot-daily-report-uzbek lacked PR code; restored relevant advisor/test implementation from c7f965fd without switching branches or changing unrelated files.
 - Changed: src/services/core/assistant/telegram_assistant_advisor.py, new calendar_appointment.py, tests/test_telegram_assistant_advisor.py. Split date/time spans, source-timestamp anchor plus audit-time past rejection, cancellations skipped, payment apostrophes normalized, dynamic Telegram HTML escaped, nonexistent route instruction replaced by manual Google Calendar after confirmation.
 - Checks: rtk pytest tests/test_telegram_assistant_advisor.py -q --tb=short (32 passed); rtk ruff check src/services/core/assistant/calendar_appointment.py src/services/core/assistant/telegram_assistant_advisor.py tests/test_telegram_assistant_advisor.py (passed); rtk proxy python -m bandit -q src/services/core/assistant/calendar_appointment.py src/services/core/assistant/telegram_assistant_advisor.py -ll (passed); rtk git diff --check (passed). Production modules 237/225 lines, functions <=60.
 - Qolgan ish: push/integration PR, full PR preflight and deployment/live verification remain. GitHub review threads unchanged; local changes do not resolve remote threads. Missing/invalid source timestamps suppress calendar proposals. Unrelated existing AGENTS/handoff/backlog edits and package deletions preserved.
+
+## 2026-11-06 - Codex Dilbar partial monitoring
+- Both required skills read successfully. Telegram 30 recent DM messages verified sender8611068511; partial Nov4-Nov6 coverage only. Gmail bounded query unrelated result/no cursor; Airtable base access verified, records not audited.
+- Evidence appended/read back in Dilbar area; brain_log recorded. No promotion, full checkpoint advance, external mutation or deploy.
+- Changed: handoff append only. Qolgan ish:30-day backfill, revisions, group/source coverage and original finance evidence.
+
+## 2026-11-06 - Codex Airtable completeness audit
+- Live all15 tables paginated; aggregate empty-field report docs/audits/airtable-empty-fields-2026-11-06.md. Conditional USD checks; no Airtable mutation.
+- Changed: report and handoff only. Brain area/log recorded. No commit/push/deploy. Qolgan ish: owner prioritization and source-backed remediation.
+
+### 2026-11-06 — Claude: Hermes yangi botga (Amina AI) o'tkazildi
+- Hermes gateway endi alohida bot `@amina_binti_sabot` ("Amina AI") tokeni bilan ishlaydi; token owner tomonidan scp qilindi, `hermes config set TELEGRAM_BOT_TOKEN` bilan o'rnatildi, `hermes-gateway` restart, polling connected. Tekshiruv: Amina tokeniga getUpdates 409 qaytardi (Hermes shu tokenni tinglayapti). Token fayllari (lokal, temp, server) o'chirildi.
+- Oisha `@jonairobot` da qoladi. Zaxira (eski Hermes tokeni) yo'q: kerak bo'lsa BotFather orqali olinadi.
+- Ochiq: Amina'ni Sotuv/Loyihalar/Biznes asisstant guruhlariga admin qilib qo'shish va Group Privacy o'chirish (owner), `/start`; vazifa-nazorati to'xtatilgan (Hermesda Telegram o'qish vositasi yo'q). Token chat bildirishnomasida ko'ringan: xavotir bo'lsa BotFather Revoke.
+
+### 2026-11-07 — Antigravity: YaMMT (my.mehnat.uz) 0.25 stavka va Oktyabr 2026 soliq hisobotlari (11101_20 va 10104_36)
+- **Bajarilgan ish:**
+  1. `my.mehnat.uz` (YaMMT) portalida `"JON BRANDING" MCHJ` (STIR `312675253`) bo'yicha ikkala xodim (`G‘OZIYEV BAXTIYORJON AZIMJON O‘G‘LI`, JSHSHIR `31110977080045` — Buyruq №7; `ABDURASHIDOVA DILBAR AKBAR QIZI`, JSHSHIR `62908046050057` — Buyruq №8) uchun `01.10.2026` sanadan Qo'shimcha kelishuv №1 rasmiylashtirildi, E-IMZO bilan imzolandi va stavkalari **`0.25`** (340 000 so'm/oy, MHTEKM `1 360 000 so'm` asosida) qilib o'zgartirildi.
+  2. `oldmy.soliq.uz` portalida 2026-yil Oktyabr (`M_10`) oyi uchun JShDS va Ijtimoiy soliq hisoboti (`11101_20`) Ilova №4 (`prilojenie_october_2026.xlsx`, 2 ta JSHSHIR 100% moslik) bilan shakllantirildi va E-IMZO orqali yuborildi: yil boshidan jami hisoblangan ish haqi `31 764 000.00 so'm` (Sentyabr `31 084 000.00` + Oktyabr `680 000.00`), Oktyabr JShDS (12%) = `81 600.00 so'm` (jami `3 811 680.00 so'm`, byudjetga `3 779 916.00 so'm`, ShJBPH 0.1% `31 764.00 so'm`), Oktyabr Ijtimoiy soliq (12%) = `81 600.00 so'm` (jami `3 811 680.00 so'm`).
+  3. `oldmy.soliq.uz` portalida 2026-yil Oktyabr (`M_10`) oyi uchun Aylanmadan olinadigan soliq hisoboti (`10104_36`) E-IMZO orqali yuborildi (yil boshidan soliq solinadigan aylanma `40 897 501.00 so'm`, 4% soliq `1 635 900.04 so'm`).
+- **Tekshiruv dalili:**
+  - `my.mehnat.uz` (`structure=3428723`, `бошкарув` bo'limi): ikkala xodimda `Ставка: 0.25` tasdiqlandi.
+  - `oldmy.soliq.uz` (`/wefo4-clientui/form/uz/reports`):
+    - `11101_20` (2026 Oktyabr): Ro'yxatga olish № `244882175` (`07.11.2026 13:43:50`) — **`Қабул қилинган ўз вақтида`** (`AVTOMAT PROVODKA`).
+    - `10104_36` (2026 Oktyabr): Ro'yxatga olish № `244882258` (`07.11.2026 13:46:18`) — **`Қабул қилинган ўз вақтида`** (`AVTOMAT PROVODKA`).
+  - Obsidian Second Brain (`20-Areas/JonBranding_Buxgalteriya_Tekshiruvi.md` va `brain_log`) yangilandi.
+- **O'zgargan fayllar:** `docs/agents/handoff-log.md` (lokal, commit qilinmagan).
+- **Qolgan ish / Bloker:** Yo'q. Oktyabr 2026 hisobotlari to'liq topshirildi va qabul qilindi.
+
+### 2026-11-07 — Antigravity: Hisobchi GSheets private/stdlib imports fix + Contabo failed services diagnosis
+- **Bajarilgan ish:**
+  1. Contabo VPS (`109.199.100.137`) dagi `/home/ubuntu/oisha-os/src/services/core/finance/gsheets/` fayllarida `_GSHEET_SCOPES` xatosi (`NameError: name '_GSHEET_SCOPES' is not defined`) tekshirildi: server eski commit (`4a2827e1`) da bo'lgani sababli `#830` (`5edeb42e`) dagi `_GSHEET_SCOPES` importi hali deploy bo'lmagani aniqlandi.
+  2. Qo'shimcha ravishda `src/services/core/finance/gsheets/` modullari (`client.py`, `budget_salary.py`, `reporting.py`, `transactions.py`) tekshirilganda `constants.py` dan `import *` orqali kelmay qolgan `datetime` hamda `gspread` ning `Spreadsheet`, `Worksheet` klasslari import qilinmagani topildi va tuzatildi.
+  3. `tests/test_hisobchi_gsheets_private_imports.py` testi `_UPPERCASE` konstantalar (`_GSHEET_SCOPES`) va `datetime`/`Spreadsheet`/`Worksheet` simvollarini ham qamrab oladigan qilib kengaytirildi.
+  4. Contabo VPS da `oisha-calls-report.service` va `oisha-sales-hourly.service` nega `failed` holatda ekani loglar (`journalctl`) va `remote_audit_keys.py` orqali tekshirildi: ikkala servis Moizvonki dan ma'lumotni muvaffaqiyatli tortib, Telegramga yuborishda `RuntimeError: Telegram sendMessage http=401: {"ok":false,"error_code":401,"description":"Unauthorized"}` bilan yiqilmoqda (server `.env` dagi `BOT_TOKEN` revoke qilingan / eskirgan).
+- **O'zgargan fayllar (lokal, commit qilinmagan):** `src/services/core/finance/gsheets/client.py`, `src/services/core/finance/gsheets/budget_salary.py`, `src/services/core/finance/gsheets/reporting.py`, `src/services/core/finance/gsheets/transactions.py`, `tests/test_hisobchi_gsheets_private_imports.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_hisobchi_gsheets_private_imports.py -q --tb=short` -> `8 passed`.
+  - `bandit -r src/services/core/finance/gsheets/ -ll` -> `0 issues`.
+  - Barcha tahrirlangan production fayllar <= 400 qator (`client.py` 315, `budget_salary.py` 338, `reporting.py` 325, `transactions.py` 247).
+- **Qolgan ish / Bloker:**
+  - Lokal GSheets tuzatishlarini commit qilib Contabo VPS ga deploy qilish (`deploy_contabo_direct.py --apply` — owner ruxsati bilan).
+  - Contabo `.env` faylidagi `BOT_TOKEN` ni yangi amal qiluvchi bot tokeniga yangilash (owner / BotFather) va `/home/ubuntu/.secrets/service_account.json` faylini tiklash.
+
+### 2026-11-07 — opencode: Agent ishlarini mustaqil tekshiruv + holat tuzatishlari
+- **Tekshirilgan da'volar:**
+  1. To'liq preflight: `SKIP_LIVE=1 python -m pytest -q` -> `3399 passed, 18 skipped`; yagona fail `tests/test_incoming_call_card.py::test_client_found_in_amocrm` sababi kod emas — sessiya env'ida `AMOCRM_SUBDOMAIN` qiymati `'jonbranding'` (qo'shtirnoq bilan) bo'lgan (`Process` scope; `User`/`Machine` bo'sh). Env tozalanganda `10/10 passed`.
+  2. Agent ishlariga oid fokus testlar (`test_tg_amo_bridge`, `test_amobot_daily_report`, `test_telegram_assistant_advisor`, `test_soliq_eslatma`, `test_hisobchi_gsheets_private_imports`) -> `64 passed`; Google fayllari (`test_gcalendar_sync`, `test_google_signin`) bilan birga `19 passed`. `bandit -r src/ -ll` -> exit 0.
+  3. GitHub: PR #1005 MERGED (2026-11-05), PR #1014 CLOSED + CONFLICTING, PR #1024 MERGED (2026-11-07) — handoff da'volari bilan mos.
+  4. Contabo (read-only SSH): `oisha-os`, `hermes-gateway`, `nginx` active. `oisha-calls-report` va `oisha-sales-hourly` oxirgi run (07.11 12:56 CET) muvaffaqiyatli (`Hisobot yuborildi` / `Hourly report sent`); 401 xatolari oxirgi marta 11:05 va 12:05 CET da bo'lgan, keyin takrorlanmagan. Server HEAD `b5aad43d` (#1024). Yuqoridagi "BOT_TOKEN yangilash qolgan" bandi shu bilan eskirgan: token amalda ishlayapti; `/home/ubuntu/.secrets/service_account.json` holati bu tekshiruvda tasdiqlanmadi.
+  5. `docs/agents/worktree-registry.md` to'liq emas edi: 4 ta mavjud worktree yozuvsiz. Reestrga qo'shildi — `charming-pasteur-c8d86f` (merged), `oishani-architecture-audit-452904` / `feat/claude-code-action` (**merge qilinmagan**), `oracle-free-tier-ssh-5520bd` (merged), `oisha-os-bridge` / `fix/gsheet-scopes-import` (kontenti `b5aad43d` sifatida squash-merged). Barchasi dirty=0.
+- **Topilgan kichik nuqson:** `src/bootstrap/orchestration/boot.py` da takroriy `# pyrefly: ignore[missing-attribute]` izohi olib tashlandi.
+- **Concurrent o'zgarish:** tekshiruv paytida boshqa agent `6b5af9ca` commit qildi (GSheets stdlib importlari + Google SA path fallback). Unga tegilmadi; fokus testlar `19 passed`.
+- **Tekshirilmagan (tashqi tizim):** Airtable bo'sh maydonlar auditi, YaMMT soliq hisobotlari qabul raqamlari, Hermes/Amina guruh sozlamalari — repo ichidan mustaqil tasdiqlab bo'lmaydi.
+- **Holat:** Faqat lokal tuzatish/hujjat; commit/push/deploy bu band doirasida bajarilmadi.
