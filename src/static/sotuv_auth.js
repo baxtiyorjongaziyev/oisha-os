@@ -121,9 +121,6 @@ function showPinChangeModal(seller, knownOldPin) {
   setTimeout(() => { const el = document.getElementById(focusId); if (el) el.focus(); }, 150);
 }
 
-// Called from the modal's inline onclick/onkeydown handlers.
-window.submitPinChange = submitPinChange;
-
 async function submitPinChange() {
   const errEl = document.getElementById("pinChangeError");
   const showErr = (msg) => { if (errEl) { errEl.innerText = msg; errEl.classList.remove("hidden"); } };
@@ -157,33 +154,50 @@ async function submitPinChange() {
 
 function ensurePinChangeModalDom() {
   if (document.getElementById("sellerPinChangeModal")) return;
-  const div = document.createElement("div");
-  div.id = "sellerPinChangeModal";
-  div.className = "hidden fixed inset-0 bg-slate-900/85 backdrop-blur-md z-[9999] flex items-center justify-center p-4";
-  const input = (id, label, rowId) => `
-    <div ${rowId ? `id="${rowId}"` : ""}>
-      <label for="${id}" class="block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-1.5">${label}</label>
-      <input id="${id}" type="password" inputmode="numeric" autocomplete="off" maxlength="20" placeholder="••••••"
-        onkeydown="if(event.key==='Enter') submitPinChange()"
-        class="w-full text-center font-mono text-xl tracking-widest p-2.5 border-2 border-[#cbd5e1] rounded-lg focus:outline-none focus:border-[#4c8bf7] bg-[#f8fafc]">
-    </div>`;
-  div.innerHTML = `
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4 border border-[#e2e8f0]">
-      <div class="text-center pb-2 border-b border-[#f1f5f9]">
-        <h2 class="text-xl font-bold text-[#0f172a]">PIN-kodni yangilang</h2>
-        <p class="text-xs text-[#64748b] mt-1">Joriy PIN juda qisqa. Davom etish uchun kamida 6 belgili yangi PIN-kod oʻrnating.</p>
-      </div>
-      ${input("pinChangeOld", "Eski PIN-kod", "pinChangeOldRow")}
-      ${input("pinChangeNew", "Yangi PIN-kod")}
-      ${input("pinChangeRepeat", "Yangi PIN-kodni takrorlang")}
-      <div id="pinChangeError" class="hidden text-xs text-[#ef4444] font-semibold text-center"></div>
-      <div class="flex gap-2">
-        <button onclick="logoutSeller()" class="flex-1 px-4 py-3 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#334155] font-bold text-sm rounded-lg transition">Chiqish</button>
-        <button onclick="submitPinChange()" class="flex-1 px-4 py-3 bg-[#4c8bf7] hover:bg-[#3b78e7] text-white font-bold text-sm rounded-lg shadow-md transition">SAQLASH →</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(div);
+  // DOM API (no innerHTML): every text is set via textContent.
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  };
+  const field = (id, label) => {
+    const wrap = el("div");
+    const caption = el("label", "block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-1.5", label);
+    caption.htmlFor = id;
+    const input = el("input", "w-full text-center font-mono text-xl tracking-widest p-2.5 border-2 border-[#cbd5e1] rounded-lg focus:outline-none focus:border-[#4c8bf7] bg-[#f8fafc]");
+    Object.assign(input, { id, type: "password", inputMode: "numeric", autocomplete: "off", maxLength: 20, placeholder: "••••••" });
+    input.addEventListener("keydown", (event) => { if (event.key === "Enter") submitPinChange(); });
+    wrap.append(caption, input);
+    return wrap;
+  };
+  const button = (text, className, onClick) => {
+    const node = el("button", className, text);
+    node.type = "button";
+    node.addEventListener("click", onClick);
+    return node;
+  };
+
+  const header = el("div", "text-center pb-2 border-b border-[#f1f5f9]");
+  header.append(
+    el("h2", "text-xl font-bold text-[#0f172a]", "PIN-kodni yangilang"),
+    el("p", "text-xs text-[#64748b] mt-1", "Joriy PIN juda qisqa. Davom etish uchun kamida 6 belgili yangi PIN-kod oʻrnating."),
+  );
+  const oldRow = field("pinChangeOld", "Eski PIN-kod");
+  oldRow.id = "pinChangeOldRow";
+  const error = el("div", "hidden text-xs text-[#ef4444] font-semibold text-center");
+  error.id = "pinChangeError";
+  const actions = el("div", "flex gap-2");
+  actions.append(
+    button("Chiqish", "flex-1 px-4 py-3 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#334155] font-bold text-sm rounded-lg transition", () => logoutSeller()),
+    button("SAQLASH →", "flex-1 px-4 py-3 bg-[#4c8bf7] hover:bg-[#3b78e7] text-white font-bold text-sm rounded-lg shadow-md transition", () => submitPinChange()),
+  );
+  const card = el("div", "bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4 border border-[#e2e8f0]");
+  card.append(header, oldRow, field("pinChangeNew", "Yangi PIN-kod"), field("pinChangeRepeat", "Yangi PIN-kodni takrorlang"), error, actions);
+  const overlay = el("div", "hidden fixed inset-0 bg-slate-900/85 backdrop-blur-md z-[9999] flex items-center justify-center p-4");
+  overlay.id = "sellerPinChangeModal";
+  overlay.append(card);
+  document.body.appendChild(overlay);
 }
 
 function updateHeaderSellerBadge(seller) {
