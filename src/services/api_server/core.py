@@ -15,14 +15,14 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from src.settings import settings
-from src.services.api_server.helpers import (
-    mark_heartbeat,
-    add_activity,
-)
-import src.services.api_server.webhooks as webhooks_module
-import src.services.api_server.oauth as oauth_module
 import src.services.api_server.dashboard as dashboard_module
+import src.services.api_server.oauth as oauth_module
+import src.services.api_server.webhooks as webhooks_module
+from src.services.api_server.helpers import (
+    add_activity,
+    mark_heartbeat,
+)
+from src.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -109,42 +109,45 @@ except Exception as exc:
 
 
 # Include route modules
-from src.api.routes.health import router as health_router, liveness_probe
-from src.api.routes.telegram_routes import router as telegram_router
-from src.api.routes.telegram_mcp import router as telegram_mcp_router
-from src.api.routes.system_dashboard import router as system_router
-from src.api.routes.sales_quality import router as sales_quality_router
-from src.api.routes.chat_widget import router as chat_router
-from src.api.routes.amocrm_integration import router as amocrm_router
-from src.api.routes.amocrm_chats import router as amocrm_chats_router
-from src.api.routes.openclaw_gateway import router as openclaw_router
 from src.api.routes.ai_analytics import router as ai_router
-from src.api.routes.erp_routes import router as erp_router
-from src.api.routes.instagram_routes import router as instagram_router
-from src.api.routes.product_suite import router as product_router
-from src.api.routes.business_commands import router as business_commands_router
-from src.api.routes.crm_dashboard import router as crm_dashboard_router
-from src.api.routes.parallel_crm import router as parallel_crm_router
-from src.api.routes.twenty_calls import router as twenty_calls_router
-from src.api.routes.simple_crm import router as simple_crm_router
-from src.api.routes.chat_manager import router as chat_manager_router
-from src.api.routes.crm_reports import router as crm_reports_router
-from src.api.routes.finance_dashboard import router as finance_dashboard_router
-from src.api.routes.finance_ai import router as finance_ai_router
-from src.api.routes.marketing_dashboard import router as marketing_router
-from src.api.routes.capi_platform import router as capi_platform_router
-from src.api.routes.callmaster_routes import router as callmaster_router
-from src.api.routes.dashboard_overview import router as dashboard_overview_router
-from src.api.routes.client_qa import router as client_qa_router
-from src.api.routes.payme import router as payme_router
-from src.api.routes.callback_widget import router as callback_widget_router
-from src.api.routes.telephony import router as telephony_router
-from src.api.routes.attendance_routes import router as attendance_router, pages_router as attendance_pages_router
+from src.api.routes.amocrm_chats import router as amocrm_chats_router
+from src.api.routes.amocrm_integration import router as amocrm_router
+from src.api.routes.attendance_routes import pages_router as attendance_pages_router
+from src.api.routes.attendance_routes import router as attendance_router
 from src.api.routes.attendance_setup_routes import router as attendance_setup_router
-from src.api.routes.crm_dialer import router as crm_dialer_router
+from src.api.routes.business_commands import router as business_commands_router
+from src.api.routes.callback_widget import router as callback_widget_router
+from src.api.routes.callmaster_routes import router as callmaster_router
+from src.api.routes.capi_platform import router as capi_platform_router
+from src.api.routes.chat_manager import router as chat_manager_router
+from src.api.routes.chat_widget import router as chat_router
+from src.api.routes.client_qa import router as client_qa_router
 from src.api.routes.crm_auth_routes import router as crm_auth_router
 from src.api.routes.crm_call_routes import router as crm_call_router
+from src.api.routes.crm_dashboard import router as crm_dashboard_router
+from src.api.routes.crm_dialer import router as crm_dialer_router
 from src.api.routes.crm_enterprise_routes import router as crm_enterprise_router
+from src.api.routes.crm_reports import router as crm_reports_router
+from src.api.routes.dashboard_overview import router as dashboard_overview_router
+from src.api.routes.erp_routes import router as erp_router
+from src.api.routes.finance_ai import router as finance_ai_router
+from src.api.routes.finance_dashboard import router as finance_dashboard_router
+from src.api.routes.health import liveness_probe
+from src.api.routes.health import router as health_router
+from src.api.routes.instagram_routes import router as instagram_router
+from src.api.routes.marketing_dashboard import router as marketing_router
+from src.api.routes.metasell_dashboard import router as metasell_dashboard_router
+from src.api.routes.openclaw_gateway import router as openclaw_router
+from src.api.routes.parallel_crm import router as parallel_crm_router
+from src.api.routes.payme import router as payme_router
+from src.api.routes.product_suite import router as product_router
+from src.api.routes.sales_quality import router as sales_quality_router
+from src.api.routes.simple_crm import router as simple_crm_router
+from src.api.routes.system_dashboard import router as system_router
+from src.api.routes.telegram_mcp import router as telegram_mcp_router
+from src.api.routes.telegram_routes import router as telegram_router
+from src.api.routes.telephony import router as telephony_router
+from src.api.routes.twenty_calls import router as twenty_calls_router
 from src.api.routes.twenty_moizvonki import router as twenty_moizvonki_router
 
 app.include_router(health_router)
@@ -185,6 +188,9 @@ app.include_router(crm_auth_router)
 app.include_router(crm_call_router)
 app.include_router(crm_enterprise_router)
 app.include_router(twenty_moizvonki_router)
+app.include_router(metasell_dashboard_router)
+app.include_router(metasell_dashboard_router, prefix="/api/dashboard")
+app.include_router(metasell_dashboard_router, prefix="/api/cockpit")
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
