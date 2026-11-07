@@ -5,32 +5,14 @@ Speed to Lead (SLA), Stuck Deals Radar, Marketing Ad Attribution, AI Sales Simul
 Voice Roleplay (TTS/STT), Native WebRTC PBX Softphone, GSM SMS Gateway,
 Knowledge Quizzes, and Morning Task Triage.
 """
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from src.services.command_center.speed_to_lead import (
-    SpeedToLeadCalculator,
-)
-from src.services.command_center.stuck_deals import (
-    StuckDealsRadar,
-)
-from src.services.command_center.ad_attribution import (
-    AdAttributionEngine,
-)
-from src.services.command_center.morning_tasks import (
-    MorningTaskItem,
-    MorningTriageService,
-)
-from src.services.command_center.live_db_bridge import LiveDataBridge
-from src.services.ai.sales_simulator import (
-    SalesSimulatorEngine,
-    SimulationTurn,
-)
 from src.services.ai.audio_simulator import (
     AudioSimulatorService,
     AudioTurnRequest,
@@ -39,6 +21,24 @@ from src.services.ai.audio_simulator import (
 from src.services.ai.knowledge_quiz import (
     KnowledgeQuizEngine,
     QuizSubmission,
+)
+from src.services.ai.sales_simulator import (
+    SalesSimulatorEngine,
+    SimulationTurn,
+)
+from src.services.command_center.ad_attribution import (
+    AdAttributionEngine,
+)
+from src.services.command_center.live_db_bridge import LiveDataBridge
+from src.services.command_center.morning_tasks import (
+    MorningTaskItem,
+    MorningTriageService,
+)
+from src.services.command_center.speed_to_lead import (
+    SpeedToLeadCalculator,
+)
+from src.services.command_center.stuck_deals import (
+    StuckDealsRadar,
 )
 from src.services.telephony.unified_gateway import UnifiedTelephonyGateway
 
@@ -57,14 +57,14 @@ class SimulatorTurnRequest(BaseModel):
 
     scenario_id: str = Field(..., description="Target scenario identifier")
     manager_message: str = Field(..., description="Message spoken by the sales manager")
-    history: List[Dict[str, str]] = Field(default_factory=list, description="Dialogue history")
+    history: list[dict[str, str]] = Field(default_factory=list, description="Dialogue history")
 
 
 class QuizSubmitRequest(BaseModel):
     """Payload for submitting quiz answers for grading."""
 
     user_id: str = Field(..., description="Sales representative user id")
-    answers: Dict[str, str] = Field(..., description="Map of question_id to selected option")
+    answers: dict[str, str] = Field(..., description="Map of question_id to selected option")
 
 
 class SmsDispatchRequest(BaseModel):
@@ -90,7 +90,7 @@ async def get_metasell_console_ui() -> HTMLResponse:
 async def get_webrtc_session(
     manager_id: str = "mgr_default",
     extension: str = "101",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate in-browser WebRTC softphone credentials (Native Oisha Voice)."""
     return _telephony_gateway.native_voice.create_webrtc_dialer_session(
         manager_id=manager_id,
@@ -99,7 +99,7 @@ async def get_webrtc_session(
 
 
 @router.post("/sms/dispatch")
-async def dispatch_sms(req: SmsDispatchRequest) -> Dict[str, Any]:
+async def dispatch_sms(req: SmsDispatchRequest) -> dict[str, Any]:
     """Dispatch customer SMS via Native GSM modem with Eskiz fallback."""
     msg = await _telephony_gateway.dispatch_customer_sms(req.phone, req.message)
     return {
@@ -111,9 +111,9 @@ async def dispatch_sms(req: SmsDispatchRequest) -> Dict[str, Any]:
 
 
 @router.get("/metasell-executive")
-async def get_metasell_executive_dashboard() -> Dict[str, Any]:
+async def get_metasell_executive_dashboard() -> dict[str, Any]:
     """Return aggregated executive dashboard for Oisha-OS Cockpit."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 1. Fetch live data from Turso/Database bridge
     interactions = await _bridge.fetch_recent_lead_interactions()
@@ -220,7 +220,7 @@ async def get_metasell_executive_dashboard() -> Dict[str, Any]:
 
 
 @router.get("/simulator/scenarios")
-async def list_simulator_scenarios() -> List[Dict[str, Any]]:
+async def list_simulator_scenarios() -> list[dict[str, Any]]:
     """Return all available sales simulation roleplay scenarios."""
     scenarios = _simulator_engine.get_scenarios()
     return [
@@ -240,7 +240,7 @@ async def list_simulator_scenarios() -> List[Dict[str, Any]]:
 
 
 @router.post("/simulator/turn")
-async def process_simulator_turn(req: SimulatorTurnRequest) -> Dict[str, Any]:
+async def process_simulator_turn(req: SimulatorTurnRequest) -> dict[str, Any]:
     """Execute one dialogue turn with the simulated buyer persona."""
     scenario = _simulator_engine.get_scenario(req.scenario_id)
     if not scenario:
@@ -272,7 +272,7 @@ async def process_simulator_voice_turn(req: AudioTurnRequest) -> AudioTurnRespon
 
 
 @router.get("/quiz/questions")
-async def list_quiz_questions() -> List[Dict[str, Any]]:
+async def list_quiz_questions() -> list[dict[str, Any]]:
     """Return multiple-choice quiz questions for sales rep knowledge testing."""
     questions = _quiz_engine.get_questions()
     return [
@@ -287,7 +287,7 @@ async def list_quiz_questions() -> List[Dict[str, Any]]:
 
 
 @router.post("/quiz/submit")
-async def submit_quiz(req: QuizSubmitRequest) -> Dict[str, Any]:
+async def submit_quiz(req: QuizSubmitRequest) -> dict[str, Any]:
     """Grade sales representative knowledge quiz submission and return feedback."""
     submission = QuizSubmission(user_id=req.user_id, answers=req.answers)
     result = _quiz_engine.grade_quiz(submission)
@@ -303,9 +303,9 @@ async def submit_quiz(req: QuizSubmitRequest) -> Dict[str, Any]:
 
 
 @router.get("/morning-tasks")
-async def get_morning_tasks_overview() -> Dict[str, Any]:
+async def get_morning_tasks_overview() -> dict[str, Any]:
     """Return overview of morning tasks partitioned into today and overdue."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     sample_tasks = [
         MorningTaskItem(
             task_id="T_101",
@@ -347,3 +347,17 @@ async def get_morning_tasks_overview() -> Dict[str, Any]:
             for t in overview.overdue_tasks
         ],
     }
+
+@router.post("/telephony/webhook/utel")
+async def webhook_utel(payload: dict[str, Any]) -> dict[str, Any]:
+    """Receive and normalize incoming Utel Cloud PBX call event webhook."""
+    event = _telephony_gateway.process_incoming_call_webhook(provider="utel", payload=payload)
+    return {"status": "ok", "call_id": event.call_id, "event": event.event_type}
+
+
+@router.post("/telephony/webhook/onlinepbx")
+async def webhook_onlinepbx(payload: dict[str, Any]) -> dict[str, Any]:
+    """Receive and normalize incoming OnlinePBX call event webhook."""
+    event = _telephony_gateway.process_incoming_call_webhook(provider="onlinepbx", payload=payload)
+    return {"status": "ok", "call_id": event.call_id, "event": event.event_type}
+
