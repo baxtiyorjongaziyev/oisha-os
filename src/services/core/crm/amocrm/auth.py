@@ -43,6 +43,7 @@ def retry_with_backoff(
             logger.error(
                 f"[AMOCRM RETRY] {func.__name__} failed after {max_retries} attempts: {last_exception}"
             )
+            # pyrefly: ignore[bad-raise]
             raise last_exception
 
         return wrapper
@@ -67,6 +68,13 @@ def _plain_secret(value: Any) -> Any:
 class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
     """OAuth token saqlash + refresh. Yuklash mantiqи ``AmoCRMTokenLoaderMixin``da."""
 
+    # Attributes set by the host class (amocrm/sync.py); declared for type checking only.
+    token_file: str
+    base_url: str
+    client_id: str
+    client_secret: str
+    redirect_url: str
+
     def _save_token(self, token_data):
         """Atomically save OAuth tokens with owner-only file permissions.
 
@@ -87,6 +95,7 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
         self._persist_token_to_db()
 
         # 3. Lokal fayl (atomik replace) — bonus, tez local o'qish uchun.
+        # pyrefly: ignore[missing-attribute]
         token_path = os.path.abspath(self.token_file)
         token_dir = os.path.dirname(token_path)
         temp_path = None
@@ -178,12 +187,16 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
 
     def _do_http_refresh(self):
         """Haqiqiy ``grant_type=refresh_token`` HTTP so'rovi. Guard ичидан chaqiriladi."""
+        # pyrefly: ignore[missing-attribute]
         url = f"{self.base_url}/oauth2/access_token"
         data = {
+            # pyrefly: ignore[missing-attribute]
             "client_id": self.client_id,
+            # pyrefly: ignore[missing-attribute]
             "client_secret": self.client_secret,
             "grant_type": "refresh_token",
             "refresh_token": self.token_data.get("refresh_token", ""),
+            # pyrefly: ignore[missing-attribute]
             "redirect_uri": self.redirect_url,
         }
 
