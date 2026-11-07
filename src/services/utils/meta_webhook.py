@@ -289,6 +289,8 @@ async def handle_webhook():
                         except (ValueError, IndexError):
                             pass
 
+                    from src.db.repositories.users import filter_untrusted_profile_fields
+                    info_updates = filter_untrusted_profile_fields(info_updates)
                     if info_updates:
                         await db.upsert_user(sender_id, "Foydalanuvchi", **info_updates)
                         logger.info(
@@ -341,6 +343,8 @@ async def handle_webhook():
                         except (ValueError, IndexError):
                             pass
 
+                    from src.db.repositories.users import filter_untrusted_profile_fields
+                    info_updates = filter_untrusted_profile_fields(info_updates)
                     if info_updates:
                         await db.upsert_user(
                             commenter_id, commenter_name, **info_updates

@@ -9,6 +9,32 @@ from src.db.repositories.base import BaseRepository
 
 logger = structlog.get_logger()
 
+# Columns upsert_user accepts through **kwargs. The keys are interpolated into
+# SQL as identifiers and some callers forward keys parsed from LLM output, so
+# every other key is dropped.
+USER_KWARG_COLUMNS = frozenset({
+    "last_name", "contact_name", "business_type", "region", "brand_name",
+    "service_type", "deadline", "role", "is_lead_forwarded", "last_seen", "bio",
+    "avatar_analysis", "mutual_groups_count", "social_analysis", "lead_score",
+    "position", "intent", "crm_synced", "processed_at", "detailed_role",
+    "meeting_time", "meeting_status", "lead_quality", "journey_stage",
+    "journey_status", "journey_next_action", "close_probability",
+    "last_client_message_at", "last_ai_message_at", "lifecycle_updated_at",
+    "assigned_to",
+})
+
+# Fields an untrusted source may set: [SAVE_INFO: key=value] tags come from an
+# LLM reading client messages, so role, assignment and sync flags stay out.
+UNTRUSTED_PROFILE_FIELDS = frozenset({
+    "phone", "business_type", "region", "brand_name", "service_type",
+    "deadline", "contact_name", "last_name", "position",
+})
+
+
+def filter_untrusted_profile_fields(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep only the profile fields an LLM-parsed tag is allowed to write."""
+    return {k: v for k, v in data.items() if k in UNTRUSTED_PROFILE_FIELDS}
+
 
 class UserRepository(BaseRepository):
     """Repository for user operations."""
@@ -97,6 +123,10 @@ class UserRepository(BaseRepository):
         **kwargs,
     ) -> None:
         """Insert or update a user."""
+        unknown = sorted(k for k in kwargs if k not in USER_KWARG_COLUMNS)
+        if unknown:
+            logger.warning("upsert_user ignored unknown columns", columns=unknown)
+            kwargs = {k: v for k, v in kwargs.items() if k in USER_KWARG_COLUMNS}
         now = datetime.now(timezone.utc).isoformat()
         existing = await self._fetch_one(
             "SELECT user_id FROM users WHERE user_id = ?", (user_id,)

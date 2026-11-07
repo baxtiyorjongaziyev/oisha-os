@@ -39,6 +39,10 @@ _PROTECTED_PREFIXES = (
     "/ws/live",
     # OpenAI-compatible gateway → agent orkestratori (CRM konteksti, LLM xarajati)
     "/v1/",
+    # FastAPI schema/UI: lists every private route; was public in prod (2026-11-07).
+    "/docs",
+    "/redoc",
+    "/openapi.json",
 )
 _PUBLIC_PATHS = frozenset(
     {

@@ -58,6 +58,7 @@ from src.services.api_server import (
     run_api,
     set_telegram_ai_ingress_status,
     telegram_ai_webhook,
+    telegram_webhook,
     telegram_callback,
     telegram_extension_history,
     telegram_extension_send,

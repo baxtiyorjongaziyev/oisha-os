@@ -3,6 +3,7 @@ Real numbers CRM pipeline audit and junk/stagnant lead identification mixin.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Dict, List
@@ -65,7 +66,7 @@ class AuditMixin:
         all_leads: List[Dict[str, Any]] = []
         for page in [1, 2]:
             url = f"{self.crm.amocrm.base_url}/api/v4/leads?limit=100&page={page}"
-            resp = requests.get(url, headers=self.crm.amocrm._get_headers(), timeout=30)
+            resp = await asyncio.to_thread(requests.get, url, headers=self.crm.amocrm._get_headers(), timeout=30)
             if resp.status_code == 200:
                 all_leads.extend(resp.json().get("_embedded", {}).get("leads", []))
             else:
@@ -73,7 +74,7 @@ class AuditMixin:
         all_tasks = await self.crm.amocrm.get_tasks() if all_leads else []
         unsorted_count = 0
         try:
-            un_resp = requests.get(f"{self.crm.amocrm.base_url}/api/v4/leads/unsorted", headers=self.crm.amocrm._get_headers(), timeout=30)
+            un_resp = await asyncio.to_thread(requests.get, f"{self.crm.amocrm.base_url}/api/v4/leads/unsorted", headers=self.crm.amocrm._get_headers(), timeout=30)
             if un_resp.status_code == 200:
                 unsorted_count = len(un_resp.json().get("_embedded", {}).get("unsorted", []))
         except Exception:

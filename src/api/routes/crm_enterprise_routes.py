@@ -11,17 +11,20 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.services.core.crm.digital_pipeline import DigitalPipelineEngine
 from src.services.core.crm.sales_targets import SalesTargetsEngine
 from src.services.core.crm.loss_analytics import LossAnalyticsEngine
 from src.services.core.crm.crm_rbac import CrmRbacGuard
+from src.api.routes.crm_dialer import require_dialer_access
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["amoCRM Enterprise"])
+# ApiAccessMiddleware skips /api/crm/dialer/*, so the dialer guard (seller
+# session or admin principal) must be applied here too.
+router = APIRouter(tags=["amoCRM Enterprise"], dependencies=[Depends(require_dialer_access)])
 
 dp_engine = DigitalPipelineEngine()
 target_engine = SalesTargetsEngine()

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import structlog
@@ -144,7 +145,7 @@ class AdminReportsMixin:
         import subprocess
 
         try:
-            proc = subprocess.run(
+            proc = await asyncio.to_thread(subprocess.run,
                 ["journalctl", "-u", "oisha-os", "-n", "15", "--no-pager", "-o", "cat"],
                 capture_output=True, text=True, timeout=5,
             )

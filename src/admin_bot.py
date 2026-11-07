@@ -114,16 +114,15 @@ class AdminBot:
         await event.respond(msg)
 
     async def send_dashboard(self, event):
-        stats = self.db.get_today_stats()
+        # get_today_stats is async and returns only leads_found / messages_synced;
+        # the old contacts/DM/"98.4%" lines were never computed (fake data).
+        stats = await self.db.get_today_stats()
         msg = (
             "📊 **KUNLIK ROI HISOBOTI**\n"
             "──────────────────────\n"
             f"📅 **Sana:** {datetime.now().strftime('%d-%m-%Y')}\n\n"
-            f"🚀 **Yangi topilgan lidlar:** `{stats['leads_found']}` ta\n"
-            f"💬 **Sinxronlangan xabarlar:** `{stats['messages_synced']}` ta\n"
-            f"👥 **Kontaktlar bazasi:** `{stats['contacts_added']}` ta\n"
-            f"🤝 **DM (Shaxsiy) lidlar:** `{stats['private_chats']}` ta\n\n"
-            "📈 **Ish samaradorligi:** `98.4%` ✅\n"
+            f"🚀 **Yangi topilgan lidlar:** `{stats.get('leads_found', 0)}` ta\n"
+            f"💬 **Sinxronlangan xabarlar:** `{stats.get('messages_synced', 0)}` ta\n"
             "──────────────────────\n"
             "💡 *Oisha har 5 daqiqada yangi lidlarni qidirishda davom etmoqda.*"
         )

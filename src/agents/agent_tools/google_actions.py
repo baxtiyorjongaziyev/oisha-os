@@ -143,7 +143,7 @@ class GoogleActionsMixin:
             }
 
         try:
-            result = subprocess.check_output(
+            result = await asyncio.to_thread(subprocess.check_output,
                 safe_map[base_cmd], shell=False, stderr=subprocess.STDOUT
             ).decode(errors="replace")
             return {"success": True, "output": result}

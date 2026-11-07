@@ -8,16 +8,22 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import sqlite3
+import threading
 import time
 from typing import Any, Dict, List, Optional
 from fastapi import Header, HTTPException, Request
 
+logger = logging.getLogger(__name__)
+
 DB_PATH = "data/crm_dialer.db"
 
-# Standart dastlabki xodimlar va ularning boshlang'ich maxfiy PIN kodlari
+# Standart dastlabki xodimlar. PIN kodlar kodda saqlanmaydi: birinchi ishga
+# tushishda CRM_SELLER_PIN_<SLUG> env qiymatidan olinadi (masalan
+# CRM_SELLER_PIN_SHAHNOZA). Env boʻlmasa akkaunt PIN oʻrnatilguncha qulflangan.
 INITIAL_SELLERS: List[Dict[str, Any]] = [
     {
         "slug": "baxtiyorjon",
@@ -26,7 +32,6 @@ INITIAL_SELLERS: List[Dict[str, Any]] = [
         "phone": "+998336450097",
         "tg": "@baxtiyorjongaziyev",
         "role": "admin",
-        "default_pin": "8128",
     },
     {
         "slug": "shahnoza",
@@ -35,7 +40,6 @@ INITIAL_SELLERS: List[Dict[str, Any]] = [
         "phone": "+998773220042",
         "tg": "@jonbranding_assistant",
         "role": "seller",
-        "default_pin": "1302",
     },
     {
         "slug": "rayxona",
@@ -44,7 +48,6 @@ INITIAL_SELLERS: List[Dict[str, Any]] = [
         "phone": "+998777411397",
         "tg": "@RayxonJonbranding",
         "role": "seller",
-        "default_pin": "9001",
     },
     {
         "slug": "mumtozmaxal",
@@ -53,7 +56,6 @@ INITIAL_SELLERS: List[Dict[str, Any]] = [
         "phone": "+998773220098",
         "tg": "@MumtozmaxalJonbranding",
         "role": "seller",
-        "default_pin": "9002",
     },
     {
         "slug": "hasanboy",
@@ -62,9 +64,78 @@ INITIAL_SELLERS: List[Dict[str, Any]] = [
         "phone": "+998973355900",
         "tg": "@hasan_yahyo",
         "role": "specialist",
-        "default_pin": "9003",
     },
 ]
+
+# Hash with no "$" separator: _verify_pin always rejects it.
+LOCKED_PIN_HASH = "!locked"
+MIN_PIN_LENGTH = 4
+# Sessions opened with a shorter PIN (e.g. the old 4-digit defaults) may only
+# call /me, /change-pin and /logout until the seller sets a stronger PIN.
+STRONG_PIN_MIN_LENGTH = 6
+PIN_CHANGE_REQUIRED = "pin_change_required"
+
+# Brute-force guard: a 4-digit PIN has only 10k values, so failed logins are
+# throttled per seller (not per IP: behind the reverse proxy every client
+# shares 127.0.0.1).
+MAX_FAILED_LOGINS = 10
+LOGIN_LOCKOUT_WINDOW_SECONDS = 15 * 60
+
+
+def _initial_pin_env_name(slug: str) -> str:
+    return f"CRM_SELLER_PIN_{slug.upper()}"
+
+
+def _initial_pin_hash(slug: str) -> str:
+    pin = os.getenv(_initial_pin_env_name(slug), "").strip()
+    if len(pin) < MIN_PIN_LENGTH:
+        logger.warning(
+            "CRM seller %s has no initial PIN (%s unset); account stays locked",
+            slug,
+            _initial_pin_env_name(slug),
+        )
+        return LOCKED_PIN_HASH
+    return _hash_pin(pin)
+
+
+class LoginThrottle:
+    """In-memory sliding-window counter of failed logins per key."""
+
+    def __init__(
+        self,
+        max_failures: int = MAX_FAILED_LOGINS,
+        window_seconds: int = LOGIN_LOCKOUT_WINDOW_SECONDS,
+    ) -> None:
+        self.max_failures = max_failures
+        self.window_seconds = window_seconds
+        self._failures: Dict[str, List[float]] = {}
+        self._lock = threading.Lock()
+
+    def _recent(self, key: str, now: float) -> List[float]:
+        stamps = [t for t in self._failures.get(key, []) if now - t < self.window_seconds]
+        if stamps:
+            self._failures[key] = stamps
+        else:
+            self._failures.pop(key, None)
+        return stamps
+
+    def retry_after(self, key: str) -> int:
+        """Seconds until the key may try again; 0 when not locked."""
+        now = time.time()
+        with self._lock:
+            stamps = self._recent(key, now)
+            if len(stamps) < self.max_failures:
+                return 0
+            return int(self.window_seconds - (now - stamps[0])) + 1
+
+    def record_failure(self, key: str) -> None:
+        now = time.time()
+        with self._lock:
+            self._failures[key] = self._recent(key, now) + [now]
+
+    def reset(self, key: str) -> None:
+        with self._lock:
+            self._failures.pop(key, None)
 
 
 def _hash_pin(pin: str, salt: Optional[str] = None) -> str:
@@ -84,6 +155,7 @@ def _verify_pin(pin: str, stored_hash: str) -> bool:
 class SellerAuthService:
     def __init__(self, db_path: str = DB_PATH) -> None:
         self.db_path = db_path
+        self.login_throttle = LoginThrottle()
         self._init_tables()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -119,13 +191,18 @@ class SellerAuthService:
                 );
                 """
             )
+            session_cols = {r["name"] for r in conn.execute("PRAGMA table_info(crm_seller_sessions)")}
+            if "must_change_pin" not in session_cols:
+                conn.execute(
+                    "ALTER TABLE crm_seller_sessions ADD COLUMN must_change_pin INTEGER NOT NULL DEFAULT 0"
+                )
             conn.commit()
 
             # Boshlang'ich sotuvchilarni yuklash
             count = conn.execute("SELECT COUNT(*) as c FROM crm_seller_accounts").fetchone()["c"]
             if count == 0:
                 for s in INITIAL_SELLERS:
-                    hashed = _hash_pin(s["default_pin"])
+                    hashed = _initial_pin_hash(s["slug"])
                     conn.execute(
                         """
                         INSERT INTO crm_seller_accounts (slug, name, rep_id, phone, tg, role, pin_hash)
@@ -154,7 +231,7 @@ class SellerAuthService:
                 # Hasanboy Gaziyev mavjud bo'lmasa kiritish, bo'lsa yangilash
                 has_h = conn.execute("SELECT COUNT(*) as c FROM crm_seller_accounts WHERE slug = 'hasanboy'").fetchone()["c"]
                 if has_h == 0:
-                    hashed_h = _hash_pin("9003")
+                    hashed_h = _initial_pin_hash("hasanboy")
                     conn.execute(
                         """
                         INSERT INTO crm_seller_accounts (slug, name, rep_id, phone, tg, role, pin_hash)
@@ -171,6 +248,19 @@ class SellerAuthService:
                 )
                 conn.commit()
 
+            # Unlock accounts seeded without a PIN once the env value is provided.
+            locked = conn.execute(
+                "SELECT slug FROM crm_seller_accounts WHERE pin_hash = ?", (LOCKED_PIN_HASH,)
+            ).fetchall()
+            for row in locked:
+                env_pin = os.getenv(_initial_pin_env_name(row["slug"]), "").strip()
+                if len(env_pin) >= MIN_PIN_LENGTH:
+                    conn.execute(
+                        "UPDATE crm_seller_accounts SET pin_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?",
+                        (_hash_pin(env_pin), row["slug"]),
+                    )
+            conn.commit()
+
     def list_public_sellers(self) -> List[Dict[str, Any]]:
         """Kirish ekrani uchun sotuvchilar ro'yxati (PIN-kodlar mutlaqo berilmaydi)."""
         with self._get_conn() as conn:
@@ -185,6 +275,8 @@ class SellerAuthService:
         clean_pin = str(pin or "").strip()
         if not clean_slug or not clean_pin:
             return None
+        if self.login_retry_after(clean_slug):
+            return None
 
         with self._get_conn() as conn:
             row = conn.execute(
@@ -194,27 +286,31 @@ class SellerAuthService:
                 return None
 
             if not _verify_pin(clean_pin, row["pin_hash"]):
+                self.login_throttle.record_failure(clean_slug)
                 return None
+            self.login_throttle.reset(clean_slug)
 
             # Yangi xavfsiz tasodifiy sessiya tokeni yaratish
             token = secrets.token_urlsafe(32)
             now = time.time()
             expires_at = now + (ttl_days * 86400)
+            must_change_pin = len(clean_pin) < STRONG_PIN_MIN_LENGTH
 
             # Eskirgan sessiyalarni tozalash
             conn.execute("DELETE FROM crm_seller_sessions WHERE expires_at < ?", (now,))
             conn.execute(
                 """
-                INSERT INTO crm_seller_sessions (token, seller_slug, created_at, expires_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO crm_seller_sessions (token, seller_slug, created_at, expires_at, must_change_pin)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (token, clean_slug, now, expires_at),
+                (token, clean_slug, now, expires_at, int(must_change_pin)),
             )
             conn.commit()
 
             return {
                 "token": token,
                 "expires_at": expires_at,
+                "must_change_pin": must_change_pin,
                 "seller": {
                     "slug": row["slug"],
                     "name": row["name"],
@@ -224,6 +320,10 @@ class SellerAuthService:
                     "role": row["role"],
                 },
             }
+
+    def login_retry_after(self, slug: str) -> int:
+        """Seconds the seller must wait before the next PIN attempt (0 = allowed)."""
+        return self.login_throttle.retry_after(str(slug or "").strip().lower())
 
     def validate_session(self, token: str) -> Optional[Dict[str, Any]]:
         """Sessiya tokenini tekshirish."""
@@ -235,7 +335,8 @@ class SellerAuthService:
         with self._get_conn() as conn:
             row = conn.execute(
                 """
-                SELECT s.slug, s.name, s.rep_id, s.phone, s.tg, s.role, sess.expires_at
+                SELECT s.slug, s.name, s.rep_id, s.phone, s.tg, s.role, sess.expires_at,
+                       sess.must_change_pin
                 FROM crm_seller_sessions sess
                 JOIN crm_seller_accounts s ON s.slug = sess.seller_slug
                 WHERE sess.token = ? AND sess.expires_at > ?
@@ -244,7 +345,9 @@ class SellerAuthService:
             ).fetchone()
             if not row:
                 return None
-            return dict(row)
+            seller = dict(row)
+            seller["must_change_pin"] = bool(seller.get("must_change_pin"))
+            return seller
 
     def revoke_session(self, token: str) -> bool:
         """Sessiyani yakunlash (Logout)."""
@@ -259,18 +362,29 @@ class SellerAuthService:
     def change_seller_pin(self, slug: str, old_pin: str, new_pin: str) -> bool:
         """Sotuvchi o'z PIN-kodini yangilashi."""
         clean_slug = str(slug or "").strip().lower()
-        if len(new_pin or "") < 4:
+        clean_old = str(old_pin or "").strip()
+        clean_new = str(new_pin or "").strip()
+        if len(clean_new) < STRONG_PIN_MIN_LENGTH or clean_new == clean_old:
+            return False
+        if self.login_retry_after(clean_slug):
             return False
 
         with self._get_conn() as conn:
             row = conn.execute("SELECT pin_hash FROM crm_seller_accounts WHERE slug = ?", (clean_slug,)).fetchone()
-            if not row or not _verify_pin(old_pin, row["pin_hash"]):
+            if not row:
+                return False
+            if not _verify_pin(clean_old, row["pin_hash"]):
+                self.login_throttle.record_failure(clean_slug)
                 return False
 
-            new_hash = _hash_pin(new_pin)
+            new_hash = _hash_pin(clean_new)
             conn.execute(
                 "UPDATE crm_seller_accounts SET pin_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?",
                 (new_hash, clean_slug),
+            )
+            conn.execute(
+                "UPDATE crm_seller_sessions SET must_change_pin = 0 WHERE seller_slug = ?",
+                (clean_slug,),
             )
             conn.commit()
             return True
@@ -285,9 +399,30 @@ def get_current_crm_seller(
     authorization: Optional[str] = Header(None),
 ) -> Dict[str, Any]:
     """FastAPI Dependency: Barcha CRM yo'llari uchun qat'iy sessiya tekshiruvi.
-    
-    Agar foydalanuvchida yaroqli sessiya cookie yoki Bearer token bo'lmasa,
-    darhol 401 Unauthorized qaytariladi va hech qanday ma'lumot berilmaydi!
+
+    401 without a valid session; 403 ``pin_change_required`` while the session
+    was opened with a weak PIN (only /me, /change-pin, /logout work then).
+    """
+    seller = get_crm_seller_session(request, authorization)
+    if seller.get("must_change_pin"):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": PIN_CHANGE_REQUIRED,
+                "message": "Xavfsizlik uchun PIN-kodni yangilang (kamida 6 belgi).",
+            },
+        )
+    return seller
+
+
+def get_crm_seller_session(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    """Valid session regardless of the PIN-change flag (for /me, /change-pin).
+
+    Agar foydalanuvchida yaroqli sessiya cookie yoki Bearer token boʻlmasa,
+    darhol 401 Unauthorized qaytariladi.
     """
     token = ""
     # 1. Cookie dan qidirish

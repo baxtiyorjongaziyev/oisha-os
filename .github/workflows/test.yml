@@ -103,13 +103,16 @@ jobs:
           uv pip install --system -r requirements.txt -r requirements-dev.txt
 
       - name: Lint and syntax check (Ruff)
-        run: ruff check --select F821 src/
+        # F822: undefined names in __all__; ASYNC210/221: blocking HTTP/subprocess
+        # inside async def. src/config.py serves its __all__ via module __getattr__.
+        run: ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/
 
       - name: Security scan
         run: bandit -r src/ -ll -x src/services/debug/ --quiet
 
       - name: Run Python tests
-        run: pytest -q --tb=short
+        # coverage.xml feeds the Codecov step below; 50% floor (was 53% on 2026-11-07).
+        run: pytest -q --tb=short --cov=src --cov-report=xml --cov-fail-under=50
 
       - name: Upload coverage
         if: ${{ hashFiles('coverage.xml') != '' }}
@@ -274,13 +277,16 @@ jobs:
           uv pip install --system -r requirements.txt -r requirements-dev.txt
 
       - name: Lint and syntax check (Ruff)
-        run: ruff check --select F821 src/
+        # F822: undefined names in __all__; ASYNC210/221: blocking HTTP/subprocess
+        # inside async def. src/config.py serves its __all__ via module __getattr__.
+        run: ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/
 
       - name: Security scan
         run: bandit -r src/ -ll -x src/services/debug/ --quiet
 
       - name: Run tests with coverage
-        run: pytest -q --tb=short
+        # coverage.xml feeds the Codecov step below; 50% floor (was 53% on 2026-11-07).
+        run: pytest -q --tb=short --cov=src --cov-report=xml --cov-fail-under=50
 
       - name: Upload coverage
         if: ${{ hashFiles('coverage.xml') != '' }}

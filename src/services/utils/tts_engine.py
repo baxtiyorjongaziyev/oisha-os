@@ -1,8 +1,9 @@
+import asyncio
 import edge_tts  # type: ignore
 import os
 import re
 import structlog
-import config  # type: ignore
+from src import config  # type: ignore
 
 logger = structlog.get_logger()
 
@@ -48,7 +49,7 @@ class TTSEngine:
                     )
                     headers = {"Authorization": config.MOHIR_API_KEY}
                     json_data = {"text": clean_text, "model": "uz-lat", "format": "mp3"}
-                    response = requests.post(
+                    response = await asyncio.to_thread(requests.post,
                         "https://api.mohir.ai/api/v1/tts",
                         headers=headers,
                         json=json_data,
