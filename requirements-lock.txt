@@ -213,7 +213,7 @@ multidict==6.9.1
     #   yarl
 nest-asyncio==1.6.0
     # via telegram-mcp
-oauthlib==4.0.0
+oauthlib==4.0.1
     # via
     #   -r requirements.txt
     #   requests-oauthlib
