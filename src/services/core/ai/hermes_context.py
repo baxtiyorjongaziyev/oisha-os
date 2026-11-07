@@ -106,7 +106,9 @@ class HermesContextEngine:
             f"muloyim va qat'iy rad et.\n"
             f"5. Hozir uchrashuvda yoki ijodiy jarayonda bo'lsang, buni samimiy aytib, tez orada batafsil "
             f"javob yozishingni bildir.\n"
-            f"6. Hech qanday asossiz uydirma narx yoki yolg'on va'da berma. Matn ko'pi bilan 2-3 jumlada tugasin."
+            f"6. Hech qanday asossiz uydirma narx yoki yolg'on va'da berma. "
+            f"Matn QAT'IY ravishda ko'pi bilan 1-2 qisqa jumladan iborat bo'lsin, uzun yozish qat'iyan taqiqlanadi. "
+            f"Bitta lo'nda fikr yoki bitta aniq savol bilan tugasin."
         )
 
     @classmethod
