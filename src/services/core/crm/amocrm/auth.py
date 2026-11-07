@@ -68,7 +68,7 @@ def _plain_secret(value: Any) -> Any:
 class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
     """OAuth token saqlash + refresh. Yuklash mantiqи ``AmoCRMTokenLoaderMixin``da."""
 
-    # Host sinf (amocrm/sync.py) o'rnatadigan atributlar; faqat tip tekshiruvi uchun.
+    # Attributes set by the host class (amocrm/sync.py); declared for type checking only.
     token_file: str
     base_url: str
     client_id: str
