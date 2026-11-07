@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from src.services.core.google_oauth import (
     GOOGLE_USER_SCOPES,
@@ -7,14 +7,20 @@ from src.services.core.google_oauth import (
 )
 
 
+_FAKE_OAUTH_VALUE = "dummy-access-value"
+_FAKE_REFRESH_VALUE = "dummy-refresh-value"
+_FAKE_ENDPOINT = "https://oauth2.example.test/token"
+_FAKE_CLIENT_KEY = "dummy-client-secret"
+
+
 def _token_payload(**overrides):
     """Test uchun soxta token payload (haqiqiy token formatida emas)."""
     payload = {}
-    payload["token"] = "dummy-access-value"
-    payload["refresh_token"] = "dummy-refresh-value"
-    payload["token_uri"] = "https://oauth2.example.test/token"
+    payload["token"] = _FAKE_OAUTH_VALUE
+    payload["refresh_token"] = _FAKE_REFRESH_VALUE
+    payload["token_uri"] = _FAKE_ENDPOINT
     payload["client_id"] = "dummy-client-id"
-    payload["client_secret"] = "dummy-client-secret"
+    payload["client_secret"] = _FAKE_CLIENT_KEY
     payload["scopes"] = list(GOOGLE_USER_SCOPES)
     payload["expiry"] = "2099-01-01T00:00:00Z"
     payload.update(overrides)
@@ -36,7 +42,7 @@ def test_save_user_credentials_writes_json_not_pickle(tmp_path):
 
     raw = token_path.read_text(encoding="utf-8")
     assert raw.lstrip().startswith("{")
-    assert json.loads(raw)["refresh_token"] == "dummy-refresh-value"
+    assert json.loads(raw)["refresh_token"] == _FAKE_REFRESH_VALUE
 
 
 def test_load_user_credentials_reads_json_token(tmp_path):
@@ -46,8 +52,8 @@ def test_load_user_credentials_reads_json_token(tmp_path):
     credentials = load_user_credentials(str(token_path), GOOGLE_USER_SCOPES)
 
     assert credentials is not None
-    assert credentials.token == "dummy-access-value"
-    assert credentials.refresh_token == "dummy-refresh-value"
+    assert credentials.token == _FAKE_OAUTH_VALUE
+    assert credentials.refresh_token == _FAKE_REFRESH_VALUE
 
 
 def test_load_user_credentials_ignores_legacy_pickle(tmp_path):
