@@ -159,8 +159,16 @@ async def main() -> None:
     api_hash = settings.API_HASH
 
     if not api_id or not api_hash:
-        print("❌ settings.py da API_ID yoki API_HASH topilmadi!")
-        return
+        print("\n⚠️ settings.py yoki .env da API_ID / API_HASH topilmadi.")
+        print("Telegram MTProto API kalitlarini kiriting (https://my.telegram.org):")
+        raw_id = input("🔑 API_ID (raqam): ").strip()
+        raw_hash = input("🔑 API_HASH: ").strip()
+        if raw_id.isdigit() and raw_hash:
+            api_id = int(raw_id)
+            api_hash = raw_hash
+        else:
+            print("❌ Notoʻgʻri API_ID yoki API_HASH kiritildi. Dastur toʻxtatildi.")
+            return
 
     repo = await get_db_repository()
     await list_connected_sellers(repo)
