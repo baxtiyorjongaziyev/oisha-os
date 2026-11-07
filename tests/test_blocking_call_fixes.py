@@ -7,7 +7,6 @@ no longer block. pilot_sync_v1 also built LeadScraper without its db.
 from __future__ import annotations
 
 import asyncio
-import subprocess
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -19,7 +18,7 @@ import pytest
 async def test_shell_tool_awaits_thread_before_decoding(monkeypatch):
     from src.agents.agent_tools.google_actions import GoogleActionsMixin
 
-    monkeypatch.setattr(subprocess, "check_output", lambda *a, **k: b"up 3 days\n")
+    monkeypatch.setattr("subprocess.check_output", lambda *a, **k: b"up 3 days\n")
     tool = GoogleActionsMixin.__new__(GoogleActionsMixin)
 
     result = await tool._execute_shell_safe("uptime")
