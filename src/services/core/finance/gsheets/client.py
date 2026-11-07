@@ -292,7 +292,10 @@ class GsheetClientMixin:
             logger.error("[HISOBCHI-GS] Update error: %s", exc)
 
     async def init(self):
-        await asyncio.to_thread(self._load_cache)
+        asyncio.create_task(
+            asyncio.to_thread(self._load_cache),
+            name="hisobchi_gs_load_cache",
+        )
 
     async def reset_learning_and_transactions(self) -> None:
         """Full reset: clear Pul oqimi, Xotira, Qoidalar (keep headers only),
