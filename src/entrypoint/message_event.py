@@ -1,6 +1,7 @@
 """
 Telegram message event handler, self commands, and negotiation parser.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,29 +25,56 @@ logger = logging.getLogger("OishaMsgEvent")
 
 async def _broadcast_incoming_message(event: Any) -> tuple[Any, str, str]:
     from src.api.live_monitor import broadcast_event
+
     sender = await event.get_sender()
     sender_name = getattr(sender, "first_name", "User")
     msg_text = (event.message.message or "")[:200]
     chat_title = getattr(event.chat, "title", None) or sender_name
-    await broadcast_event({
-        "type": "message", "chat_id": event.chat_id, "chat_name": chat_title,
-        "sender": sender_name, "text": msg_text, "is_private": event.is_private, "message_id": event.id,
-    })
+    await broadcast_event(
+        {
+            "type": "message",
+            "chat_id": event.chat_id,
+            "chat_name": chat_title,
+            "sender": sender_name,
+            "text": msg_text,
+            "is_private": event.is_private,
+            "message_id": event.id,
+        }
+    )
     return sender, sender_name, msg_text
 
 
-async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, message_text: str, chat_id: int) -> None:
+async def _sync_and_log_crm_channels(
+    event: Any, sender: Any, sender_name: str, message_text: str, chat_id: int
+) -> None:
     if not (event.is_private and not event.out and message_text):
         return
     try:
         if app_ctx.msg_controller:
-            await app_ctx.msg_controller.db.log_message(sender.id, message_text, is_ai=False)
-        if 'src.main' in sys.modules and hasattr(sys.modules['src.main'], 'session_manager'):
-            sys.modules['src.main'].session_manager.add_message(sender.id, sender_name, message_text, getattr(sender, 'phone', None))
+            await app_ctx.msg_controller.db.log_message(
+                sender.id, message_text, is_ai=False
+            )
+        if "src.main" in sys.modules and hasattr(
+            sys.modules["src.main"], "session_manager"
+        ):
+            sys.modules["src.main"].session_manager.add_message(
+                sender.id, sender_name, message_text, getattr(sender, "phone", None)
+            )
 
-        crm_client = getattr(getattr(app_ctx.msg_controller, "crm", None), "amocrm", None) if app_ctx.msg_controller else None
-        db_instance = getattr(app_ctx.msg_controller, "db", None) if app_ctx.msg_controller else None
-        from src.services.core.crm.non_client_filter import is_sender_marked_as_non_client
+        crm_client = (
+            getattr(getattr(app_ctx.msg_controller, "crm", None), "amocrm", None)
+            if app_ctx.msg_controller
+            else None
+        )
+        db_instance = (
+            getattr(app_ctx.msg_controller, "db", None)
+            if app_ctx.msg_controller
+            else None
+        )
+        from src.services.core.crm.non_client_filter import (
+            is_sender_marked_as_non_client,
+        )
+
         is_nc, nc_reason = await is_sender_marked_as_non_client(
             crm_client,
             phone=getattr(sender, "phone", None),
@@ -55,10 +83,12 @@ async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, 
             db=db_instance,
         )
         if is_nc:
-            logger.info(f"[AMOCRM CHAT FILTER] Sender {sender_name} is 'mijoz emas' ({nc_reason}). Skipping CRM chat sync.")
+            logger.info(
+                f"[AMOCRM CHAT FILTER] Sender {sender_name} is 'mijoz emas' ({nc_reason}). Skipping CRM chat sync."
+            )
             return
 
-        chat_secret = getattr(settings, 'AMOCRM_CHAT_CHANNEL_SECRET', None)
+        chat_secret = getattr(settings, "AMOCRM_CHAT_CHANNEL_SECRET", None)
         if hasattr(chat_secret, "get_secret_value"):
             chat_secret = chat_secret.get_secret_value()
         chat_secret = str(chat_secret or "")
@@ -68,15 +98,22 @@ async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, 
         # When the bridge is on it syncs this message itself; skip the legacy path (duplicates).
         if chat_secret and not bridge_enabled():
             from src.services.core.crm.amocrm_chat import AmoCRMChatClient
+
             chat_client = AmoCRMChatClient(
+                # pyrefly: ignore[bad-argument-type]
                 amocrm_account_id=settings.AMOCRM_CHAT_ACCOUNT_ID,
                 channel_id=settings.AMOCRM_CHAT_CHANNEL_ID,
                 channel_secret=chat_secret,
             )
-            asyncio.create_task(chat_client.send_message_to_amocrm(
-                user_id=sender.id, chat_id=chat_id, text=message_text,
-                sender_name=sender_name, phone=getattr(sender, 'phone', None),
-            ))
+            asyncio.create_task(
+                chat_client.send_message_to_amocrm(
+                    user_id=sender.id,
+                    chat_id=chat_id,
+                    text=message_text,
+                    sender_name=sender_name,
+                    phone=getattr(sender, "phone", None),
+                )
+            )
         asyncio.create_task(run_autonomous_advice(chat_id, sender_name, message_text))
     except Exception as log_ex:
         logger.error(f"[USERBOT] Failed to log incoming message: {log_ex}")
@@ -93,17 +130,31 @@ async def _handle_media_and_voice(event: Any, sender: Any, sender_name: str) -> 
 
     if event.is_private and not event.out and event.message.voice and voice_processor:
         from src.handlers.message_handler import process_voice
+
         await process_voice(
-            event, client=client, sender=sender, sender_name=sender_name,
-            msg_controller=app_ctx.msg_controller, voice_processor=voice_processor,
-            admin_bot=admin_bot, surgical_integration=surgical_integration,
+            event,
+            client=client,
+            sender=sender,
+            sender_name=sender_name,
+            msg_controller=app_ctx.msg_controller,
+            voice_processor=voice_processor,
+            admin_bot=admin_bot,
+            surgical_integration=surgical_integration,
             auto_reply_gate=auto_reply_gate,
         )
-    if event.is_private and not event.out and (event.message.photo or event.message.document):
+    if (
+        event.is_private
+        and not event.out
+        and (event.message.photo or event.message.document)
+    ):
         from src.handlers.message_handler import process_media
+
         await process_media(
-            event, client=client, sender_name=sender_name,
-            msg_controller=app_ctx.msg_controller, admin_bot=admin_bot,
+            event,
+            client=client,
+            sender_name=sender_name,
+            msg_controller=app_ctx.msg_controller,
+            admin_bot=admin_bot,
             voice_processor=voice_processor,
         )
 
@@ -124,6 +175,7 @@ async def handle_new_message(event):
     safe_responder = getattr(app_ctx, "safe_responder", None)
     if safe_responder is None:
         from src.services.core.safe_responder import SafeResponder
+
         safe_responder = SafeResponder()
         app_ctx.safe_responder = safe_responder
     voice_processor = getattr(app_ctx, "voice_processor", None)
@@ -148,6 +200,7 @@ async def handle_new_message(event):
 
     if getattr(event, "is_private", False):
         from src.services.core.delayed_dm_responder import get_delayed_dm_responder
+
         delayed_responder = get_delayed_dm_responder()
         if getattr(event, "out", False):
             delayed_responder.on_owner_reply(event.chat_id)
@@ -156,20 +209,30 @@ async def handle_new_message(event):
                 delayed_responder.register_incoming_dm(
                     event,
                     client=client,
-                    db=getattr(app_ctx.msg_controller, "db", None) if app_ctx.msg_controller else None,
+                    db=getattr(app_ctx.msg_controller, "db", None)
+                    if app_ctx.msg_controller
+                    else None,
                     admin_bot=admin_bot,
                     safe_responder=safe_responder,
                 )
             )
             # NEW: remind Shahnoza in the team group if the owner DM stays unanswered.
-            from src.services.core.delayed_dm_reminder import schedule_assistant_reminder
+            from src.services.core.delayed_dm_reminder import (
+                schedule_assistant_reminder,
+            )
 
             asyncio.create_task(schedule_assistant_reminder(event, client=client))
 
-    if _should_block_private_userbot_reply(event) or (safe_responder and not await safe_responder.should_respond(event)):
+    if _should_block_private_userbot_reply(event) or (
+        safe_responder and not await safe_responder.should_respond(event)
+    ):
         return
 
-    if tn5_group_id and event.chat_id == tn5_group_id and getattr(event.message.reply_to, "reply_to_msg_id", None) == tn5_topic_id:
+    if (
+        tn5_group_id
+        and event.chat_id == tn5_group_id
+        and getattr(event.message.reply_to, "reply_to_msg_id", None) == tn5_topic_id
+    ):
         asyncio.create_task(sync_single_lead(event))
         return
 
@@ -207,14 +270,18 @@ async def handle_new_message(event):
     await _sync_and_log_crm_channels(event, sender, sender_name, message_text, chat_id)
 
     personal = await _is_personal_folder_sender(sender)
-    is_private_human_dm = event.is_private and not event.out and not getattr(sender, "bot", False)
+    is_private_human_dm = (
+        event.is_private and not event.out and not getattr(sender, "bot", False)
+    )
     if not personal and is_private_human_dm:
         # process_elite_intake yangi kontaktni CRM'ga sinxronlab, shu joyning
         # o'zida is_crm_synced'ni true qilib qo'yishi mumkin — shuning uchun
         # holatni intake chaqirilishidan OLDIN o'qib olamiz, aks holda yangi
         # lead o'sha birinchi xabarning o'zida "mavjud kontakt" deb ham
         # hisoblanib, ikkinchi (keraksiz) signal hosil bo'ladi.
-        was_already_synced = await app_ctx.msg_controller.db.is_crm_synced(event.sender_id)
+        was_already_synced = await app_ctx.msg_controller.db.is_crm_synced(
+            event.sender_id
+        )
 
         await process_elite_intake(
             event,
@@ -233,6 +300,7 @@ async def handle_new_message(event):
             from src.handlers.msg_pipeline.existing_contact_signal import (
                 process_existing_contact_signal,
             )
+
             asyncio.create_task(
                 process_existing_contact_signal(
                     event,
@@ -280,15 +348,22 @@ async def handle_message_edited(event: Any) -> None:
         return
     try:
         sender = await event.get_sender()
-        sender_name = getattr(sender, "first_name", None) or getattr(sender, "title", "Noma'lum")
+        sender_name = getattr(sender, "first_name", None) or getattr(
+            sender, "title", "Noma'lum"
+        )
         new_text = (event.message.message or "")[:2000]
         logger.info(
             "[MESSAGE EDITED] chat=%s sender=%s msg_id=%s new_text=%r",
-            event.chat_id, sender_name, event.id, new_text,
+            event.chat_id,
+            sender_name,
+            event.id,
+            new_text,
         )
         if app_ctx.msg_controller and getattr(sender, "id", None):
             await app_ctx.msg_controller.db.log_message(
-                sender.id, f"[TAHRIRLANGAN] {new_text}", is_ai=False,
+                sender.id,
+                f"[TAHRIRLANGAN] {new_text}",
+                is_ai=False,
             )
     except Exception as exc:
         logger.error("[MESSAGE EDITED] handler failed: %s", exc, exc_info=True)
@@ -300,7 +375,8 @@ async def handle_message_deleted(event: Any) -> None:
     try:
         logger.info(
             "[MESSAGE DELETED] chat=%s deleted_ids=%s",
-            getattr(event, "chat_id", None), list(event.deleted_ids),
+            getattr(event, "chat_id", None),
+            list(event.deleted_ids),
         )
     except Exception as exc:
         logger.error("[MESSAGE DELETED] handler failed: %s", exc, exc_info=True)
@@ -311,6 +387,7 @@ async def self_command_handler(event):
     if not event.message.text:
         return
     from src.handlers.msg_pipeline.admin_commands import process_admin_commands
+
     await process_admin_commands(
         event,
         client=getattr(app_ctx, "client", None),
