@@ -41,7 +41,8 @@ class CrmActionsMixin(CrmLeadQualifyMixin):
                 kwargs["deadline"] = deadline
 
             # Database.upsert_user is async: (user_id, first_name, username, **cols).
-            await self.db.upsert_user(user_id, name or "Unknown", None, phone=phone, **kwargs)
+            # Pass name as-is: None keeps a stored first_name on partial updates.
+            await self.db.upsert_user(user_id, name, None, phone=phone, **kwargs)
             saved_fields.append("SQLite DB")
         except Exception as e:
             logger.error(f"[TOOL] save_lead_info SQLite xato: {e}")
