@@ -99,7 +99,10 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[ROP] scheduler unavailable: %s", exc)
 
     try:
-        from src.schedulers.daily_insights_scheduler import daily_insights_loop, sales_intel_loop
+        from src.schedulers.daily_insights_scheduler import (
+            daily_insights_loop,
+            sales_intel_loop,
+        )
         asyncio.create_task(daily_insights_loop(bot_runtime), name="daily_insights_loop")
         asyncio.create_task(sales_intel_loop(bot_runtime), name="sales_intel_loop")
     except ImportError as exc:
@@ -120,7 +123,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
             logger.warning("[META LEADGEN] scheduler unavailable: %s", exc)
 
         try:
-            from src.schedulers.leadgen_status_reporter import leadgen_watchdog_and_reporter_loop
+            from src.schedulers.leadgen_status_reporter import (
+                leadgen_watchdog_and_reporter_loop,
+            )
             asyncio.create_task(leadgen_watchdog_and_reporter_loop(), name="leadgen_watchdog_loop")
         except ImportError as exc:
             logger.warning("[LEADGEN WATCHDOG] reporter unavailable: %s", exc)
@@ -138,7 +143,9 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[SPEED-TO-LEAD] scheduler unavailable: %s", exc)
 
     try:
-        from src.schedulers.marketing_attribution_scheduler import marketing_attribution_loop
+        from src.schedulers.marketing_attribution_scheduler import (
+            marketing_attribution_loop,
+        )
         asyncio.create_task(marketing_attribution_loop(), name="marketing_attribution_loop")
     except ImportError as exc:
         logger.warning("[ADS ATTRIBUTION] scheduler unavailable: %s", exc)
@@ -156,7 +163,16 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         logger.warning("[JAMOA-RITM] scheduler unavailable: %s", exc)
 
     try:
-        from src.schedulers.remote_staff_checkin_scheduler import remote_staff_checkin_loop
+        from src.schedulers.remote_staff_checkin_scheduler import (
+            remote_staff_checkin_loop,
+        )
         asyncio.create_task(remote_staff_checkin_loop(bot_runtime), name="remote_staff_checkin_loop")
     except ImportError as exc:
         logger.warning("[REMOTE CHECKIN] scheduler unavailable: %s", exc)
+    try:
+        from src.schedulers.cockpit_autopilot_scheduler import (
+            start_cockpit_autopilot_scheduler,
+        )
+        start_cockpit_autopilot_scheduler(bot_runtime)
+    except ImportError as exc:
+        logger.warning('COCKPIT AUTOPILOT scheduler unavailable: %s', exc)
