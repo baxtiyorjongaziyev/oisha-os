@@ -54,7 +54,8 @@ function applySellerSession(seller) {
   updateHeaderSellerBadge(seller);
   const modal = document.getElementById("sellerLoginModal");
   if (modal) modal.classList.add("hidden");
-  if (typeof fetchKanban === "function") fetchKanban();
+  if (typeof window.fetchBootstrap === "function") window.fetchBootstrap();
+  else if (typeof window.fetchKanban === "function") window.fetchKanban();
 }
 
 function updateHeaderSellerBadge(seller) {

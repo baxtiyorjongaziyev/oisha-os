@@ -240,6 +240,51 @@ async def token_login(token: str = Form(...), next: Optional[str] = Form(None)):
     return response
 
 
+@router.post("/api/auth/email/login")
+async def email_login(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    next: Optional[str] = Form(None),
+):
+    """Email + parol bilan kirish. Faqat owner yaratgan hisoblar; roʼyxatdan oʼtish yoʼq."""
+    from src.api import auth_service
+    from src.api import web_auth_store
+    from src.api.security import _session_secret
+
+    clean_email = (email or "").strip().lower()[:254]
+    ip = (request.client.host if request.client else "") or "unknown"
+    if web_auth_store.login_throttled(clean_email, ip):
+        raise HTTPException(status_code=429, detail="Juda koʼp urinish. 15 daqiqadan keyin qayta urinib koʼring")
+
+    user = web_auth_store.authenticate_email(clean_email, password or "")
+    jwt_secret = _session_secret()
+    if not user or not jwt_secret:
+        web_auth_store.record_login_failure(clean_email, ip)
+        raise HTTPException(status_code=401, detail="Email yoki parol notoʼgʼri")
+
+    web_auth_store.clear_login_failures(clean_email)
+    session_jwt = auth_service.issue_session_jwt(
+        user_id=int(user["id"]),
+        username=user["email"],
+        first_name=user.get("name") or user["email"],
+        role=str(user.get("role") or "targetolog"),
+        secret=jwt_secret,
+        ttl_seconds=auth_service.SESSION_TTL_SECONDS,
+    )
+    response = RedirectResponse(url=_safe_redirect_target(next), status_code=303)
+    response.set_cookie(
+        key="oisha_token",
+        value=session_jwt,
+        max_age=auth_service.SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/",
+    )
+    return response
+
+
 @router.get("/api/auth/telegram/callback")
 async def telegram_callback(
     id: int,

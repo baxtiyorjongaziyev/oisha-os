@@ -10,6 +10,7 @@ except ImportError:
 from src.services.core.finance.gsheets.constants import *
 from src.services.core.finance.gsheets.constants import (  # noqa: F401 — star import skips _names
     _get,
+    _GSHEET_SCOPES,
 )
 
 logger = logging.getLogger(__name__)

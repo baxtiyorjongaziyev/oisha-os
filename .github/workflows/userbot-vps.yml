@@ -23,6 +23,10 @@ on:
 env:
   OWNER_ID: "150074828"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   stop-userbot:
     name: SSH → VPS → Stop userbot
