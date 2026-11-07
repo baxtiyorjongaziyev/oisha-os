@@ -124,9 +124,10 @@ class TestSyncAgentsRuntime(unittest.TestCase):
             mock_run.side_effect = [
                 MagicMock(stdout="openclaw-gateway.service enabled", returncode=0),
                 MagicMock(returncode=0),
+                MagicMock(stdout="4242 openclaw gateway\n", returncode=0),  # pgrep check
             ]
             sync_agents_runtime.restart_openclaw_gateway()
-            self.assertEqual(mock_run.call_count, 2)
+            self.assertEqual(mock_run.call_count, 3)
 
     def test_restart_openclaw_gateway_cli_fallback(self) -> None:
         """Test restarting gateway via CLI and background fallback."""

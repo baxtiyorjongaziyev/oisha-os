@@ -47,6 +47,7 @@ _PUBLIC_PATHS = frozenset(
         "/api/auth/telegram/poll",
         "/api/auth/telegram/otp",
         "/api/auth/token/login",
+        "/api/auth/email/login",
         "/api/auth/airtable/login",
         "/api/auth/airtable/callback",
         # Web chat widget guest tokens and messaging
