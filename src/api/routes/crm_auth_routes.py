@@ -19,7 +19,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from src.services.core.crm.seller_auth import (
+    STRONG_PIN_MIN_LENGTH,
     seller_auth_service,
+    get_crm_seller_session,
     get_current_crm_seller,
 )
 
@@ -40,7 +42,9 @@ class PhoneLoginPayload(BaseModel):
 
 class ChangePinPayload(BaseModel):
     old_pin: str = Field(..., min_length=4, max_length=20, description="Amaldagi eski PIN")
-    new_pin: str = Field(..., min_length=4, max_length=20, description="Yangi 4-20 belgili PIN")
+    new_pin: str = Field(
+        ..., min_length=STRONG_PIN_MIN_LENGTH, max_length=20, description="Yangi 6-20 belgili PIN"
+    )
 
 
 @router.get("/sellers")
@@ -53,6 +57,13 @@ async def get_available_sellers() -> Dict[str, Any]:
 @router.post("/login")
 async def seller_login(payload: SellerLoginPayload, response: Response) -> Dict[str, Any]:
     """Sotuvchi kiritgan PIN-kodni serverda tekshirish va xavfsiz sessiya ochish."""
+    retry_after = seller_auth_service.login_retry_after(payload.slug)
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Juda koʻp notoʻgʻri urinish. Birozdan keyin qayta urinib koʻring.",
+            headers={"Retry-After": str(retry_after)},
+        )
     auth_result = seller_auth_service.authenticate_seller(
         slug=payload.slug,
         pin=payload.pin,
@@ -82,6 +93,7 @@ async def seller_login(payload: SellerLoginPayload, response: Response) -> Dict[
         "success": True,
         "token": token,
         "seller": seller,
+        "pin_change_required": bool(auth_result.get("must_change_pin")),
         "message": f"Xush kelibsiz, {seller['name']}!",
     }
 
@@ -92,11 +104,14 @@ async def seller_login_by_phone(payload: PhoneLoginPayload, response: Response) 
     clean_digits = "".join(filter(str.isdigit, payload.phone))
     sellers = seller_auth_service.list_public_sellers()
     matched_slug = None
-    for s in sellers:
-        s_digits = "".join(filter(str.isdigit, s.get("phone", "")))
-        if clean_digits.endswith(s_digits[-9:]):
-            matched_slug = s["slug"]
-            break
+    # Compare the 9-digit national number; a seller with a blank/short phone
+    # must never match (endswith("") is always True).
+    if len(clean_digits) >= 9:
+        for s in sellers:
+            s_digits = "".join(filter(str.isdigit, s.get("phone") or ""))
+            if len(s_digits) >= 9 and clean_digits[-9:] == s_digits[-9:]:
+                matched_slug = s["slug"]
+                break
 
     if not matched_slug:
         raise HTTPException(
@@ -127,18 +142,29 @@ async def seller_logout(request: Request, response: Response) -> Dict[str, Any]:
 
 @router.get("/me")
 async def get_current_seller(
-    current_seller: Dict[str, Any] = Depends(get_current_crm_seller),
+    current_seller: Dict[str, Any] = Depends(get_crm_seller_session),
 ) -> Dict[str, Any]:
     """Joriy tizimga kirgan sotuvchi profilini qaytarish."""
-    return {"success": True, "seller": current_seller}
+    return {
+        "success": True,
+        "seller": current_seller,
+        "pin_change_required": bool(current_seller.get("must_change_pin")),
+    }
 
 
 @router.post("/change-pin")
 async def change_seller_pin(
     payload: ChangePinPayload,
-    current_seller: Dict[str, Any] = Depends(get_current_crm_seller),
+    current_seller: Dict[str, Any] = Depends(get_crm_seller_session),
 ) -> Dict[str, Any]:
     """Sotuvchi o'zining shaxsiy PIN-kodini o'zgartirishi."""
+    retry_after = seller_auth_service.login_retry_after(current_seller["slug"])
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Juda koʻp notoʻgʻri urinish. Birozdan keyin qayta urinib koʻring.",
+            headers={"Retry-After": str(retry_after)},
+        )
     ok = seller_auth_service.change_seller_pin(
         slug=current_seller["slug"],
         old_pin=payload.old_pin,
@@ -147,7 +173,7 @@ async def change_seller_pin(
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Eski PIN-kod noto'g'ri yoki yangi PIN talabga javob bermaydi (kamida 4 ta belgi).",
+            detail="Eski PIN-kod notoʻgʻri yoki yangi PIN talabga javob bermaydi (kamida 6 belgi, eskisidan farqli).",
         )
     return {"success": True, "message": "PIN-kod muvaffaqiyatli yangilandi!"}
 

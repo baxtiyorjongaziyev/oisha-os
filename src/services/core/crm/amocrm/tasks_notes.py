@@ -149,7 +149,7 @@ class AmoCRMTasksNotesMixin:
         params = {"filter[is_completed]": 1 if is_completed else 0}
 
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
+            response = await asyncio.to_thread(requests.get, url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 return data.get("_embedded", {}).get("tasks", [])
@@ -165,7 +165,7 @@ class AmoCRMTasksNotesMixin:
 
         url = f"{self.base_url}/api/v4/tasks/{task_id}"
         try:
-            response = requests.get(url, headers=self._get_headers(), timeout=15)
+            response = await asyncio.to_thread(requests.get, url, headers=self._get_headers(), timeout=15)
             if response.status_code == 200:
                 return response.json()
             return None
@@ -185,7 +185,7 @@ class AmoCRMTasksNotesMixin:
             "filter[entity_id]": lead_id,
         }
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=30)
+            response = await asyncio.to_thread(requests.get, url, headers=self._get_headers(), params=params, timeout=30)
             if response.status_code == 200:
                 return response.json().get("_embedded", {}).get("tasks", [])
             return []
@@ -331,7 +331,7 @@ class AmoCRMTasksNotesMixin:
         self._load_token()
         url = f"{self.base_url}/api/v4/{entity_type}/{entity_id}/notes/{note_id}"
         try:
-            response = requests.delete(url, headers=self._get_headers(), timeout=30)
+            response = await asyncio.to_thread(requests.delete, url, headers=self._get_headers(), timeout=30)
             return response.status_code in [200, 204]
         except Exception as e:
             logger.error(f"[AMOCRM DELETE NOTE ERROR] {e}")

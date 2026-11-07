@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -205,7 +206,7 @@ async def _dispatch_telegram_message(
     if bot_token and target_chat_id:
         payload = {"chat_id": target_chat_id, "text": text, **kwargs}
         try:
-            res = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=10)
+            res = await asyncio.to_thread(requests.post, f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=10)
             return res.status_code == 200
         except Exception as exc:
             logger.warning("[CALL] Bot API HTTP fallback xatolik: %s", exc)

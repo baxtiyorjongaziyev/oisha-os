@@ -1,8 +1,8 @@
 import asyncio
 import logging
 import os
-from database import Database
-from learning_engine import LearningEngine
+from src.database import Database
+from src.services.utils.learning_engine import LearningEngine
 
 # Logging sozlamalari
 logging.basicConfig(

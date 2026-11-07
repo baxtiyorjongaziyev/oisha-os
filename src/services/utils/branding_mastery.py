@@ -1,9 +1,9 @@
 import logging
-from database import Database  # type: ignore
+from src.database import Database  # type: ignore
 from global_super_hub import GlobalSuperAI  # type: ignore
-from agency_hr import AgencyOrchestrator  # type: ignore
-from team_hub import TeamHub  # type: ignore
-import config
+from src.services.utils.agency_hr import AgencyOrchestrator  # type: ignore
+from src.services.utils.team_hub import TeamHub  # type: ignore
+from src import config
 
 logger = logging.getLogger(__name__)
 db = Database()

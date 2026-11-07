@@ -1,6 +1,6 @@
 import logging
 from global_super_hub import GlobalSuperAI  # type: ignore
-import config
+from src import config
 
 logger = logging.getLogger(__name__)
 

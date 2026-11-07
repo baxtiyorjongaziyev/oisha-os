@@ -186,13 +186,15 @@ async def cmd_scrape_tez_natija(event, **ctx):
 
                     if sync_to_amocrm and amocrm_sync and phone:
                         try:
-                            # Use existing create_lead
+                            # create_lead has no `note` kwarg (every call raised
+                            # TypeError); ensure_lead also reuses an active deal
+                            # for the phone, so re-running the command is safe.
                             full_name = f"{first_name} {last_name}".strip() or username or f"User {user.id}"
                             note_text = f"Tez Natija Guruh a'zosi\nGuruh: {group.name}\nUsername: @{username}"
-                            lead_id = await amocrm_sync.create_lead(
+                            lead_id = await amocrm_sync.ensure_lead(
                                 name=f"Tez Natija: {full_name}",
                                 phone=phone if phone.startswith("+") else f"+{phone}",
-                                note=note_text
+                                note=note_text,
                             )
                             if lead_id:
                                 amocrm_status = "Sinxronlandi"

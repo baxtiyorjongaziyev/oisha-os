@@ -1,6 +1,6 @@
-from database import Database  # type: ignore
-from agency_hr import AgencyHR  # type: ignore
-import config
+from src.database import Database  # type: ignore
+from src.services.utils.agency_hr import AgencyHR  # type: ignore
+from src import config
 import datetime
 import logging
 

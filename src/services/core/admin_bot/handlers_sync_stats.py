@@ -79,9 +79,8 @@ def _register_sync_and_positions_handlers(self: Any) -> None:
             )
             return
 
-        from src.services.utils.team_hub import TeamHub
-
-        TeamHub.set_position(target_user.id, position)
+        # team_hub's bare `from database import` fails outside pytest; this
+        # async upsert is the real write.
         await self.db.upsert_user(
             target_user.id,
             first_name=target_user.first_name,

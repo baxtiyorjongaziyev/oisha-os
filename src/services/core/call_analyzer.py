@@ -10,6 +10,7 @@ from src.services.call_analytics.helpers import (
     MOODS,
     NO_SPEECH_SENTINEL,
     GeminiQuotaCooldownError,
+    _CALL_NOTE_TYPES,
     _WEEKDAY_UZ,
     _clip,
     _compute_talk_ratio,
@@ -33,6 +34,8 @@ from src.services.call_analytics.helpers import (
 )
 from src.services.call_analytics.analyzer import CallAnalyzer
 from src.services.core.sales_playbook import rubric_prompt_uz
+
+_BACKFILL_PAGE_KEY = CallAnalyzer._BACKFILL_PAGE_KEY
 
 __all__ = [
     "GeminiQuotaCooldownError",

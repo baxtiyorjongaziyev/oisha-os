@@ -3,8 +3,8 @@ import logging
 from telethon import TelegramClient, functions, types
 from datetime import datetime, timezone
 
-from config import API_ID, API_HASH
-from settings import settings
+from src.config import API_ID, API_HASH
+from src.settings import settings
 from google import genai
 
 # Setup logging

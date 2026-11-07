@@ -116,6 +116,8 @@ async def _handle_dm_event(sender_id: str, text: str, my_ig_id: str, db: Optiona
         parts = m.group(1).split("=", 1)
         if len(parts) == 2:
             info_updates[parts[0].strip().lower()] = parts[1].strip()
+    from src.db.repositories.users import filter_untrusted_profile_fields
+    info_updates = filter_untrusted_profile_fields(info_updates)
     if info_updates and db:
         await db.upsert_user(user_id_str, "Foydalanuvchi", **info_updates)
 

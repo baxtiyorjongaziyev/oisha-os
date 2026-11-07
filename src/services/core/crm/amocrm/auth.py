@@ -269,7 +269,7 @@ class AmoCRMAuthMixin(AmoCRMTokenLoaderMixin):
     async def get_account_status(self):
         """Akkaunt limitlarini tekshirish."""
         url = f"{self.base_url}/api/v4/account"
-        resp = requests.get(url, headers=self._get_headers(), timeout=30)
+        resp = await asyncio.to_thread(requests.get, url, headers=self._get_headers(), timeout=30)
         if resp.status_code == 200:
             return resp.json()
         return None

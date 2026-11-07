@@ -1,9 +1,10 @@
 import asyncio
 import logging
 from telethon import TelegramClient
-from services.google_service import GoogleService
-from services.lead_scraper import LeadScraper
-from settings import settings
+from src.database import Database
+from src.services.core.google_service import GoogleService
+from src.services.core.leads.scraper.scraper import LeadScraper
+from src.settings import settings
 
 # Setup logging
 logging.basicConfig(
@@ -20,8 +21,9 @@ async def main():
         client = TelegramClient("pilot_sync_v1_session", settings.API_ID, settings.API_HASH)
         await client.connect()
 
-        # Initialize Scraper with client for background tasks
-        scraper = LeadScraper(google_service, client=client)
+        # Initialize Scraper with client for background tasks.
+        # LeadScraper requires the DB facade as its second positional argument.
+        scraper = LeadScraper(google_service, Database(), client=client)
 
         if not await client.is_user_authorized():
             print("Telegram authorized emas!")

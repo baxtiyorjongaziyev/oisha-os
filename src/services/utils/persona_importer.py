@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from database import Database  # type: ignore
+from src.database import Database  # type: ignore
 
 logger = logging.getLogger(__name__)
 db = Database()

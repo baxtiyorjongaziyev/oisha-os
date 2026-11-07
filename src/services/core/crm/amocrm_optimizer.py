@@ -3,6 +3,7 @@ AmoCRM Optimizer — CRM ichki imkoniyatlarini maksimal darajaga chiqaradi.
 Webhooklar, Triggerlar va Native Automation'ni sozlash.
 """
 
+import asyncio
 import logging
 import requests
 from src.services.core.crm.amocrm_sync import AmoCRMSync
@@ -27,10 +28,10 @@ class AmoOptimizer:
         
         try:
             headers = self.amo._get_headers()
-            response = requests.get(url, headers=headers, timeout=25)
+            response = await asyncio.to_thread(requests.get, url, headers=headers, timeout=25)
             if response.status_code == 401 and self.amo.refresh_token():
                 headers = self.amo._get_headers()
-                response = requests.get(url, headers=headers, timeout=25)
+                response = await asyncio.to_thread(requests.get, url, headers=headers, timeout=25)
             
             existing_webhooks = []
             if response.status_code == 200:
@@ -54,10 +55,10 @@ class AmoOptimizer:
             }
             
             # Register new webhook
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
+            response = await asyncio.to_thread(requests.post, url, headers=headers, json=payload, timeout=25)
             if response.status_code == 401 and self.amo.refresh_token():
                 headers = self.amo._get_headers()
-                response = requests.post(url, headers=headers, json=payload, timeout=25)
+                response = await asyncio.to_thread(requests.post, url, headers=headers, json=payload, timeout=25)
                 
             if response.status_code in [200, 201]:
                 logger.info(f"[Webhook OK] Webhook successfully registered for {webhook_url}")
