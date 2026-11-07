@@ -30,9 +30,9 @@ Qaysi bo'limlar kerakligini shu ro'yxat hal qiladi (pastdagi jadval).
 ## 2. Python core (CI: `pull-request-tests`)
 
 ```bash
-ruff check --select F821 src/                       # aniqlanmagan nomlar
+ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/  # nomlar + async ichida bloklovchi chaqiruv
 bandit -r src/ -ll -x src/services/debug/ --quiet   # CI security gate
-SKIP_LIVE=1 python -m pytest -q --tb=short          # live API'larsiz testlar
+SKIP_LIVE=1 python -m pytest -q --tb=short --cov=src --cov-report=xml --cov-fail-under=50  # CI bilan bir xil
 python scripts/check_uzbek_text.py --staged         # ASCII apostrof guard
 ```
 

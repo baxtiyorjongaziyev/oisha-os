@@ -1,6 +1,6 @@
 import logging
 import datetime
-from database import Database  # type: ignore
+from src.database import Database  # type: ignore
 
 logger = logging.getLogger(__name__)
 

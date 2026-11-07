@@ -178,8 +178,6 @@ class WorkflowManager:
         hour = now.hour
         minute = now.minute
 
-        from src.services.utils.team_hub import TeamHub
-
         # 1. MORNING PLAN REQUEST (09:00 - 09:15)
         if hour == 9 and 0 <= minute <= 15:
             job_name = "morning_plan_request"
@@ -209,11 +207,9 @@ class WorkflowManager:
 
                 msg = "🌙 **Kechki Hisobot Vaqti Keldi!** 👸🛡️\n\n"
                 msg += "Bugun nima ishlar qilindi? Barcha pozitsiya egalari natijalarni yozishi shart:\n"
-
-                # Kimlar reja yozganini tekshirish (Accountability)
-                discipline = TeamHub.get_daily_discipline_summary()
-
-                msg += f"✅ Reja yozganlar: {', '.join(discipline['plans']) or 'Hali hech kim'}\n"
+                # The old "who wrote a plan" line read team_hub, whose bare
+                # `from database import` crashed this whole loop tick (and the
+                # stagnation alert after it). Nothing writes morning_plan rows.
                 msg += "\n🚀 *Natijalarni kutyapman!*"
 
                 if settings.CRM_GROUP_ID:

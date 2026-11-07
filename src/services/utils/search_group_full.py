@@ -1,6 +1,6 @@
 import asyncio
 from telethon import TelegramClient
-from settings import settings
+from src.settings import settings
 
 
 async def main():

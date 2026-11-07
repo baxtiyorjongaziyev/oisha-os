@@ -1,9 +1,9 @@
 import asyncio
 import logging
 from telethon import TelegramClient
-from services.google_service import GoogleService
-from services.lead_scraper import LeadScraper
-from settings import settings
+from src.services.core.google_service import GoogleService
+from src.services.core.leads.scraper.scraper import LeadScraper
+from src.settings import settings
 
 # Setup logging
 logging.basicConfig(

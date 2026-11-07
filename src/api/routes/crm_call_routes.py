@@ -8,6 +8,7 @@ Ushbu modul orqali:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 import urllib.parse
@@ -162,7 +163,7 @@ async def proxy_audio_stream(
         raise HTTPException(status_code=400, detail="Noto'g'ri audio havolasi")
 
     try:
-        r = requests.get(clean_url, timeout=15, stream=True)
+        r = await asyncio.to_thread(requests.get, clean_url, timeout=15)
         if r.status_code != 200:
             raise HTTPException(status_code=r.status_code, detail="Audio faylni yuklab bo'lmadi")
 
