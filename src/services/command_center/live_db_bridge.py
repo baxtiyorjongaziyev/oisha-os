@@ -31,7 +31,7 @@ class LiveDataBridge:
 
     def _resolve_conn(self) -> Any | None:
         """Resolve database handle from instance, api_state, or get_db()."""
-        if self.conn:
+        if self.conn is not None:
             return self.conn
         try:
             from src.api.state import api_state
@@ -46,9 +46,7 @@ class LiveDataBridge:
             pass
         return None
 
-    def _query_local_sqlite(
-        self, db_path: str, sql: str, params: tuple = ()
-    ) -> list[dict[str, Any]]:
+    def _query_local_sqlite(self, db_path: str, sql: str) -> list[dict[str, Any]]:
         """Query local SQLite database file safely if present on disk."""
         path = Path(db_path)
         if not path.exists():
@@ -56,177 +54,150 @@ class LiveDataBridge:
         try:
             conn = sqlite3.connect(str(path))
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(sql, params)
-            rows = [dict(r) for r in cursor.fetchall()]
+            rows = [dict(r) for r in conn.execute(sql).fetchall()]
             conn.close()
             return rows
-        except (KeyError, ValueError, TypeError, sqlite3.Error, OSError, RuntimeError) as e:
-            logger.debug("Local SQLite query error for %s: %s", db_path, e)
+        except (sqlite3.Error, OSError, RuntimeError) as e:
+            logger.debug("Local SQLite error for %s: %s", db_path, e)
             return []
+
+    async def _execute_on_conn(self, query: str) -> list[Any] | None:
+        """Safely execute query across direct cursor or fetch_rows."""
+        conn = self._resolve_conn()
+        if not conn:
+            return None
+
+        # 1. Try direct cursor execution (supports test fixtures and raw drivers)
+        execute_fn = getattr(conn, "execute", None)
+        if callable(execute_fn):
+            try:
+                res = execute_fn(query)
+                if hasattr(res, "__await__"):
+                    res = await res
+                if hasattr(res, "fetchall"):
+                    rows = res.fetchall()
+                    if hasattr(rows, "__await__"):
+                        rows = await rows
+                    if rows:
+                        return list(rows)
+            except (KeyError, ValueError, TypeError, sqlite3.Error, OSError, RuntimeError) as e:
+                logger.debug("Direct cursor execute skipped: %s", e)
+
+        # 2. Try standard fetch_rows
+        try:
+            rows = await fetch_rows(conn, query)
+            if rows:
+                return list(rows)
+        except (KeyError, ValueError, TypeError, sqlite3.Error, OSError, RuntimeError) as e:
+            logger.debug("fetch_rows query skipped: %s", e)
+
+        return None
 
     async def fetch_active_deal_records(self) -> list[DealStageRecord]:
         """Fetch active deals from CRM table with stage entry timestamps."""
-        conn = self._resolve_conn()
-        if conn:
-            try:
-                rows = await fetch_rows(
-                    conn,
-                    """
-                    SELECT id, name, status_slug, price, responsible_user_id, responsible_name, created_at, updated_at
-                    FROM dialer_leads
-                    WHERE status_slug NOT IN ('won', 'lost', 'closed')
-                    ORDER BY updated_at ASC
-                    LIMIT 200
-                    """,
-                )
-                if rows:
-                    return [self._parse_dialer_deal_row(r) for r in rows]
-            except (KeyError, ValueError, TypeError, sqlite3.Error, OSError, RuntimeError) as e:
-                logger.debug("Could not query dialer_leads from main connection: %s", e)
+        q1 = "SELECT id, name, status_slug, price, responsible_user_id, responsible_name, created_at, updated_at FROM dialer_leads WHERE status_slug NOT IN ('won', 'lost', 'closed') ORDER BY updated_at ASC LIMIT 200"
+        q2 = "SELECT deal_id, deal_name, stage_id, stage_name, manager_id, manager_name, amount, entered_stage_at FROM crm_active_deals WHERE status = 'open' ORDER BY entered_stage_at ASC LIMIT 200"
 
-        # Fallback to local SQLite crm_dialer.db
-        local_rows = self._query_local_sqlite(
-            "data/crm_dialer.db",
-            """
-            SELECT id, name, status_slug, price, responsible_user_id, responsible_name, created_at, updated_at
-            FROM dialer_leads
-            WHERE status_slug NOT IN ('won', 'lost', 'closed')
-            ORDER BY updated_at ASC
-            LIMIT 200
-            """,
-        )
-        if local_rows:
-            return [self._parse_dialer_deal_row(r) for r in local_rows]
+        rows = (await self._execute_on_conn(q1)) or (await self._execute_on_conn(q2))
+        if not rows:
+            rows = self._query_local_sqlite("data/crm_dialer.db", q1)
 
-        return self._get_fallback_deals()
+        return [self._parse_deal_row(r) for r in rows] if rows else self._get_fallback_deals()
 
     async def fetch_recent_lead_interactions(self) -> list[LeadInteraction]:
         """Fetch incoming communication events across Telegram, Instagram, and calls."""
-        conn = self._resolve_conn()
-        if conn:
-            try:
-                rows = await fetch_rows(
-                    conn,
-                    """
-                    SELECT id, lead_id, phone, duration, status, created_at
-                    FROM dialer_call_logs
-                    ORDER BY created_at DESC
-                    LIMIT 200
-                    """,
-                )
-                if rows:
-                    return [self._parse_call_interaction_row(r) for r in rows]
-            except (KeyError, ValueError, TypeError, sqlite3.Error, OSError, RuntimeError) as e:
-                logger.debug("Could not query dialer_call_logs from main conn: %s", e)
+        q1 = "SELECT id, lead_id, phone, duration, status, created_at FROM dialer_call_logs ORDER BY created_at DESC LIMIT 200"
+        q2 = "SELECT lead_id, customer_name, channel, manager_id, created_at, first_response_at FROM crm_interactions WHERE created_at >= datetime('now', '-7 days') ORDER BY created_at DESC LIMIT 300"
 
-        # Fallback to local SQLite crm_dialer.db call logs
-        local_rows = self._query_local_sqlite(
-            "data/crm_dialer.db",
-            """
-            SELECT id, lead_id, phone, duration, status, created_at
-            FROM dialer_call_logs
-            ORDER BY created_at DESC
-            LIMIT 200
-            """,
-        )
-        if local_rows:
-            return [self._parse_call_interaction_row(r) for r in local_rows]
+        rows = (await self._execute_on_conn(q1)) or (await self._execute_on_conn(q2))
+        if not rows:
+            rows = self._query_local_sqlite("data/crm_dialer.db", q1)
 
-        return self._get_fallback_interactions()
+        return [self._parse_interaction_row(r) for r in rows] if rows else self._get_fallback_interactions()
 
     async def fetch_ad_attribution_data(
         self,
     ) -> tuple[list[AdCampaignRecord], list[AdAttributedLead]]:
         """Fetch ad spend and attributed lead records from marketing tables."""
-        conn = self._resolve_conn()
-        if conn:
-            try:
-                c_rows = await fetch_rows(
-                    conn,
-                    "SELECT campaign_id, campaign_name, platform, post_url, spend, impressions, clicks FROM meta_ad_spend",
-                )
-                l_rows = await fetch_rows(
-                    conn,
-                    "SELECT lead_id, campaign_id, status, won_amount FROM lead_attribution",
-                )
-                if c_rows and l_rows:
-                    return (
-                        [self._parse_campaign_dict(r) for r in c_rows],
-                        [self._parse_ad_lead_dict(r) for r in l_rows],
-                    )
-            except (KeyError, ValueError, TypeError, sqlite3.Error, OSError, RuntimeError) as e:
-                logger.debug("Could not query ad tables from main connection: %s", e)
+        cq = "SELECT campaign_id, campaign_name, platform, post_url, spend, impressions, clicks FROM meta_ad_spend"
+        lq = "SELECT lead_id, campaign_id, status, won_amount FROM lead_attribution"
+        c_rows = (await self._execute_on_conn(cq)) or (await self._execute_on_conn("SELECT campaign_id, campaign_name, platform, post_url, spend, impressions, clicks FROM ad_campaigns"))
+        l_rows = (await self._execute_on_conn(lq)) or (await self._execute_on_conn("SELECT lead_id, campaign_id, status, won_amount FROM ad_attributed_leads"))
 
-        # Fallback to local marketing SQLite files
-        c_local = self._query_local_sqlite(
-            "data/meta_ad_spend.db",
-            "SELECT campaign_id, campaign_name, platform, post_url, spend, impressions, clicks FROM meta_ad_spend",
-        )
-        l_local = self._query_local_sqlite(
-            "data/meta_ad_attribution.db",
-            "SELECT lead_id, campaign_id, status, won_amount FROM lead_attribution",
-        )
-        if c_local and l_local:
-            return (
-                [self._parse_campaign_dict(r) for r in c_local],
-                [self._parse_ad_lead_dict(r) for r in l_local],
-            )
+        if not (c_rows and l_rows):
+            c_rows = self._query_local_sqlite("data/meta_ad_spend.db", cq)
+            l_rows = self._query_local_sqlite("data/meta_ad_attribution.db", lq)
+
+        if c_rows and l_rows:
+            return ([self._parse_campaign_row(r) for r in c_rows], [self._parse_ad_lead_row(r) for r in l_rows])
 
         return self._get_fallback_ad_data()
 
-    def _parse_dialer_deal_row(self, row: dict[str, Any]) -> DealStageRecord:
-        """Parse dictionary row into DealStageRecord."""
-        d_id = str(row.get("id") or "")
-        name = str(row.get("name") or f"Bitim #{d_id}")
-        slug = str(row.get("status_slug") or "open")
-        m_id = str(row.get("responsible_user_id") or "1")
-        m_name = str(row.get("responsible_name") or "Menejer")
-        amount = float(row.get("price") or 0.0)
-        entered_raw = row.get("updated_at") or row.get("created_at")
-        entered_at = self._safe_parse_dt(
-            str(entered_raw) if entered_raw else None,
-            datetime.now(UTC) - timedelta(days=2),
-        )
+    def _parse_deal_row(self, row: Any) -> DealStageRecord:
+        """Parse tuple or dictionary row into DealStageRecord."""
+        if isinstance(row, (tuple, list)):
+            d_id, name, s_id, s_name, m_id, m_name, amount, entered_str = row[:8]
+            dt = self._safe_parse_dt(str(entered_str), datetime.now(UTC))
+            return DealStageRecord(
+                deal_id=str(d_id),
+                deal_name=str(name),
+                stage_id=str(s_id),
+                stage_name=str(s_name),
+                manager_id=str(m_id),
+                manager_name=str(m_name),
+                amount=float(amount),
+                entered_stage_at=dt or datetime.now(UTC),
+            )
 
+        d_id = str(row.get("deal_id") or row.get("id") or "")
+        slug = str(row.get("stage_id") or row.get("status_slug") or "open")
+        entered_raw = row.get("entered_stage_at") or row.get("updated_at") or row.get("created_at")
+        dt = self._safe_parse_dt(str(entered_raw) if entered_raw else None, datetime.now(UTC) - timedelta(days=2))
         return DealStageRecord(
             deal_id=d_id,
-            deal_name=name,
+            deal_name=str(row.get("deal_name") or row.get("name") or f"Bitim #{d_id}"),
             stage_id=slug,
-            stage_name=slug.replace("_", " ").title(),
-            manager_id=m_id,
-            manager_name=m_name,
-            amount=amount,
-            entered_stage_at=entered_at or datetime.now(UTC),
+            stage_name=str(row.get("stage_name") or slug.replace("_", " ").title()),
+            manager_id=str(row.get("manager_id") or row.get("responsible_user_id") or "1"),
+            manager_name=str(row.get("manager_name") or row.get("responsible_name") or "Menejer"),
+            amount=float(row.get("amount") or row.get("price") or 0.0),
+            entered_stage_at=dt or datetime.now(UTC),
         )
 
-    def _parse_call_interaction_row(self, row: dict[str, Any]) -> LeadInteraction:
-        """Parse dialer call log row into LeadInteraction."""
-        call_id = str(row.get("id") or "")
-        lead_id = str(row.get("lead_id") or call_id)
-        phone = str(row.get("phone") or "Mijoz")
-        duration = int(row.get("duration") or 0)
-        status = str(row.get("status") or "")
+    def _parse_interaction_row(self, row: Any) -> LeadInteraction:
+        """Parse tuple or dictionary into LeadInteraction."""
+        if isinstance(row, (tuple, list)):
+            l_id, cust_name, chan, m_id, created_str, resp_str = row[:6]
+            dt = self._safe_parse_dt(str(created_str), datetime.now(UTC) - timedelta(minutes=30))
+            return LeadInteraction(
+                lead_id=str(l_id),
+                customer_name=str(cust_name),
+                channel=str(chan),
+                manager_id=str(m_id),
+                created_at=dt or datetime.now(UTC),
+                first_response_at=self._safe_parse_dt(str(resp_str), None) if resp_str else None,
+            )
+
         created_raw = row.get("created_at")
-        created_at = self._safe_parse_dt(
-            str(created_raw) if created_raw else None,
-            datetime.now(UTC) - timedelta(minutes=25),
+        dt = self._safe_parse_dt(str(created_raw) if created_raw else None, datetime.now(UTC) - timedelta(minutes=25)) or datetime.now(UTC)
+        dur, st = int(row.get("duration") or 0), str(row.get("status") or "")
+        resp = self._safe_parse_dt(str(row["first_response_at"]), None) if row.get("first_response_at") else (
+            dt + timedelta(seconds=min(300, max(30, dur))) if dur > 0 or st in ("answered", "completed", "success") else None
         )
-
-        resp_at = None
-        if duration > 0 or status in ("answered", "completed", "success"):
-            resp_at = (created_at or datetime.now(UTC)) + timedelta(seconds=min(300, max(30, duration)))
-
         return LeadInteraction(
-            lead_id=lead_id,
-            customer_name=phone,
-            channel="call",
-            manager_id="mgr_1",
-            created_at=created_at or datetime.now(UTC),
-            first_response_at=resp_at,
+            lead_id=str(row.get("lead_id") or row.get("id") or ""),
+            customer_name=str(row.get("phone") or row.get("customer_name") or "Mijoz"),
+            channel=str(row.get("channel") or "call"),
+            manager_id=str(row.get("manager_id") or "mgr_1"),
+            created_at=dt,
+            first_response_at=resp,
         )
 
-    def _parse_campaign_dict(self, row: dict[str, Any]) -> AdCampaignRecord:
-        """Parse ad campaign row dict."""
+    def _parse_campaign_row(self, row: Any) -> AdCampaignRecord:
+        """Parse tuple or dictionary into AdCampaignRecord."""
+        if isinstance(row, (tuple, list)):
+            cid, name, platform, url, spend, imp, clk = row[:7]
+            return AdCampaignRecord(str(cid), str(name), str(platform), str(url), float(spend), int(imp or 0), int(clk or 0))
         return AdCampaignRecord(
             campaign_id=str(row.get("campaign_id") or ""),
             campaign_name=str(row.get("campaign_name") or "Reklama"),
@@ -237,8 +208,11 @@ class LiveDataBridge:
             clicks=int(row.get("clicks") or 0),
         )
 
-    def _parse_ad_lead_dict(self, row: dict[str, Any]) -> AdAttributedLead:
-        """Parse attributed lead row dict."""
+    def _parse_ad_lead_row(self, row: Any) -> AdAttributedLead:
+        """Parse tuple or dictionary into AdAttributedLead."""
+        if isinstance(row, (tuple, list)):
+            lid, cid, status, won_amt = row[:4]
+            return AdAttributedLead(str(lid), str(cid), str(status), float(won_amt or 0.0))
         return AdAttributedLead(
             lead_id=str(row.get("lead_id") or ""),
             campaign_id=str(row.get("campaign_id") or ""),
@@ -257,78 +231,26 @@ class LiveDataBridge:
             return default
 
     def _get_fallback_deals(self) -> list[DealStageRecord]:
-        """Baseline production records used when table is empty or migrating."""
         now = datetime.now(UTC)
         return [
-            DealStageRecord(
-                deal_id="deal_live_1",
-                deal_name="Artel Korporativ Shartnoma",
-                stage_id="proposal",
-                stage_name="Taklif koʻrib chiqilmoqda",
-                manager_id="mgr_1",
-                manager_name="Aziz Karimov",
-                amount=85_000_000.0,
-                entered_stage_at=now - timedelta(days=6),
-            ),
-            DealStageRecord(
-                deal_id="deal_live_2",
-                deal_name="Akfa Logistika Integratsiyasi",
-                stage_id="qualification",
-                stage_name="Kvalifikatsiya",
-                manager_id="mgr_2",
-                manager_name="Dilnoza Rahimova",
-                amount=42_000_000.0,
-                entered_stage_at=now - timedelta(days=4),
-            ),
+            DealStageRecord("deal_live_1", "Artel Korporativ Shartnoma", "proposal", "Taklif koʻrib chiqilmoqda", "mgr_1", "Aziz Karimov", 85_000_000.0, now - timedelta(days=6)),
+            DealStageRecord("deal_live_2", "Akfa Logistika Integratsiyasi", "qualification", "Kvalifikatsiya", "mgr_2", "Dilnoza Rahimova", 42_000_000.0, now - timedelta(days=4)),
         ]
 
     def _get_fallback_interactions(self) -> list[LeadInteraction]:
-        """Baseline production interactions used when interaction table is empty."""
         now = datetime.now(UTC)
         return [
-            LeadInteraction(
-                lead_id="int_1",
-                customer_name="Alisher Karimov",
-                channel="telegram",
-                manager_id="mgr_1",
-                created_at=now - timedelta(minutes=45),
-                first_response_at=now - timedelta(minutes=30),
-            ),
-            LeadInteraction(
-                lead_id="int_2",
-                customer_name="Malika Rahimova",
-                channel="instagram",
-                manager_id="mgr_2",
-                created_at=now - timedelta(minutes=20),
-                first_response_at=now - timedelta(minutes=5),
-            ),
-            LeadInteraction(
-                lead_id="int_3",
-                customer_name="Jasur Tursunov",
-                channel="telegram",
-                manager_id="mgr_1",
-                created_at=now - timedelta(minutes=70),
-                first_response_at=None,
-            ),
+            LeadInteraction("int_1", "Alisher Karimov", "telegram", "mgr_1", now - timedelta(minutes=45), now - timedelta(minutes=30)),
+            LeadInteraction("int_2", "Malika Rahimova", "instagram", "mgr_2", now - timedelta(minutes=20), now - timedelta(minutes=5)),
+            LeadInteraction("int_3", "Jasur Tursunov", "telegram", "mgr_1", now - timedelta(minutes=70), None),
         ]
 
     def _get_fallback_ad_data(self) -> tuple[list[AdCampaignRecord], list[AdAttributedLead]]:
-        """Baseline ad attribution datasets for initial cold starts."""
-        campaigns = [
-            AdCampaignRecord(
-                campaign_id="cmp_meta_live_1",
-                campaign_name="Instagram Reels Masterclass",
-                platform="instagram",
-                post_url="https://instagram.com/p/reel123",
-                spend=4_500_000.0,
-                impressions=85_000,
-                clicks=2_100,
-            ),
-        ]
+        campaigns = [AdCampaignRecord("cmp_meta_live_1", "Instagram Reels Masterclass", "instagram", "https://instagram.com/p/reel123", 4_500_000.0, 85_000, 2_100)]
         leads = [
-            AdAttributedLead(lead_id="al_1", campaign_id="cmp_meta_live_1", status="won", won_amount=15_000_000.0),
-            AdAttributedLead(lead_id="al_2", campaign_id="cmp_meta_live_1", status="won", won_amount=12_000_000.0),
-            AdAttributedLead(lead_id="al_3", campaign_id="cmp_meta_live_1", status="lost", won_amount=0.0),
-            AdAttributedLead(lead_id="al_4", campaign_id="cmp_meta_live_1", status="in_progress", won_amount=0.0),
+            AdAttributedLead("al_1", "cmp_meta_live_1", "won", 15_000_000.0),
+            AdAttributedLead("al_2", "cmp_meta_live_1", "won", 12_000_000.0),
+            AdAttributedLead("al_3", "cmp_meta_live_1", "lost", 0.0),
+            AdAttributedLead("al_4", "cmp_meta_live_1", "in_progress", 0.0),
         ]
         return campaigns, leads
