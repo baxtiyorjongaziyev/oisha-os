@@ -114,7 +114,7 @@ class AmoCRMLeadsMutateMixin:
         success_count = 0
         for lid in lead_ids:
             try:
-                resp = requests.delete(f"{url}/{lid}", headers=headers, timeout=30)
+                resp = await asyncio.to_thread(requests.delete, f"{url}/{lid}", headers=headers, timeout=30)
                 if resp.status_code in [200, 204]:
                     success_count += 1
             except Exception as e:

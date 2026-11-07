@@ -40,9 +40,9 @@ class CrmActionsMixin(CrmLeadQualifyMixin):
             if deadline:
                 kwargs["deadline"] = deadline
 
-            await asyncio.to_thread(
-                self.db.upsert_user, user_id, name or "Unknown", None, phone, **kwargs
-            )
+            # Database.upsert_user is async: (user_id, first_name, username, **cols).
+            # Pass name as-is: None keeps a stored first_name on partial updates.
+            await self.db.upsert_user(user_id, name, None, phone=phone, **kwargs)
             saved_fields.append("SQLite DB")
         except Exception as e:
             logger.error(f"[TOOL] save_lead_info SQLite xato: {e}")
@@ -68,14 +68,15 @@ class CrmActionsMixin(CrmLeadQualifyMixin):
         # AmoCRM
         try:
             if phone:
-                await asyncio.to_thread(
-                    self.amocrm.create_lead,
-                    name or f"User {user_id}",
-                    phone,
-                    price=0,
+                # create_lead is async and has no `note` kwarg; ensure_lead
+                # reuses an active deal for this phone and attaches the note.
+                lead_id = await self.amocrm.ensure_lead(
+                    name=name or f"User {user_id}",
+                    phone=phone,
                     note=f"Biznes: {business_type}, Hudud: {region}",
                 )
-                saved_fields.append("AmoCRM")
+                if lead_id:
+                    saved_fields.append("AmoCRM")
         except Exception as e:
             logger.error(f"[TOOL] save_lead_info AmoCRM xato: {e}")
 
@@ -89,12 +90,17 @@ class CrmActionsMixin(CrmLeadQualifyMixin):
                 "business_type": business_type,
                 "lead_quality": lead_quality,
             },
-            success=True,
+            success=bool(saved_fields),
         )
 
+        # Report failure honestly: an empty saved_fields used to read as success.
         return {
-            "success": True,
-            "message": f"Ma'lumotlar saqlandi: {', '.join(saved_fields)}",
+            "success": bool(saved_fields),
+            "message": (
+                f"Maʼlumotlar saqlandi: {', '.join(saved_fields)}"
+                if saved_fields
+                else "Maʼlumotlar hech qayerga saqlanmadi (DB, Sheets, AmoCRM xato berdi)."
+            ),
             "saved": {
                 "name": name,
                 "phone": phone,

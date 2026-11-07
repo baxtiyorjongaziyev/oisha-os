@@ -1,7 +1,7 @@
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes
-import config
+from src import config
 
 logger = logging.getLogger(__name__)
 

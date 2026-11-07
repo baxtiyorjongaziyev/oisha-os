@@ -119,7 +119,7 @@ class MissionControl:
                     # 1. AmoCRM-dan mavjud vazifalarni tekshirish
                     try:
                         tasks_url = f"{self.amo.base_url}/api/v4/tasks?filter[entity_id]={lead_id}&filter[entity_type]=leads&filter[is_completed]=0"
-                        t_res = requests.get(
+                        t_res = await asyncio.to_thread(requests.get,
                             tasks_url, headers=self.amo._get_headers(), timeout=10
                         )
                         if t_res.status_code == 200:

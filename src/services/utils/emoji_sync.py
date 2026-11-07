@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from telegram import Bot
-from config import OWNER_ID, EMOJI_STATUS_MAPPING
+from src.config import OWNER_ID, EMOJI_STATUS_MAPPING
 from gcalendar import GoogleCalendarSync
 import os
 from dotenv import load_dotenv

@@ -294,7 +294,7 @@ class AmoFetcherMixin:
                 "filter[created_at][to]":   t_to,
                 "limit": 1,
             }
-            resp = requests.get(url, headers=self._crm._get_headers(), params=params, timeout=10)
+            resp = await asyncio.to_thread(requests.get, url, headers=self._crm._get_headers(), params=params, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 # AmoCRM returns _page_count or total in _links

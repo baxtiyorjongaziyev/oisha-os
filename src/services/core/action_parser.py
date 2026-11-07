@@ -10,6 +10,7 @@ import re
 from typing import Any, Optional
 from telegram import LabeledPrice
 
+from src.db.repositories.users import filter_untrusted_profile_fields
 from src.services.core.tool_adapters import send_group_message_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ class ActionParser:
                 logger.error(f"[ACTION_PARSER] Contact parsing error: {ce}")
         return re.sub(r"\[CONTACT_INFO:.*?\]", "", reply_text, flags=re.IGNORECASE).strip()
 
-    def _process_save_info(self, reply_text: str, sender_id: int, sender_name: str, username: str) -> str:
+    async def _process_save_info(self, reply_text: str, sender_id: int, sender_name: str, username: str) -> str:
         update_data = {}
         for match in re.finditer(r"\[SAVE_INFO:\s*(.*?)\]", reply_text, re.IGNORECASE):
             try:
@@ -84,8 +85,12 @@ class ActionParser:
             except Exception as e:
                 logger.error(f"[ACTION_PARSER] SAVE_INFO parsing error: {e}")
 
+        update_data = filter_untrusted_profile_fields(update_data)
         if update_data and self.db:
-            self.db.upsert_user(sender_id, sender_name, username=username, **update_data)
+            try:
+                await self.db.upsert_user(sender_id, sender_name, username=username, **update_data)
+            except Exception as e:
+                logger.error(f"[ACTION_PARSER] SAVE_INFO save error: {e}")
         return re.sub(r"\[SAVE_INFO:.*?\]", "", reply_text, flags=re.IGNORECASE).strip()
 
     async def _process_calendar_event(
@@ -101,12 +106,27 @@ class ActionParser:
             start_str = cal_data.get("start")
             if start_str and cal_data.get("summary"):
                 end_str = cal_data.get("end") or start_str
-                self.gcalendar.create_event(
+                # create_event is a blocking Google API call that returns None on
+                # failure; only a real event may be recorded as a scheduled meeting.
+                event = await asyncio.to_thread(
+                    self.gcalendar.create_event,
                     summary=cal_data.get("summary"), start_time=start_str,
                     end_time=end_str, description=cal_data.get("description", ""),
                 )
+                if not event:
+                    logger.warning(
+                        "[ACTION_PARSER] Calendar event not created; meeting not recorded (sender_id=%s)",
+                        sender_id,
+                    )
+                    return re.sub(r"\[CALENDAR_EVENT:.*?\]", "", reply_text, flags=re.IGNORECASE).strip()
                 if self.db:
-                    self.db.update_meeting(sender_id, start_str)
+                    try:
+                        await self.db.upsert_user(
+                            sender_id, sender_name, username=username,
+                            meeting_time=start_str, meeting_status="scheduled",
+                        )
+                    except Exception as db_err:
+                        logger.error(f"[ACTION_PARSER] Meeting state save error: {db_err}")
                 self._notify_meeting_group(sender_name, username, start_str, cal_data.get("summary", ""), context)
         except Exception as e:
             logger.error(f"[ACTION_PARSER] Calendar parsing error: {e}")
@@ -196,13 +216,35 @@ class ActionParser:
                     p_data = {k.strip(): v.strip() for k, v in p_data.items()}
                     lead_title = p_data.get("title", lead_title)
                     phone = p_data.get("phone", phone)
-                await self.amocrm.create_lead(
-                    name=lead_title, phone=phone, user_id=sender_id,
-                    notes=f"AI Agent orqali avtomatik yuborildi. Quality: {lead_quality}",
-                )
+                await self._push_lead_once(sender_id, lead_title, phone, lead_quality)
             except Exception as ae:
                 logger.error(f"[ACTION_PARSER] AmoCRM push error: {ae}")
         return re.sub(r"\[PUSH_TO_AMOCRM:.*?\]", "", reply_text, flags=re.IGNORECASE).strip()
+
+    async def _push_lead_once(
+        self, sender_id: int, lead_title: str, phone: str, lead_quality: Optional[str]
+    ) -> Optional[int]:
+        """Open (or reuse) the client's AmoCRM deal once per sender.
+
+        The "sifatli" trigger fires on every AI reply containing the handoff
+        phrase, so a DB state key stops repeat pushes; ensure_lead also reuses
+        an active deal with the same phone. Without a phone nothing is pushed:
+        standalone deals cannot be deduplicated.
+        """
+        if not phone:
+            logger.info("[ACTION_PARSER] AmoCRM push skipped: no phone for sender_id=%s", sender_id)
+            return None
+        state_key = f"crm:ai_push:{sender_id}"
+        if self.db and await self.db.get_state(state_key, ""):
+            return None
+        lead_id = await self.amocrm.ensure_lead(
+            name=lead_title,
+            phone=phone,
+            note=f"AI Agent orqali avtomatik yuborildi. Quality: {lead_quality}",
+        )
+        if lead_id and self.db:
+            await self.db.set_state(state_key, str(lead_id))
+        return lead_id
 
     async def parse_and_execute(
         self,
@@ -218,7 +260,7 @@ class ActionParser:
         """Parses all tags and executes their specific side-effects. Returns cleaned text."""
         reply_text, lead_quality = self._process_lead_report(reply_text)
         reply_text = self._process_contact_info(reply_text)
-        reply_text = self._process_save_info(reply_text, sender_id, sender_name, username)
+        reply_text = await self._process_save_info(reply_text, sender_id, sender_name, username)
         reply_text = await self._process_calendar_event(reply_text, sender_id, sender_name, username, context)
         reply_text = await self._process_sell_stars(reply_text, sender_id, context)
         reply_text = await self._process_invoice(reply_text, sender_id, context)

@@ -61,11 +61,19 @@ class DialogSyncMixin:
             f"Intent: {intent}\n"
             f"User: @{getattr(dialog.entity, 'username', 'N/A')}"
         )
+        # A real number has digits; the fallback is "Unknown"/None.
+        has_phone = sum(ch.isdigit() for ch in str(phone or "")) >= 9
         try:
-            if hasattr(self.amocrm, "create_lead"):
-                await self.amocrm.create_lead(name=name, price=0, phone=phone, note=note)
-            elif hasattr(self.amocrm, "ensure_lead"):
-                await self.amocrm.ensure_lead(name=name, phone=phone, note=note)
+            # create_lead has no `note` kwarg (it raised TypeError on every call).
+            if has_phone and hasattr(self.amocrm, "ensure_lead"):
+                lead_id = await self.amocrm.ensure_lead(name=name, phone=str(phone), note=note)
+                if not lead_id:
+                    raise RuntimeError("ensure_lead returned no lead id")
+            elif hasattr(self.amocrm, "create_standalone_lead"):
+                # set_crm_synced below keeps this dialog from producing a second deal.
+                lead_id = await self.amocrm.create_standalone_lead(name=name, note=note, tags=["TELEGRAM_DM_LEAD"])
+                if not lead_id:
+                    raise RuntimeError("create_standalone_lead returned no lead id")
             elif self.message_controller and getattr(self.message_controller, "crm", None):
                 await self.message_controller.crm.sync_lead(
                     user_id=dialog.id, name=name, phone=phone, note=note
