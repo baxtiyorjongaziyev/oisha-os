@@ -96,7 +96,7 @@ class CrmActionsMixin(CrmLeadQualifyMixin):
         return {
             "success": bool(saved_fields),
             "message": (
-                f"Ma'lumotlar saqlandi: {', '.join(saved_fields)}"
+                f"Maʼlumotlar saqlandi: {', '.join(saved_fields)}"
                 if saved_fields
                 else "Maʼlumotlar hech qayerga saqlanmadi (DB, Sheets, AmoCRM xato berdi)."
             ),
