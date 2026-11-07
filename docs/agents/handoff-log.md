@@ -2577,7 +2577,6 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - 7 ta stash refs/archive/stash-* ga va C:\Users\baxti\backups\oisha-stashes\*.patch ga arxivlandi, so'ng stash ro'yxatidan olib tashlandi.
 - Toza (clean) worktreelar `git worktree remove` bilan olib tashlandi (branchlar saqlandi); dirty/bugungi/detached-unique worktreelar qoldi.
 
-
 ### 2026-11-07 — Antigravity: OpenClaw schema validatsiyasi va Mr.Jon gateway tiklanishi
 - **Muammo**: OpenClaw gateway Contabo VPS serverida exit 78 bilan toʻxtab qolgan (Runtime: stopped, connectivity check: failed), natijada bot Telegramʼda javob bermayotgan edi. Sabab: openclaw.json ichidagi models.providers.google.apiKey va groq.apiKey obyektlari {source: env} formati tufayli OpenClaw 2026 schema validatsiyasidan oʻtmagan.
 - **Tuzatish**:
@@ -2586,3 +2585,18 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - tests/test_sync_agents_runtime.py: yangilangan xatti-harakat uchun testlar moslashtirildi (9/9 testlar yashil).
 - **Tekshiruv**: python -m unittest tests.test_sync_agents_runtime -v (9 ta test muvaffaqiyatli oʻtdi), python scripts/check_uzbek_text.py --staged (toza).
 - **Qolgan ish**: PR ochish, main ga birlashtirish va Contabo VPS deployida openclaw gateway status holatini kuzatish.
+
+### 2026-11-07 — Antigravity: 24/7 Autonomous Sales Cockpit & Watchdogs (Speed to Lead, Morning Pulse, Ad Anomaly, Evening Wrapup)
+- **Topshiriq:** Foydalanuvchi buyruqlarni qo'lda yozmasdan (/cockpit, /simulator, /triage kerak emas), to'liq 24/7 avtonom rejimda ishlashini talab qildi ("Manga qanaqadur buyruqni bosganda emas full automation bo'lishi kerak").
+- **Yaratilgan/o'zgargan fayllar:**
+  - `src/services/command_center/autonomous_engine.py`: Proactive Speed to Lead SLA watchdog (15m ogohlantirish, 30m eskalatsiya), Morning Executive Pulse kartasi (Mini App tugmasi bilan), Ad spend/CPL anomaliya skaneri (CPL > 45k yoki pul yonishi), va 19:30 Evening closing sarhisob kartasi.
+  - `src/schedulers/cockpit_autopilot_scheduler.py`: 24/7 fondagi master tsikl (`CockpitAutopilotScheduler`, `start_cockpit_autopilot_scheduler`). Har 2 daqiqada Speed to Lead, 08:45 da Tonggi puls, har 2 soatda Ad anomaliya, 19:30 da Kunlik yopilish sarhisobi.
+  - `src/bootstrap/orchestration/schedulers.py`: `start_background_schedulers` ichiga `start_cockpit_autopilot_scheduler` ulandi.
+  - `tests/test_autonomous_cockpit_engine.py`: 4 ta to'liq unit test.
+  - `tests/test_cockpit_autopilot_scheduler.py`: 7 ta to'liq unit test.
+- **Tekshiruv dalili:**
+  - Barcha unit testlar muvaffaqiyatli o'tdi (11/11 passed, pytest).
+  - O'zbekcha matn guardi toza (`check_uzbek_text.py`: toza).
+  - Bandit security scan: 0 issues (`bandit -r ... -ll`).
+  - Ruff linter: 0 errors (`All checks passed!`).
+  - Fayl hajmi: barcha yangi ishlab chiqarish fayllari qat'iy 150–400 qator oralig'ida (`autonomous_engine.py` 243L, `cockpit_autopilot_scheduler.py` 214L, `schedulers.py` 169L).
