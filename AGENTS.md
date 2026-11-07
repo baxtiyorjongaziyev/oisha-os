@@ -104,6 +104,8 @@
 | **DevOps** | Contabo VPS, systemd/Docker, health/logs, deploy (`agent-devops.md`) | — |
 
 ## Locks
+- Claude: Telegram-amoCRM chat bridge; src/services/core/crm/tg_amo_bridge/, src/api/routes/amocrm_chats.py, tests/test_tg_amo_bridge.py; boot.py faqat `runtime.start()` chaqiruvi uchun (2026-11-06).
+- Codex Coordinator: docs/agents/backlog-execution-2026-11-05.md and current handoff entry; staged backlog verification (2026-11-05).
 - Codex: Dependabot remediation; root/salescoach-ai manifests and lockfiles, deepmerge patch and security regression check (2026-10-30).
 - Codex: call script evidence, learning store, runner/scheduler hooks, coach script output and focused tests (2026-10-30).
 - Codex: Google sign-in flow, web auth store, OAuth routes, focused auth tests (2026-10-17).
