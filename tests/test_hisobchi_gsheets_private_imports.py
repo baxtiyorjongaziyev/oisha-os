@@ -21,5 +21,18 @@ def test_mixin_resolves_every_constants_helper_it_calls(name):
     module = importlib.import_module(f"src.services.core.finance.gsheets.{name}")
     source = Path(module.__file__).read_text(encoding="utf-8")
     called = set(re.findall(r"(?<![\w.])(_[a-z][a-z0-9_]*)\(", source))
-    missing = sorted(n for n in called & HELPERS if not hasattr(module, n))
-    assert not missing, f"{name} calls undefined helpers: {missing}"
+    referenced = set(re.findall(r"(?<![\w.])(_[A-Z][A-Z0-9_]*)\b", source))
+    missing = sorted(
+        n for n in (called | referenced) & HELPERS if not hasattr(module, n)
+    )
+    assert not missing, f"{name} references undefined helpers/constants: {missing}"
+
+
+@pytest.mark.parametrize("name", MODULES)
+def test_mixin_resolves_stdlib_and_gspread_globals(name):
+    module = importlib.import_module(f"src.services.core.finance.gsheets.{name}")
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    for symbol in ("datetime", "Spreadsheet", "Worksheet"):
+        if re.search(rf"(?<![\w.]){symbol}\b", source):
+            assert hasattr(module, symbol), f"{name} uses {symbol} without importing it"
+

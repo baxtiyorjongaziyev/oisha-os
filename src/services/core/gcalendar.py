@@ -43,28 +43,49 @@ class GoogleCalendarSync:
         # 2. service_account.json (Fallback)
         if not creds:
             candidate_paths = [
+                "/home/ubuntu/.secrets/service_account_calendar.json",
                 self.credentials_path,
                 os.getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
                 "/home/ubuntu/.secrets/service_account.json",
                 "data/service_account.json",
             ]
-            valid_path = next((p for p in candidate_paths if p and os.path.exists(p)), None)
-            if valid_path:
+            for path in candidate_paths:
+                if not path or not os.path.exists(path):
+                    continue
                 try:
-                    creds = ServiceAccountCredentials.from_service_account_file(
-                        valid_path, scopes=self.scopes
+                    cand = ServiceAccountCredentials.from_service_account_file(
+                        path, scopes=self.scopes
                     )
-                    logger.info(f"[GCALENDAR OK] Service Account ulandi ({valid_path}).")
+                    svc = build("calendar", "v3", credentials=cand)
+                    svc.events().list(
+                        calendarId=self.calendar_id, maxResults=1
+                    ).execute()
+                    creds = cand
+                    self.service = svc
+                    logger.info(f"[GCALENDAR OK] Service Account ulandi ({path}).")
+                    break
                 except Exception as e:
-                    logger.error(
-                        f"[GCALENDAR] Service Account avtorizatsiyasida xato: {e}"
+                    logger.warning(
+                        f"[GCALENDAR] Candidate {path} skipped: {e}"
                     )
-            else:
-                logger.warning("[GCALENDAR] Avtorizatsiya fayli topilmadi.")
+            if not creds:
+                valid_path = next((p for p in candidate_paths if p and os.path.exists(p)), None)
+                if valid_path:
+                    try:
+                        creds = ServiceAccountCredentials.from_service_account_file(
+                            valid_path, scopes=self.scopes
+                        )
+                        logger.info(f"[GCALENDAR OK] Service Account ulandi ({valid_path}).")
+                    except Exception as e:
+                        logger.error(
+                            f"[GCALENDAR] Service Account avtorizatsiyasida xato: {e}"
+                        )
+                else:
+                    logger.warning("[GCALENDAR] Avtorizatsiya fayli topilmadi.")
 
-        if creds:
+        if creds and not self.service:
             self.service = build("calendar", "v3", credentials=creds)
-        else:
+        elif not creds:
             logger.error("[GCALENDAR] Avtorizatsiya muvaffaqiyatsiz tugadi.")
 
     def create_event(self, summary, start_time, end_time, description="", location="", calendar_id=None):

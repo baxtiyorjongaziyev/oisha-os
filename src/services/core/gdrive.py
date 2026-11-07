@@ -22,9 +22,16 @@ class GoogleDriveSync:
     SCOPES = ["https://www.googleapis.com/auth/drive"]
 
     def __init__(self, creds_file: str):
-        self.creds_file = creds_file
+        candidate_paths = [
+            creds_file,
+            "/home/ubuntu/.secrets/service_account.json",
+            "data/service_account.json",
+            "service_account.json",
+        ]
+        resolved = next((p for p in candidate_paths if p and os.path.exists(p)), creds_file)
+        self.creds_file = resolved
         self.creds = service_account.Credentials.from_service_account_file(
-            creds_file, scopes=self.SCOPES
+            resolved, scopes=self.SCOPES
         )
         self.service = build("drive", "v3", credentials=self.creds)
 

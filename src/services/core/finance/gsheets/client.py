@@ -3,6 +3,7 @@ import logging
 import asyncio
 from typing import Any, Optional
 import gspread
+from gspread import Spreadsheet, Worksheet
 try:
     from google.oauth2.service_account import Credentials
 except ImportError:

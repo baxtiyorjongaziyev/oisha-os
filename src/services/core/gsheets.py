@@ -22,7 +22,14 @@ class GoogleSheetsSync:
 
     def _authenticate(self):
         """Google API bilan avtorizatsiya."""
-        if not os.path.exists(self.credentials_path):
+        candidate_paths = [
+            self.credentials_path,
+            "/home/ubuntu/.secrets/service_account.json",
+            "data/service_account.json",
+            "service_account.json",
+        ]
+        creds_file = next((p for p in candidate_paths if p and os.path.exists(p)), None)
+        if not creds_file:
             logger.warning(
                 f"[GSHEET] Credentials fayli topilmadi: {self.credentials_path}"
             )
@@ -34,7 +41,7 @@ class GoogleSheetsSync:
                 "https://www.googleapis.com/auth/drive",
             ]
             creds = Credentials.from_service_account_file(
-                self.credentials_path, scopes=scopes
+                creds_file, scopes=scopes
             )
             self.client = gspread.authorize(creds)
 
