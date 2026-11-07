@@ -162,9 +162,9 @@ function ensurePinChangeModalDom() {
     return node;
   };
   const field = (id, label) => {
-    const wrap = el("div");
-    const caption = el("label", "block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-1.5", label);
-    caption.htmlFor = id;
+    // The input sits inside its <label>, so no for/htmlFor attribute is needed.
+    const wrap = el("label", "block");
+    const caption = el("span", "block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-1.5", label);
     const input = el("input", "w-full text-center font-mono text-xl tracking-widest p-2.5 border-2 border-[#cbd5e1] rounded-lg focus:outline-none focus:border-[#4c8bf7] bg-[#f8fafc]");
     Object.assign(input, { id, type: "password", inputMode: "numeric", autocomplete: "off", maxLength: 20, placeholder: "••••••" });
     input.addEventListener("keydown", (event) => { if (event.key === "Enter") submitPinChange(); });
