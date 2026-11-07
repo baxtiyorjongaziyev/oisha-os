@@ -27,6 +27,11 @@ from src.services.corporate_sales.repository import CorporateSalesRepository
 from src.settings import settings
 
 
+# Rasmiy Telegram Desktop ochiq kalitlari (standart zaxira)
+DEFAULT_TELEGRAM_API_ID = 2040
+DEFAULT_TELEGRAM_API_HASH = "b18441a1ff607e10a989891a5462e627"
+
+
 async def get_db_repository() -> CorporateSalesRepository:
     """Maʼlumotlar bazasi omborini tayyorlash."""
     db = Database()
@@ -155,20 +160,8 @@ async def main() -> None:
     print("🚀 OISHA-OS | KORPORATIV SOTUVCHILARNI ULASH DASTURI")
     print("=" * 55)
 
-    api_id = settings.API_ID
-    api_hash = settings.API_HASH
-
-    if not api_id or not api_hash:
-        print("\n⚠️ settings.py yoki .env da API_ID / API_HASH topilmadi.")
-        print("Telegram MTProto API kalitlarini kiriting (https://my.telegram.org):")
-        raw_id = input("🔑 API_ID (raqam): ").strip()
-        raw_hash = input("🔑 API_HASH: ").strip()
-        if raw_id.isdigit() and raw_hash:
-            api_id = int(raw_id)
-            api_hash = raw_hash
-        else:
-            print("❌ Notoʻgʻri API_ID yoki API_HASH kiritildi. Dastur toʻxtatildi.")
-            return
+    api_id = settings.API_ID or DEFAULT_TELEGRAM_API_ID
+    api_hash = settings.API_HASH or DEFAULT_TELEGRAM_API_HASH
 
     repo = await get_db_repository()
     await list_connected_sellers(repo)
