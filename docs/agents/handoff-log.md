@@ -2576,3 +2576,22 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - AGENTS.md Locks: main'da allaqachon bo'sh (qulflar yo'q); eski 4 qulf faqat eskirgan feat branchda edi. Ishlar branchlarda saqlanadi.
 - 7 ta stash refs/archive/stash-* ga va C:\Users\baxti\backups\oisha-stashes\*.patch ga arxivlandi, so'ng stash ro'yxatidan olib tashlandi.
 - Toza (clean) worktreelar `git worktree remove` bilan olib tashlandi (branchlar saqlandi); dirty/bugungi/detached-unique worktreelar qoldi.
+
+
+### 2026-11-07 — Antigravity: Corporate Sales Monitor (3 ta korporativ Telegram raqamini AI orqali nazorat qilish)
+- **Bajarilgan ish**:
+  1. `src/services/corporate_sales/` toʻliq xizmat paketi ishlab chiqildi:
+     - `models.py` (183 qator): `CorporateSeller`, `MonitoredChatMessage`, `ConversationBuffer`, `SellerPerformanceSummary`.
+     - `repository.py` (237 qator): `corporate_sellers` va `conversation_analyses` jadvallari, CRUD va tahlillarni saqlash.
+     - `reporter.py` (180 qator): ROP (savdo boshligʻi) Telegram guruhi va amoCRM bitimiga izoh kiritish formati.
+     - `monitor.py` (228 qator): Telethon koʻp akkauntli read-only listener, suhbatlar buferi, tinch turish (idle) detektori, `QualityAnalyzer` (Gemini) integratsiyasi.
+     - `__init__.py` (24 qator): Toza fasad.
+  2. `scripts/connect_corporate_seller.py` (199 qator): Korporativ raqamlarni Telegram orqali xavfsiz avtorizatsiya qilib bazaga saqlovchi interaktiv CLI dastur.
+  3. `tests/test_corporate_sales_monitor.py` (285 qator): 7 ta toʻliq unit test (modellar, repozitoriy, hisobot berish, bufer va avtomatik flush).
+- **Oʻzgargan fayllar**: `src/services/corporate_sales/`, `scripts/connect_corporate_seller.py`, `tests/test_corporate_sales_monitor.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili**:
+  - `python -m pytest -q --tb=short tests/test_corporate_sales_monitor.py tests/test_quality_analyzer_llm.py` -> 21 passed.
+  - `bandit -r src/services/corporate_sales/ -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+  - Barcha fayllar qatʼiy ravishda 150 – 400 qator standartida.
+- **Qolgan ish**: 3 ta korporativ raqamni `python scripts/connect_corporate_seller.py` orqali ketma-ket ulash.
