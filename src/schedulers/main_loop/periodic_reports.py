@@ -151,6 +151,20 @@ async def _check_daily_reports(now: datetime, task: Any) -> None:
 
     if _is_due(now, 19, 0):
         await _send_daily_summary(now, task)
+    # 19:00 window check: pull & relay amobot daily report if missed by real-time event
+    if now.hour == 19 and now.minute in (0, 5, 10, 15) and not _is_job_sent(task, f"amobot_daily_report_{today_str}"):
+        try:
+            from src.services.core.crm.amobot_daily_report import check_and_relay_amobot_report
+            bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+            client = getattr(m, "client", None)
+            db = getattr(getattr(m, "msg_controller", None), "db", None)
+            if client and bot_rt:
+                handled = await check_and_relay_amobot_report(client, bot_rt, db)
+                if handled:
+                    _is_job_sent(task, f"amobot_daily_report_{today_str}")
+                    logger.info("[SCHEDULE] amobot daily report polled and relayed.")
+        except Exception as exc:
+            logger.error("[SCHEDULE][AMOBOT_REPORT] Error: %s", exc)
 
     if _is_due(now, 19, 30):
         await _send_period_report(PeriodType.DAILY, now, task)

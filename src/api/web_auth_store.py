@@ -374,3 +374,92 @@ _LOGIN_HTML_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>"""
 
+
+# ---------------------------------------------------------------------------
+# Email + parol bilan kirish (faqat owner yaratgan hisoblar, ochiq roʼyxatdan
+# oʼtish yoʼq). Urinishlar soni cheklanadi.
+# ---------------------------------------------------------------------------
+MIN_PASSWORD_LENGTH = 10
+_EMAIL_FAIL_LIMIT = 5
+_IP_FAIL_LIMIT = 20
+_FAIL_WINDOW_SECONDS = 900
+_failures: Dict[str, list] = {}
+_DUMMY_HASH = ""
+
+
+def _recent_failures(key: str, now: float) -> list:
+    hits = [t for t in _failures.get(key, []) if now - t < _FAIL_WINDOW_SECONDS]
+    if hits:
+        _failures[key] = hits
+    else:
+        _failures.pop(key, None)
+    return hits
+
+
+def login_throttled(email: str, ip: str) -> bool:
+    """True when too many failed email/password attempts were made recently."""
+    now = time.time()
+    if len(_recent_failures(f"e:{email}", now)) >= _EMAIL_FAIL_LIMIT:
+        return True
+    return len(_recent_failures(f"i:{ip}", now)) >= _IP_FAIL_LIMIT
+
+
+def record_login_failure(email: str, ip: str) -> None:
+    now = time.time()
+    _failures.setdefault(f"e:{email}", []).append(now)
+    _failures.setdefault(f"i:{ip}", []).append(now)
+
+
+def clear_login_failures(email: str) -> None:
+    _failures.pop(f"e:{email}", None)
+
+
+def authenticate_email(email: str, password: str) -> Optional[Dict[str, Any]]:
+    """Verify an existing account. Never creates accounts."""
+    global _DUMMY_HASH
+    clean_email = str(email or "").strip().lower()
+    if not clean_email or "@" not in clean_email or not password:
+        return None
+    with _conn() as c:
+        row = c.execute("SELECT * FROM web_users WHERE email = ?", (clean_email,)).fetchone()
+    if not row or not str(row["password_hash"] or ""):
+        # Parol tekshiruvi vaqti hisob bor-yoʼqligini bildirmasligi uchun.
+        if not _DUMMY_HASH:
+            _DUMMY_HASH = _hash_password(secrets.token_urlsafe(12))
+        _verify_password(password, _DUMMY_HASH)
+        return None
+    if not _verify_password(password, str(row["password_hash"])):
+        return None
+    res = dict(row)
+    res["id"] = int(res["id"]) + 900_000_000
+    return res
+
+
+def set_user_password(
+    email: str,
+    password: str,
+    role: str = "targetolog",
+    name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create or update an account (owner-run script only)."""
+    clean_email = str(email or "").strip().lower()
+    if not clean_email or "@" not in clean_email:
+        raise ValueError("email notoʼgʼri")
+    if len(password or "") < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"parol kamida {MIN_PASSWORD_LENGTH} belgi boʼlishi kerak")
+    pw_hash = _hash_password(password)
+    display = (name or clean_email.split("@")[0]).strip()
+    with _conn() as c:
+        row = c.execute("SELECT id FROM web_users WHERE email = ?", (clean_email,)).fetchone()
+        if row:
+            c.execute(
+                "UPDATE web_users SET password_hash = ?, role = ? WHERE email = ?",
+                (pw_hash, role, clean_email),
+            )
+        else:
+            c.execute(
+                "INSERT INTO web_users (email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
+                (clean_email, display, pw_hash, role, time.time()),
+            )
+        c.commit()
+    return {"email": clean_email, "role": role, "created": row is None}

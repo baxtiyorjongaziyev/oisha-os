@@ -1,0 +1,46 @@
+"""Bridge configuration. Reads env/settings lazily; settings.py is coordinator-owned."""
+from __future__ import annotations
+
+import os
+from typing import Optional
+
+
+def _secret(value) -> str:
+    if hasattr(value, "get_secret_value"):
+        value = value.get_secret_value()
+    return str(value or "")
+
+
+def bridge_enabled() -> bool:
+    return os.getenv("TG_AMO_BRIDGE_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def amojo_id() -> str:
+    """amoJo account uuid (NOT the numeric amoCRM account id)."""
+    return os.getenv("AMOCRM_AMOJO_ID", "").strip()
+
+
+def scope_id() -> Optional[str]:
+    return os.getenv("AMOCRM_AMOJO_SCOPE_ID", "").strip() or None
+
+
+def channel_id() -> str:
+    from src.settings import settings
+
+    return str(getattr(settings, "AMOCRM_CHAT_CHANNEL_ID", "") or "")
+
+
+def channel_secret() -> str:
+    from src.settings import settings
+
+    return _secret(getattr(settings, "AMOCRM_CHAT_CHANNEL_SECRET", None))
+
+
+def build_amojo_client():
+    """Return a configured AmoJoClient or None when config is incomplete."""
+    from .amojo_client import AmoJoClient
+
+    aid, cid, sec = amojo_id(), channel_id(), channel_secret()
+    if not (aid and cid and sec):
+        return None
+    return AmoJoClient(aid, cid, sec, scope_id=scope_id())

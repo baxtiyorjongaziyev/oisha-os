@@ -37,9 +37,14 @@ if _PROJECT_ROOT not in sys.path:
 
 from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
+# override=True: ota jarayondan qoʼshtirnoqli ('...') AMOCRM_* qiymatlar meros
+# boʼlib keladi va .envʼdagi toʼgʼri qiymatni yashiradi.
+load_dotenv(os.path.join(_PROJECT_ROOT, ".env"), override=True)
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+try:  # mcp 1.x
+    from mcp.server.fastmcp import FastMCP  # noqa: E402
+except ModuleNotFoundError:  # mcp 2.x: FastMCP -> MCPServer
+    from mcp.server.mcpserver import MCPServer as FastMCP  # noqa: E402
 
 # MCP stdio protokoli stdout'ni band qiladi — barcha log stderr'ga ketishi shart.
 logging.basicConfig(
@@ -59,7 +64,7 @@ try:  # structlog ixtiyoriy — servis modullari uni ishlatadi
             structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
         cache_logger_on_first_use=True,
     )
 except ImportError:  # pragma: no cover - structlog requirements'da bor

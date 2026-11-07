@@ -81,7 +81,10 @@ async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, 
             chat_secret = chat_secret.get_secret_value()
         chat_secret = str(chat_secret or "")
 
-        if chat_secret:
+        from src.services.core.crm.tg_amo_bridge.config import bridge_enabled
+
+        # When the bridge is on it syncs this message itself; skip the legacy path (duplicates).
+        if chat_secret and not bridge_enabled():
             from src.services.core.crm.amocrm_chat import AmoCRMChatClient
             chat_client = AmoCRMChatClient(
                 amocrm_account_id=settings.AMOCRM_CHAT_ACCOUNT_ID,
