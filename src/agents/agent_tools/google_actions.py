@@ -143,9 +143,10 @@ class GoogleActionsMixin:
             }
 
         try:
-            result = await asyncio.to_thread(subprocess.check_output,
-                safe_map[base_cmd], shell=False, stderr=subprocess.STDOUT
-            ).decode(errors="replace")
+            raw = await asyncio.to_thread(
+                subprocess.check_output, safe_map[base_cmd], shell=False, stderr=subprocess.STDOUT
+            )
+            result = raw.decode(errors="replace")
             return {"success": True, "output": result}
         except Exception as e:
             logger.error("Exception handled in %s", __name__, exc_info=True)

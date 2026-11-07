@@ -10,8 +10,8 @@ frontend bilan to'liq bog'laydi:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from src.services.core.crm.digital_pipeline import DigitalPipelineEngine
