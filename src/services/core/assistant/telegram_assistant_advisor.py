@@ -32,40 +32,19 @@ except Exception:  # pragma: no cover - tzdata yoʼq muhitlar uchun
 DEFAULT_MEETING_DURATION = timedelta(hours=1)
 
 _WEEKDAY_INDEX = {
-    "dushanba": 0,
-    "seshanba": 1,
-    "chorshanba": 2,
-    "payshanba": 3,
-    "juma": 4,
-    "shanba": 5,
-    "yakshanba": 6,
+    "dushanba": 0, "seshanba": 1, "chorshanba": 2, "payshanba": 3,
+    "juma": 4, "shanba": 5, "yakshanba": 6,
 }
 
 _WEEKDAY_LABELS = {
-    0: "dushanba",
-    1: "seshanba",
-    2: "chorshanba",
-    3: "payshanba",
-    4: "juma",
-    5: "shanba",
-    6: "yakshanba",
+    0: "dushanba", 1: "seshanba", 2: "chorshanba", 3: "payshanba",
+    4: "juma", 5: "shanba", 6: "yakshanba",
 }
 
 _MONTH_INDEX = {
-    "yanvar": 1,
-    "fevral": 2,
-    "mart": 3,
-    "aprel": 4,
-    "may": 5,
-    "iyun": 6,
-    "iyul": 7,
-    "avgust": 8,
-    "sentabr": 9,
-    "sentyabr": 9,
-    "oktabr": 10,
-    "oktyabr": 10,
-    "noyabr": 11,
-    "dekabr": 12,
+    "yanvar": 1, "fevral": 2, "mart": 3, "aprel": 4, "may": 5, "iyun": 6,
+    "iyul": 7, "avgust": 8, "sentabr": 9, "sentyabr": 9, "oktabr": 10,
+    "oktyabr": 10, "noyabr": 11, "dekabr": 12,
 }
 
 _TIME_RE = re.compile(r"\b([01]?\d|2[0-3])[:.]([0-5]\d)\b")
@@ -75,27 +54,11 @@ _TEXT_DATE_RE = re.compile(
 )
 
 _MEETING_KEYWORDS = (
-    "uchrashuv",
-    "uchrashamiz",
-    "uchrashamizmi",
-    "uchrashdik",
-    "koʼrishamiz",
-    "korishamiz",
-    "koʼrishdik",
-    "kelishdik",
-    "kelishamiz",
-    "offline",
-    "ofisda",
-    "zoom",
-    "meet",
-    "sessiya",
-    "qoʼngʼiroq",
-    "qongiroq",
-    "gaplashamiz",
-    "gaplashdik",
-    "kelaman",
-    "keladi",
-    "keladilar",
+    "uchrashuv", "uchrashamiz", "uchrashamizmi", "uchrashdik",
+    "koʼrishamiz", "korishamiz", "koʼrishdik", "kelishdik",
+    "kelishamiz", "offline", "ofisda", "zoom", "meet", "sessiya",
+    "qoʼngʼiroq", "qongiroq", "gaplashamiz", "gaplashdik",
+    "kelaman", "keladi", "keladilar",
 )
 
 _APOSTROPHES = ("\u2018", "\u2019", "\u02bb", "\u02bc", "`", "\u00b4")
@@ -235,12 +198,20 @@ VAULT_PATHS = [
 
 def _get_active_vault_path() -> Optional[Path]:
     for p in VAULT_PATHS:
-        path = Path(p)
-        if path.exists() and (path / "20-Areas").exists():
-            return path
+        try:
+            path = Path(p)
+            if path.exists() and (path / "20-Areas").exists():
+                return path
+        except (PermissionError, OSError):
+            continue
     env_vault = os.getenv("VAULT_PATH")
-    if env_vault and Path(env_vault).exists():
-        return Path(env_vault)
+    if env_vault:
+        try:
+            p = Path(env_vault)
+            if p.exists():
+                return p
+        except (PermissionError, OSError):
+            pass
     return None
 
 
