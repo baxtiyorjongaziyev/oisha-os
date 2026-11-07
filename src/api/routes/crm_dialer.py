@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
@@ -15,7 +15,42 @@ from src.services.core.crm.uzbek_crm_hub import UzbekCrmHub
 from src.services.core.crm.caller_id_service import CallerIdHub
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["crm-dialer"])
+
+# Public endpoints inside the /api/crm/dialer/ namespace. Everything else
+# requires a valid seller session or an admin principal.
+_DIALER_WEBHOOK_PATHS = frozenset({"/api/crm/dialer/incoming-call"})
+
+
+def require_dialer_access(
+    request: Request,
+    x_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
+    authorization: Optional[str] = Header(None),
+) -> None:
+    """Router-wide guard: seller session (or admin) for dialer API, webhook secret for ring hook."""
+    path = request.url.path.rstrip("/")
+    if not path.startswith("/api/crm/dialer"):
+        return  # HTML shell and static assets stay public; data needs auth
+    if path in _DIALER_WEBHOOK_PATHS:
+        from src.api.routes.twenty_moizvonki import _verify_webhook_auth
+
+        _verify_webhook_auth(x_secret, authorization, request.query_params.get("secret"))
+        return
+    from src.api.security import authorize_connection
+
+    if authorize_connection(request) is not None:
+        return
+    from src.services.core.crm.seller_auth import get_current_crm_seller
+
+    try:
+        get_current_crm_seller(request, authorization)
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("dialer auth check failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Unauthorized") from exc
+
+
+router = APIRouter(tags=["crm-dialer"], dependencies=[Depends(require_dialer_access)])
 dialer_service = DialerService()
 crm_hub = UzbekCrmHub(store=dialer_service.store)
 caller_id_hub = CallerIdHub(store=dialer_service.store)

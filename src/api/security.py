@@ -248,7 +248,12 @@ def is_protected_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
     if normalized in _PUBLIC_PATHS:
         return False
-    if normalized.startswith("/api/crm/dialer/") or normalized.startswith("/api/moizvonki/"):
+    # Dialer API enforces seller-session auth at router level
+    # (crm_dialer.require_dialer_access; login routes live in crm_auth_routes).
+    # Only the secret-verified Moizvonki webhook is exempt under /api/moizvonki.
+    if normalized.startswith("/api/crm/dialer/"):
+        return False
+    if normalized == "/api/moizvonki/webhook":
         return False
     return any(
         normalized == prefix.rstrip("/") or normalized.startswith(prefix)

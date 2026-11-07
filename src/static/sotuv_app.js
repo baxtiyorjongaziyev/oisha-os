@@ -27,6 +27,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 async function fetchBootstrap() {
   try {
     const res = await fetch(`/api/crm/dialer/bootstrap?pipeline_id=${currentPipelineId}`);
+    if (res.status === 401) return; // seller not logged in yet; reloaded after login
+    if (!res.ok) throw new Error(`bootstrap ${res.status}`);
     const data = await res.json();
     crmCatalog = data.catalog;
     kanbanData = data.kanban;
