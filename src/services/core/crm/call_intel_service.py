@@ -83,7 +83,7 @@ class CallIntelService:
         return None
 
     async def transcribe_audio(self, audio_bytes: bytes, mime_type: str = "audio/mp3") -> str:
-        """Audio yozuvni O'zbek tilida transkripsiya qilish (Gemini -> Groq Whisper)."""
+        """Audio yozuvni Oʼzbek tilida transkripsiya qilish (faqat Gemini)."""
         prompt = (
             "Siz professional savdo qo'ng'iroqlari bo'yicha transkripsiya mutaxassisisiz. "
             "Ushbu suhbat audiosini diqqat bilan eshiting va to'liq O'zbek tilida (lotin alifbosida) yozing.\n"
@@ -113,18 +113,7 @@ class CallIntelService:
                 if text and len(text) > 20:
                     return text
             except Exception as e:
-                logger.warning("[CALL-INTEL] Gemini STT xatolik berdi, Whisper ga o'tilmoqda: %s", e)
-
-        # 2. Fallback: Groq Whisper (STTService)
-        try:
-            from src.services.core.stt_service import STTService
-
-            stt = STTService()
-            stt_res = await stt.transcribe(audio_bytes, mime_type)
-            if stt_res and stt_res.transcript:
-                return stt_res.transcript
-        except Exception as e:
-            logger.warning("[CALL-INTEL] Whisper STT fallback xatosi: %s", e)
+                logger.warning("[CALL-INTEL] Gemini STT xatolik berdi: %s", e)
 
         return "Suhbat audiosi yuklandi, ammo aniq nutq ajratib olinmadi."
 
