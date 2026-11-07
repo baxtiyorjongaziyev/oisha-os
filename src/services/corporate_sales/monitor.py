@@ -17,6 +17,7 @@ from src.services.corporate_sales.models import (
 )
 from src.services.corporate_sales.repository import CorporateSalesRepository
 from src.services.corporate_sales.reporter import CorporateSalesReporter
+from src.settings import settings
 
 logger = logging.getLogger("CorporateSalesMonitor")
 
@@ -36,8 +37,12 @@ class CorporateSalesMonitor:
         self.repo = repository
         self.reporter = reporter
         self.analyzer = quality_analyzer or QualityAnalyzer()
-        self.api_id = api_id
-        self.api_hash = api_hash
+        self.api_id = api_id or getattr(settings, "API_ID", None) or 2040
+        self.api_hash = (
+            api_hash
+            or getattr(settings, "API_HASH", None)
+            or "b18441a1ff607e10a989891a5462e627"
+        )
         self.idle_timeout = idle_timeout_seconds
 
         # seller_id -> TelegramClient
