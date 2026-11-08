@@ -84,7 +84,13 @@ class MonitoredChatMessage:
     def to_transcript_line(self) -> str:
         """Suhbat transkripti qatorini shakllantirish."""
         role = "Menejer" if self.sender_type == MessageSenderType.SELLER else "Mijoz"
-        clean_text = self.text.strip() if self.text else "[Matnsiz media]"
+        if self.text.strip():
+            clean_text = self.text.strip()
+        elif self.is_voice:
+            dur_str = f" ({self.duration_seconds}s)" if self.duration_seconds else ""
+            clean_text = f"[Ovozli xabar{dur_str}]"
+        else:
+            clean_text = "[Matnsiz media]"
         time_str = self.sent_at.strftime("%H:%M")
         return f"[{time_str}] [{role} ({self.sender_name})]: {clean_text}"
 
