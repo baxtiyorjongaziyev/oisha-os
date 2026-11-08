@@ -2624,3 +2624,15 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `bandit -r src/services/corporate_sales/ scripts/test_analyze_my_chats.py scripts/connect_corporate_seller.py -ll` -> 0 issues.
   - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
   - Barcha production fayllar 150 – 400 qator standartida.
+
+### 2026-11-08 — Antigravity: Active Sales Guidance & Next Best Action Copilot
+- **Bajarilgan ish**:
+  1. Oisha Sales Sentinel passiv baholash tizimidan **faol muzokara va sotuvga yetaklovchi (Deal Acceleration & Closing Copilot)** tizimiga aylantirildi.
+  2. `src/services/ai/quality/prompts.py` va `models.py`: har bir suhbat tahlilida AI nafaqat ball beradi, balki `ready_to_send_script` (menejer mijozga darhol nusxalab yuboradigan professional oʻzbekcha javob xabari) va `deal_stage` (voronka bosqichi)ni generatsiya qiladi.
+  3. `src/services/corporate_sales/reporter.py`: `format_amocrm_note` va `_sync_note_to_amocrm` funksiyalari qoʻshildi, tayyor skript toʻgʻridan-toʻgʻri amoCRM bitimiga izoh va vazifa sifatida yoziladi.
+  4. `scripts/test_analyze_my_chats.py`: yangilandi, tahlil yakunida menejer uchun tayyor javob matnini koʻrsatadi va avtomatik amoCRM ga kiritadi.
+- **Oʻzgargan fayllar**: `src/services/ai/quality/prompts.py`, `src/services/ai/quality/models.py`, `src/services/ai/quality/scoring_heuristics.py`, `src/services/corporate_sales/reporter.py`, `scripts/test_analyze_my_chats.py`.
+- **Tekshiruv dalili**:
+  - `python -m pytest tests/test_corporate_sales_monitor.py tests/test_quality_analyzer_llm.py` -> 21 passed.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+  - Barcha production fayllar 150 – 400 qator oraligʻida.
