@@ -243,7 +243,7 @@ async def main() -> None:
             print("❌ Suhbatda tahlil qilish uchun xabarlar yetarli emas.")
             return
 
-        print("🤖 Gemini 1.5 suhbatni Jon Branding Playbook boʻyicha tahlil qilmoqda...")
+        print("🤖 Eng kuchli bepul AI (Gemini 2.5 Flash + Failover) suhbatni Jon Branding Playbook boʻyicha tahlil qilmoqda...")
         analyzer = QualityAnalyzer()
         analysis = await analyzer.analyze_conversation_ai(
             conversation_text=history_text,

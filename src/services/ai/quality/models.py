@@ -11,13 +11,15 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import os
+
 logger = logging.getLogger("QualityAnalyzer")
 
 SCORING_METHOD_AI = "gemini"
 SCORING_METHOD_HEURISTIC = "keyword_heuristic"
 OUTCOME_NOT_SALES = "not_sales"
 CATEGORY_NOT_SALES = "not_sales"
-_GEMINI_MODEL = "gemini-1.5-flash"
+_GEMINI_MODEL = os.getenv("GEMINI_QUALITY_MODEL", "gemini-2.5-flash")
 
 _LLM_METRICS = (
     "introduction",
