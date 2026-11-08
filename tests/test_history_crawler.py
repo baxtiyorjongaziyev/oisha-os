@@ -86,3 +86,41 @@ def test_generate_digest_markdown():
     assert "⭐️ Premium" in md
     assert "Qurilish mollari" in md
     assert "Jamshid aka" in md
+
+
+@pytest.mark.asyncio
+async def test_transcribe_video_note_and_media():
+    mock_stt = MagicMock()
+    mock_res = MagicMock()
+    mock_res.transcript = "Assalomu alaykum, yangi dizayn boʻyicha video yubordim"
+    mock_stt.transcribe = AsyncMock(return_value=mock_res)
+
+    crawler = TelegramHistoryCrawler(repo=MagicMock(), stt=mock_stt)
+
+    # 1. Aylana video xabar (video_note)
+    mock_client = MagicMock()
+    mock_client.download_media = AsyncMock(return_value=b"fake_mp4_bytes")
+
+    msg_video_note = MagicMock()
+    msg_video_note.video_note = MagicMock()
+    msg_video_note.video_note.duration = 15
+    msg_video_note.voice = None
+    msg_video_note.audio = None
+    msg_video_note.photo = None
+    msg_video_note.video = None
+
+    text = await crawler._transcribe_if_voice(mock_client, msg_video_note)
+    assert "Aylana video xabar" in text
+    assert "yangi dizayn boʻyicha video yubordim" in text
+
+    # 2. Rasm izohi bilan
+    msg_photo = MagicMock()
+    msg_photo.video_note = None
+    msg_photo.voice = None
+    msg_photo.audio = None
+    msg_photo.photo = MagicMock()
+    msg_photo.video = None
+    msg_photo.message = "Mana bu bizning hozirgi qadoq"
+
+    photo_text = await crawler._transcribe_if_voice(mock_client, msg_photo)
+    assert "[Rasm: \"Mana bu bizning hozirgi qadoq\"]" == photo_text

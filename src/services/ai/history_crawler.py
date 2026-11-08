@@ -93,21 +93,33 @@ class TelegramHistoryCrawler:
         return False
 
     async def _transcribe_if_voice(self, client: TelegramClient, msg: Any) -> str:
-        """Ovozli yoki audio xabarni matnga aylantirish."""
-        if not (msg.voice or msg.audio):
+        """Ovozli, aylana video yoki rasmli xabarni matnga aylantirish."""
+        is_video_note = bool(getattr(msg, "video_note", None))
+        is_audio = bool(msg.voice or msg.audio)
+        if not (is_video_note or is_audio):
+            if msg.photo:
+                cap = f": \"{msg.message}\"" if msg.message else ""
+                return f"[Rasm{cap}]"
+            if getattr(msg, "video", None):
+                cap = f": \"{msg.message}\"" if msg.message else ""
+                return f"[Video{cap}]"
             return msg.message or ""
-        try:
-            audio_bytes = await client.download_media(msg, file=bytes)
-            if audio_bytes:
-                res = await self.stt.transcribe(audio_bytes, mime_type="audio/ogg")
-                if res and res.transcript:
-                    return f"[Ovozli xabar: \"{res.transcript}\"]"
-        except Exception as exc:
-            logger.debug("[CRAWLER] Ovozli xabar transkriptida xatolik: %s", exc)
 
-        dur = getattr(getattr(msg, "voice", None), "duration", 0)
+        mime_type = "video/mp4" if is_video_note else "audio/ogg"
+        prefix = "Aylana video xabar" if is_video_note else "Ovozli xabar"
+        try:
+            media_bytes = await client.download_media(msg, file=bytes)
+            if media_bytes:
+                res = await self.stt.transcribe(media_bytes, mime_type=mime_type)
+                if res and res.transcript:
+                    return f"[{prefix}: \"{res.transcript}\"]"
+        except Exception as exc:
+            logger.debug("[CRAWLER] %s transkriptida xatolik: %s", prefix, exc)
+
+        dur_obj = getattr(msg, "video_note", None) or getattr(msg, "voice", None)
+        dur = getattr(dur_obj, "duration", 0)
         dur_str = f" ({dur}s)" if dur else ""
-        return f"[Ovozli xabar{dur_str}]"
+        return f"[{prefix}{dur_str}]"
 
     async def extract_dialog_history(
         self, client: TelegramClient, peer: Any, limit: int = 15

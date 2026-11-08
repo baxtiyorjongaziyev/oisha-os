@@ -91,10 +91,14 @@ def format_dialog_title(dialog: Any) -> str:
     phone_str = f" (+{phone})" if phone else ""
     msg_obj = getattr(dialog, "message", None)
     if msg_obj:
-        if getattr(msg_obj, "voice", None):
+        if getattr(msg_obj, "video_note", None):
+            last_msg = "[Aylana video]"
+        elif getattr(msg_obj, "voice", None):
             last_msg = "[Ovozli xabar]"
         elif getattr(msg_obj, "photo", None):
             last_msg = "[Rasm]"
+        elif getattr(msg_obj, "video", None):
+            last_msg = "[Video]"
         elif getattr(msg_obj, "document", None):
             last_msg = "[Hujjat]"
         else:
@@ -104,40 +108,47 @@ def format_dialog_title(dialog: Any) -> str:
     return f"{name}{phone_str} — \"{last_msg}...\""
 
 
-async def _transcribe_voice_message(client: TelegramClient, msg: Any, stt: Any) -> str:
-    """Ovozli xabarni yuklab, Gemini orqali oʻzbekcha matnga aylantirish."""
+async def _transcribe_voice_or_video(client: TelegramClient, msg: Any, stt: Any) -> str:
+    """Ovozli yoki aylana video xabarni yuklab, Gemini orqali oʻzbekcha matnga aylantirish."""
+    is_video_note = bool(getattr(msg, "video_note", None))
+    mime_type = "video/mp4" if is_video_note else "audio/ogg"
+    prefix = "Aylana video xabar" if is_video_note else "Ovozli xabar"
     try:
-        audio_bytes = await client.download_media(msg, file=bytes)
-        if audio_bytes:
-            res = await stt.transcribe(audio_bytes, mime_type="audio/ogg")
+        media_bytes = await client.download_media(msg, file=bytes)
+        if media_bytes:
+            res = await stt.transcribe(media_bytes, mime_type=mime_type)
             if res and res.transcript:
-                return f"[Ovozli xabar: \"{res.transcript}\"]"
+                return f"[{prefix}: \"{res.transcript}\"]"
     except Exception:
         pass
-    duration = getattr(getattr(msg, "voice", None), "duration", 0)
+    dur_obj = getattr(msg, "video_note", None) or getattr(msg, "voice", None)
+    duration = getattr(dur_obj, "duration", 0)
     dur_str = f" ({duration}s)" if duration else ""
-    return f"[Ovozli xabar{dur_str}]"
+    return f"[{prefix}{dur_str}]"
 
 
 async def fetch_dialog_history(client: TelegramClient, peer: Any, limit: int = 20) -> str:
-    """Mijoz bilan oxirgi xabarlar tarixini (ovozli va matnli) matnga aylantirish."""
+    """Mijoz bilan oxirgi xabarlar tarixini (ovozli, video va matnli) matnga aylantirish."""
     from src.services.core.stt_service import STTService
 
     stt = STTService()
     messages = []
-    print("⏳ Ovozli xabarlar va matnlar oʻqilib, audio matnga aylantirilmoqda...")
+    print("⏳ Ovozli, aylana video xabarlar va matnlar oʻqilib, audio matnga aylantirilmoqda...")
     async for msg in client.iter_messages(peer, limit=limit):
         sender = "Menejer" if msg.out else "Mijoz"
         text = msg.message or ""
 
-        if msg.voice or msg.audio:
-            text = await _transcribe_voice_message(client, msg, stt)
+        if msg.voice or msg.audio or getattr(msg, "video_note", None):
+            text = await _transcribe_voice_or_video(client, msg, stt)
         elif msg.photo:
-            cap = f": {msg.message}" if msg.message else ""
+            cap = f": \"{msg.message}\"" if msg.message else ""
             text = f"[Rasm{cap}]"
+        elif getattr(msg, "video", None):
+            cap = f": \"{msg.message}\"" if msg.message else ""
+            text = f"[Video{cap}]"
         elif msg.document:
             doc_name = getattr(msg.file, "name", "hujjat") or "hujjat"
-            cap = f": {msg.message}" if msg.message else ""
+            cap = f": \"{msg.message}\"" if msg.message else ""
             text = f"[Hujjat ({doc_name}){cap}]"
 
         if text.strip():
