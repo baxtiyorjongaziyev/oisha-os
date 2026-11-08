@@ -84,6 +84,35 @@ async def main() -> None:
         print(f"📁 Toʻliq hisobot saqlandi: {out_path}")
         print("🎯 Barcha lidlar bazaga muhrlandi va sotuvga tayyorlandi!\n")
 
+        # Telefondan foydalanayotgan Owner uchun Saqlangan xabarlar (Saved Messages)ga yuborish
+        try:
+            print("📲 Natijalar Telegram Saqlangan xabarlaringizga (Saved Messages) yuborilmoqda...")
+            header = (
+                f"🚀 **OISHA-OS | 3 YILLIK ARXIV TAHLILI YAKUNLANDI**\n\n"
+                f"📊 Jami topilgan biznes-lidlar: {len(leads)} ta\n"
+                f"Quyida eng istiqbolli mijozlar va nusxalab yuborish uchun **tayyor xabarlar** keltirilgan 👇\n\n"
+            )
+            current_chunk = header
+            for idx, lead in enumerate(leads[:10], 1):
+                item = (
+                    f"**{idx}. {lead.full_name}** ({lead.business_domain})\n"
+                    f"💼 Lavozim: {lead.estimated_role} | Toʻlov: {lead.solvency_level}\n"
+                    f"🧊 Muz yorar: _{lead.key_icebreaker}_\n\n"
+                    f"💬 **Yuborish uchun tayyor xabar (ustiga bosing - nusxalanadi):**\n"
+                    f"`{lead.ready_to_send_script}`\n\n"
+                    f"────────────────────\n"
+                )
+                if len(current_chunk) + len(item) > 3800:
+                    await client.send_message("me", current_chunk)
+                    current_chunk = ""
+                current_chunk += item
+
+            if current_chunk.strip():
+                await client.send_message("me", current_chunk)
+            print("✅ Muvaffaqiyatli! Telefondagi Telegramingizga (Saved Messages) yuborildi.")
+        except Exception as exc:
+            print(f"⚠️ Telegramga yuborishda xatolik: {exc}")
+
     finally:
         await client.disconnect()
 
