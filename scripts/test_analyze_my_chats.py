@@ -259,9 +259,21 @@ async def main() -> None:
 
         print_analysis_results(analysis)
 
+        # Qayta faollashtirish va sotuvgacha yetaklash rejasi
+        print("💡 Mijozni sotuvgacha olib borish boʻyicha aniq harakat va tayyor xabar tuzilmoqda...")
+        from src.services.ai.deal_activator import DealActivator
+        activator = DealActivator()
+        plan = await activator.generate_activation_plan(
+            transcript=history_text,
+            client_name=peer_name,
+            idle_hours=12.0,
+        )
+        print("\n" + plan.format_card())
+
         # AmoCRM sinxronizatsiyasi taklifi
         reporter = CorporateSalesReporter()
         note_text = reporter.format_amocrm_note(analysis)
+        note_text += f"\n\n🛠 KEYINGI HARAKAT VA SKRIPT:\n{plan.exact_action}\n\"{plan.ready_to_send_script}\""
         print("📝 amoCRMʼGA TUSHADIGAN IZOH MATNI:")
         print("-" * 40)
         print(note_text)
