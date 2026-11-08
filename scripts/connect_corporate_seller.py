@@ -110,24 +110,28 @@ async def register_new_seller_interactive(
     repo: CorporateSalesRepository,
     api_id: int,
     api_hash: str,
+    preselected: Optional[str] = None,
 ) -> None:
     """Interaktiv rejimda yangi sotuvchini ulash."""
     print("\n➕ YANGI KORPORATIV SOTUVCHINI ULASH")
     print("-" * 40)
-    print("Menejerni tanlang:")
-    print("  0. Baxtiyorjon Gaziyev (Owner / Sizning akkauntingiz)")
-    print("  1. Mumtozmaxal (Sotuv menejeri)")
-    print("  2. Rayxon (Sotuv menejeri)")
-    print("  3. Shahnoza (Sotuv menejeri)")
-    print("  4. Boshqa yangi sotuvchi")
-
-    choice = input("\nTanlang (0-4): ").strip()
     preset_names = {
         "0": "Baxtiyorjon Gaziyev",
         "1": "Mumtozmaxal",
         "2": "Rayxon",
         "3": "Shahnoza",
     }
+    if preselected and preselected in preset_names:
+        choice = preselected
+    else:
+        print("Menejerni tanlang:")
+        print("  0. Baxtiyorjon Gaziyev (Owner / Sizning akkauntingiz)")
+        print("  1. Mumtozmaxal (Sotuv menejeri)")
+        print("  2. Rayxon (Sotuv menejeri)")
+        print("  3. Shahnoza (Sotuv menejeri)")
+        print("  4. Boshqa yangi sotuvchi")
+        choice = input("\nTanlang (0-4): ").strip()
+
     if choice in preset_names:
         name = preset_names[choice]
         print(f"Tanlandi: {name}")
@@ -193,8 +197,10 @@ async def main() -> None:
 
         choice = input("\nTanlang (1-4): ").strip()
 
-        if choice == "1":
-            await register_new_seller_interactive(repo, api_id, api_hash)
+        if choice in ("0", "1"):
+            await register_new_seller_interactive(
+                repo, api_id, api_hash, preselected="0" if choice == "0" else None
+            )
         elif choice == "2":
             await list_connected_sellers(repo)
         elif choice == "3":
