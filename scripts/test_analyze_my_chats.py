@@ -249,6 +249,14 @@ async def main() -> None:
             print("❌ Suhbatda tahlil qilish uchun xabarlar yetarli emas.")
             return
 
+        # 1. Telegram 360° Mijoz Dosyesi (MTProto + AI)
+        print("🕵️ Telegram MTProto signallari yigʻilib, 360° mijoz dosyesi tuzilmoqda...")
+        from src.services.ai.lead_profiler import TelegramLeadProfiler
+        profiler = TelegramLeadProfiler()
+        raw_signals = await profiler.extract_raw_signals(client, target_entity)
+        lead_profile = await profiler.analyze_lead(raw_signals, history_text)
+        print("\n" + lead_profile.format_dossier())
+
         print("🤖 Eng kuchli bepul AI (Gemini 2.5 Flash + Failover) suhbatni Jon Branding Playbook boʻyicha tahlil qilmoqda...")
         analyzer = QualityAnalyzer()
         analysis = await analyzer.analyze_conversation_ai(
@@ -273,6 +281,7 @@ async def main() -> None:
         # AmoCRM sinxronizatsiyasi taklifi
         reporter = CorporateSalesReporter()
         note_text = reporter.format_amocrm_note(analysis)
+        note_text += f"\n\n👤 360° MIJOZ DOSYESI:\n• Lavozim: {lead_profile.estimated_role}\n• Xarid qobiliyati: {lead_profile.solvency_level}\n• Toifa: {lead_profile.psychological_type}\n• Muz yorar mavzu: {lead_profile.key_icebreaker}"
         note_text += f"\n\n🛠 KEYINGI HARAKAT VA SKRIPT:\n{plan.exact_action}\n\"{plan.ready_to_send_script}\""
         print("📝 amoCRMʼGA TUSHADIGAN IZOH MATNI:")
         print("-" * 40)
