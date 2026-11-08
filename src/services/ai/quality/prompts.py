@@ -45,7 +45,9 @@ def _build_scoring_prompt(transcript: str) -> str:
         '  "client_interest_level": <0-100>,\n'
         '  "objections": ["<mijoz bildirgan e\'tiroz>"],\n'
         '  "outcome": "sale|follow_up|lost|callback|not_sales|unknown",\n'
-        '  "next_steps": ["<aniq keyingi qadam>"]\n'
+        '  "next_steps": ["<aniq keyingi qadam>"],\n'
+        '  "ready_to_send_script": "<menejer mijozga darhol nusxa ko\'chirib yuborishi mumkin bo\'lgan, e\'tirozni yopuvchi va bitimni keyingi bosqichga suruvchi tayyor professional o\'zbekcha xabar>",\n'
+        '  "deal_stage": "qualifying|presentation|objection|closing|won|lost"\n'
         "}\n\n"
         f"Transkripsiya:\n{transcript}"
     )

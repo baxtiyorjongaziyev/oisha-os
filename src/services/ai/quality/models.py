@@ -92,6 +92,8 @@ def _parse_llm_scores(raw: str) -> Optional[Dict[str, Any]]:
         "objections": _as_str_list(data.get("objections")),
         "outcome": str(data.get("outcome") or "unknown").strip(),
         "next_steps": _as_str_list(data.get("next_steps")),
+        "ready_to_send_script": str(data.get("ready_to_send_script") or "").strip(),
+        "deal_stage": str(data.get("deal_stage") or "qualifying").strip(),
     }
 
 class QualityMetric(Enum):
@@ -150,9 +152,11 @@ class ConversationAnalysis:
     client_interest_level: int = 0  # 0-100
     objections_raised: List[str] = field(default_factory=list)
 
-    # Natija
+    # Natija va Muzokara
     outcome: str = ""  # "sale", "follow_up", "lost", "callback"
     next_steps: List[str] = field(default_factory=list)
+    ready_to_send_script: str = ""
+    deal_stage: str = ""
 
     # Vazifalar
     recommended_tasks: List[Dict[str, Any]] = field(default_factory=list)

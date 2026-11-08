@@ -173,6 +173,12 @@ def print_analysis_results(analysis: Any) -> None:
         for p in analysis.improvement_points:
             print(f"  💡 {p}")
 
+    script = getattr(analysis, "ready_to_send_script", "")
+    if script:
+        print("\n💬 MIJOZGA YUBORISH UCHUN TAYYOR JAVOB (SKRIPT):")
+        print(f"  👉 \"{script}\"")
+        print("  *(Menejer buni nusxalab mijozga yuborishi orqali bitimni keyingi bosqichga olib oʻtadi)*")
+
     print("=" * 60 + "\n")
 
 
