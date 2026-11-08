@@ -68,7 +68,7 @@ class SellerAuthService:
         with self._get_conn() as conn:
             rows = conn.execute(
                 """
-                SELECT slug, name, role, phone, tg, pin_hash, must_change_pin
+                SELECT slug, name, role, pin_hash, must_change_pin
                 FROM crm_seller_accounts ORDER BY rep_id ASC
                 """
             ).fetchall()
@@ -83,8 +83,6 @@ class SellerAuthService:
                 "slug": row["slug"],
                 "name": row["name"],
                 "role": row["role"],
-                "phone": row["phone"],
-                "tg": row["tg"],
                 "pin_status": status,
             })
         return sellers

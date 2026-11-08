@@ -22,7 +22,11 @@ async function resetSellerPin(seller, resultBox, button) {
   button.disabled = true;
   resultBox.textContent = "";
   try {
-    const res = await fetch(`/api/crm/dialer/auth/admin/sellers/${encodeURIComponent(seller.slug)}/reset-pin`, { method: "POST" });
+    const res = await fetch("/api/crm/dialer/auth/admin/reset-pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: seller.slug }),
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       resultBox.textContent = (data.detail && (data.detail.message || data.detail)) || "PIN-kodni tiklab boʻlmadi.";

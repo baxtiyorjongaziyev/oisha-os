@@ -179,13 +179,18 @@ async def list_sellers_for_admin(
     return {"success": True, "sellers": seller_auth_service.list_sellers_for_admin()}
 
 
-@router.post("/admin/sellers/{slug}/reset-pin")
+class ResetPinPayload(BaseModel):
+    slug: str = Field(..., pattern=r"^[a-z0-9_-]{1,50}$")
+
+
+@router.post("/admin/reset-pin")
 async def reset_seller_pin(
-    slug: str,
+    payload: ResetPinPayload,
     response: Response,
     actor: Dict[str, Any] = require_crm_permission("manage_users"),
 ) -> Dict[str, Any]:
     """Administrator: xodimga vaqtinchalik PIN berish (faqat shu javobda koʻrinadi)."""
+    slug = payload.slug
     temp_pin = seller_auth_service.reset_seller_pin(slug)
     if not temp_pin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Xodim topilmadi.")

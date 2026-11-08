@@ -67,7 +67,7 @@ def test_admin_reset_invalidates_old_pin_and_sessions(client, service):
     app = client.app
     app.dependency_overrides[require_dialer_access] = lambda: {"slug": "baxtiyorjon", "name": "Baxtiyorjon", "role": "admin"}
 
-    resp = client.post("/api/crm/dialer/auth/admin/sellers/rayxona/reset-pin")
+    resp = client.post("/api/crm/dialer/auth/admin/reset-pin", json={"slug": "rayxona"})
     assert resp.status_code == 200, resp.text
     temp = resp.json()["temp_pin"]
     assert len(temp) == 8 and temp.isdigit()
@@ -82,7 +82,7 @@ def test_admin_reset_invalidates_old_pin_and_sessions(client, service):
 def test_non_admin_cannot_reset_or_list_pins(client):
     token = _login(client, "shahnoza")
     headers = {"Authorization": f"Bearer {token}"}
-    assert client.post("/api/crm/dialer/auth/admin/sellers/rayxona/reset-pin", headers=headers).status_code == 403
+    assert client.post("/api/crm/dialer/auth/admin/reset-pin", json={"slug": "rayxona"}, headers=headers).status_code == 403
     assert client.get("/api/crm/dialer/auth/admin/sellers", headers=headers).status_code == 403
 
 
@@ -126,7 +126,8 @@ def test_admin_pin_status_reports_locked_and_change_required(client, service):
     assert statuses["hasanboy"] == "locked"
     assert statuses["rayxona"] == "change_required"
     assert statuses["shahnoza"] == "active"
-    assert all("pin_hash" not in s for s in client.get("/api/crm/dialer/auth/admin/sellers").json()["sellers"])
+    listing = client.get("/api/crm/dialer/auth/admin/sellers").json()["sellers"]
+    assert all("pin_hash" not in s and "phone" not in s and "tg" not in s for s in listing)
 
 
 def test_directory_mode_is_declared_before_use():
