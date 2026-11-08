@@ -89,19 +89,59 @@ def format_dialog_title(dialog: Any) -> str:
     name = f"{first_name} {last_name}".strip() or "Nomaʼlum mijoz"
     phone = getattr(entity, "phone", "")
     phone_str = f" (+{phone})" if phone else ""
-    last_msg = (dialog.message.message or "").replace("\n", " ")[:40]
+    msg_obj = getattr(dialog, "message", None)
+    if msg_obj:
+        if getattr(msg_obj, "voice", None):
+            last_msg = "[Ovozli xabar]"
+        elif getattr(msg_obj, "photo", None):
+            last_msg = "[Rasm]"
+        elif getattr(msg_obj, "document", None):
+            last_msg = "[Hujjat]"
+        else:
+            last_msg = (msg_obj.message or "").replace("\n", " ")[:40]
+    else:
+        last_msg = ""
     return f"{name}{phone_str} — \"{last_msg}...\""
 
 
+async def _transcribe_voice_message(client: TelegramClient, msg: Any, stt: Any) -> str:
+    """Ovozli xabarni yuklab, Gemini orqali oʻzbekcha matnga aylantirish."""
+    try:
+        audio_bytes = await client.download_media(msg, file=bytes)
+        if audio_bytes:
+            res = await stt.transcribe(audio_bytes, mime_type="audio/ogg")
+            if res and res.transcript:
+                return f"[Ovozli xabar: \"{res.transcript}\"]"
+    except Exception:
+        pass
+    duration = getattr(getattr(msg, "voice", None), "duration", 0)
+    dur_str = f" ({duration}s)" if duration else ""
+    return f"[Ovozli xabar{dur_str}]"
+
+
 async def fetch_dialog_history(client: TelegramClient, peer: Any, limit: int = 20) -> str:
-    """Mijoz bilan oxirgi xabarlar tarixini matnga aylantirish."""
+    """Mijoz bilan oxirgi xabarlar tarixini (ovozli va matnli) matnga aylantirish."""
+    from src.services.core.stt_service import STTService
+
+    stt = STTService()
     messages = []
+    print("⏳ Ovozli xabarlar va matnlar oʻqilib, audio matnga aylantirilmoqda...")
     async for msg in client.iter_messages(peer, limit=limit):
-        if not msg.message and not msg.voice:
-            continue
-        text = msg.message or "[Ovozli xabar]"
         sender = "Menejer" if msg.out else "Mijoz"
-        messages.append(f"{sender}: {text}")
+        text = msg.message or ""
+
+        if msg.voice or msg.audio:
+            text = await _transcribe_voice_message(client, msg, stt)
+        elif msg.photo:
+            cap = f": {msg.message}" if msg.message else ""
+            text = f"[Rasm{cap}]"
+        elif msg.document:
+            doc_name = getattr(msg.file, "name", "hujjat") or "hujjat"
+            cap = f": {msg.message}" if msg.message else ""
+            text = f"[Hujjat ({doc_name}){cap}]"
+
+        if text.strip():
+            messages.append(f"{sender}: {text.strip()}")
 
     messages.reverse()
     return "\n".join(messages)
