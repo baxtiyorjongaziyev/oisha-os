@@ -85,6 +85,59 @@ class CorporateSalesReporter:
         lines.append("🤖 *Oisha-OS Sales Quality Sentinel*")
         return "\n".join(lines)
 
+    def format_amocrm_note(self, analysis: Any) -> str:
+        """amoCRM kartochkasi uchun qisqa va aniq izoh matnini tuzish."""
+        score = getattr(analysis, "total_score", getattr(analysis, "overall_score", 0))
+        outcome = getattr(analysis, "deal_outcome", getattr(analysis, "outcome", "Nomaʼlum"))
+        script = getattr(analysis, "ready_to_send_script", "")
+        summary = getattr(analysis, "summary", "")
+
+        lines = [
+            f"🤖 OISHA AI | SUHBAT AUDITI ({score}/100)",
+            f"Holat: {outcome}",
+        ]
+        if summary:
+            lines.append(f"Xulosa: {summary}")
+
+        reasons = getattr(analysis, "deal_reasons", [])
+        if reasons:
+            lines.append("Asosiy nuqtalar:")
+            for r in reasons[:2]:
+                lines.append(f"• {r}")
+
+        tips = getattr(analysis, "improvement_points", getattr(analysis, "recommendations", []))
+        if tips:
+            lines.append("Keyingi qadam / Tavsiya:")
+            for t in tips[:2]:
+                lines.append(f"👉 {t}")
+
+        if script:
+            lines.append(f"\n💬 TAYYOR JAVOB SKRIPTI (MIJOZGA):\n\"{script}\"")
+
+        return "\n".join(lines)
+
+    async def _sync_note_to_amocrm(self, phone: str, note_text: str) -> bool:
+        """Telefon raqam orqali faol bitimni topib, unga izoh yozish."""
+        try:
+            from src.services.core.crm.amocrm_sync import AmoCRMSync
+            amocrm = AmoCRMSync()
+            lead = amocrm.find_active_lead_by_phone(phone)
+            if not lead:
+                contact = amocrm.get_contact_by_phone(phone)
+                if contact:
+                    leads = amocrm.get_active_leads_for_contact(contact.get("id"))
+                    if leads:
+                        lead = leads[0]
+            if not lead:
+                logger.warning("[REPORTER] Telefon %s boʻyicha amoCRM da bitim topilmadi", phone)
+                return False
+
+            lead_id = lead["id"]
+            return await amocrm.add_lead_note(lead_id, note_text)
+        except Exception as exc:
+            logger.error("[REPORTER] amoCRM izoh yozishda xato: %s", exc)
+            return False
+
     async def send_to_rop(
         self,
         report_text: str,
