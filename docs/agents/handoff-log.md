@@ -2595,3 +2595,32 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
   - Barcha fayllar qatʼiy ravishda 150 – 400 qator standartida.
 - **Qolgan ish**: 3 ta korporativ raqamni `python scripts/connect_corporate_seller.py` orqali ketma-ket ulash.
+
+
+### 2026-11-07 — Antigravity: Cloudflare Code Mode Protokoli (Claude, Codex, Antigravity)
+- **Bajarilgan ish**:
+  1. Cloudflare Code Mode arxitekturasi Oisha-OS ekotizimiga joriy qilindi: koʻp qadamli API/MCP va katta maʼlumotlar oqimida xom JSON bilan kontekstni toʻldirish oʻrniga ixcham skript orqali lokal filtrlash va bajarish standarti.
+  2. Yangi skill yaratildi: `.claude/skills/code-mode/SKILL.md` va `scripts/sync_agent_skills.py` orqali `.agents/skills/code-mode/SKILL.md` ga toʻliq sinxronlandi (Codex va Antigravity uchun).
+  3. Texnik qoʻllanma: `docs/agents/code-mode.md` (3 ta oltin qoida, vendor-side va caller-side tahlili).
+  4. Barcha agentlar qoidalari yangilandi:
+     - `AGENTS.md`: "Qayerda nima bor" va 13-asosiy qoida qoʻshildi (barcha agentlar uchun).
+     - `CLAUDE.md`: Claude Code uchun Code Mode guardraili qoʻshildi.
+     - `GEMINI.md`: Antigravity / Gemini uchun Code Mode masʼuliyati qoʻshildi.
+     - `docs/agents/golden-principles.md`: 16-oltin qoida sifatida mustahkamlandi.
+- **Oʻzgargan fayllar**: `.claude/skills/code-mode/SKILL.md`, `.agents/skills/code-mode/SKILL.md`, `docs/agents/code-mode.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `docs/agents/golden-principles.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili**:
+  - `python scripts/sync_agent_skills.py --check` -> 0 drift (toʻliq sinxron).
+  - `python scripts/check_uzbek_text.py` barcha yangi va oʻzgargan fayllarda -> toza (0 xato).
+  - Barcha fayllar qatʼiy qoidalar va kod standartlariga mos.
+
+### 2026-11-08 — Antigravity: Shaxsiy suhbatlar AI tahlili va Private Message Intake tuzatishi
+- **Bajarilgan ish**:
+  1. `src/entrypoint/message_event.py` da jiddiy muammo bartaraf etildi: `handle_new_message` ning 170-qatoridagi `_should_block_private_userbot_reply` sharti tufayli barcha kiruvchi shaxsiy (DM) xabarlar, CRM sinxronizatsiyasi, `process_elite_intake` va `process_existing_contact_signal` toʻxtab qolayotgan edi. Ushbu tekshiruv faqat `process_ai_reply` (avto-javob qaytarish) qismiga koʻchirildi. Natijada shaxsiy mijoz xabarlari bazaga yoziladi, mavjud mijoz signallari ishlaydi va CRM ga toʻgʻri oʻtadi.
+  2. `scripts/connect_corporate_seller.py` ga Baxtiyorjon Gaziyev (Owner) uchun `0` preset tanlovi qoʻshildi, shunda owner oʻz akkauntini 1 daqiqada ulay oladi.
+  3. Yangi interaktiv tahlilchi: `scripts/test_analyze_my_chats.py` va `test_my_chats.bat` yaratildi. Foydalanuvchi Telegramʼdagi istalgan mijoz bilan dialogini tanlab, Jon Branding Sales Playbook boʻyicha Gemini 1.5 orqali baholashi, ball va kamchiliklarni koʻrishi hamda amoCRM kartochkasiga izoh qoʻshishi mumkin.
+- **Oʻzgargan fayllar**: `src/entrypoint/message_event.py`, `scripts/connect_corporate_seller.py`, `scripts/test_analyze_my_chats.py`, `test_my_chats.bat`, `connect_sellers.bat`.
+- **Tekshiruv dalili**:
+  - `python -m pytest tests/test_corporate_sales_monitor.py` -> 7 passed.
+  - `bandit -r src/services/corporate_sales/ scripts/test_analyze_my_chats.py scripts/connect_corporate_seller.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+  - Barcha production fayllar 150 – 400 qator standartida.
