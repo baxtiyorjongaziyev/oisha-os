@@ -2636,3 +2636,18 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `python -m pytest tests/test_corporate_sales_monitor.py tests/test_quality_analyzer_llm.py` -> 21 passed.
   - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
   - Barcha production fayllar 150 – 400 qator oraligʻida.
+
+### 2026-11-08 — Antigravity: Deal Activator (Stagnant Leads Exact Script & Action Copilot)
+- **Bajarilgan ish**:
+  1. `src/services/ai/deal_activator.py` (184 qator): Toʻxtab qolgan mijozlar uchun **Aynan nima qilish kerak (Taktika)** va **Aynan nima deyish kerak (Tayyor soʻzma-soʻz xabar)** ni ishlab chiquvchi AI xizmati yaratildi.
+  2. Mijoz jim boʻlib qolganda (stagnation), Oisha nafaqat eslatma beradi, balki:
+     - Nega toʻxtagani sababini ochib beradi (narx ikkilanishi, vaqt yetishmasligi, byudjet).
+     - Aniq taktik harakatni belgilaydi (ovozli xabar / keys yuborish / 2 bosqichli toʻlov taklifi).
+     - Menejer nusxa koʻchirib yuboradigan tayyor professional xabarni chiqaradi.
+     - Nima qilish qatʼiyan taqiqlanishini ogohlantiradi (quruq "Qaror qildingizmi?" deb siqmaslik).
+  3. `scripts/test_analyze_my_chats.py`: integratsiya qilindi, chat audit qilinishi bilan shu reja ekranga chiqadi va amoCRM kartochkasiga yoziladi.
+  4. `tests/test_deal_activator.py`: unit testlar yozildi va 100% muvaffaqiyatli oʻtdi.
+- **Tekshiruv dalili**:
+  - `python -m pytest tests/test_deal_activator.py` -> 2 passed.
+  - `bandit -r src/services/ai/deal_activator.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
