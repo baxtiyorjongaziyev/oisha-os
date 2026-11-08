@@ -120,6 +120,7 @@ Foydalanuvchi maʼlumotlari:
 
 Oxirgi yozishmalari:
 {chat_history}
+{links_summary}
 """
 
 
@@ -201,6 +202,17 @@ class TelegramLeadProfiler:
         if not client:
             return self._fallback_profile(signals, full_name)
 
+        links_summary = ""
+        try:
+            from src.services.ai.link_analyzer import LinkAnalyzer
+            analyzer = LinkAnalyzer()
+            combined_text = f"{signals.about}\n{chat_history}"
+            analyzed_links = await analyzer.analyze_text_links(combined_text)
+            if analyzed_links:
+                links_summary = "\n" + analyzer.format_links_summary(analyzed_links)
+        except Exception:
+            pass
+
         prompt = _PROFILER_PROMPT.format(
             name=full_name,
             username=signals.username or "yoʻq",
@@ -209,6 +221,7 @@ class TelegramLeadProfiler:
             common_chats=", ".join(signals.common_chats[:5]) or "Umumiy guruhlar yoʻq",
             lang_code=signals.lang_code,
             chat_history=chat_history[:2500] if chat_history else "Yozishmalar tarixi hozircha qisqa",
+            links_summary=links_summary,
         )
 
         try:
