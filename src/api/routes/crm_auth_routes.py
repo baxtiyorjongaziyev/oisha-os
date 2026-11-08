@@ -14,12 +14,14 @@ Xavfsizlik qoidalari:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
+from src.api.crm_access import require_crm_permission
 from src.services.core.crm.seller_auth import (
     STRONG_PIN_MIN_LENGTH,
+    extract_session_token,
     seller_auth_service,
     get_crm_seller_session,
     get_current_crm_seller,
@@ -28,6 +30,9 @@ from src.services.core.crm.seller_auth import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/crm/dialer/auth", tags=["CRM Seller Auth"])
+
+# Same answer for a wrong PIN and an unknown phone/seller: no account enumeration.
+INVALID_LOGIN_DETAIL = "Notoʻgʻri PIN-kod yoki xodim topilmadi!"
 
 
 class SellerLoginPayload(BaseModel):
@@ -49,7 +54,7 @@ class ChangePinPayload(BaseModel):
 
 @router.get("/sellers")
 async def get_available_sellers() -> Dict[str, Any]:
-    """Kirish oynasi uchun mavjud sotuvchilar ro'yxati (Maxfiy PINlar kiritilmagan)."""
+    """Kirish oynasi uchun ochiq roʻyxat: faqat slug va ism."""
     sellers = seller_auth_service.list_public_sellers()
     return {"success": True, "sellers": sellers}
 
@@ -71,7 +76,7 @@ async def seller_login(payload: SellerLoginPayload, response: Response) -> Dict[
     if not auth_result:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Noto'g'ri PIN-kod yoki xodim topilmadi!",
+            detail=INVALID_LOGIN_DETAIL,
         )
 
     token = auth_result["token"]
@@ -101,23 +106,9 @@ async def seller_login(payload: SellerLoginPayload, response: Response) -> Dict[
 @router.post("/login-by-phone")
 async def seller_login_by_phone(payload: PhoneLoginPayload, response: Response) -> Dict[str, Any]:
     """Telefon raqami orqali sotuvchini aniqlash va PIN bilan kirish."""
-    clean_digits = "".join(filter(str.isdigit, payload.phone))
-    sellers = seller_auth_service.list_public_sellers()
-    matched_slug = None
-    # Compare the 9-digit national number; a seller with a blank/short phone
-    # must never match (endswith("") is always True).
-    if len(clean_digits) >= 9:
-        for s in sellers:
-            s_digits = "".join(filter(str.isdigit, s.get("phone") or ""))
-            if len(s_digits) >= 9 and clean_digits[-9:] == s_digits[-9:]:
-                matched_slug = s["slug"]
-                break
-
+    matched_slug = seller_auth_service.find_slug_by_phone(payload.phone)
     if not matched_slug:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ushbu telefon raqamiga biriktirilgan sotuvchi topilmadi!",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=INVALID_LOGIN_DETAIL)
 
     return await seller_login(SellerLoginPayload(slug=matched_slug, pin=payload.pin), response)
 
@@ -155,6 +146,7 @@ async def get_current_seller(
 @router.post("/change-pin")
 async def change_seller_pin(
     payload: ChangePinPayload,
+    request: Request,
     current_seller: Dict[str, Any] = Depends(get_crm_seller_session),
 ) -> Dict[str, Any]:
     """Sotuvchi o'zining shaxsiy PIN-kodini o'zgartirishi."""
@@ -169,6 +161,7 @@ async def change_seller_pin(
         slug=current_seller["slug"],
         old_pin=payload.old_pin,
         new_pin=payload.new_pin,
+        keep_token=extract_session_token(request, request.headers.get("Authorization")),
     )
     if not ok:
         raise HTTPException(
@@ -176,6 +169,35 @@ async def change_seller_pin(
             detail="Eski PIN-kod notoʻgʻri yoki yangi PIN talabga javob bermaydi (kamida 6 belgi, eskisidan farqli).",
         )
     return {"success": True, "message": "PIN-kod muvaffaqiyatli yangilandi!"}
+
+
+@router.get("/admin/sellers")
+async def list_sellers_for_admin(
+    _actor: Dict[str, Any] = require_crm_permission("manage_users"),
+) -> Dict[str, Any]:
+    """Administrator: xodimlar va ularning PIN holati."""
+    return {"success": True, "sellers": seller_auth_service.list_sellers_for_admin()}
+
+
+@router.post("/admin/sellers/{slug}/reset-pin")
+async def reset_seller_pin(
+    slug: str,
+    response: Response,
+    actor: Dict[str, Any] = require_crm_permission("manage_users"),
+) -> Dict[str, Any]:
+    """Administrator: xodimga vaqtinchalik PIN berish (faqat shu javobda koʻrinadi)."""
+    if slug.strip().lower() == actor.get("slug"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Oʻz PIN-kodingizni PIN almashtirish orqali yangilang.",
+        )
+    temp_pin = seller_auth_service.reset_seller_pin(slug)
+    if not temp_pin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Xodim topilmadi.")
+    response.headers["Cache-Control"] = "no-store"
+    # The temporary PIN itself is never logged.
+    logger.info("CRM seller PIN reset: %s by %s", slug, actor.get("slug"))
+    return {"success": True, "slug": slug, "temp_pin": temp_pin}
 
 
 @router.get("/verify-guard")

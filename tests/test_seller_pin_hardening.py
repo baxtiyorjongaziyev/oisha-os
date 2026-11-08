@@ -141,7 +141,8 @@ def test_login_by_phone_never_matches_seller_with_blank_phone(client, auth_servi
         conn.execute("UPDATE crm_seller_accounts SET phone = '' WHERE slug = 'baxtiyorjon'")
         conn.commit()
     resp = client.post("/api/crm/dialer/auth/login-by-phone", json={"phone": "+998901112233", "pin": PIN})
-    assert resp.status_code == 404
+    # Same answer as a wrong PIN: no account enumeration by phone.
+    assert resp.status_code == 401
 
 
 def test_login_by_phone_matches_national_number(client):
