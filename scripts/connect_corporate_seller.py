@@ -114,13 +114,31 @@ async def register_new_seller_interactive(
     """Interaktiv rejimda yangi sotuvchini ulash."""
     print("\n➕ YANGI KORPORATIV SOTUVCHINI ULASH")
     print("-" * 40)
+    print("Menejerni tanlang:")
+    print("  0. Baxtiyorjon Gaziyev (Owner / Sizning akkauntingiz)")
+    print("  1. Mumtozmaxal (Sotuv menejeri)")
+    print("  2. Rayxon (Sotuv menejeri)")
+    print("  3. Shahnoza (Sotuv menejeri)")
+    print("  4. Boshqa yangi sotuvchi")
 
-    name = input("👤 Sotuvchining ismi (masalan, Sardor): ").strip()
+    choice = input("\nTanlang (0-4): ").strip()
+    preset_names = {
+        "0": "Baxtiyorjon Gaziyev",
+        "1": "Mumtozmaxal",
+        "2": "Rayxon",
+        "3": "Shahnoza",
+    }
+    if choice in preset_names:
+        name = preset_names[choice]
+        print(f"Tanlandi: {name}")
+    else:
+        name = input("👤 Sotuvchining ismi: ").strip()
+
     if not name:
         print("❌ Ism kiritilmadi, bekor qilindi.")
         return
 
-    phone = input("📞 Korporativ telefon raqami (masalan, +998901234567): ").strip()
+    phone = input(f"📞 {name} uchun Telegram telefon raqami (+998...): ").strip()
     if not phone.startswith("+"):
         print("❌ Raqam xalqaro formatda (+) bilan boshlanishi kerak.")
         return
