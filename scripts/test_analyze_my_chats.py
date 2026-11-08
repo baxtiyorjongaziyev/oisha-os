@@ -62,13 +62,22 @@ async def choose_seller(sellers: List[Any]) -> Optional[Any]:
 
 
 async def fetch_recent_dialogs(client: TelegramClient, limit: int = 10) -> List[Any]:
-    """Oxirgi shaxsiy dialoglarni yuklab olish."""
+    """Oxirgi shaxsiy mijoz dialoglarini yuklab olish."""
     dialogs = []
-    async for dialog in client.iter_dialogs(limit=limit * 2):
-        if dialog.is_user and not getattr(dialog.entity, "bot", False):
-            dialogs.append(dialog)
-            if len(dialogs) >= limit:
-                break
+    async for dialog in client.iter_dialogs(limit=150):
+        if not dialog.is_user:
+            continue
+        entity = dialog.entity
+        # Oʻziga oʻzi yozgan (Saved messages), botlar va Telegram xizmat hisoblari filtrlanadi
+        if getattr(entity, "is_self", False):
+            continue
+        if getattr(entity, "bot", False):
+            continue
+        if getattr(entity, "id", 0) in (777000, 42777):
+            continue
+        dialogs.append(dialog)
+        if len(dialogs) >= limit:
+            break
     return dialogs
 
 
@@ -165,20 +174,31 @@ async def main() -> None:
         for idx, d in enumerate(dialogs, 1):
             print(f"  {idx}. {format_dialog_title(d)}")
 
-        choice = input(f"\nQaysi mijoz bilan suhbatni tahlil qilamiz? (1-{len(dialogs)}): ").strip()
-        try:
-            sel_idx = int(choice) - 1
-            if not (0 <= sel_idx < len(dialogs)):
+        choice = input(
+            f"\nQaysi mijoz bilan suhbatni tahlil qilamiz? (1-{len(dialogs)} yoki @username / telefon): "
+        ).strip()
+        target_entity = None
+        if choice.startswith(("@", "+")) or (len(choice) > 3 and not choice.isdigit()):
+            try:
+                target_entity = await client.get_entity(choice)
+                print(f"Topildi: {getattr(target_entity, 'first_name', choice)}")
+            except Exception as exc:
+                print(f"⚠️ {choice} topilmadi ({exc}). Roʻyxatdagi birinchi suhbat olinadi.")
+                target_entity = dialogs[0].entity
+        else:
+            try:
+                sel_idx = int(choice) - 1
+                if not (0 <= sel_idx < len(dialogs)):
+                    sel_idx = 0
+            except ValueError:
                 sel_idx = 0
-        except ValueError:
-            sel_idx = 0
+            target_entity = dialogs[sel_idx].entity
 
-        target_dialog = dialogs[sel_idx]
-        peer_name = getattr(target_dialog.entity, "first_name", "Mijoz")
-        phone = getattr(target_dialog.entity, "phone", "")
+        peer_name = getattr(target_entity, "first_name", "Mijoz")
+        phone = getattr(target_entity, "phone", "")
         print(f"\n⏳ \"{peer_name}\" bilan oxirgi 20 ta xabar oʻqilmoqda...")
 
-        history_text = await fetch_dialog_history(client, target_dialog.entity, limit=20)
+        history_text = await fetch_dialog_history(client, target_entity, limit=20)
         if not history_text.strip():
             print("❌ Suhbatda tahlil qilish uchun xabarlar yetarli emas.")
             return
@@ -187,7 +207,7 @@ async def main() -> None:
         analyzer = QualityAnalyzer()
         analysis = await analyzer.analyze_conversation_ai(
             conversation_text=history_text,
-            conversation_id=f"test_{target_dialog.id}",
+            conversation_id=f"test_{getattr(target_entity, 'id', 0)}",
             manager_name=seller.name,
         )
 
