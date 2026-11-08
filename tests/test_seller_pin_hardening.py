@@ -12,11 +12,8 @@ from fastapi.testclient import TestClient
 
 from src.api.routes import crm_auth_routes, crm_dialer, crm_enterprise_routes
 from src.services.core.crm import seller_auth
-from src.services.core.crm.seller_auth import (
-    INITIAL_SELLERS,
-    MAX_FAILED_LOGINS,
-    SellerAuthService,
-)
+from src.services.core.crm.seller_auth import SellerAuthService
+from src.services.core.crm.seller_auth_support import INITIAL_SELLERS, MAX_FAILED_LOGINS
 
 PIN = "482913"
 WEAK = "9001"

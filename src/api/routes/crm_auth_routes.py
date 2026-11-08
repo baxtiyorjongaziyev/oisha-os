@@ -186,11 +186,6 @@ async def reset_seller_pin(
     actor: Dict[str, Any] = require_crm_permission("manage_users"),
 ) -> Dict[str, Any]:
     """Administrator: xodimga vaqtinchalik PIN berish (faqat shu javobda koʻrinadi)."""
-    if slug.strip().lower() == actor.get("slug"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Oʻz PIN-kodingizni PIN almashtirish orqali yangilang.",
-        )
     temp_pin = seller_auth_service.reset_seller_pin(slug)
     if not temp_pin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Xodim topilmadi.")

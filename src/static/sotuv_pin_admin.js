@@ -14,6 +14,10 @@ function pinAdminEl(tag, className, text) {
 }
 
 async function resetSellerPin(seller, resultBox, button) {
+  if (!/^[a-z0-9_-]{1,50}$/.test(String(seller.slug))) {
+    resultBox.textContent = "Notoʻgʻri xodim identifikatori.";
+    return;
+  }
   if (!window.confirm(`${seller.name}: eski PIN va barcha sessiyalar bekor qilinadi. Davom etasizmi?`)) return;
   button.disabled = true;
   resultBox.textContent = "";

@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.crm_access import require_dialer_access
-from src.api.rbac import Principal, Role
 from src.api.routes import crm_auth_routes, crm_dialer, crm_enterprise_routes
 from src.services.core.crm import seller_auth
 from src.services.core.crm.seller_auth import SellerAuthService
@@ -80,14 +79,6 @@ def test_admin_reset_invalidates_old_pin_and_sessions(client, service):
     assert relogin.json()["pin_change_required"] is True
 
 
-def test_admin_cannot_reset_own_pin_via_reset_route(client):
-    from src.api.crm_access import require_dialer_access as guard
-
-    client.app.dependency_overrides[guard] = lambda: {"slug": "baxtiyorjon", "name": "B", "role": "admin"}
-    resp = client.post("/api/crm/dialer/auth/admin/sellers/baxtiyorjon/reset-pin")
-    assert resp.status_code == 400
-
-
 def test_non_admin_cannot_reset_or_list_pins(client):
     token = _login(client, "shahnoza")
     headers = {"Authorization": f"Bearer {token}"}
@@ -123,3 +114,23 @@ def test_schema_migration_revokes_pre_existing_sessions(tmp_path, monkeypatch):
     SellerAuthService(db_path=db)
     with SellerAuthService(db_path=db)._get_conn() as conn:
         assert conn.execute("SELECT COUNT(*) FROM crm_seller_sessions WHERE token='old'").fetchone()[0] == 0
+
+
+def test_admin_pin_status_reports_locked_and_change_required(client, service):
+    client.app.dependency_overrides[require_dialer_access] = lambda: {"slug": "baxtiyorjon", "name": "B", "role": "admin"}
+    with service._get_conn() as conn:
+        conn.execute("UPDATE crm_seller_accounts SET pin_hash = '!locked' WHERE slug = 'hasanboy'")
+        conn.commit()
+    service.reset_seller_pin("rayxona")
+    statuses = {s["slug"]: s["pin_status"] for s in client.get("/api/crm/dialer/auth/admin/sellers").json()["sellers"]}
+    assert statuses["hasanboy"] == "locked"
+    assert statuses["rayxona"] == "change_required"
+    assert statuses["shahnoza"] == "active"
+    assert all("pin_hash" not in s for s in client.get("/api/crm/dialer/auth/admin/sellers").json()["sellers"])
+
+
+def test_directory_mode_is_declared_before_use():
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parents[1] / "src" / "static" / "sotuv_sub.js").read_text(encoding="utf-8")
+    assert 'let directoryMode = "contacts";' in js

@@ -15,11 +15,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import Header, HTTPException, Request
 
 from src.services.core.crm.seller_auth_support import (
-    INITIAL_SELLERS,  # noqa: F401 - re-exported for callers and tests
     LOCKED_PIN_HASH,
-    LOGIN_LOCKOUT_WINDOW_SECONDS,  # noqa: F401
-    MAX_FAILED_LOGINS,  # noqa: F401
-    MIN_PIN_LENGTH,  # noqa: F401
     PIN_CHANGE_REQUIRED,
     STRONG_PIN_MIN_LENGTH,
     LoginThrottle,
