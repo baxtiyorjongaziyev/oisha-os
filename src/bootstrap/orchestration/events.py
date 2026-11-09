@@ -125,13 +125,12 @@ def register_event_handlers(
             events.NewMessage(incoming=True),
         )
 
-        kirim_group = getattr(settings, "CRM_SALES_REPORT_GROUP_ID", None)
-        if kirim_group:
+        if settings.TEAM_GROUP_ID and settings.TOPIC_KIRIM_ID:
             client.add_event_handler(
                 kirim_topic_handler,
-                events.NewMessage(chats=kirim_group),
+                events.NewMessage(chats=settings.TEAM_GROUP_ID),
             )
-            logger.info(f"[KIRIM] Listener active sotuv_group={kirim_group}")
+            logger.info(f"[KIRIM] Listener active team={settings.TEAM_GROUP_ID} topic={settings.TOPIC_KIRIM_ID}")
 
         client.add_event_handler(case_publisher_handler, events.NewMessage(incoming=True))
         client.add_event_handler(negotiation_agent_handler, events.NewMessage(incoming=True))
