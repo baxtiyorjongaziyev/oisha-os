@@ -18,7 +18,7 @@ from src.services.core.crm.digital_pipeline import DigitalPipelineEngine
 from src.services.core.crm.sales_targets import SalesTargetsEngine
 from src.services.core.crm.loss_analytics import LossAnalyticsEngine
 from src.services.core.crm.crm_rbac import CrmRbacGuard
-from src.api.routes.crm_dialer import require_dialer_access
+from src.api.crm_access import require_crm_permission, require_dialer_access
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,6 @@ class StageTriggerPayload(BaseModel):
     lead_id: int
     pipeline_id: int = 11162698
     new_stage_slug: str
-    seller_name: str = "Shahnoza Abdijabborova"
 
 
 class SetTargetPayload(BaseModel):
@@ -59,7 +58,6 @@ class RecordLossPayload(BaseModel):
     reason: str
     note: str = ""
     lost_amount: float = 0.0
-    seller_name: str = "Shahnoza Abdijabborova"
 
 
 # ==========================================
@@ -74,7 +72,10 @@ async def get_digital_pipeline_rules(pipeline_id: int = 11162698) -> Dict[str, A
 
 
 @router.post("/api/crm/dialer/digital-pipeline/rules")
-async def add_digital_pipeline_rule(payload: AddRulePayload) -> Dict[str, Any]:
+async def add_digital_pipeline_rule(
+    payload: AddRulePayload,
+    _actor: Dict[str, Any] = require_crm_permission("manage_automations"),
+) -> Dict[str, Any]:
     """Yangi avtomatlashtirish qoidasini kiritish."""
     rule_id = dp_engine.add_rule(
         pipeline_id=payload.pipeline_id,
@@ -88,20 +89,27 @@ async def add_digital_pipeline_rule(payload: AddRulePayload) -> Dict[str, Any]:
 
 
 @router.post("/api/crm/dialer/digital-pipeline/rules/{rule_id}/toggle")
-async def toggle_digital_pipeline_rule(rule_id: int, is_active: bool = Query(...)) -> Dict[str, Any]:
+async def toggle_digital_pipeline_rule(
+    rule_id: int,
+    is_active: bool = Query(...),
+    _actor: Dict[str, Any] = require_crm_permission("manage_automations"),
+) -> Dict[str, Any]:
     """Qoidani faollashtirish yoki to'xtatish."""
     ok = dp_engine.toggle_rule(rule_id=rule_id, is_active=is_active)
     return {"success": ok, "rule_id": rule_id, "is_active": is_active}
 
 
 @router.post("/api/crm/dialer/digital-pipeline/trigger")
-async def trigger_stage_enter(payload: StageTriggerPayload) -> Dict[str, Any]:
+async def trigger_stage_enter(
+    payload: StageTriggerPayload,
+    actor: Dict[str, Any] = require_crm_permission("manage_automations"),
+) -> Dict[str, Any]:
     """Sdelka yangi bosqichga o'tganda avtomatlashtirish qoidalarini ishga tushirish."""
     executed = await dp_engine.execute_stage_enter_triggers(
         lead_id=payload.lead_id,
         pipeline_id=payload.pipeline_id,
         new_stage_slug=payload.new_stage_slug,
-        seller_name=payload.seller_name,
+        seller_name=actor["name"],
     )
     return {"success": True, "lead_id": payload.lead_id, "executed_rules": executed}
 
@@ -118,7 +126,10 @@ async def get_sales_targets_overview(month: Optional[str] = None) -> Dict[str, A
 
 
 @router.post("/api/crm/dialer/targets")
-async def set_sales_target(payload: SetTargetPayload) -> Dict[str, Any]:
+async def set_sales_target(
+    payload: SetTargetPayload,
+    _actor: Dict[str, Any] = require_crm_permission("manage_targets"),
+) -> Dict[str, Any]:
     """Menejerga oylik sotuv rejasini belgilash."""
     ok = target_engine.set_seller_target(
         seller_name=payload.seller_name,
@@ -146,14 +157,18 @@ async def get_loss_and_velocity_analytics() -> Dict[str, Any]:
 
 
 @router.post("/api/crm/dialer/lead/{lead_id}/loss")
-async def record_deal_loss(lead_id: int, payload: RecordLossPayload) -> Dict[str, Any]:
+async def record_deal_loss(
+    lead_id: int,
+    payload: RecordLossPayload,
+    actor: Dict[str, Any] = Depends(require_dialer_access),
+) -> Dict[str, Any]:
     """Sdelkani rad etish sababi bilan birga yopish."""
     ok = loss_engine.record_loss(
         lead_id=lead_id,
         reason=payload.reason,
         note=payload.note,
         lost_amount=payload.lost_amount,
-        seller_name=payload.seller_name,
+        seller_name=actor["name"],
     )
     return {"success": ok, "lead_id": lead_id}
 
@@ -163,7 +178,9 @@ async def record_deal_loss(lead_id: int, payload: RecordLossPayload) -> Dict[str
 # ==========================================
 
 @router.get("/api/crm/dialer/rbac/users")
-async def get_crm_rbac_users() -> Dict[str, Any]:
+async def get_crm_rbac_users(
+    _actor: Dict[str, Any] = require_crm_permission("manage_users"),
+) -> Dict[str, Any]:
     """Foydalanuvchilar va ularning huquqlar matrisasi."""
     users = rbac_guard.get_users_list()
     return {"success": True, "users": users}
