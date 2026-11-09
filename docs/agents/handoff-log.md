@@ -2749,3 +2749,45 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `python scripts/check_uzbek_text.py --staged` -> toza (8 fayl).
   - `ruff check ...` -> All checks passed!
   - 150–400 qator qoidasi: barcha production fayllari meʼyorda (`live_db_bridge.py` 334L, `metasell_menu.py` 295L, `metasell_dashboard.py` 363L, `core.py` 222L, `security.py` 332L, `schedulers.py` 184L, `alerts.py` 316L).
+
+
+### 2026-11-09 — Antigravity: Zero Hallucination Lead Filter Guard & Team/Provider Exclusion
+- **Muammo:** Telegram arxiv tahlili va prospect discovery jarayonida ichki xodimlar (Mumtozmaxal Jon Branding), provayderlar (Dilnoza Uztelecom) va "Menejer" soʻzi bor kontaktlarning "mijoz / LPR" deb notoʻgʻri topilishi hamda ularga barcha kontaktlar uchun bir xil "Kecha aytgan loyihangiz boʻyicha..." deb galutsinatsiyalangan shablon yuborilishi holati yuz bergan.
+- **Tuzatish & Yechim:**
+  - `src/services/core/leads/lead_filter_guard.py` moduli yaratildi (184 LOC <= 400 LOC). Unda Jon Branding ichki jamoasi (`INTERNAL_TEAM_KEYWORDS`), aloqa provayderlari (`SERVICE_PROVIDER_KEYWORDS`), va dummy qoʻngʻiroq belgilari (`DUMMY_LEAD_PATTERNS`) asosida filtrlash (`is_excluded_contact`) joriy etildi.
+  - Dalilsiz soha yoki lavozim toʻqishni taqiqlovchi `validate_lead_qualification` (Zero Hallucination) va soxta "Kecha aytgan..." daʼvolarini tozalovchi `sanitize_outreach_message` kiritildi.
+  - `src/services/core/leads/telegram_prospect_importer.py` va `prospect_signals.py` ga xodim/provayderlarni saralashdan chetlatish logikasi ulandi.
+  - `src/services/core/crm/archiver/archiver.py` va `campaign.py` ga ichki xodimlar va soxta sdelkalarni arxiv va outreach reaktivatsiyasidan chiqarib tashlash filtri qoʻyildi.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_lead_filter_guard.py tests/test_crm_archiver.py tests/test_prospect_discovery.py -q` -> 33/33 passed in 2.61s.
+  - `bandit -ll` -> 0 issues.
+  - 400 qator standarti: barcha production fayllari <= 400 qator meʼyorida saqlandi.
+- **Holat:** Bajarildi / Tekshirildi / Xavfsiz.
+
+
+## 2026-11-09 — Antigravity — Prospect Discovery & Lead Filter Guard modullari toza shaklda qayta tiklandi
+- **Vazifa:** Yopilgan #1039 branchi ichida qolib ketgan potensial mijozlar (prospect) qidiruvi va Zero Hallucination himoyasiga ega lid filtri modullarini konfliktlardan xoli holda `main` asosida qayta tiklash va PR tayyorlash.
+- **Bajarilgan ish:**
+  1. `src/services/core/leads/lead_filter_guard.py`: Ichki jamoa a'zolari (Baxtiyorjon, Shahnoza, Mumtozmaxal va h.k.), aloqa operatorlari (Uztelecom, Beeline va h.k.) hamda soxta test lidlarini avtomatik chiqarib tashlash va Zero Hallucination talablarini ta'minlash.
+  2. Telegram Prospect Discovery dvigateli (`src/services/core/leads/prospect_discovery.py`, `prospect_signals.py`, `prospect_sources.py`, `prospect_store.py`, `telegram_prospect_importer.py`): Telegram kanallar va guruhlardan xizmatga aniq ehtiyoj bildirilgan postlarni avtomatik aniqlash va navbatga olish.
+  3. Buyruqlar va rejalashtiruvchi (`src/handlers/msg_pipeline/prospect_commands.py`, `src/schedulers/prospect_discovery_scheduler.py`): `/lead_sources`, `/lead_scan`, `/lead_candidates`, `/lead_auto` buyruqlari.
+  4. Hujjatlashtirish (`docs/agents/prospect-discovery.md`): Tizim arxitekturasi va owner/menejer oqimi.
+- **O'zgargan fayllar:**
+  - `docs/agents/prospect-discovery.md`
+  - `src/handlers/msg_pipeline/prospect_commands.py`
+  - `src/schedulers/prospect_discovery_scheduler.py`
+  - `src/services/core/leads/lead_filter_guard.py`
+  - `src/services/core/leads/prospect_discovery.py`
+  - `src/services/core/leads/prospect_signals.py`
+  - `src/services/core/leads/prospect_sources.py`
+  - `src/services/core/leads/prospect_store.py`
+  - `src/services/core/leads/telegram_prospect_importer.py`
+  - `tests/test_lead_filter_guard.py`
+  - `tests/test_prospect_discovery.py`
+  - `docs/agents/handoff-log.md`
+- **Tekshiruv dalillari:**
+  1. Pytest: `pytest tests/test_prospect_discovery.py tests/test_lead_filter_guard.py` -> **28/28 passed (100% PASS)**.
+  2. Bandit: `bandit -r src/services/core/leads/ -ll` -> **0 issues identified**.
+  3. O'zbekcha matn tekshiruvi: `python scripts/check_uzbek_text.py --staged` -> **Toza (8 fayl)**.
+  4. Modular Code Standard: Barcha fayllar qat'iy $\le 400$ qator.
+- **Qolgan ish/Bloker:** Bloker yo'q. PR ochishga tayyor.
