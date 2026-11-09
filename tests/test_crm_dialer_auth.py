@@ -4,6 +4,7 @@ import secrets
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.api.rbac import Principal, Role
 from src.api.routes import crm_dialer
 from src.api.security import is_protected_path
 
@@ -21,7 +22,7 @@ def _client(monkeypatch, seller_ok=False, admin=False):
     )
     monkeypatch.setattr(
         "src.api.security.authorize_connection",
-        lambda conn: object() if admin else None,
+        lambda conn: Principal(subject="admin-test", role=Role.ADMIN, auth_type="session") if admin else None,
     )
     app = FastAPI()
     app.include_router(crm_dialer.router)

@@ -6,49 +6,16 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
+from src.api.crm_access import ensure_crm_permission, require_dialer_access
 from src.services.core.crm.dialer_service import DialerService, SLUG_TO_TWENTY
 from src.services.core.crm.uzbek_crm_hub import UzbekCrmHub
 from src.services.core.crm.caller_id_service import CallerIdHub
 
 logger = logging.getLogger(__name__)
-
-# Public endpoints inside the /api/crm/dialer/ namespace. Everything else
-# requires a valid seller session or an admin principal.
-_DIALER_WEBHOOK_PATHS = frozenset({"/api/crm/dialer/incoming-call"})
-
-
-def require_dialer_access(
-    request: Request,
-    x_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
-    authorization: Optional[str] = Header(None),
-) -> None:
-    """Router-wide guard: seller session (or admin) for dialer API, webhook secret for ring hook."""
-    path = request.url.path.rstrip("/")
-    if not path.startswith("/api/crm/dialer"):
-        return  # HTML shell and static assets stay public; data needs auth
-    if path in _DIALER_WEBHOOK_PATHS:
-        from src.api.routes.twenty_moizvonki import _verify_webhook_auth
-
-        _verify_webhook_auth(x_secret, authorization, request.query_params.get("secret"))
-        return
-    from src.api.security import authorize_connection
-
-    if authorize_connection(request) is not None:
-        return
-    from src.services.core.crm.seller_auth import get_current_crm_seller
-
-    try:
-        get_current_crm_seller(request, authorization)
-    except HTTPException:
-        raise
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("dialer auth check failed: %s", exc)
-        raise HTTPException(status_code=401, detail="Unauthorized") from exc
-
 
 router = APIRouter(tags=["crm-dialer"], dependencies=[Depends(require_dialer_access)])
 dialer_service = DialerService()
@@ -58,7 +25,6 @@ caller_id_hub = CallerIdHub(store=dialer_service.store)
 class ActionPayload(BaseModel):
     lead_id: int
     action_slug: str
-    seller_name: str = "Sotuvchi"
     note: Optional[str] = None
     next_call_at: Optional[str] = None
     pipeline_id: Optional[int] = None
@@ -85,14 +51,12 @@ class LeadCreateUpdatePayload(BaseModel):
 
 class NoteAddPayload(BaseModel):
     text: str
-    author: str = "Shahnoza Abdijabborova"
     note_type: str = "note"
 
 class FileAddPayload(BaseModel):
     name: str
     url: str
     file_type: str = "document"
-    uploaded_by: str = "Shahnoza Abdijabborova"
 
 class TaskCreatePayload(BaseModel):
     lead_id: int
@@ -107,7 +71,6 @@ class TaskCompletePayload(BaseModel):
 class ChatMessagePayload(BaseModel):
     lead_id: int
     text: str
-    sender_name: str = "Shahnoza Abdijabborova"
     channel: str = "Telegram"
 
 @router.get("/api/crm/dialer/catalog")
@@ -145,12 +108,15 @@ async def get_next_lead(
     return {"lead": lead, "stats": stats}
 
 @router.post("/api/crm/dialer/action")
-async def record_dialer_action(payload: ActionPayload) -> Dict[str, Any]:
+async def record_dialer_action(
+    payload: ActionPayload,
+    actor: Dict[str, Any] = Depends(require_dialer_access),
+) -> Dict[str, Any]:
     """Submit call outcome or Kanban Drag-and-Drop stage move and sync to Twenty CRM backend."""
     return await dialer_service.submit_action(
         lead_id=payload.lead_id,
         action_slug=payload.action_slug,
-        seller_name=payload.seller_name,
+        seller_name=actor["name"],
         note=payload.note,
         next_call_at=payload.next_call_at,
         pipeline_id=payload.pipeline_id,
@@ -172,42 +138,41 @@ async def create_or_update_lead(payload: LeadCreateUpdatePayload) -> Dict[str, A
     return {"success": True, "lead_id": lead_id, "lead": dialer_service.store.get_lead_detail(lead_id)}
 
 @router.post("/api/crm/dialer/lead/{lead_id}/note")
-async def add_lead_note(lead_id: int, payload: NoteAddPayload) -> Dict[str, Any]:
+async def add_lead_note(
+    lead_id: int,
+    payload: NoteAddPayload,
+    actor: Dict[str, Any] = Depends(require_dialer_access),
+) -> Dict[str, Any]:
     """Append a note or task to a lead's timeline and sync to Twenty CRM."""
     ok = dialer_service.store.add_lead_note(
-        lead_id=lead_id, text=payload.text, author=payload.author, note_type=payload.note_type
+        lead_id=lead_id, text=payload.text, author=actor["name"], note_type=payload.note_type
     )
     lead = dialer_service.store.get_lead_detail(lead_id)
     if ok and lead:
         twenty_stage = SLUG_TO_TWENTY.get(lead.get("status_slug") or "yangi", "NEW")
         asyncio.create_task(dialer_service.twenty.upsert_opportunity_full(lead, twenty_stage=twenty_stage))
-        try:
-            from src.services.core.crm.omnichannel_hub import OmnichannelHub
-            hub = OmnichannelHub()
-            with hub._get_conn() as conn:
-                th = conn.execute("SELECT id FROM crm_chat_threads WHERE lead_id = ? LIMIT 1", (payload.lead_id,)).fetchone()
-                if th:
-                    hub.send_outbound_reply(thread_id=th[0], text=payload.text, sender_name=payload.sender_name)
-        except Exception as exc:
-            logger.warning("[INBOX-SEND] Omnichannel outbound error: %s", exc)
     return {"success": ok, "lead": lead}
 
 @router.post("/api/crm/dialer/lead/{lead_id}/file")
-async def add_lead_file(lead_id: int, payload: FileAddPayload) -> Dict[str, Any]:
+async def add_lead_file(
+    lead_id: int,
+    payload: FileAddPayload,
+    actor: Dict[str, Any] = Depends(require_dialer_access),
+) -> Dict[str, Any]:
     """Attach a file/link (KP, Shartnoma, Brief, Brandbook) to a deal card and sync to Twenty CRM."""
     ok = dialer_service.store.add_lead_file(
         lead_id=lead_id,
         name=payload.name,
         url=payload.url,
         file_type=payload.file_type,
-        uploaded_by=payload.uploaded_by,
+        uploaded_by=actor["name"],
     )
     lead = dialer_service.store.get_lead_detail(lead_id)
     if ok and lead:
         twenty_stage = SLUG_TO_TWENTY.get(lead.get("status_slug") or "yangi", "NEW")
         asyncio.create_task(dialer_service.twenty.upsert_opportunity_full(lead, twenty_stage=twenty_stage))
         from src.services.core.crm.amocrm_dialer_syncer import sync_note_to_amocrm
-        asyncio.create_task(sync_note_to_amocrm(lead_id=lead_id, text=f"📎 Hujjat: {payload.name} ({payload.url})", author=payload.uploaded_by))
+        asyncio.create_task(sync_note_to_amocrm(lead_id=lead_id, text=f"📎 Hujjat: {payload.name} ({payload.url})", author=actor["name"]))
     return {"success": ok, "lead": lead}
 
 @router.post("/api/crm/dialer/lead/{lead_id}/ai-analyze")
@@ -245,8 +210,11 @@ async def get_kanban_data(
 async def sync_dialer_leads(
     mode: str = Query(default="both_pull", description="both_pull | amocrm_pull | twenty_pull | twenty_push | backup_seed"),
     include_lost: bool = False,
+    actor: Dict[str, Any] = Depends(require_dialer_access),
 ) -> Dict[str, Any]:
     """Sync between amoCRM, Twenty CRM backend (`crm.jonbranding.uz`), and local cache."""
+    if mode != "both_pull":
+        ensure_crm_permission(actor, "manage_automations")
     if mode == "twenty_push":
         res = await dialer_service.push_all_to_twenty_backend()
         return {"success": True, "mode": mode, **res}
@@ -314,7 +282,10 @@ async def get_crm_inbox(limit: int = 80) -> Dict[str, Any]:
     return crm_hub.get_unified_inbox(limit=limit)
 
 @router.post("/api/crm/dialer/inbox/send")
-async def send_crm_inbox_message(payload: ChatMessagePayload) -> Dict[str, Any]:
+async def send_crm_inbox_message(
+    payload: ChatMessagePayload,
+    actor: Dict[str, Any] = Depends(require_dialer_access),
+) -> Dict[str, Any]:
     """Yagona Chat yoki Bitim kartochkasidan mijozga xabar (Telegram, Instagram, Izoh) yuborish."""
     is_note = payload.channel in ("note", "izoh", "Ichki Izoh")
     channel_tag = "Ichki Izoh" if is_note else payload.channel
@@ -322,7 +293,7 @@ async def send_crm_inbox_message(payload: ChatMessagePayload) -> Dict[str, Any]:
 
     text = f"💬 [{channel_tag}] {payload.text}" if not is_note else f"📝 [Izoh] {payload.text}"
     ok = dialer_service.store.add_lead_note(
-        lead_id=payload.lead_id, text=text, author=payload.sender_name, note_type=note_type
+        lead_id=payload.lead_id, text=text, author=actor["name"], note_type=note_type
     )
     lead = dialer_service.store.get_lead_detail(payload.lead_id)
     sent_status = False
@@ -336,7 +307,7 @@ async def send_crm_inbox_message(payload: ChatMessagePayload) -> Dict[str, Any]:
                 lead_id=payload.lead_id,
                 channel=chan,
                 text=payload.text,
-                sender_name=payload.sender_name,
+                sender_name=actor["name"],
             )
             sent_status = res.get("sent", False)
         except Exception as hub_err:

@@ -12,11 +12,8 @@ from fastapi.testclient import TestClient
 
 from src.api.routes import crm_auth_routes, crm_dialer, crm_enterprise_routes
 from src.services.core.crm import seller_auth
-from src.services.core.crm.seller_auth import (
-    INITIAL_SELLERS,
-    MAX_FAILED_LOGINS,
-    SellerAuthService,
-)
+from src.services.core.crm.seller_auth import SellerAuthService
+from src.services.core.crm.seller_auth_support import INITIAL_SELLERS, MAX_FAILED_LOGINS
 
 PIN = "482913"
 WEAK = "9001"
@@ -141,7 +138,8 @@ def test_login_by_phone_never_matches_seller_with_blank_phone(client, auth_servi
         conn.execute("UPDATE crm_seller_accounts SET phone = '' WHERE slug = 'baxtiyorjon'")
         conn.commit()
     resp = client.post("/api/crm/dialer/auth/login-by-phone", json={"phone": "+998901112233", "pin": PIN})
-    assert resp.status_code == 404
+    # Same answer as a wrong PIN: no account enumeration by phone.
+    assert resp.status_code == 401
 
 
 def test_login_by_phone_matches_national_number(client):
