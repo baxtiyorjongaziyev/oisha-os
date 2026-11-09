@@ -40,13 +40,14 @@ def _run(event, env, db=None, quiet=False):
     """Run the handler; returns (oisha bot mock, Bot API mock, db)."""
     db = db or FakeDb()
     bot = SimpleNamespace(send_message=AsyncMock())
-    ctx = SimpleNamespace(bot_client=bot, msg_controller=SimpleNamespace(db=db))
+    ctx = SimpleNamespace(bot_client=bot, client=None, msg_controller=SimpleNamespace(db=db))
     bot_api = AsyncMock()
     with (
         patch.object(spc, "app_ctx", ctx),
         patch.object(spc, "_send_via_bot_api", bot_api),
+        patch.object(spc, "_send_typing_via_bot_api", AsyncMock()),
+        patch.object(spc.asyncio, "sleep", AsyncMock()),
         patch.object(spc, "is_quiet_hours", return_value=quiet),
-        patch.object(spc, "_SEND_GAP_SECONDS", 0),
         patch.dict(spc.os.environ, env),
     ):
         asyncio.run(spc.sales_payment_congrats_handler(event))
@@ -92,13 +93,14 @@ def test_missing_token_skips_only_that_bot():
 def test_one_bot_failure_does_not_stop_others():
     db = FakeDb()
     bot = SimpleNamespace(send_message=AsyncMock(side_effect=RuntimeError("boom")))
-    ctx = SimpleNamespace(bot_client=bot, msg_controller=SimpleNamespace(db=db))
+    ctx = SimpleNamespace(bot_client=bot, client=None, msg_controller=SimpleNamespace(db=db))
     bot_api = AsyncMock()
     with (
         patch.object(spc, "app_ctx", ctx),
         patch.object(spc, "_send_via_bot_api", bot_api),
+        patch.object(spc, "_send_typing_via_bot_api", AsyncMock()),
+        patch.object(spc.asyncio, "sleep", AsyncMock()),
         patch.object(spc, "is_quiet_hours", return_value=False),
-        patch.object(spc, "_SEND_GAP_SECONDS", 0),
         patch.dict(spc.os.environ, TOKENS),
     ):
         asyncio.run(spc.sales_payment_congrats_handler(_event()))
@@ -121,3 +123,38 @@ def test_bot_sender_and_quiet_hours_are_silent():
     bot, bot_api, _ = _run(_event(), TOKENS, quiet=True)
     bot.send_message.assert_not_awaited()
     bot_api.assert_not_awaited()
+
+
+def test_logs_card_detection_and_success(capsys):
+    _run(_event(), TOKENS)
+    out = capsys.readouterr().out
+    assert "[SALES_CONGRATS]" in out
+    assert "kartasi aniqlandi" in out
+    assert "[SALES_CONGRATS] oisha (Oisha-OS Surgical COO) tabrik yubordi" in out
+    assert "[SALES_CONGRATS] amina (Hermes Sales Coach) tabrik yubordi" in out
+    assert "[SALES_CONGRATS] mrjon (OpenClaw Master Closer) tabrik yubordi" in out
+    assert "[SALES_CONGRATS] Tabrik yakunlandi" in out
+
+
+def test_oisha_falls_back_to_userbot_when_bot_client_fails():
+    bot = SimpleNamespace(send_message=AsyncMock(side_effect=RuntimeError("Unauthorized")))
+    userbot = SimpleNamespace(send_message=AsyncMock())
+    ctx = SimpleNamespace(bot_client=bot, client=userbot, msg_controller=SimpleNamespace(db=FakeDb()))
+    with (
+        patch.object(spc, "app_ctx", ctx),
+        patch.object(spc, "_send_via_bot_api", AsyncMock()),
+        patch.object(spc, "_send_typing_via_bot_api", AsyncMock()),
+        patch.object(spc.asyncio, "sleep", AsyncMock()),
+        patch.object(spc, "is_quiet_hours", return_value=False),
+        patch.dict(spc.os.environ, TOKENS),
+    ):
+        asyncio.run(spc.sales_payment_congrats_handler(_event()))
+    userbot.send_message.assert_awaited_once()
+
+
+def test_warm_seller_name_variants():
+    assert spc._warm_seller_name("Rayxona") == "Rayxonaxon"
+    assert spc._warm_seller_name("@Shahnoza") == "Shahnozaxon"
+    assert spc._warm_seller_name("Mumtozmaxal") == "Mumtozaxon"
+    assert spc._warm_seller_name("Hasanboy") == "Hasanboy"
+    assert spc._warm_seller_name("Baxtiyorjon") == "Baxtiyor aka"
