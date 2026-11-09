@@ -6,6 +6,7 @@ ehtimolli potensial mijozlarni amoCRM 'Yangi LEads' bosqichiga eslatma bilan tus
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -104,8 +105,11 @@ class TelegramProspectImporter:
             except Exception:
                 continue
 
-            # Zero Hallucination: Ichki jamoa va servis provayderlarni chetlatish
+            service = payload_data.get("service") or "Brending"
+            phone = payload_data.get("phone") or ""
             quote = payload_data.get("quote") or payload_data.get("message_text") or ""
+
+            # Zero Hallucination: Ichki jamoa va servis provayderlarni chetlatish
             excluded, exc_reason = is_excluded_contact(
                 name=payload_data.get("name") or "",
                 phone=phone,
@@ -116,8 +120,6 @@ class TelegramProspectImporter:
                 logger.info(f"[TG_PROSPECT_IMPORTER] Istisno qilindi ({exc_reason}): {key}")
                 _save_imported_key(key)
                 continue
-            service = payload_data.get("service") or "Brending"
-            phone = payload_data.get("phone") or ""
             lead_name = f"TG: {service.capitalize()} soʻrovi"
             if phone:
                 lead_name += f" ({phone})"
@@ -137,12 +139,12 @@ class TelegramProspectImporter:
 
             url = f"{self.amo.base_url}/api/v4/leads"
             try:
-                resp = requests.post(url, headers=headers, json=[lead_payload], timeout=30)
+                resp = await asyncio.to_thread(requests.post, url, headers=headers, json=[lead_payload], timeout=30)
                 if resp.status_code in (200, 201):
                     new_id = resp.json().get("_embedded", {}).get("leads", [{}])[0].get("id")
                     if new_id:
                         note_payload = [{"note_type": "common", "params": {"text": note_text}}]
-                        requests.post(f"{self.amo.base_url}/api/v4/leads/{new_id}/notes", headers=headers, json=note_payload, timeout=20)
+                        await asyncio.to_thread(requests.post, f"{self.amo.base_url}/api/v4/leads/{new_id}/notes", headers=headers, json=note_payload, timeout=20)
                         _save_imported_key(key)
                         imported.append({"candidate_key": key, "new_lead_id": new_id, "service": service})
                         logger.info(f"[TG_PROSPECT_IMPORTER] Yangi Telegram lead #{new_id} yaratildi.")
