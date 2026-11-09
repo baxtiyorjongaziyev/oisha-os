@@ -24,3 +24,10 @@ Run test: `cd prototypes/codemode && python -m pytest -q`
   Limit: approval card shows only first 900 chars of args, so owner may not see all 20 actions. Needs a custom card before real use.
 - `smoke_live.py`: run on Contabo against real :8765 (read-only). NOT run yet.
 - `container/`: `docker build -t oisha-codemode-runner:latest -f container/Dockerfile container/`, then `CodeModeHost(..., sandbox="docker")`. NOT built/tested (no docker here).
+
+## Sandbox hardening (review follow-up)
+- Default sandbox is `docker`; `node` needs `dev_unsafe_node=True` (Node 24 permission model does not block network).
+- `bridge.validate_inputs`: sandbox and namespaces are allowlisted (`telegram`, `amo`).
+- `runner.mjs` (both copies) accepts only a regular, non-symlink file directly inside the managed dir.
+- Script dir 0755 / file 0644 so the container user (65534) can read it.
+- Still untested: real Docker run (symlink test skipped on Windows).

@@ -63,7 +63,8 @@ class Amo:
 def make(batch=False, amo=True):
     up, st, nt = Upstream(), Store(), Notifier()
     svc = GatewayService(up, st, nt)
-    return up, st, nt, CodeModeHost(svc, Amo() if amo else None, allow_mutation_batch=batch)
+    return up, st, nt, CodeModeHost(svc, Amo() if amo else None, allow_mutation_batch=batch,
+                        sandbox="node", dev_unsafe_node=True)
 
 
 def run(host, script):

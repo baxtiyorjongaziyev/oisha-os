@@ -12,11 +12,12 @@ from ts_api import render_api
 
 class CodeModeHost:
     def __init__(self, service: Any, amo_client: Any = None, *, allow_mutation_batch: bool = False,
-                 sandbox: str = "node"):
+                 sandbox: str = "docker", dev_unsafe_node: bool = False):
         self.service = service
         self.amo = amo_client
         self.allow_mutation_batch = allow_mutation_batch
         self.sandbox = sandbox
+        self.dev_unsafe_node = dev_unsafe_node
 
     async def describe(self) -> str:
         tools = [
@@ -54,7 +55,7 @@ class CodeModeHost:
             return [getattr(c, "text", None) for c in content] if content is not None else res
 
         result = await run_script(
-            script, call, is_read, namespaces=namespaces, sandbox=self.sandbox,
+            script, call, is_read, namespaces=namespaces, sandbox=self.sandbox, allow_unsafe_node=self.dev_unsafe_node,
             queue_mutation=plan.queue if plan else None, **kw)
         approval = await plan.submit(self.service) if plan else None
         return {"result": result, "approval": approval}

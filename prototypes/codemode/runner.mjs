@@ -1,11 +1,20 @@
 // Runs model-written script inside `node --permission` (no net/child/worker/fs-write).
 // Only channel out: JSON lines on stdout; replies arrive on stdin.
 import fs from "node:fs";
+import path from "node:path";
 import readline from "node:readline";
 import vm from "node:vm";
 
-const [scriptPath, namespaces = "telegram"] = process.argv.slice(2);
-const code = fs.readFileSync(scriptPath, "utf8");
+const [scriptPath, namespaces = "telegram", allowedDir] = process.argv.slice(2);
+if (!/^[a-z][a-z0-9_]*(,[a-z][a-z0-9_]*)*$/.test(namespaces)) throw new Error("bad namespaces");
+// Script must be a regular, non-symlink file directly inside the managed directory.
+const st = fs.lstatSync(scriptPath);
+const real = fs.realpathSync(scriptPath);
+const base = fs.realpathSync(allowedDir);
+if (!st.isFile() || st.isSymbolicLink() || path.dirname(real) !== base) {
+  throw new Error("script path outside managed directory");
+}
+const code = fs.readFileSync(real, "utf8");
 const rl = readline.createInterface({ input: process.stdin });
 const pending = new Map();
 let nextId = 1;
