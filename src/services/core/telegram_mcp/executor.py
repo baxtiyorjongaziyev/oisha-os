@@ -86,6 +86,7 @@ async def get_default_executor() -> ApprovalExecutor:
         return _default_executor
 
     from src.settings import settings
+    from .batch import BatchUpstream
     from .store import ApprovalStore
     from .upstream import UpstreamClient
 
@@ -93,6 +94,6 @@ async def get_default_executor() -> ApprovalExecutor:
         raise RuntimeError("Telegram MCP is disabled")
     store = ApprovalStore("data/telegram_mcp_approvals.db")
     await store.initialize()
-    upstream = UpstreamClient(settings.TELEGRAM_MCP_UPSTREAM_URL)
+    upstream = BatchUpstream(UpstreamClient(settings.TELEGRAM_MCP_UPSTREAM_URL))
     _default_executor = ApprovalExecutor(store, upstream, settings.OWNER_ID)
     return _default_executor

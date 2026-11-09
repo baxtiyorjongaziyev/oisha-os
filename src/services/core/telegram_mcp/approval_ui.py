@@ -4,6 +4,7 @@ import html
 import json
 from typing import Any
 
+from .batch import BATCH_TOOL
 from .models import PendingOperation
 
 
@@ -39,7 +40,34 @@ def safe_arguments_preview(arguments: dict[str, Any]) -> str:
     )[:900]
 
 
+def batch_actions_preview(arguments: dict[str, Any], budget: int = 3000) -> str:
+    """Every queued action on its own line, so the owner sees the whole batch."""
+    lines: list[str] = []
+    used = 0
+    actions = arguments.get("actions") or []
+    for index, action in enumerate(actions, 1):
+        args = json.dumps(
+            _redacted(action.get("arguments") or {}), ensure_ascii=False, sort_keys=True
+        )
+        line = f"{index}. {action.get('tool', '?')} {args[:140]}"
+        used += len(line) + 1
+        if used > budget:
+            lines.append(f"... yana {len(actions) - index + 1} ta amal koʻrsatilmadi")
+            break
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def build_approval_card(operation: PendingOperation) -> tuple[str, dict[str, Any]]:
+    if operation.tool_name == BATCH_TOOL:
+        count = len(operation.arguments.get("actions") or [])
+        body = (
+            f"📦 <b>Paket tasdiq: {count} ta amal</b>\n\n"
+            f"<b>Soʻrovchi:</b> {html.escape(operation.requester)}\n"
+            f"<b>Muddati:</b> {operation.expires_at.isoformat()}\n\n"
+            f"<pre>{html.escape(batch_actions_preview(operation.arguments))}</pre>"
+        )
+        return body, _approval_keyboard(operation)
     warning = (
         "⚠️ <b>O‘CHIRISH/BLOKLASH AMALI</b>\n"
         if operation.risk == "destructive"
@@ -52,7 +80,11 @@ def build_approval_card(operation: PendingOperation) -> tuple[str, dict[str, Any
         f"<b>Muddati:</b> {operation.expires_at.isoformat()}\n\n"
         f"<pre>{html.escape(safe_arguments_preview(operation.arguments))}</pre>"
     )
-    keyboard = {
+    return text, _approval_keyboard(operation)
+
+
+def _approval_keyboard(operation: PendingOperation) -> dict[str, Any]:
+    return {
         "inline_keyboard": [
             [
                 {
@@ -66,7 +98,6 @@ def build_approval_card(operation: PendingOperation) -> tuple[str, dict[str, Any
             ]
         ]
     }
-    return text, keyboard
 
 
 class TelegramApprovalNotifier:
