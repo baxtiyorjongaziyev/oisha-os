@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CALENDAR_ID = "primary"
 DEFAULT_CREDENTIALS_PATH = "service_account.json"
+DEFAULT_CREDENTIALS_ENV = "GOOGLE_CALENDAR_CREDENTIALS_PATH"
+DEFAULT_CREDENTIALS_FALLBACKS = (
+    "/home/ubuntu/oisha-secrets/service_account_calendar.json",
+    "/home/ubuntu/.secrets/service_account_calendar.json",
+)
 DEFAULT_OAUTH_FILE = "token.json"
 CALENDAR_TIMEZONE = "Asia/Tashkent"
 
@@ -47,6 +52,7 @@ class GoogleCalendarSync:
         token_path: Optional[str] = None,
     ):
         self.credentials_path = credentials_path or DEFAULT_CREDENTIALS_PATH
+        self.credentials_path_env = os.getenv(DEFAULT_CREDENTIALS_ENV, "").strip()
         self.calendar_id = (
             calendar_id or os.getenv("GOOGLE_CALENDAR_ID") or DEFAULT_CALENDAR_ID
         )
@@ -57,6 +63,19 @@ class GoogleCalendarSync:
         self.scopes = list(GOOGLE_USER_SCOPES)
         self._authenticate()
 
+    def _service_account_candidates(self) -> list[str]:
+        """Calendar service-account keys, env-scoped key first."""
+        candidates = [
+            self.credentials_path_env,
+            self.credentials_path,
+            *DEFAULT_CREDENTIALS_FALLBACKS,
+        ]
+        unique: list[str] = []
+        for path in candidates:
+            if path and path not in unique:
+                unique.append(path)
+        return unique
+
     def _authenticate(self) -> None:
         """Google API bilan avtorizatsiya (JSON token yoki Service Account)."""
         creds = load_user_credentials(self.token_path, self.scopes)
@@ -64,20 +83,27 @@ class GoogleCalendarSync:
             logger.info("[GCALENDAR OK] Shaxsiy Google akkaunti (Token) ishga tushdi.")
 
         if not creds:
-            if os.path.exists(self.credentials_path):
+            checked = self._service_account_candidates()
+            for path in checked:
+                if not os.path.exists(path):
+                    continue
                 try:
                     creds = ServiceAccountCredentials.from_service_account_file(
-                        self.credentials_path, scopes=self.scopes
+                        path, scopes=self.scopes
                     )
-                    logger.info("[GCALENDAR OK] Service Account ulandi.")
+                    logger.info(
+                        f"[GCALENDAR OK] Service Account ulandi ({path})."
+                    )
+                    break
                 except Exception as e:
                     logger.error(
-                        f"[GCALENDAR] Service Account avtorizatsiyasida xato: {e}"
+                        "[GCALENDAR] Service Account avtorizatsiyasida xato "
+                        f"({path}): {e}"
                     )
-            else:
+            if not creds:
                 logger.warning(
                     "[GCALENDAR] Avtorizatsiya fayli topilmadi: "
-                    f"{self.token_path} yoki {self.credentials_path}"
+                    f"{self.token_path} yoki {', '.join(checked)}"
                 )
 
         if creds:
