@@ -42,10 +42,20 @@ def update_openclaw_config_file(config_path: pathlib.Path) -> bool:
             ],
         }
 
-        models = data.setdefault("models", {})
-        providers = models.setdefault("providers", {})
-        providers.setdefault("google", {"apiKey": {"source": "env", "id": "GEMINI_API_KEY"}})
-        providers.setdefault("groq", {"apiKey": {"source": "env", "id": "GROQ_API_KEY"}})
+        # OpenClaw 2026 schema boʻyicha bundled provayderlar (google, groq) models.providers
+        # ichida apiKey: {"source": "env"} formatini qabul qilmaydi (exit 78 xatolik beradi).
+        # Ular muhit oʻzgaruvchilaridan (GEMINI_API_KEY, GROQ_API_KEY) toʻgʻridan-toʻgʻri oʻqiladi.
+        if "models" in data and isinstance(data["models"], dict):
+            providers = data["models"].get("providers")
+            if isinstance(providers, dict):
+                for p_name in ["google", "groq"]:
+                    if p_name in providers and isinstance(providers[p_name], dict):
+                        if isinstance(providers[p_name].get("apiKey"), dict):
+                            del providers[p_name]
+                if not providers:
+                    del data["models"]["providers"]
+            if not data["models"]:
+                del data["models"]
 
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -125,6 +135,7 @@ def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None
         if owner_user and os.name != "nt":
             cmd = (
                 "command -v openclaw >/dev/null 2>&1 && "
+                "openclaw doctor --fix 2>/dev/null || true && "
                 'openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash" 2>/dev/null || true'
             )
             subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False)

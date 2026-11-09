@@ -2702,3 +2702,50 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - andit -r src/ -ll -> 0 issues.
   - python scripts/check_uzbek_text.py -> toza (61 fayl).
 - **Qolgan ish/Keyingi qadam**: Ishxonadagi noutbukda git pull --rebase qilish va ishni silliq davom ettirish.
+
+### 2026-11-07 — Antigravity: OpenClaw schema validatsiyasi va Mr.Jon gateway tiklanishi
+- **Muammo**: OpenClaw gateway Contabo VPS serverida exit 78 bilan toʻxtab qolgan (Runtime: stopped, connectivity check: failed), natijada bot Telegramʼda javob bermayotgan edi. Sabab: openclaw.json ichidagi models.providers.google.apiKey va groq.apiKey obyektlari {source: env} formati tufayli OpenClaw 2026 schema validatsiyasidan oʻtmagan.
+- **Tuzatish**:
+  - deploy/openclaw/openclaw.json: keraksiz models.providers bloki olib tashlandi (bundled Gemini va Groq API kalitlari muhit oʻzgaruvchilaridan olinadi).
+  - scripts/sync_agents_runtime.py: update_openclaw_config_file() funksiyasida notoʻgʻri apiKey obyektlarini tozalash logikasi qoʻshildi; openclaw doctor --fix kiritildi.
+  - tests/test_sync_agents_runtime.py: yangilangan xatti-harakat uchun testlar moslashtirildi (9/9 testlar yashil).
+- **Tekshiruv**: python -m unittest tests.test_sync_agents_runtime -v (9 ta test muvaffaqiyatli oʻtdi), python scripts/check_uzbek_text.py --staged (toza).
+- **Qolgan ish**: PR ochish, main ga birlashtirish va Contabo VPS deployida openclaw gateway status holatini kuzatish.
+
+### 2026-11-07 — Antigravity: 24/7 Autonomous Sales Cockpit & Watchdogs (Speed to Lead, Morning Pulse, Ad Anomaly, Evening Wrapup)
+- **Topshiriq:** Foydalanuvchi buyruqlarni qo'lda yozmasdan (/cockpit, /simulator, /triage kerak emas), to'liq 24/7 avtonom rejimda ishlashini talab qildi ("Manga qanaqadur buyruqni bosganda emas full automation bo'lishi kerak").
+- **Yaratilgan/o'zgargan fayllar:**
+  - `src/services/command_center/autonomous_engine.py`: Proactive Speed to Lead SLA watchdog (15m ogohlantirish, 30m eskalatsiya), Morning Executive Pulse kartasi (Mini App tugmasi bilan), Ad spend/CPL anomaliya skaneri (CPL > 45k yoki pul yonishi), va 19:30 Evening closing sarhisob kartasi.
+  - `src/schedulers/cockpit_autopilot_scheduler.py`: 24/7 fondagi master tsikl (`CockpitAutopilotScheduler`, `start_cockpit_autopilot_scheduler`). Har 2 daqiqada Speed to Lead, 08:45 da Tonggi puls, har 2 soatda Ad anomaliya, 19:30 da Kunlik yopilish sarhisobi.
+  - `src/bootstrap/orchestration/schedulers.py`: `start_background_schedulers` ichiga `start_cockpit_autopilot_scheduler` ulandi.
+  - `tests/test_autonomous_cockpit_engine.py`: 4 ta to'liq unit test.
+  - `tests/test_cockpit_autopilot_scheduler.py`: 7 ta to'liq unit test.
+- **Tekshiruv dalili:**
+  - Barcha unit testlar muvaffaqiyatli o'tdi (11/11 passed, pytest).
+  - O'zbekcha matn guardi toza (`check_uzbek_text.py`: toza).
+  - Bandit security scan: 0 issues (`bandit -r ... -ll`).
+  - Ruff linter: 0 errors (`All checks passed!`).
+  - Fayl hajmi: barcha yangi ishlab chiqarish fayllari qat'iy 150–400 qator oralig'ida (`autonomous_engine.py` 243L, `cockpit_autopilot_scheduler.py` 214L, `schedulers.py` 169L).
+
+
+### 2026-11-08 — Antigravity: Live DB Sync, Telegram Bot Mini App Menu, Real-time Voice AI Simulator (TTS/STT), and Native PBX & SMS Gateway
+- **Topshiriq:** Foydalanuvchi talablari boʻyicha:
+  1. REST API (metasell_dashboard.py) ni real Turso / SQLite (dialer_leads, dialer_call_logs, meta_ad_spend, lead_attribution) jadvallariga avtomatik ulash.
+  2. Telegram Bot menyusiga Mini App qilib biriktirish (Telegram WebApp / setChatMenuButton orqali pastki chap burchakka doimiy tugma va /start boshqaruv tugmalarining birinchi qatoriga WebAppInfo biriktirish).
+  3. AI Simulyatorga real-time ovozli oqim (TTS/STT) ni toʻliq ulash va brauzer audio pleyeri orqali mijozning ovozli javobini eshittirish.
+  4. Mahalliy telefoniya provayderlari (Utel, OnlinePBX) webhook adapterlarini ulash hamda per-seat toʻlovsiz oʻzimizning WebRTC softphone va GSM SMS gatewayini ishga tushirish.
+- **Yaratilgan/oʻzgargan fayllar:**
+  - `src/services/command_center/live_db_bridge.py`: Jonli DB ulanishi (`fetch_rows`, `_query_local_sqlite`), `dialer_leads` va `dialer_call_logs` tahlili, reklama hisob-kitoblari.
+  - `src/handlers/metasell_menu.py`: `configure_telegram_menu_button` (Telegram API `setChatMenuButton`) va `build_telethon_cockpit_buttons`.
+  - `src/services/core/admin_bot/alerts.py`: `_get_buttons_for_role` boshiga WebApp Mini App tugmasini biriktirish.
+  - `src/api/routes/metasell_dashboard.py`: Utel va OnlinePBX webhook yoʻnalishlari (`/telephony/webhook/utel`, `/telephony/webhook/onlinepbx`).
+  - `src/services/api_server/core.py`: `metasell_dashboard_router` ni `/`, `/api/dashboard`, `/api/cockpit` prefikslari bilan FastAPI ga ulash.
+  - `src/api/security.py`: `is_protected_path()` ichiga `/api/dashboard/`, `/api/cockpit/`, `/telephony/webhook/` yoʻllarini kiritish (401 blokirovkasini oldini olish).
+  - `src/bootstrap/orchestration/schedulers.py`: Bot ishga tushganda menyu tugmasini avtomatik sozlash.
+  - `tests/test_cockpit_full_features.py`: Barcha 7 ta modul uchun 8 ta toʻliq unit test.
+- **Tekshiruv dalili:**
+  - `pytest tests/test_cockpit_full_features.py tests/test_autonomous_cockpit_engine.py tests/test_cockpit_autopilot_scheduler.py` -> 19 passed in 8.06s.
+  - `bandit -r src/services/command_center/ src/handlers/metasell_menu.py src/api/routes/metasell_dashboard.py src/services/api_server/core.py src/api/security.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (8 fayl).
+  - `ruff check ...` -> All checks passed!
+  - 150–400 qator qoidasi: barcha production fayllari meʼyorda (`live_db_bridge.py` 334L, `metasell_menu.py` 295L, `metasell_dashboard.py` 363L, `core.py` 222L, `security.py` 332L, `schedulers.py` 184L, `alerts.py` 316L).

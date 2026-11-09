@@ -27,6 +27,7 @@ from src.services.core.finance.handlers import (
 )
 from src.settings import settings
 from src.handlers.kirim import kirim_topic_handler
+from src.handlers.sales_payment_congrats import sales_payment_congrats_handler
 from src.handlers.case_publisher import case_publisher_handler
 from src.handlers.negotiation import negotiation_agent_handler
 from src.handlers.shadow_advisor import shadow_advisor_handler
@@ -113,6 +114,12 @@ def register_event_handlers(
         client.add_event_handler(
             build_telethon_guard(settings.OWNER_ID), events.NewMessage(incoming=True),
         )
+        # Registered before the hisobchi handler, which may stop propagation.
+        if settings.CRM_SALES_REPORT_GROUP_ID:
+            client.add_event_handler(
+                sales_payment_congrats_handler,
+                events.NewMessage(chats=settings.CRM_SALES_REPORT_GROUP_ID),
+            )
         client.add_event_handler(
             _hisobchi_event_handler,
             events.NewMessage(incoming=True),

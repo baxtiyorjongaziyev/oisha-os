@@ -1,12 +1,20 @@
 // O'zbekcha amoCRM 1:1 — Haqiqiy Server-Auth Sotuvchilar Kirishi (PIN-kod Serverda Tekshiriladi)
 let activeAuthSellers = [];
-let selectedLoginSlug = "shahnoza";
+let selectedLoginSlug = lastLoginSlug();
 
 window.addEventListener("DOMContentLoaded", async () => {
   ensureAuthModalDom();
   await loadSellersList();
   await checkAndEnforceSellerAuth();
 });
+
+function lastLoginSlug() {
+  try {
+    return localStorage.getItem("jon_crm_last_slug") || "";
+  } catch {
+    return "";
+  }
+}
 
 async function loadSellersList() {
   try {
@@ -253,23 +261,15 @@ function selectSellerForLogin(slug) {
 function renderSellerCardsInModal() {
   const container = document.getElementById("modalSellersGrid");
   if (!container) return;
-  const list = activeAuthSellers.length > 0 ? activeAuthSellers : [
-    { slug: "shahnoza", name: "Shahnoza Abdijabborova", phone: "+998773220042", tg: "@jonbranding_assistant" },
-    { slug: "rayxona", name: "Rayxona Rahimova", phone: "+998777411397", tg: "@RayxonJonbranding" },
-    { slug: "mumtozmaxal", name: "Mumtozmaxal Normurodova", phone: "+998773220098", tg: "@MumtozmaxalJonbranding" },
-    { slug: "hasanboy", name: "Hasanboy Gaziyev", phone: "+998973355900", tg: "@hasan_yahyo", role: "specialist" },
-    { slug: "baxtiyorjon", name: "Baxtiyorjon Gaziyev", phone: "+998336450097", tg: "@baxtiyorjongaziyev", role: "admin" },
-  ];
+  const list = activeAuthSellers;
   container.innerHTML = list.map((s) => {
     const isSel = s.slug === selectedLoginSlug;
     const icon = s.role === "admin" ? `<svg class="w-4 h-4 inline-block text-amber-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 11V7a5 5 0 0110 0v4"/></svg>` : `<svg class="w-4 h-4 inline-block text-sky-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>`;
-    const subLabel = s.phone ? (s.tg ? `${s.phone} · ${s.tg}` : s.phone) : (s.tg || "Sotuvchi");
     return `
       <div onclick="selectSellerForLogin('${s.slug}')" class="p-2.5 rounded-lg border-2 cursor-pointer transition flex items-center gap-2.5 ${isSel ? "border-[#4c8bf7] bg-[#eff6ff] shadow-sm" : "border-[#e2e8f0] bg-white hover:border-[#cbd5e1]"}">
         <span class="text-2xl">${icon}</span>
         <div class="flex flex-col min-w-0 text-left">
           <span class="text-xs font-bold text-[#1e293b] truncate">${s.name}</span>
-          <span class="text-[11px] text-[#64748b] truncate font-mono">${subLabel}</span>
         </div>
         ${isSel ? '<span class="ml-auto text-xs font-bold text-[#3875d7] flex items-center"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>' : ""}
       </div>
@@ -281,6 +281,10 @@ async function submitSellerLogin() {
   const pinInp = document.getElementById("sellerPinInput");
   const enteredPin = pinInp ? pinInp.value.trim() : "";
   const errEl = document.getElementById("sellerLoginError");
+  if (!selectedLoginSlug) {
+    if (errEl) { errEl.innerText = "Xodimni tanlang!"; errEl.classList.remove("hidden"); }
+    return;
+  }
   if (!enteredPin) {
     if (errEl) { errEl.innerText = "PIN-kodni kiriting!"; errEl.classList.remove("hidden"); }
     return;
@@ -303,9 +307,9 @@ async function submitSellerLogin() {
     }
 
     const data = await res.json();
+    localStorage.setItem("jon_crm_seller_session", JSON.stringify(data.seller));
     if (data.token) localStorage.setItem("jon_crm_token", data.token);
-    const sellerSession = { ...(data.seller || {}), token: data.token || "" };
-    localStorage.setItem("jon_crm_seller_session", JSON.stringify(sellerSession));
+    localStorage.setItem("jon_crm_last_slug", data.seller.slug);
     if (data.pin_change_required) {
       showPinChangeModal(data.seller, enteredPin);
       return;

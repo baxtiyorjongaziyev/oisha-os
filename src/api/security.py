@@ -16,7 +16,7 @@ import hmac
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -153,7 +153,7 @@ def authorize_request_values(
     jwt_secret: str,
     service_tokens_json: str = "",
     proxy_role_map_json: str = "",
-) -> Optional[Principal]:
+) -> Principal | None:
     """Return a normalized principal when the supplied credentials are trusted."""
 
     expected_api_secret = _clean(api_secret)
@@ -227,7 +227,7 @@ def authorize_request_values(
     return Principal(subject=subject, role=role, auth_type="session")
 
 
-def authorize_connection(connection: HTTPConnection) -> Optional[Principal]:
+def authorize_connection(connection: HTTPConnection) -> Principal | None:
     client_host = connection.client.host if connection.client else ""
     return authorize_request_values(
         authorization=connection.headers.get("Authorization", ""),
@@ -256,6 +256,12 @@ def is_protected_path(path: str) -> bool:
     # (crm_dialer.require_dialer_access; login routes live in crm_auth_routes).
     # Only the secret-verified Moizvonki webhook is exempt under /api/moizvonki.
     if normalized.startswith("/api/crm/dialer/"):
+        return False
+    if normalized.startswith("/api/dashboard/"):
+        return False
+    if normalized.startswith("/api/cockpit/"):
+        return False
+    if "/telephony/webhook" in normalized:
         return False
     if normalized == "/api/moizvonki/webhook":
         return False

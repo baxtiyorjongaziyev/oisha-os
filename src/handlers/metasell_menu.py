@@ -6,7 +6,8 @@ to launch the executive cockpit, AI sales simulator, and morning task triage
 with a single tap without leaving Telegram.
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import ContextTypes
 
@@ -15,15 +16,66 @@ from src.settings import settings
 logger = logging.getLogger(__name__)
 
 
+def build_telethon_cockpit_buttons(base_url: str | None = None) -> list[Any]:
+    """Build Telethon-compatible Button list with WebApp URL for /start and menus."""
+    try:
+        from telethon import Button
+    except ImportError:
+        return []
+
+    url = (base_url or getattr(settings, "WEBAPP_URL", "https://oisha.jonbranding.uz")).rstrip("/")
+    return [
+        [Button.url("🚀 Oisha Boshqaruv Markazi (Mini App)", f"{url}/metasell-console")],
+        [
+            Button.url("🎯 AI Simulyator", f"{url}/metasell-console#simulator"),
+            Button.url("📋 Ertalabki Trijaj", f"{url}/metasell-console#tasks"),
+        ],
+    ]
+
+
+async def configure_telegram_menu_button(
+    bot_token: str | None = None,
+    webapp_url: str | None = None,
+) -> bool:
+    """Set the Telegram bot bottom-left menu button to open Oisha WebApp."""
+    token = bot_token or getattr(settings, "BOT_TOKEN", None)
+    if hasattr(token, "get_secret_value"):
+        token = token.get_secret_value()
+    if not token:
+        logger.warning("No bot token available to configure chat menu button")
+        return False
+
+    url = (webapp_url or getattr(settings, "WEBAPP_URL", "https://oisha.jonbranding.uz")).rstrip("/")
+    api_url = f"https://api.telegram.org/bot{token}/setChatMenuButton"
+    payload = {
+        "menu_button": {
+            "type": "web_app",
+            "text": "🚀 Oisha Boshqaruv",
+            "web_app": {"url": f"{url}/metasell-console"},
+        }
+    }
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(api_url, json=payload)
+            if resp.status_code == 200 and resp.json().get("ok"):
+                logger.info("Configured Telegram chat menu button to WebApp: %s", url)
+                return True
+            logger.warning("Telegram setChatMenuButton response not ok: %s", resp.text)
+    except (ImportError, OSError, RuntimeError) as e:
+        logger.warning("Error configuring Telegram chat menu button: %s", e)
+    return False
+
+
 def build_metasell_menu_keyboard(
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
     is_owner: bool = False,
     include_simulator: bool = True,
 ) -> InlineKeyboardMarkup:
     """Build Telegram InlineKeyboardMarkup containing WebApp buttons for Oisha Cockpit."""
     url = (base_url or getattr(settings, "WEBAPP_URL", "https://oisha.jonbranding.uz")).rstrip("/")
 
-    buttons: List[List[InlineKeyboardButton]] = [
+    buttons: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(
                 "🚀 Oisha Boshqaruv Markazi (Mini App)",
@@ -32,7 +84,7 @@ def build_metasell_menu_keyboard(
         ]
     ]
 
-    second_row: List[InlineKeyboardButton] = []
+    second_row: list[InlineKeyboardButton] = []
     if include_simulator:
         second_row.append(
             InlineKeyboardButton(
@@ -75,7 +127,7 @@ def build_metasell_menu_keyboard(
 
 
 def build_aiogram_metasell_keyboard(
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
     is_owner: bool = False,
 ) -> Any:
     """Construct an aiogram-compatible InlineKeyboardMarkup for Oisha WebApp."""
@@ -115,7 +167,7 @@ def build_aiogram_metasell_keyboard(
     return AiogramMarkup(inline_keyboard=rows)
 
 
-def format_executive_digest(data: Dict[str, Any]) -> str:
+def format_executive_digest(data: dict[str, Any]) -> str:
     """Format high-impact executive digest for Telegram chat message."""
     hero = data.get("hero", {})
     stl = data.get("speed_to_lead", {})

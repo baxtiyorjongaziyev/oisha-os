@@ -23,6 +23,12 @@ class TestSyncAgentsRuntime(unittest.TestCase):
             initial_data = {
                 "agents": {"defaults": {"model": "old-model"}},
                 "existing_key": "preserved_val",
+                "models": {
+                    "providers": {
+                        "google": {"apiKey": {"source": "env", "id": "GEMINI_API_KEY"}},
+                        "groq": {"apiKey": {"source": "env", "id": "GROQ_API_KEY"}},
+                    }
+                },
             }
             cfg_file.write_text(json.dumps(initial_data), encoding="utf-8")
 
@@ -33,8 +39,8 @@ class TestSyncAgentsRuntime(unittest.TestCase):
             self.assertEqual(updated["existing_key"], "preserved_val")
             self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-2.5-flash")
             self.assertIn("groq/llama-3.3-70b-versatile", updated["agents"]["defaults"]["model"]["fallbacks"])
-            self.assertEqual(updated["models"]["providers"]["google"]["apiKey"]["id"], "GEMINI_API_KEY")
-            self.assertEqual(updated["models"]["providers"]["groq"]["apiKey"]["id"], "GROQ_API_KEY")
+            # Invalid models.providers apiKey dict blocks must be removed for OpenClaw schema validity
+            self.assertNotIn("models", updated)
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
