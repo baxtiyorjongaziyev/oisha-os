@@ -19,15 +19,14 @@ def _kirim_celebration_key(chat_id: int, message_id: int) -> str:
     return f"kirim_celebration:{chat_id}:{message_id}"
 
 
-_INCOME_KEYWORDS = (
-    "to'lov tasdiq", "to‘lov tasdiq", "toʻlov tasdiq", "tolov tasdiq",
-    "tushdi", "kirim", "avans", "predoplata",
-)
+# Apostrof variantlari solishtirishdan oldin olib tashlanadi (_strip_apostrophes).
+_INCOME_KEYWORDS = ("tolov tasdiq", "tushdi", "kirim", "avans", "predoplata")
+_APOSTROPHES = str.maketrans("", "", "'‘’ʻʼ`")
 _SUMMA_RE = re.compile(r"summa[^\d\n]{0,30}(\d[\d \t,.]*)", re.IGNORECASE)
 
 
 def kirim_group_id() -> Any:
-    """Sotuv guruhi: kirim/to'lov tabriklari shu guruhda (topicdan qat'i nazar)."""
+    """Sotuv guruhi: kirim tabriklari shu guruhda, istalgan topicda."""
     return getattr(settings, "CRM_SALES_REPORT_GROUP_ID", None)
 
 
@@ -99,7 +98,8 @@ def _looks_like_income_announcement(text: str) -> bool:
 
     if lowered.endswith("?"):
         return False
-    if not any(keyword in lowered for keyword in _INCOME_KEYWORDS):
+    normalized = lowered.translate(_APOSTROPHES)
+    if not any(keyword in normalized for keyword in _INCOME_KEYWORDS):
         return False
     negation_terms = (
         "bo'lmadi", "bolmadi", "kelmadi", "tushmadi",
@@ -134,7 +134,7 @@ async def _send_kirim_celebration(event, celebration: str) -> None:
 
 
 async def kirim_topic_handler(event):
-    """Sotuv guruhida (istalgan topic) sotuvchi kirim/to'lov e'lon qilsa tabriklaydi."""
+    """Sotuv guruhida (istalgan topic) sotuvchi kirim yozsa tabriklaydi."""
     group_id = kirim_group_id()
     if not group_id or event.chat_id != group_id:
         return
