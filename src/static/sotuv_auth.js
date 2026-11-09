@@ -303,8 +303,9 @@ async function submitSellerLogin() {
     }
 
     const data = await res.json();
-    localStorage.setItem("jon_crm_seller_session", JSON.stringify(data.seller));
     if (data.token) localStorage.setItem("jon_crm_token", data.token);
+    const sellerSession = { ...(data.seller || {}), token: data.token || "" };
+    localStorage.setItem("jon_crm_seller_session", JSON.stringify(sellerSession));
     if (data.pin_change_required) {
       showPinChangeModal(data.seller, enteredPin);
       return;

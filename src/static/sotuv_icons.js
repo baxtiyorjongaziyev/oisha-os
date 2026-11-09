@@ -82,3 +82,43 @@ window.AmoIcons = {
   send: (cls = "w-4 h-4") =>
     `<svg class="${cls} inline-block shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>`,
 };
+
+function formatAmoCardDate(dateStr) {
+  if (!dateStr) return "Bugun";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr.slice(0, 10);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const timePart = d.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+    if (isToday) return `Bugun ${timePart}`;
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return `Kecha ${timePart}`;
+    const months = ["Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
+    return `${d.getDate()} ${months[d.getMonth()]}`;
+  } catch {
+    return "Bugun";
+  }
+}
+
+function calculateLeadTaskDot(lead) {
+  if (!lead.next_call_at) {
+    return { dotClass: "amo-dot-gray", title: "Keyingi vazifa belgilanmagan" };
+  }
+  try {
+    const due = new Date(lead.next_call_at).getTime();
+    const now = Date.now();
+    if (due < now - 60000) {
+      return { dotClass: "amo-dot-red", title: "Muddati oʻtgan vazifa" };
+    }
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    if (due <= todayEnd.getTime()) {
+      return { dotClass: "amo-dot-amber", title: "Bugungi rejalashtirilgan vazifa" };
+    }
+    return { dotClass: "amo-dot-green", title: "Kelgusi rejalashtirilgan vazifa" };
+  } catch {
+    return { dotClass: "amo-dot-gray", title: "Vazifasiz" };
+  }
+}
