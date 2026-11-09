@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oisha-OS — GoodSales Parity Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #8b5cf6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .title h1 { font-size: 24px; font-weight: 700; color: #fff; }
+    .title p { color: var(--text-muted); font-size: 14px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .badge-purple { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+
+    /* Top Grid */
+    .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card-title { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .card-val { font-size: 28px; font-weight: 700; color: #fff; }
+    .card-sub { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    .tab-btn {
+      background: none; border: none; color: var(--text-muted);
+      padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 8px;
+    }
+    .tab-btn.active { background: #1f2937; color: #fff; }
+
+    /* Layout */
+    .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+    th { color: var(--text-muted); font-weight: 600; padding: 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 12px; border-bottom: 1px solid var(--border); }
+    tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+    /* Action List */
+    .action-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      background: #161f30;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .action-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .action-info p { font-size: 12px; color: var(--text-muted); }
+    .action-impact { text-align: right; }
+    .impact-val { font-size: 14px; font-weight: 700; color: var(--success); }
+
+    .btn {
+      background: var(--primary); color: #fff; border: none; padding: 8px 14px;
+      border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;
+    }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: #1f2937; }
+
+    /* Print sheet modal */
+    .dossier-box {
+      background: #ffffff; color: #1e293b; border-radius: 12px; padding: 24px; margin-top: 16px;
+    }
+    .dossier-box h3 { color: #0f172a; margin-top: 14px; margin-bottom: 6px; font-size: 15px; }
+    .dossier-box ul { padding-left: 20px; font-size: 13px; }
+    .dossier-box li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">
+        <h1>Oisha-OS — Strategic NextSteps & Sales Parity</h1>
+        <p>demo.goodsales.uz 1-5 bandlarining toʻliq operatsion ekvivalenti (Jonli koʻrinish)</p>
+      </div>
+      <div>
+        <span class="badge badge-success">● API ACTIVE & RUNNING</span>
+      </div>
+    </header>
+
+    <!-- Top Reverse Funnel Metrics -->
+    <div class="grid-4">
+      <div class="card">
+        <div class="card-title">Oylik Reja bajarilishi</div>
+        <div class="card-val">623.7 / 694 mln</div>
+        <div class="card-sub"><span style="color:var(--warning)">89%</span> · Farq: 70.3 mln soʻm</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Teskari Voronka: Sotuv</div>
+        <div class="card-val">258 ta</div>
+        <div class="card-sub">Oʻrtacha chek: 2,700,000 soʻm</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Sifatli Lidlar (Kval)</div>
+        <div class="card-val">3,851 ta</div>
+        <div class="card-sub">Konversiya darajasi: 6.7%</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Jami Kerakli Lidlar</div>
+        <div class="card-val">8,577 ta</div>
+        <div class="card-sub">Kvalifikatsiya darajasi: 44.9%</div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <!-- Left Column: Actions & Pulse -->
+      <div>
+        <!-- 18 Prioritized Actions -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="font-size: 16px;">⚡ 18 ta Ustuvor Harakat (Moliyaviy taʼsiri boʻyicha)</h3>
+            <span class="badge badge-purple">AI Priority Queue</span>
+          </div>
+
+          <div class="action-item">
+            <div class="action-info">
+              <h4>1. 90 ta issiq bitim yopilishni kutmoqda (Kamola Karimova)</h4>
+              <p>588.9 mln soʻmlik bitimlar boʻyicha mijoz bilan shoshilinch bogʻlanish zarur</p>
+            </div>
+            <div class="action-impact">
+              <div class="impact-val">+176,670,000 soʻm</div>
+              <p style="font-size: 11px; color: var(--text-muted);">summa × 30%</p>
+            </div>
+          </div>
+
+          <div class="action-item">
+            <div class="action-info">
+              <h4>2. Oylik rejani tasdiqlang: jami 694 mln soʻm</h4>
+              <p>Rejani bajarishdagi umumiy tushum oraliq farqini qoplash</p>
+            </div>
+            <div class="action-impact">
+              <div class="impact-val">+70,300,000 soʻm</div>
+              <p style="font-size: 11px; color: var(--text-muted);">gap to target</p>
+            </div>
+          </div>
+
+          <div class="action-item">
+            <div class="action-info">
+              <h4>3. 1 ta menejer 90 kunda bitta ham sotuv yopmadi (Eldor Karimov)</h4>
+              <p>Junior SDR ga skript yoki liddan tushadigan yuklamani oʻzgartirish</p>
+            </div>
+            <div class="action-impact">
+              <div class="impact-val">+43,500,000 soʻm</div>
+              <p style="font-size: 11px; color: var(--text-muted);">jamoa konversiyasi 50%</p>
+            </div>
+          </div>
+
+          <div class="action-item">
+            <div class="action-info">
+              <h4>4. Sifatli lidlarning bir qismini kuchli menejerlarga bering</h4>
+              <p>Top konversiyali menejerlarga lid taqsimotini 20% oshirish</p>
+            </div>
+            <div class="action-impact">
+              <div class="impact-val">+32,800,000 soʻm</div>
+              <p style="font-size: 11px; color: var(--text-muted);">konversiya arbitraji</p>
+            </div>
+          </div>
+
+          <div class="action-item">
+            <div class="action-info">
+              <h4>5. 45 ta issiq bitim yopilishni kutmoqda (Mohira Karimova)</h4>
+              <p>57.5 mln soʻmlik bitimlar boʻyicha keyingi qadamni belgilash</p>
+            </div>
+            <div class="action-impact">
+              <div class="impact-val">+17,250,000 soʻm</div>
+              <p style="font-size: 11px; color: var(--text-muted);">summa × 30%</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Team Pulse Table -->
+        <div class="card">
+          <h3 style="font-size: 16px; margin-bottom: 16px;">👥 Jamoa Pulsi va Darajalar (1-5)</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Menejer</th>
+                <th>Rol</th>
+                <th>Daraja</th>
+                <th>Fakt / Reja</th>
+                <th>Konv.</th>
+                <th>AI Ball</th>
+                <th>Issiq Bitimlar</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Kamola Karimova</strong></td>
+                <td>Senior Closer</td>
+                <td><span class="badge badge-success">5/5 Top Master</span></td>
+                <td>369.7M (246%)</td>
+                <td>16.8%</td>
+                <td>65.0</td>
+                <td>588.9M (90)</td>
+              </tr>
+              <tr>
+                <td><strong>Mohira Karimova</strong></td>
+                <td>Closer</td>
+                <td><span class="badge badge-purple">4/5 Kuchli</span></td>
+                <td>212.4M (106%)</td>
+                <td>10.7%</td>
+                <td>64.0</td>
+                <td>57.5M (45)</td>
+              </tr>
+              <tr>
+                <td><strong>Feruza Karimova</strong></td>
+                <td>Account Exec</td>
+                <td><span class="badge badge-warning">2/5 Oʻsishda</span></td>
+                <td>22.8M (46%)</td>
+                <td>3.0%</td>
+                <td>58.0</td>
+                <td>22.0M (15)</td>
+              </tr>
+              <tr>
+                <td><strong>Eldor Karimov</strong></td>
+                <td>Junior SDR</td>
+                <td><span class="badge badge-danger">1/5 Boshlangʻich</span></td>
+                <td>0M (0%)</td>
+                <td>0.0%</td>
+                <td>44.0</td>
+                <td>12.4M (6)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right Column: 1:1 Coaching Dossier & Lost Revenue -->
+      <div>
+        <!-- Lost Revenue 3-Buckets -->
+        <div class="card" style="margin-bottom: 24px;">
+          <h3 style="font-size: 16px; margin-bottom: 14px;">📉 Yoʻqotilgan Daromad (3 Savat)</h3>
+          <div style="margin-bottom: 12px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+              <span>Jarayon xatosi (26% tiklanadigan)</span>
+              <strong style="color:var(--success);">+55,485,000 soʻm</strong>
+            </div>
+            <div style="background:#1f2937; height:8px; border-radius:4px; overflow:hidden;">
+              <div style="width:19.6%; background:var(--success); height:100%;"></div>
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">685 ta bitim (vaqti toʻgʻri kelmadi, koʻtarmadi)</p>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+              <span>Lid sifati / Marketing</span>
+              <strong>1,759 ta bitim</strong>
+            </div>
+            <div style="background:#1f2937; height:8px; border-radius:4px; overflow:hidden;">
+              <div style="width:50.4%; background:var(--warning); height:100%;"></div>
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">50.4% — murojaat qoldirmagan, dubl</p>
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+              <span>Sababsiz yopilish (CRM)</span>
+              <strong>1,043 ta bitim</strong>
+            </div>
+            <div style="background:#1f2937; height:8px; border-radius:4px; overflow:hidden;">
+              <div style="width:29.9%; background:var(--danger); height:100%;"></div>
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">29.9% — sabab tanlanmagan</p>
+          </div>
+        </div>
+
+        <!-- 1:1 Dossier Preview -->
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="font-size: 16px;">📋 1:1 Coaching Dosyesi</h3>
+            <button class="btn btn-outline" onclick="window.print()">Chop etish / PDF</button>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Kamola Karimova (31-iyul holatiga)</p>
+
+          <div class="dossier-box">
+            <h2 style="font-size: 17px; margin-bottom: 4px;">1:1 Uchrashuv — Kamola Karimova</h2>
+            <p style="font-size: 12px; color: #64748b;">Daraja: 5/5 (Top Master) · Avgust rejasi</p>
+
+            <h3>1. Yutuqlar (shundan boshlang):</h3>
+            <ul>
+              <li>Oy rejasi bajarildi: 246%</li>
+              <li>Konversiya jamoa yetakchilari qatorida: 16.8%</li>
+            </ul>
+
+            <h3>2. Muammolar (raqam bilan):</h3>
+            <ul>
+              <li>90 ta issiq bitim yopilishni kutmoqda (588 mln soʻm)</li>
+              <li>120 ta vaʼda qilingan qayta qoʻngʻiroq kechikkan</li>
+              <li>25 ta bitimda vazifa muddati oʻtgan</li>
+            </ul>
+
+            <h3>3. Kelishuvlar (keyingi hafta):</h3>
+            <ul>
+              <li>90 ta issiq bitim boʻyicha qayta aloqaga chiqish</li>
+              <li>Darslikdagi «Yakunlash va keyingi qadam» mashqini bajarish</li>
+            </ul>
+
+            <h3>4. Coaching savollari:</h3>
+            <ul>
+              <li>Vazifalar nega kechikmoqda — lid koʻpmi yoki vaqt rejasi yoʻqmi?</li>
+              <li>Oxirgi qoʻngʻiroqlardan birini birga eshitamiz: Yakunlash qismini qanday yaxshilash mumkin?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compensation & Davomat Matrix -->
+    <div class="card" style="margin-top: 24px;">
+      <h3 style="font-size: 16px; margin-bottom: 16px;">💰 Ish Haqi Kompensatsiyasi va Davomat Matritsasi (Payroll)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Menejer</th>
+            <th>Asosiy Oklad</th>
+            <th>Suhbat Bonusi</th>
+            <th>Qoʻngʻiroq Sifati (AI)</th>
+            <th>CRM Intizomi</th>
+            <th>Sotuv KPI</th>
+            <th>Kechikish Jarimasi</th>
+            <th>Yakuniy Sof Maosh</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Kamola Karimova</strong></td>
+            <td>3,000,000 soʻm</td>
+            <td>+1,000,000 soʻm</td>
+            <td>+500,000 soʻm</td>
+            <td>0</td>
+            <td>0</td>
+            <td style="color:var(--text-muted);">-0</td>
+            <td><strong style="color:var(--success);">4,500,000 soʻm</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Mohira Karimova</strong></td>
+            <td>3,000,000 soʻm</td>
+            <td>+1,000,000 soʻm</td>
+            <td>+500,000 soʻm</td>
+            <td>+250,000 soʻm</td>
+            <td>0</td>
+            <td style="color:var(--text-muted);">-0</td>
+            <td><strong style="color:var(--success);">4,750,000 soʻm</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Feruza Karimova</strong></td>
+            <td>3,000,000 soʻm</td>
+            <td>+600,000 soʻm</td>
+            <td>+500,000 soʻm</td>
+            <td>0</td>
+            <td>0</td>
+            <td style="color:var(--danger);">-200,000 soʻm</td>
+            <td><strong style="color:var(--warning);">3,900,000 soʻm</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Eldor Karimov</strong></td>
+            <td>3,000,000 soʻm</td>
+            <td>0</td>
+            <td>+500,000 soʻm</td>
+            <td>+250,000 soʻm</td>
+            <td>0</td>
+            <td style="color:var(--danger);">-400,000 soʻm</td>
+            <td><strong style="color:var(--danger);">3,350,000 soʻm</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

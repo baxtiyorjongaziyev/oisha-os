@@ -218,7 +218,7 @@ class DialerStore:
         base_select = (
             "SELECT id, pipeline_id, name, contact_name, company_name, phone, price, "
             "status_id, status_slug, responsible_user_id, responsible_name, source, "
-            "tags_json, last_audio_url, calls_count, is_active, updated_at FROM dialer_leads WHERE 1=1"
+            "tags_json, last_audio_url, calls_count, next_call_at, is_active, updated_at FROM dialer_leads WHERE 1=1"
             if slim
             else "SELECT * FROM dialer_leads WHERE 1=1"
         )

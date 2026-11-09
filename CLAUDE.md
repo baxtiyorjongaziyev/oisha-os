@@ -259,6 +259,7 @@ ALLOW_LOCAL_RUN, ENABLE_CLOUD_USERBOT, SURGICAL_MODE, ENABLE_AI_NEGOTIATION
 - Telegram MCP mutations are owner-approved; MCP ports stay private
 - `src/services/debug/` — excluded from bandit, must NEVER be imported in production
 - **O'zbekcha matn:** faqat ikki tirnoq ichida yoziladi; ASCII `'` so'z ichida taqiqlanadi (`'qo'ng'iroq'` SyntaxError beradi). `oʻ`/`gʻ` → `ö`/`ğ` yoki `ʻ` (U+02BB), tutuq → `ʼ` (U+02BC). Identifikator, email, teg, username — ASCII. Tekshiruv: `python scripts/check_uzbek_text.py --staged`. Batafsil: `.agents/skills/uzbek-text/SKILL.md`.
+- **Code Mode:** Koʻp qadamli API/MCP operatsiyalarida yoki katta maʼlumotlar tahlilida ketma-ket tool chaqirib kontekst oynasini toʻldirmang; uning oʻrniga ixcham skript yozib (`execute`), lokal filtrlab faqat yakuniy natijani oling. Batafsil: `.claude/skills/code-mode/SKILL.md`.
 - Do not run a local userbot while Oracle owns the session (see Runtime)
 
 ## TypeScript Monorepos
