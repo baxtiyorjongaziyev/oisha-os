@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Jon CRM">
   <link rel="manifest" href="/static/manifest.json">
-  <title>amoCRM (O'zbekcha) — Jon Branding Agency</title>
+  <title>amoCRM (Oʻzbekcha) — Jon Branding Agency</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +29,7 @@
         <button id="navBtn_inbox" onclick="setViewMode('inbox')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5 relative"><span id="navBadgeInbox" class="hidden absolute top-1.5 right-2 bg-[#ef4444] text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-none"></span><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg><span class="text-[12px] font-medium leading-none">imBox</span></button>
         <button id="navBtn_tasks" onclick="setViewMode('tasks')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5 relative"><span id="navBadgeTasks" class="hidden absolute top-1.5 right-1.5 bg-[#ef4444] text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-none"></span><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg><span class="text-[12px] font-medium leading-none">Vazifalar</span></button>
         <button id="navBtn_aibots" onclick="setViewMode('aibots')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="3"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><path d="M12 3v3m-5 12v2m10-2v2"/></svg><span class="text-[11px] font-medium leading-tight text-center px-0.5">AI va botlar</span></button>
-        <button id="navBtn_directory" onclick="setViewMode('directory')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="2.5"/><path d="M8.5 16c.8-1.5 2-2.2 3.5-2.2s2.7.7 3.5 2.2"/></svg><span class="text-[12px] font-medium leading-none">Ro'yxatlar</span></button>
+        <button id="navBtn_directory" onclick="setViewMode('directory')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="2.5"/><path d="M8.5 16c.8-1.5 2-2.2 3.5-2.2s2.7.7 3.5 2.2"/></svg><span class="text-[12px] font-medium leading-none">Roʻyxatlar</span></button>
         <button id="navBtn_mail" onclick="setViewMode('mail')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="text-[12px] font-medium leading-none">Takliflar</span></button>
         <button id="navBtn_analytics" onclick="setViewMode('analytics')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 19h16M4 15l4-4 4 3 6-7"/><circle cx="18" cy="7" r="1.5"/></svg><span class="text-[12px] font-medium leading-none">Analitika</span></button>
         <button id="navBtn_settings" onclick="setViewMode('settings')" class="amo-nav-btn w-full py-3 flex flex-col items-center justify-center gap-1.5"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="text-[12px] font-medium leading-none">Sozlamalar</span></button>
@@ -37,7 +37,7 @@
     </div>
     <div class="flex flex-col items-center gap-3 pb-4">
       <button onclick="syncWithTwentyBackend()" title="Bazani yangilash va sinxronlash" class="w-10 h-8 rounded bg-[#142836] text-[#4c8bf7] flex items-center justify-center text-xs font-bold border border-[#2a475e] hover:bg-[#4c8bf7] hover:text-white transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
-      <button onclick="setViewMode('focus')" title="Tezkor Qo'ng'iroq Dialeri" class="relative text-[#9db0be] hover:text-white">
+      <button onclick="setViewMode('focus')" title="Tezkor Qoʻngʻiroq Dialeri" class="relative text-[#9db0be] hover:text-white">
         <span class="absolute -top-1 -right-1.5 bg-[#ef4444] text-white text-[10px] font-bold px-1.5 rounded-full">1</span>
         <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
       </button>
@@ -49,7 +49,7 @@
       <div class="flex items-center gap-4">
         <div class="relative">
           <button id="pipelineDropdownBtn" onclick="togglePipelineMenu()" class="flex items-center gap-2 amo-type-title uppercase tracking-wide hover:text-[#3875d7] transition">
-            <span id="currentPipelineName">SOTUV BO'LIMI</span>
+            <span id="currentPipelineName">SOTUV BOʻLIMI</span>
             <svg class="w-5 h-5 text-[#92989b]" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div id="pipelineMenu" class="hidden absolute top-full left-0 mt-2 w-80 bg-white border border-[#d8dde3] rounded shadow-xl py-1.5 z-50 max-h-96 overflow-y-auto custom-scrollbar"></div>
@@ -72,7 +72,7 @@
       </div>
       <div class="flex items-center gap-3.5 shrink-0">
         <div class="amo-type-meta text-[#7e8b9b] hidden md:block">
-          <strong id="headerTotalCount" class="text-[#19222b] font-bold tabular-nums">0</strong> ta bitim: <strong id="headerTotalSum" class="text-[#19222b] font-bold tabular-nums">0</strong> so'm
+          <strong id="headerTotalCount" class="text-[#19222b] font-bold tabular-nums">0</strong> ta bitim: <strong id="headerTotalSum" class="text-[#19222b] font-bold tabular-nums">0</strong> soʻm
         </div>
         <select id="repFilterSelect" onchange="onRepChange(this.value)" class="amo-input text-xs py-1 px-2.5 cursor-pointer">
           <option value="">Barcha menejerlar</option>
@@ -110,15 +110,15 @@
             <h2 id="leadNameDisplay" class="text-2xl font-bold text-[#1565c0] cursor-pointer" onclick="if(currentLead) openDealDrawer(currentLead.id)">Mijoz</h2>
             <div class="flex items-center justify-center gap-2 mt-1.5 text-sm text-[#92989b]">
               <span id="leadContactName" class="font-semibold text-[#2e3640]">Mijoz</span><span>•</span>
-              <span>Mas'ul: <strong id="leadRepName" class="text-[#2e3640]">Shahnoza</strong></span>
-              <span id="leadPriceContainer" class="hidden">• <strong id="leadPriceDisplay" class="text-[#16a34a]">0</strong> so'm</span>
+              <span>Masʼul: <strong id="leadRepName" class="text-[#2e3640]">Shahnoza</strong></span>
+              <span id="leadPriceContainer" class="hidden">• <strong id="leadPriceDisplay" class="text-[#16a34a]">0</strong> soʻm</span>
             </div>
           </div>
           <div class="bg-[#f8fafc] border border-[#e5e7eb] rounded p-5 flex flex-col items-center gap-3.5">
             <div id="leadPhoneDisplay" class="font-mono text-3xl font-bold text-[#2e3640]">+998 90 000 00 00</div>
             <div class="flex items-center gap-3 w-full max-w-sm">
               <button onclick="copyCurrentPhone()" class="flex-1 bg-white border border-[#d8dde3] font-semibold py-2 px-3 rounded text-xs flex items-center justify-center gap-1.5 hover:bg-[#f8fafc] transition"><svg class="w-4 h-4 text-[#7e8b9b]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg><span>Nusxa olish</span></button>
-              <a id="callPhoneBtn" href="tel:" class="flex-1 amo-btn amo-btn-primary py-2 px-3 rounded text-xs flex items-center justify-center gap-1.5"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg><span>Qo'ng'iroq</span></a>
+              <a id="callPhoneBtn" href="tel:" class="flex-1 amo-btn amo-btn-primary py-2 px-3 rounded text-xs flex items-center justify-center gap-1.5"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg><span>Qoʻngʻiroq</span></a>
             </div>
           </div>
           <div id="audioPlayerContainer" class="hidden bg-[#f0fdf4] border border-[#bbf7d0] rounded p-3 flex flex-col gap-1.5">
@@ -174,7 +174,7 @@
           <div class="p-6 flex-1 flex flex-col gap-1.5">
             <div id="drawerTab_bant" class="flex flex-col gap-1">
               <div class="amo-field-row">
-                <div class="amo-field-label">Mas'ul</div>
+                <div class="amo-field-label">Masʼul</div>
                 <div class="amo-field-val">
                   <select id="drawerRepSelect" class="w-full bg-transparent text-[15px] font-semibold text-[#2e3640] focus:outline-none">
                     <option value="13021974">Shahnoza Abdijabborova</option>
@@ -189,7 +189,7 @@
                 <div class="amo-field-label">Byudjet</div>
                 <div class="amo-field-val flex items-center gap-1.5">
                   <input id="drawerPriceInput" type="number" class="w-36 bg-transparent text-[16px] font-bold text-[#2e3640] focus:outline-none border-b border-transparent focus:border-[#4c8bf7]">
-                  <span class="text-sm text-[#92989b]">so'm</span>
+                  <span class="text-sm text-[#92989b]">soʻm</span>
                 </div>
               </div>
               <div id="drawerBantFieldsContainer" class="flex flex-col gap-1 mt-1.5 pt-2.5 border-t border-[#f0f3f6]"></div>
@@ -207,11 +207,11 @@
                   <div class="amo-field-label">Mobil telefon</div>
                   <div class="amo-field-val flex items-center gap-2">
                     <input id="drawerContactPhone" type="text" class="w-full font-mono text-[15px] text-[#1565c0] bg-transparent focus:outline-none">
-                    <button type="button" id="drawer1ClickCallBtn" onclick="triggerDrawer1ClickCall()" class="text-xs bg-[#22c55e] hover:bg-[#16a34a] text-white px-2.5 py-1.5 rounded font-bold shadow-xs transition flex items-center gap-1 shrink-0" title="1-Click MoiZvonki Qo'ng'iroq">
+                    <button type="button" id="drawer1ClickCallBtn" onclick="triggerDrawer1ClickCall()" class="text-xs bg-[#22c55e] hover:bg-[#16a34a] text-white px-2.5 py-1.5 rounded font-bold shadow-xs transition flex items-center gap-1 shrink-0" title="1-Click MoiZvonki Qoʻngʻiroq">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                       <span>1-Click</span>
                     </button>
-                    <a id="drawerCallBtn" href="tel:" class="text-sm bg-[#eff6ff] text-[#3875d7] hover:bg-[#dbeafe] p-1.5 rounded transition flex items-center shrink-0" title="Qo'ng'iroq"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg></a>
+                    <a id="drawerCallBtn" href="tel:" class="text-sm bg-[#eff6ff] text-[#3875d7] hover:bg-[#dbeafe] p-1.5 rounded transition flex items-center shrink-0" title="Qoʻngʻiroq"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg></a>
                     <button onclick="copyDrawerPhone()" class="text-sm text-[#7e8b9b] hover:text-[#19222b] p-1.5 rounded hover:bg-[#f1f5f9] transition flex items-center" title="Nusxa"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button>
                   </div>
                 </div>
@@ -246,7 +246,7 @@
           </div>
           <div id="drawerCallsHistoryBox" class="hidden mx-6 mt-4"></div>
           <div id="drawerAudioPlayerBox" class="hidden mx-6 mt-4 bg-white border border-[#e5e7eb] rounded p-3 flex items-center gap-3 shadow-sm">
-            <span class="text-xs font-bold text-[#10b981] flex items-center gap-1.5 shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 18v-6a9 9 0 0118 0v6"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/></svg><span>Qo'ng'iroq audiosi:</span></span>
+            <span class="text-xs font-bold text-[#10b981] flex items-center gap-1.5 shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 18v-6a9 9 0 0118 0v6"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/></svg><span>Qoʻngʻiroq audiosi:</span></span>
             <audio id="drawerAudioPlayer" controls class="w-full h-9"><source id="drawerAudioSource" src="" type="audio/mpeg"></audio>
           </div>
           <div class="flex-1 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-3">
@@ -284,7 +284,7 @@
           </div>
           <div class="bg-white border border-[#e5e7eb] rounded p-4 flex flex-col gap-1.5 shadow-sm">
             <div class="text-xs font-bold text-[#19222b] flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>CRM Server Dvigateli</span></div>
-            <div class="text-[13px] text-[#16a34a] font-semibold">â— Online (crm.jonbranding.uz)</div>
+            <div class="text-[13px] text-[#16a34a] font-semibold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#16a34a] inline-block animate-pulse"></span>Online (crm.jonbranding.uz)</div>
             <div class="text-[12px] text-[#92989b]">Barcha 47 maxsus maydon avtomatik sinxronlanadi.</div>
           </div>
         </div>
@@ -313,7 +313,7 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-[#475569] mb-1">Yo'qotilgan summa (so'm)</label>
+          <label class="block text-xs font-semibold text-[#475569] mb-1">Yo'qotilgan summa (soʻm)</label>
           <input id="lossAmountInput" type="number" placeholder="0" class="w-full p-2 border border-[#d8dde3] rounded font-mono text-sm">
         </div>
         <div>
@@ -336,7 +336,7 @@
       <div class="flex flex-col gap-3 text-sm">
         <input id="newDealName" type="text" placeholder="Bitim nomi (Masalan: Aziz — Brending)" class="w-full p-2.5 border border-[#d8dde3] rounded">
         <input id="newDealPhone" type="text" placeholder="+998 90 123 45 67" class="w-full p-2.5 border border-[#d8dde3] rounded font-mono">
-        <input id="newDealPrice" type="number" placeholder="Byudjet (so'm)" class="w-full p-2.5 border border-[#d8dde3] rounded">
+        <input id="newDealPrice" type="number" placeholder="Byudjet (soʻm)" class="w-full p-2.5 border border-[#d8dde3] rounded">
         <select id="newDealRep" class="w-full p-2.5 border border-[#d8dde3] rounded">
           <option value="13021974">Shahnoza Abdijabborova</option>
           <option value="9000001">Rayxona Rahimova</option>
@@ -347,7 +347,7 @@
       </div>
       <div class="flex items-center justify-end gap-2.5 pt-2.5 border-t border-[#f0f3f6]">
         <button onclick="closeNewDealModal()" class="px-4 py-2 rounded text-sm font-semibold text-[#92989b]">Bekor qilish</button>
-        <button onclick="submitNewDeal()" class="px-5 py-2 rounded text-sm font-bold bg-[#4c8bf7] text-white">Qo'shish</button>
+        <button onclick="submitNewDeal()" class="px-5 py-2 rounded text-sm font-bold bg-[#4c8bf7] text-white">Qoʻshish</button>
       </div>
     </div>
   </div>
@@ -370,7 +370,7 @@
     </div>
     <div id="callerIdLeadBox" class="bg-[#f8fafc] border border-[#e2e8f0] rounded p-2.5 flex items-center justify-between text-xs">
       <div><span class="text-[#94a3b8]">Bosqich:</span> <b id="callerIdStage" class="text-[#2e3640] uppercase">YANGI</b></div>
-      <div><span class="text-[#94a3b8]">Byudjet:</span> <b id="callerIdBudget" class="text-[#15803d]">0 so'm</b></div>
+      <div><span class="text-[#94a3b8]">Byudjet:</span> <b id="callerIdBudget" class="text-[#15803d]">0 soʻm</b></div>
     </div>
     <div class="flex items-center gap-2 pt-1">
       <button id="callerIdOpenBtn" onclick="openCallerIdLead()" class="flex-1 bg-[#4c8bf7] hover:bg-[#3b78e7] text-white text-xs font-bold py-2 rounded text-center transition">Bitimni Ochish →</button>

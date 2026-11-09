@@ -167,9 +167,6 @@ async def handle_new_message(event):
     await _record_chat_manager(event, sender, sender_name)
     await advance_checkpoint(event, app_ctx.msg_controller)
 
-    if _should_block_private_userbot_reply(event) or (safe_responder and not await safe_responder.should_respond(event)):
-        return
-
     if tn5_group_id and event.chat_id == tn5_group_id and getattr(event.message.reply_to, "reply_to_msg_id", None) == tn5_topic_id:
         asyncio.create_task(sync_single_lead(event))
         return
@@ -246,21 +243,23 @@ async def handle_new_message(event):
             )
 
     await _handle_media_and_voice(event, sender, sender_name)
-    await process_ai_reply(
-        event,
-        client=client,
-        sender=sender,
-        chat_id=chat_id,
-        sender_name=sender_name,
-        message_text=message_text,
-        msg_controller=app_ctx.msg_controller,
-        auto_reply_gate=auto_reply_gate,
-        safe_responder=safe_responder,
-        scouter=app_ctx.scouter,
-        surgical_integration=surgical_integration,
-        action_parser=action_parser,
-        admin_bot=admin_bot,
-    )
+    if not _should_block_private_userbot_reply(event):
+        if safe_responder is None or await safe_responder.should_respond(event):
+            await process_ai_reply(
+                event,
+                client=client,
+                sender=sender,
+                chat_id=chat_id,
+                sender_name=sender_name,
+                message_text=message_text,
+                msg_controller=app_ctx.msg_controller,
+                auto_reply_gate=auto_reply_gate,
+                safe_responder=safe_responder,
+                scouter=app_ctx.scouter,
+                surgical_integration=surgical_integration,
+                action_parser=action_parser,
+                admin_bot=admin_bot,
+            )
 
 
 def _negotiation_int(name: str, default: int) -> int:

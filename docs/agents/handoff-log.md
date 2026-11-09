@@ -2577,6 +2577,132 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - 7 ta stash refs/archive/stash-* ga va C:\Users\baxti\backups\oisha-stashes\*.patch ga arxivlandi, so'ng stash ro'yxatidan olib tashlandi.
 - Toza (clean) worktreelar `git worktree remove` bilan olib tashlandi (branchlar saqlandi); dirty/bugungi/detached-unique worktreelar qoldi.
 
+
+### 2026-11-07 — Antigravity: Corporate Sales Monitor (3 ta korporativ Telegram raqamini AI orqali nazorat qilish)
+- **Bajarilgan ish**:
+  1. `src/services/corporate_sales/` toʻliq xizmat paketi ishlab chiqildi:
+     - `models.py` (183 qator): `CorporateSeller`, `MonitoredChatMessage`, `ConversationBuffer`, `SellerPerformanceSummary`.
+     - `repository.py` (237 qator): `corporate_sellers` va `conversation_analyses` jadvallari, CRUD va tahlillarni saqlash.
+     - `reporter.py` (180 qator): ROP (savdo boshligʻi) Telegram guruhi va amoCRM bitimiga izoh kiritish formati.
+     - `monitor.py` (228 qator): Telethon koʻp akkauntli read-only listener, suhbatlar buferi, tinch turish (idle) detektori, `QualityAnalyzer` (Gemini) integratsiyasi.
+     - `__init__.py` (24 qator): Toza fasad.
+  2. `scripts/connect_corporate_seller.py` (199 qator): Korporativ raqamlarni Telegram orqali xavfsiz avtorizatsiya qilib bazaga saqlovchi interaktiv CLI dastur.
+  3. `tests/test_corporate_sales_monitor.py` (285 qator): 7 ta toʻliq unit test (modellar, repozitoriy, hisobot berish, bufer va avtomatik flush).
+- **Oʻzgargan fayllar**: `src/services/corporate_sales/`, `scripts/connect_corporate_seller.py`, `tests/test_corporate_sales_monitor.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili**:
+  - `python -m pytest -q --tb=short tests/test_corporate_sales_monitor.py tests/test_quality_analyzer_llm.py` -> 21 passed.
+  - `bandit -r src/services/corporate_sales/ -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+  - Barcha fayllar qatʼiy ravishda 150 – 400 qator standartida.
+- **Qolgan ish**: 3 ta korporativ raqamni `python scripts/connect_corporate_seller.py` orqali ketma-ket ulash.
+
+
+### 2026-11-07 — Antigravity: Cloudflare Code Mode Protokoli (Claude, Codex, Antigravity)
+- **Bajarilgan ish**:
+  1. Cloudflare Code Mode arxitekturasi Oisha-OS ekotizimiga joriy qilindi: koʻp qadamli API/MCP va katta maʼlumotlar oqimida xom JSON bilan kontekstni toʻldirish oʻrniga ixcham skript orqali lokal filtrlash va bajarish standarti.
+  2. Yangi skill yaratildi: `.claude/skills/code-mode/SKILL.md` va `scripts/sync_agent_skills.py` orqali `.agents/skills/code-mode/SKILL.md` ga toʻliq sinxronlandi (Codex va Antigravity uchun).
+  3. Texnik qoʻllanma: `docs/agents/code-mode.md` (3 ta oltin qoida, vendor-side va caller-side tahlili).
+  4. Barcha agentlar qoidalari yangilandi:
+     - `AGENTS.md`: "Qayerda nima bor" va 13-asosiy qoida qoʻshildi (barcha agentlar uchun).
+     - `CLAUDE.md`: Claude Code uchun Code Mode guardraili qoʻshildi.
+     - `GEMINI.md`: Antigravity / Gemini uchun Code Mode masʼuliyati qoʻshildi.
+     - `docs/agents/golden-principles.md`: 16-oltin qoida sifatida mustahkamlandi.
+- **Oʻzgargan fayllar**: `.claude/skills/code-mode/SKILL.md`, `.agents/skills/code-mode/SKILL.md`, `docs/agents/code-mode.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `docs/agents/golden-principles.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili**:
+  - `python scripts/sync_agent_skills.py --check` -> 0 drift (toʻliq sinxron).
+  - `python scripts/check_uzbek_text.py` barcha yangi va oʻzgargan fayllarda -> toza (0 xato).
+  - Barcha fayllar qatʼiy qoidalar va kod standartlariga mos.
+
+### 2026-11-08 — Antigravity: Shaxsiy suhbatlar AI tahlili va Private Message Intake tuzatishi
+- **Bajarilgan ish**:
+  1. `src/entrypoint/message_event.py` da jiddiy muammo bartaraf etildi: `handle_new_message` ning 170-qatoridagi `_should_block_private_userbot_reply` sharti tufayli barcha kiruvchi shaxsiy (DM) xabarlar, CRM sinxronizatsiyasi, `process_elite_intake` va `process_existing_contact_signal` toʻxtab qolayotgan edi. Ushbu tekshiruv faqat `process_ai_reply` (avto-javob qaytarish) qismiga koʻchirildi. Natijada shaxsiy mijoz xabarlari bazaga yoziladi, mavjud mijoz signallari ishlaydi va CRM ga toʻgʻri oʻtadi.
+  2. `scripts/connect_corporate_seller.py` ga Baxtiyorjon Gaziyev (Owner) uchun `0` preset tanlovi qoʻshildi, shunda owner oʻz akkauntini 1 daqiqada ulay oladi.
+  3. Yangi interaktiv tahlilchi: `scripts/test_analyze_my_chats.py` va `test_my_chats.bat` yaratildi. Foydalanuvchi Telegramʼdagi istalgan mijoz bilan dialogini tanlab, Jon Branding Sales Playbook boʻyicha Gemini 1.5 orqali baholashi, ball va kamchiliklarni koʻrishi hamda amoCRM kartochkasiga izoh qoʻshishi mumkin.
+- **Oʻzgargan fayllar**: `src/entrypoint/message_event.py`, `scripts/connect_corporate_seller.py`, `scripts/test_analyze_my_chats.py`, `test_my_chats.bat`, `connect_sellers.bat`.
+- **Tekshiruv dalili**:
+  - `python -m pytest tests/test_corporate_sales_monitor.py` -> 7 passed.
+  - `bandit -r src/services/corporate_sales/ scripts/test_analyze_my_chats.py scripts/connect_corporate_seller.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+  - Barcha production fayllar 150 – 400 qator standartida.
+
+### 2026-11-08 — Antigravity: Active Sales Guidance & Next Best Action Copilot
+- **Bajarilgan ish**:
+  1. Oisha Sales Sentinel passiv baholash tizimidan **faol muzokara va sotuvga yetaklovchi (Deal Acceleration & Closing Copilot)** tizimiga aylantirildi.
+  2. `src/services/ai/quality/prompts.py` va `models.py`: har bir suhbat tahlilida AI nafaqat ball beradi, balki `ready_to_send_script` (menejer mijozga darhol nusxalab yuboradigan professional oʻzbekcha javob xabari) va `deal_stage` (voronka bosqichi)ni generatsiya qiladi.
+  3. `src/services/corporate_sales/reporter.py`: `format_amocrm_note` va `_sync_note_to_amocrm` funksiyalari qoʻshildi, tayyor skript toʻgʻridan-toʻgʻri amoCRM bitimiga izoh va vazifa sifatida yoziladi.
+  4. `scripts/test_analyze_my_chats.py`: yangilandi, tahlil yakunida menejer uchun tayyor javob matnini koʻrsatadi va avtomatik amoCRM ga kiritadi.
+- **Oʻzgargan fayllar**: `src/services/ai/quality/prompts.py`, `src/services/ai/quality/models.py`, `src/services/ai/quality/scoring_heuristics.py`, `src/services/corporate_sales/reporter.py`, `scripts/test_analyze_my_chats.py`.
+- **Tekshiruv dalili**:
+  - `python -m pytest tests/test_corporate_sales_monitor.py tests/test_quality_analyzer_llm.py` -> 21 passed.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+  - Barcha production fayllar 150 – 400 qator oraligʻida.
+
+### 2026-11-08 — Antigravity: Deal Activator (Stagnant Leads Exact Script & Action Copilot)
+- **Bajarilgan ish**:
+  1. `src/services/ai/deal_activator.py` (184 qator): Toʻxtab qolgan mijozlar uchun **Aynan nima qilish kerak (Taktika)** va **Aynan nima deyish kerak (Tayyor soʻzma-soʻz xabar)** ni ishlab chiquvchi AI xizmati yaratildi.
+  2. Mijoz jim boʻlib qolganda (stagnation), Oisha nafaqat eslatma beradi, balki:
+     - Nega toʻxtagani sababini ochib beradi (narx ikkilanishi, vaqt yetishmasligi, byudjet).
+     - Aniq taktik harakatni belgilaydi (ovozli xabar / keys yuborish / 2 bosqichli toʻlov taklifi).
+     - Menejer nusxa koʻchirib yuboradigan tayyor professional xabarni chiqaradi.
+     - Nima qilish qatʼiyan taqiqlanishini ogohlantiradi (quruq "Qaror qildingizmi?" deb siqmaslik).
+  3. `scripts/test_analyze_my_chats.py`: integratsiya qilindi, chat audit qilinishi bilan shu reja ekranga chiqadi va amoCRM kartochkasiga yoziladi.
+  4. `tests/test_deal_activator.py`: unit testlar yozildi va 100% muvaffaqiyatli oʻtdi.
+- **Tekshiruv dalili**:
+  - `python -m pytest tests/test_deal_activator.py` -> 2 passed.
+  - `bandit -r src/services/ai/deal_activator.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+
+
+### 2026-11-09 — Antigravity: Native Oisha CRM Engine (amoCRM Independent Core)
+- **Bajarilgan ish**:
+  1. amoCRMʼga toʻliq mustaqil muqobil boʻlgan **Native Oisha CRM Engine** noldan ishlab chiqildi (`src/services/core/crm/engine/`).
+  2. `src/services/core/crm/engine/schema.py`: Voronkalar, bosqichlar, bitimlar, kontaktlar, vazifalar va timeline uchun Pydantic modellar yaratildi.
+  3. `src/services/core/crm/engine/store_ddl.py` va `store.py`: Mahalliy SQLite/WAL jadval arxitekturasi va toʻliq CRUD funksiyalari (150 – 400 qator meʼyorida).
+  4. `src/services/core/crm/engine/automation.py`: Raqamli voronka (Digital Pipeline) avtomatizatsiyasi — bosqich oʻzgarganda avto-vazifa va Telegram bildirishnoma generatori.
+  5. `src/services/core/crm/engine/intake.py`: Tashqi manbalar (sayt, bot, Meta ads) uchun kiruvchi lidlar qabul qilish va telefon raqami boʻyicha dublikatni tekshirish tizimi.
+  6. `src/services/core/crm/engine/ai_coach.py`: BANT/SPIN asosida har bir bitim uchun 3 bosqichli Surgical Mission taktik reja generatori.
+  7. `src/api/routes/oisha_crm_routes.py` va `src/services/api_server/core.py`: FastAPI endpointlari (`/api/crm/native/...`) yaratildi va serverga ulandi.
+  8. `tests/test_oisha_crm_engine.py`: 7 ta toʻliq unit va marshrut integratsiya testlari yozildi va barchasi yashil oʻtdi.
+- **Oʻzgargan fayllar**:
+  - `src/services/core/crm/engine/schema.py`
+  - `src/services/core/crm/engine/store_ddl.py`
+  - `src/services/core/crm/engine/store.py`
+  - `src/services/core/crm/engine/automation.py`
+  - `src/services/core/crm/engine/intake.py`
+  - `src/services/core/crm/engine/ai_coach.py`
+  - `src/services/core/crm/engine/__init__.py`
+  - `src/api/routes/oisha_crm_routes.py`
+  - `src/services/api_server/core.py`
+  - `tests/test_oisha_crm_engine.py`
+  - `docs/agents/handoff-log.md`
+- **Tekshiruv dalili**:
+  - `pytest tests/test_oisha_crm_engine.py` -> 7 passed in 1.39s.
+  - `bandit -r src/services/core/crm/engine/ src/api/routes/oisha_crm_routes.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --all --baseline config/uzbek_text_baseline.txt` -> toza (0 xato).
+  - Barcha fayllar qatʼiy 150 – 400 qator meʼyorida (God-file yoʻq).
+- **Qolgan ish/Keyingi qadam**: `/sotuv` veb-paneli UI komponentlarini yangi native `/api/crm/native/` endpointlariga toʻgʻridan-toʻgʻri ulash va Telegram bot webhookini lead intake bilan bogʻlash.
+
+
+### 2026-11-09 — Antigravity: Meta Ads Audit, Umarin Mebel Sozlamalari va Desktop-Notebook Sinxronizatsiyasi
+- **Bajarilgan ish**:
+  1. **Meta Ads Manager Auditi va Reklama Sozlamalari**:
+     - Mebel | Stol-Stul | Calls | Reels DfZoOAcRarW (ID: 120251240011810552) kampaniyasi umarin.uz va Stol-Stul Mebel (Page ID: 1111201232082812) uchun toʻliq Calls (qoʻngʻiroqlar) maqsadida sozlandi va eʼlon qilindi.
+     - 1-video (DfZoOAcRarW): +998 91 671 35 65 raqamiga toʻgʻridan-toʻgʻri 'Позвонить' tugmasi bilan muvaffaqiyatli nashr etildi.
+     - 2-video (DfAU7ROxjx3): Instagram hamkorlik cheklovini aylanib oʻtish uchun yuqori sifatda mahalliy media/qoshtepa_reel.mp4 (11.3 MB) fayliga yuklab olindi va .gitignore ga kiritildi.
+     - **Billing holati auditi**: Jonbranding reklama hisobida .34, shaxsiy hisobda .64 qarz mavjudligi va mebel loyihasi uchun alohida mustaqil hisob ochish strategiyasi ishlab chiqildi.
+  2. **Loyihalararo Desktop-Notebook Sinxronizatsiyasi**:
+     - Barcha loyihalar (oisha-os, oisha-contabo, oisha-tn-audit, jonbranding-web) holati toʻliq tekshirildi.
+     - Barcha yangi CRM, Finance, Mockup va Pivot testlari (	ests/test_*.py) 100% yashil oʻtdi (14/14 passed).
+     - Xavfsizlik (andit -r src/ -ll -> 0 issues) va oʻzbekcha matn guardi (check_uzbek_text.py -> toza) tekshirildi.
+- **Oʻzgargan fayllar**:
+  - .gitignore (media/ va telegram_history_digest.md qoʻshildi)
+  - docs/agents/handoff-log.md
+- **Tekshiruv dalili**:
+  - pytest tests/test_cooling_customers.py tests/test_reconciliation.py tests/test_pivot_builder.py tests/test_oisha_crm_engine.py tests/test_mockup_generator.py tests/test_investor_ledger.py tests/test_project_margin.py -q -> 14 passed.
+  - andit -r src/ -ll -> 0 issues.
+  - python scripts/check_uzbek_text.py -> toza (61 fayl).
+- **Qolgan ish/Keyingi qadam**: Ishxonadagi noutbukda git pull --rebase qilish va ishni silliq davom ettirish.
+
 ### 2026-11-07 — Antigravity: OpenClaw schema validatsiyasi va Mr.Jon gateway tiklanishi
 - **Muammo**: OpenClaw gateway Contabo VPS serverida exit 78 bilan toʻxtab qolgan (Runtime: stopped, connectivity check: failed), natijada bot Telegramʼda javob bermayotgan edi. Sabab: openclaw.json ichidagi models.providers.google.apiKey va groq.apiKey obyektlari {source: env} formati tufayli OpenClaw 2026 schema validatsiyasidan oʻtmagan.
 - **Tuzatish**:

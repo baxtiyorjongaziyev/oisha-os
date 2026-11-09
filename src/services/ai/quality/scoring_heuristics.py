@@ -179,6 +179,8 @@ class ScoringHeuristicsMixin:
                 objections_raised=analysis.get("objections", []),
                 outcome=analysis.get("outcome", "unknown"),
                 next_steps=analysis.get("next_steps", []),
+                ready_to_send_script=analysis.get("ready_to_send_script", ""),
+                deal_stage=analysis.get("deal_stage", "qualifying"),
                 recommended_tasks=recommended_tasks,
                 scoring_method=scoring_method,
             )

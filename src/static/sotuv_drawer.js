@@ -23,10 +23,13 @@ function renderCustomFieldsForm() {
 
 function getAuthHeaders() {
   try {
+    const tok = localStorage.getItem("jon_crm_token");
+    if (tok) return { Authorization: `Bearer ${tok}`, "X-Seller-Token": tok, "X-CRM-Session-Token": tok };
     const raw = localStorage.getItem("jon_crm_seller_session");
-    if (!raw) return {};
-    const sess = JSON.parse(raw);
-    if (sess?.token) return { Authorization: `Bearer ${sess.token}`, "X-Seller-Token": sess.token, "X-CRM-Session-Token": sess.token };
+    if (raw) {
+      const sess = JSON.parse(raw);
+      if (sess?.token) return { Authorization: `Bearer ${sess.token}`, "X-Seller-Token": sess.token, "X-CRM-Session-Token": sess.token };
+    }
   } catch (e) { console.warn("Auth parse error:", e); }
   return {};
 }
