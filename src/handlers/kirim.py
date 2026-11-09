@@ -96,16 +96,16 @@ def _looks_like_income_announcement(text: str) -> bool:
     if is_group_open_confirmation(lowered):
         return False
 
+    normalized = lowered.translate(_APOSTROPHES)
     if lowered.endswith("?"):
         return False
-    normalized = lowered.translate(_APOSTROPHES)
     if not any(keyword in normalized for keyword in _INCOME_KEYWORDS):
         return False
     negation_terms = (
-        "bo'lmadi", "bolmadi", "kelmadi", "tushmadi",
-        "yo'q", "yoq", "emas", "qilmadi", "bo'lmagan",
+        "bolmadi", "kelmadi", "tushmadi",
+        "yoq", "emas", "qilmadi", "bolmagan",
     )
-    if any(term in lowered for term in negation_terms):
+    if any(term in normalized for term in negation_terms):
         return False
     if is_finance_rejection(lowered):
         return False

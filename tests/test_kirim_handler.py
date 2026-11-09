@@ -116,3 +116,14 @@ async def test_bot_sender_is_ignored(monkeypatch):
     await kirim.kirim_topic_handler(_event(PAYMENT_FORM, bot=True))
 
     bot_client_mock.send_message.assert_not_awaited()
+
+
+@pytest.mark.parametrize("apostrophe", ["'", "‘", "’", "ʻ", "ʼ"])
+def test_apostrophe_variants_recognized_and_negations_rejected(apostrophe):
+    assert kirim._looks_like_income_announcement(
+        f"TO{apostrophe}LOV TASDIQLASH Summa: 6.760.000"
+    )
+    assert not kirim._looks_like_income_announcement(
+        f"avans 1 500 000 bo{apostrophe}lmadi"
+    )
+    assert not kirim._looks_like_income_announcement(f"kirim 500 000 yo{apostrophe}q")
