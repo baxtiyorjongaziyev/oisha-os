@@ -85,25 +85,49 @@ def build_message(templates: tuple[str, ...], seller: str, card: Dict[str, Optio
 async def _send_as_oisha(chat_id: int, reply_to: int, text: str) -> None:
     if not app_ctx.bot_client:
         raise RuntimeError("bot_client unavailable")
-    await app_ctx.bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+    try:
+        await app_ctx.bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+    except ConnectionError:
+        # Telethon mijozi uzilib qolgan boʻlsa bir marta qayta ulanib urinadi.
+        await app_ctx.bot_client.connect()
+        await app_ctx.bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
 
 
-async def _send_via_bot_api(token: str, chat_id: int, reply_to: int, text: str) -> None:
+def _topic_id(message: Any) -> Optional[int]:
+    """Forum topic ID; General yoki oddiy guruhda None."""
+    reply = getattr(message, "reply_to", None)
+    if not reply or not getattr(reply, "forum_topic", False):
+        return None
+    return getattr(reply, "reply_to_top_id", None) or getattr(reply, "reply_to_msg_id", None)
+
+
+async def _send_via_bot_api(
+    token: str, chat_id: int, reply_to: int, text: str, thread_id: Optional[int] = None
+) -> None:
+    payload: Dict[str, Any] = {
+        "chat_id": chat_id,
+        "text": text,
+        "reply_to_message_id": reply_to,
+        "allow_sending_without_reply": True,
+    }
+    if thread_id:
+        payload["message_thread_id"] = thread_id
     async with httpx.AsyncClient(timeout=_SEND_TIMEOUT_SECONDS) as http:
         response = await http.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "reply_to_message_id": reply_to,
-                "allow_sending_without_reply": True,
-            },
+            json=payload,
         )
     if response.status_code != 200:
         raise RuntimeError(f"Bot API HTTP {response.status_code}")
 
 
-async def _congratulate(chat_id: int, reply_to: int, seller: str, card: Dict[str, Optional[str]]) -> None:
+async def _congratulate(
+    chat_id: int,
+    reply_to: int,
+    seller: str,
+    card: Dict[str, Optional[str]],
+    thread_id: Optional[int] = None,
+) -> None:
     """Har bir bot mustaqil: bittasining xatosi qolganlarini toʻxtatmaydi."""
     senders = [("oisha", OISHA_TEMPLATES, None)]
     for name, env_key, templates in (
@@ -122,7 +146,7 @@ async def _congratulate(chat_id: int, reply_to: int, seller: str, card: Dict[str
         text = build_message(templates, seller, card)
         try:
             if token:
-                await _send_via_bot_api(token, chat_id, reply_to, text)
+                await _send_via_bot_api(token, chat_id, reply_to, text, thread_id)
             else:
                 await _send_as_oisha(chat_id, reply_to, text)
         except Exception as exc:
@@ -156,4 +180,6 @@ async def sales_payment_congrats_handler(event: Any) -> None:
         return
     await db.set_state(state_key, "sent")
 
-    await _congratulate(chat_id, message_id, _seller_label(sender, card), card)
+    await _congratulate(
+        chat_id, message_id, _seller_label(sender, card), card, _topic_id(event.message)
+    )

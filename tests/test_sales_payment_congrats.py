@@ -121,3 +121,29 @@ def test_bot_sender_and_quiet_hours_are_silent():
     bot, bot_api, _ = _run(_event(), TOKENS, quiet=True)
     bot.send_message.assert_not_awaited()
     bot_api.assert_not_awaited()
+
+
+def test_bot_api_receives_card_topic():
+    event = _event()
+    event.message.reply_to = SimpleNamespace(
+        forum_topic=True, reply_to_top_id=None, reply_to_msg_id=2976
+    )
+    _, bot_api, _ = _run(event, TOKENS)
+    assert bot_api.await_count == 2
+    assert all(call.args[4] == 2976 for call in bot_api.await_args_list)
+
+
+def test_general_topic_sends_no_thread_id():
+    _, bot_api, _ = _run(_event(), TOKENS)
+    assert all(call.args[4] is None for call in bot_api.await_args_list)
+
+
+def test_oisha_reconnects_once_after_connection_error():
+    bot = SimpleNamespace(
+        send_message=AsyncMock(side_effect=[ConnectionError("disconnected"), None]),
+        connect=AsyncMock(),
+    )
+    with patch.object(spc, "app_ctx", SimpleNamespace(bot_client=bot)):
+        asyncio.run(spc._send_as_oisha(-100, 7, "tabrik"))
+    bot.connect.assert_awaited_once()
+    assert bot.send_message.await_count == 2
