@@ -67,3 +67,41 @@ Tajriba jurnali. Har yozuv faqat tekshirilgan faktga asoslanadi: sana, muhit, bu
 
 - Hermes cron'ni masofadan tahrirlashda **har doim** base64 skript + serverda `$(cat file)`; to'g'ridan-to'g'ri `ssh '… --prompt "…"'` ishlatilmaydi.
 - Har tahrirdan keyin `jobs.json.bak-<sana>-<mavzu>` zaxira va readback majburiy.
+
+---
+
+## 2026-11-09 — Jamoa (Airtable) record ID'lari va sotuvchi handle'lari
+
+**Muhit:** `root@109.199.100.137`, jonli checkout `/home/ubuntu/oisha-os` (venv: `/home/ubuntu/oisha-os/venv`), Windows PowerShell'dan SSH.
+
+### ✅ Ishladi
+
+1. **Jamoa jadvalini o'qish.** Skriptni lokal yozib `scp` qilib, prod venv bilan ishga tushirish:
+   `cd /home/ubuntu/oisha-os && PYTHONPATH=. venv/bin/python /tmp/jamoa_probe.py`.
+   Skript ichida `AirtableSync(table_name="Jamoa").get_projects()` -> `id`, `Ism`, `Telegram`.
+   Natija: `recDbMupPcviBctAd` = Rayxon Rahimova, `recndwD6R8Wk3CNtY` = Mumtozmaxal Normurodova.
+   Lokal `data/airtable_all_*.json` fayllari Jamoa jadvalini o'z ichiga olmaydi.
+2. **Airtable maydonini yangilash.** `update_project_fields(rec_id, {"Telegram": "@handle"})` -> `True`,
+   keyin `get_projects(force_refresh=True)` bilan qayta o'qib tasdiqlash.
+3. **Deploy.** `python scripts/deploy_contabo_direct.py <fayllar>` (dry-run hash) -> `--apply`;
+   natija `DEPLOYED: file hashes verified, healthz=200`. Sog'liq: `http://127.0.0.1:8080/healthz/`
+   (`8000/healthz` 404 beradi).
+
+### ❌ Ishlamadi
+
+1. **Lokal Airtable.** `.env` yo'q: `get_finance_records()` -> `[[]]`, log
+   `[AIRTABLE] API key yoki Base ID yetishmayapti`.
+2. **Handle'ni Bot API bilan tekshirish.** `getChat?chat_id=@username` bot ko'rmagan foydalanuvchi uchun
+   `400 Bad Request: chat not found` qaytaradi — bu handle yo'qligini isbotlamaydi.
+3. **SSH ichida ko'p qatorli `python -c`.** PowerShell qo'shtirnoqlarni buzadi (`Argument expected for the -c option`).
+   Yechim: skript fayl + `scp` + `venv/bin/python /tmp/script.py`.
+4. **PowerShell'da `git push`.** `exit code 1` ko'rsatadi (stderr chiqishi), lekin push o'tadi;
+   tasdiq `git rev-parse HEAD` == `git rev-parse origin/<branch>`.
+5. **Obsidian Local REST API** shu sessiyada `fetch failed` berdi; yozuv vault fayliga to'g'ridan-to'g'ri qo'shildi.
+
+### ➡️ Qoida
+
+- Jamoa record ID yoki handle kerak bo'lsa — taxmin qilinmaydi, prodda `Jamoa` jadvali o'qiladi va manba yoziladi.
+- Airtable maydoni o'zgarsa, darhol Obsidian `20-Areas/Airtable_Operatsion_Tizimi_va_Ozgarishlar.md` ga yoziladi.
+- `income_supervisor` map'lari o'zgarsa, `tests/test_income_supervisor.py` guard testlari yuritiladi.
+- Prodda ishlaydigan checkout — `/home/ubuntu/oisha-os`; `/root/oisha-os` eski nusxa.
