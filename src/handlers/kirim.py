@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from src.context import app_ctx
 from src.settings import settings
+from src.handlers.sales_payment_congrats import parse_payment_card
 from src.handlers.income_workflow import (
     is_group_open_confirmation,
     is_finance_rejection,
@@ -19,17 +20,6 @@ def _kirim_celebration_key(chat_id: int, message_id: int) -> str:
     return f"kirim_celebration:{chat_id}:{message_id}"
 
 
-# Apostrof variantlari solishtirishdan oldin olib tashlanadi (_strip_apostrophes).
-_INCOME_KEYWORDS = ("tolov tasdiq", "tushdi", "kirim", "avans", "predoplata")
-_APOSTROPHES = str.maketrans("", "", "'‘’ʻʼ`")
-_SUMMA_RE = re.compile(r"summa[^\d\n]{0,30}(\d[\d \t,.]*)", re.IGNORECASE)
-
-
-def kirim_group_id() -> Any:
-    """Sotuv guruhi: kirim tabriklari shu guruhda, istalgan topicda."""
-    return getattr(settings, "CRM_SALES_REPORT_GROUP_ID", None)
-
-
 def _extract_income_amount(text: str) -> Dict[str, Any]:
     lowered = (text or "").lower()
     currency = "USD" if ("$" in lowered or "usd" in lowered) else "UZS"
@@ -37,11 +27,7 @@ def _extract_income_amount(text: str) -> Dict[str, Any]:
     if not matches:
         return {"raw": "noma'lum", "value": None, "currency": currency}
 
-    summa_match = _SUMMA_RE.search(text or "")
-    if summa_match:
-        raw_amount = summa_match.group(1).strip().rstrip(".,")
-    else:
-        raw_amount = max(matches, key=lambda match: len(match.group(0))).group(0).strip()
+    raw_amount = max(matches, key=lambda match: len(match.group(0))).group(0).strip()
     if currency == "USD":
         cleaned = raw_amount.replace(" ", "").replace(",", ".")
         if cleaned.count(".") > 1:
@@ -93,18 +79,19 @@ def _looks_like_income_announcement(text: str) -> bool:
     lowered = (text or "").lower().strip()
     if not lowered or lowered.startswith("/"):
         return False
+    # Toʻlov kartasini sales_payment_congrats tabriklaydi; ikki marta yozilmasin.
+    if parse_payment_card(text):
+        return False
     if is_group_open_confirmation(lowered):
         return False
 
-    normalized = lowered.translate(_APOSTROPHES)
     if lowered.endswith("?"):
-        return False
-    if not any(keyword in normalized for keyword in _INCOME_KEYWORDS):
         return False
     negation_terms = (
         "bolmadi", "kelmadi", "tushmadi",
         "yoq", "emas", "qilmadi", "bolmagan",
     )
+    normalized = lowered.translate(str.maketrans("", "", "'‘’ʻʼ`"))
     if any(term in normalized for term in negation_terms):
         return False
     if is_finance_rejection(lowered):
@@ -114,12 +101,31 @@ def _looks_like_income_announcement(text: str) -> bool:
     return amount.get("value") is not None
 
 
+def _is_kirim_topic_message(message: Any) -> bool:
+    if not settings.TOPIC_KIRIM_ID:
+        return False
+
+    topic_id = settings.TOPIC_KIRIM_ID
+    direct_reply_id = getattr(message, "reply_to_msg_id", None)
+    reply_to = getattr(message, "reply_to", None)
+    reply_top_id = getattr(message, "reply_to_top_id", None) or getattr(
+        reply_to, "reply_to_top_id", None
+    )
+    forum_topic = getattr(reply_to, "forum_topic", False)
+
+    return bool(
+        direct_reply_id == topic_id
+        or reply_top_id == topic_id
+        or (forum_topic and direct_reply_id == topic_id)
+    )
+
+
 async def _send_kirim_celebration(event, celebration: str) -> None:
     """Prefer the bot head, then use the listening userbot when group access is absent."""
     if app_ctx.bot_client:
         try:
             await app_ctx.bot_client.send_message(
-                kirim_group_id(),
+                settings.TEAM_GROUP_ID,
                 celebration,
                 reply_to=event.id,
                 link_preview=False,
@@ -134,9 +140,12 @@ async def _send_kirim_celebration(event, celebration: str) -> None:
 
 
 async def kirim_topic_handler(event):
-    """Sotuv guruhida (istalgan topic) sotuvchi kirim yozsa tabriklaydi."""
-    group_id = kirim_group_id()
-    if not group_id or event.chat_id != group_id:
+    """Team guruhidagi Kirim topicda sotuvchi kirim yozsa tabriklaydi."""
+    if not settings.TEAM_GROUP_ID or not settings.TOPIC_KIRIM_ID:
+        return
+    if event.chat_id != settings.TEAM_GROUP_ID:
+        return
+    if not _is_kirim_topic_message(event.message):
         return
 
     text = (getattr(event.message, "message", None) or getattr(event.message, "text", None) or "").strip()
