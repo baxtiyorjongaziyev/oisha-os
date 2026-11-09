@@ -55,3 +55,11 @@ async def test_kirim_topic_income_event_sends_celebration_once(monkeypatch):
         call("kirim_celebration:-100123:88", "started"),
         call("kirim_celebration:-100123:88", "done"),
     ]
+
+
+def test_payment_card_is_left_to_sales_congrats_handler():
+    card = "TOʻLOV TASDIQLASH
+Summa: 6.760.000
+Sotuvchi: Ali"
+    assert not kirim._looks_like_income_announcement(card)
+    assert kirim._looks_like_income_announcement("Logo uchun 1 500 000 tushdi")

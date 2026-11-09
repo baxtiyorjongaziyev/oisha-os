@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from src.context import app_ctx
 from src.settings import settings
+from src.handlers.sales_payment_congrats import parse_payment_card
 from src.handlers.income_workflow import (
     is_group_open_confirmation,
     is_finance_rejection,
@@ -77,6 +78,9 @@ def _sender_display_name(sender: Any) -> str:
 def _looks_like_income_announcement(text: str) -> bool:
     lowered = (text or "").lower().strip()
     if not lowered or lowered.startswith("/"):
+        return False
+    # Toʻlov kartasini sales_payment_congrats tabriklaydi; ikki marta yozilmasin.
+    if parse_payment_card(text):
         return False
     if is_group_open_confirmation(lowered):
         return False
