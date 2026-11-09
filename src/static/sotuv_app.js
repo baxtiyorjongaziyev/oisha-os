@@ -158,25 +158,24 @@ function renderAmoKanban(data) {
       const contactLine = l.company_name
         ? `${l.contact_name || "Mijoz"}, ${l.company_name}`
         : `${l.contact_name || "Mijoz"} · ${l.responsible_name ? l.responsible_name.split(" ")[0] : "JB"}`;
-      const dateStr = (l.updated_at || "Bugun 14:11").slice(0, 16);
+      const formattedDate = formatAmoCardDate(l.updated_at);
       const titleClean = l.name || (l.phone ? `Bitim (${l.phone})` : `Bitim #${l.id}`);
       const priceVal = Number(l.price || 0);
       const tags = (l.tags || []).slice(0, 3);
       const extraTags = (l.tags || []).length > 3 ? `<span class="amo-badge">+${l.tags.length - 3}</span>` : "";
       const tagsHtml = tags.map((t) => `<span class="amo-badge truncate max-w-[130px]">${t}</span>`).join("") + extraTags;
-      const dotClass = idx % 5 === 0 ? "amo-dot-red" : idx % 3 === 0 ? "amo-dot-amber" : "amo-dot-gray";
-      const dotTitle = idx % 5 === 0 ? "Muddati o'tgan vazifa" : idx % 3 === 0 ? "Bugungi vazifa" : "Vazifasiz";
+      const taskMeta = calculateLeadTaskDot(l);
 
       card.innerHTML = `
         <div class="flex items-center justify-between amo-type-meta leading-tight">
           <span class="truncate max-w-[190px] text-[#4a5568] font-medium">${contactLine}</span>
-          <span class="shrink-0 text-[#9da8b6]">${dateStr.includes("-") ? "Bugun 14:11" : dateStr}</span>
+          <span class="shrink-0 text-[#9da8b6] font-mono">${formattedDate}</span>
         </div>
         <div class="amo-card-title line-clamp-2">${titleClean}</div>
-        ${priceVal > 0 ? `<div class="amo-card-price tabular-nums">${priceVal.toLocaleString("uz-UZ")} so'm</div>` : ""}
+        ${priceVal > 0 ? `<div class="amo-card-price tabular-nums text-[#1e293b]">${priceVal.toLocaleString("uz-UZ")} soʻm</div>` : ""}
         <div class="flex items-center justify-between gap-1.5 pt-1 mt-0.5">
           <div class="flex items-center gap-1 flex-wrap">${tagsHtml}</div>
-          <span class="amo-dot ${dotClass}" title="${dotTitle}"></span>
+          <span class="amo-dot ${taskMeta.dotClass}" title="${taskMeta.title}"></span>
         </div>`;
       cardsList.appendChild(card);
     });

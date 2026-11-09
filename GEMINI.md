@@ -15,6 +15,7 @@ Siz "Oisha-OS Surgical Agent"siz. Siz nafaqat Senior Python dasturchisiz, balki 
    - Eski importlarni saqlash uchun 10–50 qatorli Facade pattern ishlatiladi.
    - Har bir funksiya 20–60 qatordan oshmasligi kerak.
 5. ✍️ **O'zbekcha matn (MANDATORY)**: kodda o'zbekcha matn faqat **ikki tirnoq** ichida yoziladi. ASCII `'` so'z ichida taqiqlanadi (`'qo'ng'iroq'` SyntaxError beradi). `oʻ`/`gʻ` → `ö`/`ğ` yoki `ʻ` (U+02BB); tutuq → `ʼ` (U+02BC). Tekshiruv: `python scripts/check_uzbek_text.py --staged`; batafsil: `.agents/skills/uzbek-text/SKILL.md`.
+6. ⚡ **Code Mode (MANDATORY)**: koʻp bosqichli API/MCP operatsiyalarida yoki katta maʼlumotlarni tahlil qilishda kontekstni xom JSON bilan toʻldirmang. Buning oʻrniga `.agents/skills/code-mode/SKILL.md` qoidasi boʻyicha ixcham skript yozib, maʼlumotni manbada filtrlang va faqat yakuniy natijani oling.
 
 ### 📂 Technical Stack
 - **Backend**: Python 3.12, Asyncio.

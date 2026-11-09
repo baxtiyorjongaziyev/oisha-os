@@ -34,3 +34,4 @@ Qoida muhim bo'lsa → hook yoki test bilan majburlanadi (so'z — iltimos, hook
     ish tarixi → `docs/agents/handoff-log.md`.
 14. `AGENTS.md` va `CLAUDE.md` — xarita. Tafsilot `docs/` ga, xaritada faqat havola.
 15. Root papkaga yangi `.md` hisobot qo'yilmaydi → `docs/` yoki `docs/archive/`.
+16. **Code Mode (kontekstni asrash):** Koʻp qadamli API, MCP yoki katta maʼlumotlar tahlilida xom JSONʼni kontekstga tiqmang. Buning oʻrniga ixcham skript orqali lokal filtrlab faqat yakuniy natijani oling (`.agents/skills/code-mode/SKILL.md`).

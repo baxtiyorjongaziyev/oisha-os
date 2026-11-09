@@ -2651,3 +2651,54 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `python -m pytest tests/test_deal_activator.py` -> 2 passed.
   - `bandit -r src/services/ai/deal_activator.py -ll` -> 0 issues.
   - `python scripts/check_uzbek_text.py --staged` -> toza (0 xato).
+
+
+### 2026-11-09 — Antigravity: Native Oisha CRM Engine (amoCRM Independent Core)
+- **Bajarilgan ish**:
+  1. amoCRMʼga toʻliq mustaqil muqobil boʻlgan **Native Oisha CRM Engine** noldan ishlab chiqildi (`src/services/core/crm/engine/`).
+  2. `src/services/core/crm/engine/schema.py`: Voronkalar, bosqichlar, bitimlar, kontaktlar, vazifalar va timeline uchun Pydantic modellar yaratildi.
+  3. `src/services/core/crm/engine/store_ddl.py` va `store.py`: Mahalliy SQLite/WAL jadval arxitekturasi va toʻliq CRUD funksiyalari (150 – 400 qator meʼyorida).
+  4. `src/services/core/crm/engine/automation.py`: Raqamli voronka (Digital Pipeline) avtomatizatsiyasi — bosqich oʻzgarganda avto-vazifa va Telegram bildirishnoma generatori.
+  5. `src/services/core/crm/engine/intake.py`: Tashqi manbalar (sayt, bot, Meta ads) uchun kiruvchi lidlar qabul qilish va telefon raqami boʻyicha dublikatni tekshirish tizimi.
+  6. `src/services/core/crm/engine/ai_coach.py`: BANT/SPIN asosida har bir bitim uchun 3 bosqichli Surgical Mission taktik reja generatori.
+  7. `src/api/routes/oisha_crm_routes.py` va `src/services/api_server/core.py`: FastAPI endpointlari (`/api/crm/native/...`) yaratildi va serverga ulandi.
+  8. `tests/test_oisha_crm_engine.py`: 7 ta toʻliq unit va marshrut integratsiya testlari yozildi va barchasi yashil oʻtdi.
+- **Oʻzgargan fayllar**:
+  - `src/services/core/crm/engine/schema.py`
+  - `src/services/core/crm/engine/store_ddl.py`
+  - `src/services/core/crm/engine/store.py`
+  - `src/services/core/crm/engine/automation.py`
+  - `src/services/core/crm/engine/intake.py`
+  - `src/services/core/crm/engine/ai_coach.py`
+  - `src/services/core/crm/engine/__init__.py`
+  - `src/api/routes/oisha_crm_routes.py`
+  - `src/services/api_server/core.py`
+  - `tests/test_oisha_crm_engine.py`
+  - `docs/agents/handoff-log.md`
+- **Tekshiruv dalili**:
+  - `pytest tests/test_oisha_crm_engine.py` -> 7 passed in 1.39s.
+  - `bandit -r src/services/core/crm/engine/ src/api/routes/oisha_crm_routes.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py --all --baseline config/uzbek_text_baseline.txt` -> toza (0 xato).
+  - Barcha fayllar qatʼiy 150 – 400 qator meʼyorida (God-file yoʻq).
+- **Qolgan ish/Keyingi qadam**: `/sotuv` veb-paneli UI komponentlarini yangi native `/api/crm/native/` endpointlariga toʻgʻridan-toʻgʻri ulash va Telegram bot webhookini lead intake bilan bogʻlash.
+
+
+### 2026-11-09 — Antigravity: Meta Ads Audit, Umarin Mebel Sozlamalari va Desktop-Notebook Sinxronizatsiyasi
+- **Bajarilgan ish**:
+  1. **Meta Ads Manager Auditi va Reklama Sozlamalari**:
+     - Mebel | Stol-Stul | Calls | Reels DfZoOAcRarW (ID: 120251240011810552) kampaniyasi umarin.uz va Stol-Stul Mebel (Page ID: 1111201232082812) uchun toʻliq Calls (qoʻngʻiroqlar) maqsadida sozlandi va eʼlon qilindi.
+     - 1-video (DfZoOAcRarW): +998 91 671 35 65 raqamiga toʻgʻridan-toʻgʻri 'Позвонить' tugmasi bilan muvaffaqiyatli nashr etildi.
+     - 2-video (DfAU7ROxjx3): Instagram hamkorlik cheklovini aylanib oʻtish uchun yuqori sifatda mahalliy media/qoshtepa_reel.mp4 (11.3 MB) fayliga yuklab olindi va .gitignore ga kiritildi.
+     - **Billing holati auditi**: Jonbranding reklama hisobida .34, shaxsiy hisobda .64 qarz mavjudligi va mebel loyihasi uchun alohida mustaqil hisob ochish strategiyasi ishlab chiqildi.
+  2. **Loyihalararo Desktop-Notebook Sinxronizatsiyasi**:
+     - Barcha loyihalar (oisha-os, oisha-contabo, oisha-tn-audit, jonbranding-web) holati toʻliq tekshirildi.
+     - Barcha yangi CRM, Finance, Mockup va Pivot testlari (	ests/test_*.py) 100% yashil oʻtdi (14/14 passed).
+     - Xavfsizlik (andit -r src/ -ll -> 0 issues) va oʻzbekcha matn guardi (check_uzbek_text.py -> toza) tekshirildi.
+- **Oʻzgargan fayllar**:
+  - .gitignore (media/ va telegram_history_digest.md qoʻshildi)
+  - docs/agents/handoff-log.md
+- **Tekshiruv dalili**:
+  - pytest tests/test_cooling_customers.py tests/test_reconciliation.py tests/test_pivot_builder.py tests/test_oisha_crm_engine.py tests/test_mockup_generator.py tests/test_investor_ledger.py tests/test_project_margin.py -q -> 14 passed.
+  - andit -r src/ -ll -> 0 issues.
+  - python scripts/check_uzbek_text.py -> toza (61 fayl).
+- **Qolgan ish/Keyingi qadam**: Ishxonadagi noutbukda git pull --rebase qilish va ishni silliq davom ettirish.

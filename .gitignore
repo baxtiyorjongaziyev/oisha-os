@@ -178,3 +178,7 @@ data/brain_digest_state.txt
 .superpowers/
 
 .secrets/
+
+# Media downloads (video reels, ad creatives)
+media/
+data/telegram_history_digest.md

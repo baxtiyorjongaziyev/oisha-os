@@ -138,7 +138,8 @@ class TelegramHistoryCrawler:
         self,
         client: TelegramClient,
         *,
-        max_dialogs: int = 500,
+        max_dialogs: int = 300,
+        target_leads: int = 10,
         progress_callback: Optional[Any] = None,
     ) -> List[CrawledLeadRecord]:
         """Tarixni toʻliq aylanib, biznes mijozlarni tahlil qilish."""
@@ -146,6 +147,8 @@ class TelegramHistoryCrawler:
         crawled_count = 0
 
         async for dialog in client.iter_dialogs(limit=max_dialogs):
+            if len(results) >= target_leads:
+                break
             if not dialog.is_user:
                 continue
             entity = dialog.entity
@@ -169,7 +172,7 @@ class TelegramHistoryCrawler:
 
             try:
                 transcript = await self.extract_dialog_history(client, entity, limit=15)
-                if not transcript.strip() or len(transcript) < 30:
+                if not transcript.strip() or len(transcript) < 10:
                     self._processed_peers.add(user_id)
                     continue
 

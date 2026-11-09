@@ -15,6 +15,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
@@ -65,10 +70,12 @@ async def main() -> None:
     async def on_progress(idx: int, name: str) -> None:
         print(f"[{idx:03d}] 🔍 Tekshirilmoqda: {name} (ovozli xabarlar STT qilinmoqda)...")
 
+    target_leads = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 5
+
     try:
-        print("⏳ Arxivni avtonom tahlil qilish boshlandi (toʻxtatish uchun Ctrl+C)...\n")
+        print(f"⏳ Arxivni avtonom tahlil qilish boshlandi (maqsad: {target_leads} ta eng istiqbolli mijoz)...")
         leads = await crawler.crawl_history(
-            client, max_dialogs=300, progress_callback=on_progress
+            client, max_dialogs=300, target_leads=target_leads, progress_callback=on_progress
         )
 
         print("\n" + "=" * 65)

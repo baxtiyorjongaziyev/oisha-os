@@ -146,6 +146,7 @@ from src.api.routes.crm_auth_routes import router as crm_auth_router
 from src.api.routes.crm_call_routes import router as crm_call_router
 from src.api.routes.crm_enterprise_routes import router as crm_enterprise_router
 from src.api.routes.twenty_moizvonki import router as twenty_moizvonki_router
+from src.api.routes.oisha_crm_routes import router as oisha_crm_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -185,6 +186,8 @@ app.include_router(crm_auth_router)
 app.include_router(crm_call_router)
 app.include_router(crm_enterprise_router)
 app.include_router(twenty_moizvonki_router)
+app.include_router(oisha_crm_router)
+
 
 app.add_api_route("/health", liveness_probe, methods=["GET"], include_in_schema=False)
 app.add_api_route("/healthz", liveness_probe, methods=["GET"], include_in_schema=False)
