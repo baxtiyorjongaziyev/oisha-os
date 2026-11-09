@@ -96,7 +96,7 @@ def is_excluded_contact(
             # Masalan, 'Dilnoza Uztelecom' yoki 'Ifora Menejer'
             if kw == "menejer" and ("menejer" in name_clean or "menejeri" in name_clean):
                 return True, "service_provider:menejer_title"
-            if kw != "menejer" and kw in name_clean:
+            if kw != "menejer":
                 return True, f"service_provider:{kw}"
 
     # C) Yaroqsiz / log sdelkalar

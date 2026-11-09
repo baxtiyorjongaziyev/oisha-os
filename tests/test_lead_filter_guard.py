@@ -47,6 +47,11 @@ def test_service_provider_exclusion():
     assert exc is True
     assert "service_provider" in reason
 
+    # Username provider check
+    exc, reason = is_excluded_contact(username="@uztelecom_service")
+    assert exc is True
+    assert "service_provider:uztelecom" in reason
+
 
 def test_dummy_lead_exclusion():
     # Missed call / unreached
