@@ -194,7 +194,7 @@ def register_crm_drive_approval_handlers(dp: Any, *, owner_id: int) -> None:
             return
         pieces = str(callback.data or "").split(":")
         if len(pieces) != 3 or pieces[1] not in {"yes", "no"}:
-            await callback.answer("Notoʼg'ri soʼrov", show_alert=True)
+            await callback.answer("Notoʼgʼri soʼrov", show_alert=True)
             return
         action, request_id = pieces[1], pieces[2]
         try:
