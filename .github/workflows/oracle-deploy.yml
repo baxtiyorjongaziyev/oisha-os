@@ -109,6 +109,8 @@ jobs:
           AMOCRM_CHAT_CHANNEL_SECRET: ${{ secrets.AMOCRM_CHAT_CHANNEL_SECRET }}
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
           OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
           SYNC_AGENTS_ON_DEPLOY: ${{ vars.SYNC_AGENTS_ON_DEPLOY || '0' }}
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
@@ -327,6 +329,14 @@ jobs:
               cat /tmp/persisted_env_backup.env >> .env
             fi
 
+            # Personal Drive OAuth client secrets are stored only in runtime .env.
+            if [ -n "${GDRIVE_OAUTH_CLIENT_ID:-}" ]; then
+              printf 'GDRIVE_OAUTH_CLIENT_ID=%s\n' "$GDRIVE_OAUTH_CLIENT_ID" >> .env
+            fi
+            if [ -n "${GDRIVE_OAUTH_CLIENT_SECRET:-}" ]; then
+              printf 'GDRIVE_OAUTH_CLIENT_SECRET=%s\n' "$GDRIVE_OAUTH_CLIENT_SECRET" >> .env
+            fi
+            chmod 600 .env
             # Ingest Moizvonki credentials from workflow env if not already present
             if [ -n "${MOIZVONKI_EMAIL:-}" ] && ! grep -q '^MOIZVONKI_EMAIL=' .env; then
               echo "MOIZVONKI_EMAIL=${MOIZVONKI_EMAIL}" >> .env
