@@ -86,7 +86,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Deploy to Contabo VPS and verify health
         id: oracle
@@ -109,6 +109,7 @@ jobs:
           AMOCRM_CHAT_CHANNEL_SECRET: ${{ secrets.AMOCRM_CHAT_CHANNEL_SECRET }}
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
           OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
+          SYNC_AGENTS_ON_DEPLOY: ${{ vars.SYNC_AGENTS_ON_DEPLOY || '0' }}
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
@@ -453,8 +454,16 @@ jobs:
               echo "oisha-leads.service topilmadi — o'tkazib yuborildi"
             fi
 
-            # Hermes va OpenClaw agentlarini sinxronlash (Mr.Jon va Oisha)
-            sudo python3 scripts/sync_agents_runtime.py || echo "Agents sync ogohlantirish bilan o'tdi"
+            # Agent repair must not block the core Oisha service rollout.
+            # OpenClaw doctor --fix can stop the Gateway and run for minutes;
+            # run it only during a separately approved maintenance window.
+            if [ "${SYNC_AGENTS_ON_DEPLOY:-0}" = "1" ]; then
+              echo "[AGENTS] Optional bounded agent sync started"
+              timeout --signal=TERM --kill-after=10s 120s sudo python3 -u scripts/sync_agents_runtime.py \
+                || echo "[AGENTS] Optional agent sync timed out/failed; continuing to service health checks"
+            else
+              echo "[AGENTS] Skipped in core deploy (SYNC_AGENTS_ON_DEPLOY=0)"
+            fi
 
             # Liveness gate: the PROCESS must come up and stay up. /healthz is
             # an always-200 liveness probe (process alive + event loop

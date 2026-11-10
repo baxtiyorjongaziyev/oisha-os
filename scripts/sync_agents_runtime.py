@@ -131,14 +131,29 @@ def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None
         for ws in workspaces:
             sync_openclaw_workspace(ws, owner_user)
 
-        # Agar openclaw CLI mavjud boʻlsa, config buyrugʻi orqali ham mustahkamlash
+        # Doctor can stop the managed gateway: never run repairs automatically.
+        # Owner can opt in during a maintenance window, not during normal deploy.
         if owner_user and os.name != "nt":
+            if os.getenv("OISHA_RUN_OPENCLAW_DOCTOR_FIX", "0") == "1":
+                try:
+                    subprocess.run(
+                        ["sudo", "-iu", owner_user, "bash", "-c",
+                         "command -v openclaw >/dev/null 2>&1 && openclaw doctor --fix"],
+                        check=False, timeout=60,
+                    )
+                except subprocess.TimeoutExpired:
+                    logger.warning("[OpenClaw] Doctor repair timed out for %s", owner_user)
             cmd = (
                 "command -v openclaw >/dev/null 2>&1 && "
-                "openclaw doctor --fix 2>/dev/null || true && "
-                'openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash" 2>/dev/null || true'
+                'openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash"'
             )
-            subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False)
+            try:
+                subprocess.run(
+                    ["sudo", "-iu", owner_user, "bash", "-c", cmd],
+                    check=False, timeout=30,
+                )
+            except subprocess.TimeoutExpired:
+                logger.warning("[OpenClaw] Model config timed out for %s", owner_user)
 
 
 def sync_hermes_agent(hermes_dir: pathlib.Path | None = None) -> None:
