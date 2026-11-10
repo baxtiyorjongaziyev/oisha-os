@@ -82,3 +82,46 @@ def test_linked_project_seller_is_used(_isolate_state, monkeypatch):
     rec = {"id": "recL", "fields": dict(REC["fields"], Loyiha=["recProj"])}
     res = asyncio.run(sup.resolve_seller_for_income(rec, airtable_sync=MagicMock(), amocrm_sync=None))
     assert res["seller_id"] == "recfj3ExodGmnN2VW" and res["source"] == "Loyiha kartasi"
+
+
+def test_shahnoza_alert_uses_canonical_handle(_isolate_state):
+    """Alert must show @jonbranding_assistant, not the retired @Shahnozzy handle."""
+    sent = _isolate_state
+    lead = {"id": 1, "name": "x", "responsible_user_id": 13021974}
+    asyncio.run(sup.supervise_recent_incomes(_at([REC]), _crm([lead])))
+    assert len(sent) == 1
+    assert "@jonbranding_assistant" in sent[0]
+    assert "Shahnozzy" not in sent[0]
+
+
+def test_seller_handles_match_report_formatter():
+    """Seller alert handles must agree with the shared report username map."""
+    from src.services.call_analytics.call_report_formatter import REP_TG_USERNAMES
+
+    expected = {
+        "rec8fmSHRpZi5Rx9N": "shahnoza",
+        "recDbMupPcviBctAd": "rayxon",
+    }
+    for jamoa_id, rep_key in expected.items():
+        assert sup.JAMOA_SELLER_INFO[jamoa_id]["handle"] == REP_TG_USERNAMES[rep_key]
+    assert sup.JAMOA_SELLER_INFO["recndwD6R8Wk3CNtY"]["handle"] == "@MumtozmaxalJonbranding"
+
+
+def test_amocrm_ids_map_to_jamoa_records():
+    """Known AmoCRM responsible ids must resolve to the right Jamoa record."""
+    expected = {
+        13021974: "rec8fmSHRpZi5Rx9N",
+        9000001: "recDbMupPcviBctAd",
+        9000002: "recndwD6R8Wk3CNtY",
+        9000003: "recPi9SROzJNK8SX7",
+    }
+    for amo_id, jamoa_id in expected.items():
+        assert sup.AMOCRM_USER_TO_JAMOA[amo_id] == jamoa_id
+        assert jamoa_id in sup.JAMOA_SELLER_INFO
+
+
+def test_mumtozmaxal_record_is_not_labelled_farangiz():
+    """recndwD6R8Wk3CNtY belongs to Mumtozmaxal; the old Farangiz label was wrong."""
+    info = sup.JAMOA_SELLER_INFO["recndwD6R8Wk3CNtY"]
+    assert info["name"] == "Mumtozmaxal Normurodova"
+    assert not any(v["name"].startswith("Farangiz") for v in sup.JAMOA_SELLER_INFO.values())

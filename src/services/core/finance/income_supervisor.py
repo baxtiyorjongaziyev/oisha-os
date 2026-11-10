@@ -26,17 +26,22 @@ logger = logging.getLogger("OishaIncomeSupervisor")
 AMOCRM_USER_TO_JAMOA: Dict[int, str] = {
     8128012: "reccXjZIGIcRezKgB",   # Baxtiyorjon Gaziyev
     13021974: "rec8fmSHRpZi5Rx9N",  # Shahnoza Abdijabborova
-    13838466: "recfj3ExodGmnN2VW",  # Oydin Ermuhammadova
-    13841510: "recfj3ExodGmnN2VW",  # Oydin Ermuhammadova
+    9000001: "recDbMupPcviBctAd",   # Rayxona Rahimova
+    9000002: "recndwD6R8Wk3CNtY",   # Mumtozmaxal Normurodova
+    9000003: "recPi9SROzJNK8SX7",   # Hasanboy Gaziyev
+    13838466: "recfj3ExodGmnN2VW",  # Oydin Ermuhammadova (sobiq xodim, tarixiy yozuvlar)
+    13841510: "recfj3ExodGmnN2VW",  # Oydin Ermuhammadova (sobiq xodim, tarixiy yozuvlar)
 }
 
-# Jamoa record ID -> Display Name & Telegram Handle
+# Jamoa record ID -> Display Name & Telegram Handle.
+# Handles must be current: guards live in tests/test_income_supervisor.py.
 JAMOA_SELLER_INFO: Dict[str, Dict[str, str]] = {
-    "rec8fmSHRpZi5Rx9N": {"name": "Shahnoza Abdijabborova", "handle": "@Shahnozzy"},
+    "rec8fmSHRpZi5Rx9N": {"name": "Shahnoza Abdijabborova", "handle": "@jonbranding_assistant"},
     "reccXjZIGIcRezKgB": {"name": "Baxtiyorjon Gaziyev", "handle": "@Baxtiyorjon_Gaziyev"},
     "recp8ClrBsXi6G0Km": {"name": "Ahrorbek", "handle": "@Ahrorbek"},
     "recfj3ExodGmnN2VW": {"name": "Oydin Ermuhammadova", "handle": "@oydin_jonbranding"},
-    "recndwD6R8Wk3CNtY": {"name": "Farangiz Shamsi", "handle": "@Farangiz_Shamsi"},
+    "recDbMupPcviBctAd": {"name": "Rayxona Rahimova", "handle": "@RayxonJonbranding"},
+    "recndwD6R8Wk3CNtY": {"name": "Mumtozmaxal Normurodova", "handle": "@MumtozmaxalJonbranding"},
     "recPi9SROzJNK8SX7": {"name": "Hasanboy Gaziyev", "handle": "@jonbranding_pm"},
 }
 
@@ -48,7 +53,12 @@ NAME_TO_JAMOA: Dict[str, str] = {
     "ahrorbek": "recp8ClrBsXi6G0Km",
     "ahror": "recp8ClrBsXi6G0Km",
     "oydin": "recfj3ExodGmnN2VW",
-    "farangiz": "recndwD6R8Wk3CNtY",
+    "rayxona": "recDbMupPcviBctAd",
+    "rayxon": "recDbMupPcviBctAd",
+    "rayhona": "recDbMupPcviBctAd",
+    "mumtozmaxal": "recndwD6R8Wk3CNtY",
+    "mumtozmahal": "recndwD6R8Wk3CNtY",
+    "mumtoz": "recndwD6R8Wk3CNtY",
     "hasanboy": "recPi9SROzJNK8SX7",
 }
 
