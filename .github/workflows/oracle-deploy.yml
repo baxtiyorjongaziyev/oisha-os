@@ -228,6 +228,8 @@ jobs:
               printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
             fi
 
+            # Keep temporary credential backups readable only by the deploy user.
+            umask 077
             # Preserve existing Meta / Instagram / Moizvonki / Payme / Telephony / Google credentials from .env
             if [ -f .env ]; then
               grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_|GOOGLE_|GDRIVE_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
