@@ -2803,3 +2803,14 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Oʻzgargan fayllar:** `src/agents/{specialist_base,naming_agent,trademark_agent,packaging_agent,reels_script_agent,orchestrator}.py`, `src/controllers/message_controller.py`, `tests/test_brand_studio_agents.py`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3870 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
 - **Qolgan ish/Bloker:** Production'da jonli LLM javobi tekshirilmagan (faqat unit test, AI mock). `AGENTS.md` Locks'ga yozilmadi (Coordinator fayli). Mavjud agentlar `SpecialistAgent` ga koʻchirilmadi (refactor scope'dan tashqari).
+
+
+## 2026-11-10 — Claude — agency-agents reposidan 8 ta persona qoʻshildi
+- **Vazifa:** Owner `msitarzewski/agency-agents` havolasini berdi. Mavjud 35 persona shu repodan qisqartirilgan; yetishmayotgan, agentlikka kerakli 8 tasi qoʻshildi.
+- **Bajarilgan ish:**
+  1. `src/services/personas/agency_agents_extra.py`: `GROWTH_PERSONAS` — `paid-media-paid-social-strategist`, `paid-media-creative-strategist`, `paid-media-tracking-specialist`, `sales-offer-lead-gen-strategist`, `marketing-carousel-growth-engine`, `marketing-email-strategist`, `design-image-prompt-engineer`, `project-management-studio-producer`. Manba: upstream commit `8ae6164`, MIT (fayl docstringida).
+  2. `personas/__init__.py`, `core/agency_personas.py`: `GROWTH_PERSONAS` qoʻshildi va re-export qilindi.
+  3. `agents/persona_router.py`: 8 ta yangi pattern, umumiy "taklif"/"reklama" patternlaridan oldin.
+- **Oʻzgargan fayllar:** yuqoridagilar + `tests/test_agency_agents_personas.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3892 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** Persona matnlari upstream fayllarning qoʻlda qisqartirilgan varianti (soʻzma-soʻz nusxa emas). Jonli LLM javobi tekshirilmagan. PR #1050 da GitHub-hosted CI joblari ishga tushmayapti (hisob darajasidagi sabab, PR izohida).

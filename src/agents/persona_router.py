@@ -24,6 +24,15 @@ class PersonaRouter:
         # PSYCHOLOGY & MINDSET COACHING (SALES & PM)
         (r"telefon qilishga qo.rq|qo.ng.iroq qilishga qo.rq|rad etsa|yo.q desa|narx aytishga qo.rq|ikkilan|uyalyapman|telefon qilolmay|qilsam nima bo.ladi|call reluctance|call anxiety|rejection qo.rquv|sotuvchi qo.rquv", "sales-psychology-coach"),
         (r"kechikishni aytish|kechikdik nima deyman|asabiy mijoz|jahli chiqqan mijoz|scope creep|qo.shimcha pul so.rash|qoldiq to.lov so.rash|pm qo.rquv|pm stress|burnout", "pm-mindset-coach"),
+        # OFFER & PAID MEDIA (agency-agents) — umumiy "taklif"/"reklama" dan oldin tekshiriladi
+        (r"offer|lid magnit|lead magnet|lid oqimi|lead gen", "sales-offer-lead-gen-strategist"),
+        (r"capi|conversions api|pixel|piksel|gtm|ga4|utm|event_id|tracking", "paid-media-tracking-specialist"),
+        (r"target|meta ads|facebook ads|ads manager|reklama kabinet|lookalike|retarget", "paid-media-paid-social-strategist"),
+        (r"kreativ|ad copy|reklama matn|banner matn", "paid-media-creative-strategist"),
+        (r"karusel|carousel", "marketing-carousel-growth-engine"),
+        (r"email marketing|rassilka|newsletter|email ketma|welcome sequence", "marketing-email-strategist"),
+        (r"midjourney|ai rasm|rasm generatsiya|rasm prompt|image prompt", "design-image-prompt-engineer"),
+        (r"portfel|resurs taqsim|jamoa yuklama|studiya", "project-management-studio-producer"),
         # SALES — deal qualification / MEDDPICC
         (r"narx|qancha|taklif|shartnoma|chegirma|deal|bitim|to.lov|payment|invoice|qiymat|budget", "sales-deal-strategist"),
         (r"qo.ng.iroq|discovery|suhbat tahlil|ehtiyoj nima|muammo nima|pain|nima kerak|nima xohlaydi", "sales-discovery-coach"),
