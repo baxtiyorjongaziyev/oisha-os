@@ -2791,3 +2791,15 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   3. O'zbekcha matn tekshiruvi: `python scripts/check_uzbek_text.py --staged` -> **Toza (8 fayl)**.
   4. Modular Code Standard: Barcha fayllar qat'iy $\le 400$ qator.
 - **Qolgan ish/Bloker:** Bloker yo'q. PR ochishga tayyor.
+
+
+## 2026-11-10 — Claude — Agentlik uchun 4 ta yangi mutaxassis agent (naming, trademark, packaging, reels_script)
+- **Vazifa:** Owner soʻrovi ("Yangi agentlar yozish"): Jon Branding jarayonlaridagi boʻshliqlar uchun yangi agentlar.
+- **Bajarilgan ish:**
+  1. `src/agents/specialist_base.py`: `SpecialistAgent` — umumiy `process_task`; kontekst `system_prompt` ni oʻzgartirmasdan oxirgi user xabariga qoʻshiladi.
+  2. `naming_agent.py`, `trademark_agent.py`, `packaging_agent.py`, `reels_script_agent.py`: prompt suffiks + `CONTEXT_FIELDS`. Promptlarda "tekshirilmagan" / "oʻylab topmang" guardraillari (AGENTS.md #10).
+  3. `orchestrator.py`: `AGENT_IDS` yagona roʻyxat (ikki dublikat oʻrniga), Gemini router promptiga 4 agent, keyword fallback.
+  4. `message_controller.py`: 4 agent roʻyxatdan oʻtkazildi.
+- **Oʻzgargan fayllar:** `src/agents/{specialist_base,naming_agent,trademark_agent,packaging_agent,reels_script_agent,orchestrator}.py`, `src/controllers/message_controller.py`, `tests/test_brand_studio_agents.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3870 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** Production'da jonli LLM javobi tekshirilmagan (faqat unit test, AI mock). `AGENTS.md` Locks'ga yozilmadi (Coordinator fayli). Mavjud agentlar `SpecialistAgent` ga koʻchirilmadi (refactor scope'dan tashqari).

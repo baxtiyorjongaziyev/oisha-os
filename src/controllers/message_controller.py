@@ -26,6 +26,10 @@ from src.agents.upsell_agent import UpsellAgent
 from src.agents.branding_advisor_agent import BrandingAdvisorAgent
 from src.agents.competitor_watch_agent import CompetitorWatchAgent
 from src.agents.checklist_agent import ChecklistAgent
+from src.agents.naming_agent import NamingAgent, NAMING_SUFFIX
+from src.agents.trademark_agent import TrademarkAgent, TRADEMARK_SUFFIX
+from src.agents.packaging_agent import PackagingAgent, PACKAGING_SUFFIX
+from src.agents.reels_script_agent import ReelsScriptAgent, REELS_SCRIPT_SUFFIX
 from src.agents.orchestrator import AgentOrchestrator
 from src.agents.negotiation_engine import NegotiationEngine
 from src.agents.feedback_memory import FeedbackMemory
@@ -148,6 +152,10 @@ class MessageController:
             ("branding_advisor", BrandingAdvisorAgent,   BRANDING_ADVISOR_SUFFIX),
             ("competitor_watch", CompetitorWatchAgent,   COMPETITOR_WATCH_SUFFIX),
             ("checklist",        ChecklistAgent,          CHECKLIST_SUFFIX),
+            ("naming",           NamingAgent,            NAMING_SUFFIX),
+            ("trademark",        TrademarkAgent,         TRADEMARK_SUFFIX),
+            ("packaging",        PackagingAgent,         PACKAGING_SUFFIX),
+            ("reels_script",     ReelsScriptAgent,       REELS_SCRIPT_SUFFIX),
         ]
         for agent_id, AgentClass, suffix in _new_agents:
             self.agent_manager.register_agent(
