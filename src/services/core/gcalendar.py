@@ -51,11 +51,9 @@ class GoogleCalendarSync:
         calendar_id: Optional[str] = None,
         token_path: Optional[str] = None,
     ):
-        self.credentials_path = (
-            os.getenv("GOOGLE_CALENDAR_CREDENTIALS_PATH")
-            or credentials_path
-            or DEFAULT_CREDENTIALS_PATH
-        )
+        # Preserve the explicit/default file as fallback when an env override
+        # points to a missing or inaccessible Calendar credential.
+        self.credentials_path = credentials_path or DEFAULT_CREDENTIALS_PATH
         self.credentials_path_env = os.getenv(DEFAULT_CREDENTIALS_ENV, "").strip()
         self.calendar_id = (
             calendar_id or os.getenv("GOOGLE_CALENDAR_ID") or DEFAULT_CALENDAR_ID
