@@ -12,6 +12,7 @@ def _service():
     amo = Mock()
     amo.base_url = "https://example.amocrm.ru"
     amo.get_lead_notes = AsyncMock(return_value=[])
+    amo.last_error = None
     amo.add_lead_note.return_value = {"ok": True}
     drive = Mock()
     drive.service.files.return_value.list.return_value.execute.return_value = {"files": []}
