@@ -51,6 +51,24 @@ def _sync():
     return sync
 
 
+def test_credentials_path_env_overrides_constructor(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CALENDAR_CREDENTIALS_PATH", "/srv/secrets/calendar.json")
+    monkeypatch.setattr(GoogleCalendarSync, "_authenticate", lambda self: None)
+
+    sync = GoogleCalendarSync("data/creds.json")
+
+    assert sync.credentials_path == "/srv/secrets/calendar.json"
+
+
+def test_credentials_path_falls_back_to_constructor(monkeypatch):
+    monkeypatch.delenv("GOOGLE_CALENDAR_CREDENTIALS_PATH", raising=False)
+    monkeypatch.setattr(GoogleCalendarSync, "_authenticate", lambda self: None)
+
+    sync = GoogleCalendarSync("data/creds.json")
+
+    assert sync.credentials_path == "data/creds.json"
+
+
 def test_create_event_returns_event_and_uses_configured_calendar():
     sync = _sync()
 
