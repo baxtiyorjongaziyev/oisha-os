@@ -43,7 +43,7 @@ class GoogleDriveSync:
             media = MediaFileUpload(file_path, resumable=True)
             uploaded_file = (
                 self.service.files()
-                .create(body=file_metadata, media_body=media, fields="id, webViewLink")
+                .create(body=file_metadata, media_body=media, fields="id, webViewLink", supportsAllDrives=True)
                 .execute()
             )
 
@@ -75,7 +75,7 @@ class GoogleDriveSync:
                 file_metadata["parents"] = [parent_id]
 
             folder = (
-                self.service.files().create(body=file_metadata, fields="id").execute()
+                self.service.files().create(body=file_metadata, fields="id", supportsAllDrives=True).execute()
             )
             return folder.get("id")
         except Exception as e:
