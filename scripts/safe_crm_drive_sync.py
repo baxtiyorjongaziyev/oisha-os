@@ -91,9 +91,18 @@ async def check_drive_access(drive: GoogleDriveSync, root: str) -> dict:
     if folder.get("trashed") or folder.get("mimeType") != "application/vnd.google-apps.folder":
         raise RuntimeError("Configured Drive target is not an accessible folder")
     if not folder.get("capabilities", {}).get("canAddChildren", False):
-        raise PermissionError("Service account cannot add files to target Drive folder")
+        raise PermissionError("Google Drive account cannot add files to target folder")
+    from os import environ
+    expected = environ.get("GDRIVE_EXPECTED_EMAIL", "").strip().lower()
+    actual = (about.get("user") or {}).get("emailAddress", "").lower()
+    if expected and actual != expected:
+        raise PermissionError("Drive account differs from configured personal owner")
+    minimum = 4_500_000_000_000 if expected else 0
+    quota_limit = int((about.get("storageQuota") or {}).get("limit") or 0)
+    if minimum and quota_limit < minimum:
+        raise PermissionError("5 TB Drive storage is not verified; refusing CRM upload")
     return {
-        "service_account": about.get("user", {}).get("emailAddress", "unknown"),
+        "google_account": about.get("user", {}).get("emailAddress", "unknown"),
         "folder": folder.get("name"),
         "shared_drive": bool(folder.get("driveId")),
         "can_add_children": True,
