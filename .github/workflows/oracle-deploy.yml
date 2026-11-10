@@ -79,7 +79,9 @@ jobs:
     needs: import-guard
     # Deploy only on push to main; on pull_request events run import-guard alone
     # so the required check can report without touching production.
-    if: "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.event.head_commit.message, 'chore(auto):')"
+    # Secrets-bearing production deploys only on reviewed main pushes.
+    # Manual workflow_dispatch runs import guard, not live deployment.
+    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(auto):')"
     # Runner label "oracle" is historical: the runner itself lives on Contabo.
     runs-on: [self-hosted, oracle]
     environment: production
@@ -109,6 +111,8 @@ jobs:
           AMOCRM_CHAT_CHANNEL_SECRET: ${{ secrets.AMOCRM_CHAT_CHANNEL_SECRET }}
           OISHA_API_SECRET: ${{ secrets.OISHA_API_SECRET }}
           OPENCLAW_SECRET: ${{ secrets.OPENCLAW_SECRET }}
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
           SYNC_AGENTS_ON_DEPLOY: ${{ vars.SYNC_AGENTS_ON_DEPLOY || '0' }}
           USERBOT_SESSION_STRING: ${{ secrets.USERBOT_SESSION_STRING }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
@@ -226,9 +230,11 @@ jobs:
               printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
             fi
 
+            # Keep temporary credential backups readable only by the deploy user.
+            umask 077
             # Preserve existing Meta / Instagram / Moizvonki / Payme / Telephony / Google credentials from .env
             if [ -f .env ]; then
-              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_|GOOGLE_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
+              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_|GOOGLE_|GDRIVE_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
               # Long-lived AmoCRM token: secret wins, else keep the value an
               # owner added by hand — .env is rebuilt below and would erase it.
               if [ -z "${AMOCRM_ACCESS_TOKEN:-}" ]; then
@@ -260,6 +266,11 @@ jobs:
             TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
             TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
             OWNER_ID=150074828
+            # Personal Drive: metadata only, OAuth secrets remain on server.
+            GDRIVE_AUTH_MODE=auto
+            GDRIVE_OAUTH_TOKEN_FILE=/home/ubuntu/oisha-os/data/gdrive_oauth_token.json
+            GDRIVE_EXPECTED_EMAIL=baxtiyorjongaziyev@gmail.com
+            GDRIVE_OFFLOAD_FOLDER_ID=1C388jvMUp4sAgki6l6xVdqc0yOy7L_--
             OISHA_RUNTIME=vm_service
             CLOUD_RUN_CONTROL_PLANE_ONLY=false
             SESSION_MODE=file
@@ -322,6 +333,14 @@ jobs:
               cat /tmp/persisted_env_backup.env >> .env
             fi
 
+            # Personal Drive OAuth client secrets are stored only in runtime .env.
+            if [ -n "${GDRIVE_OAUTH_CLIENT_ID:-}" ]; then
+              printf 'GDRIVE_OAUTH_CLIENT_ID=%s\n' "$GDRIVE_OAUTH_CLIENT_ID" >> .env
+            fi
+            if [ -n "${GDRIVE_OAUTH_CLIENT_SECRET:-}" ]; then
+              printf 'GDRIVE_OAUTH_CLIENT_SECRET=%s\n' "$GDRIVE_OAUTH_CLIENT_SECRET" >> .env
+            fi
+            chmod 600 .env
             # Ingest Moizvonki credentials from workflow env if not already present
             if [ -n "${MOIZVONKI_EMAIL:-}" ] && ! grep -q '^MOIZVONKI_EMAIL=' .env; then
               echo "MOIZVONKI_EMAIL=${MOIZVONKI_EMAIL}" >> .env
@@ -411,6 +430,12 @@ jobs:
             Environment=PATH=/home/ubuntu/oisha-os/venv/bin:/usr/local/bin:/usr/bin:/bin
             UNIT
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
+            # Safe CRM Drive timers: no uploads until owner's OAuth token exists.
+            # Both services have ExecCondition guarding token availability.
+            sudo install -m 0644 deploy/systemd/oisha-crm-drive-poll.service deploy/systemd/oisha-crm-drive-poll.timer /etc/systemd/system/
+            sudo install -m 0644 deploy/systemd/oisha-crm-drive-daily.service deploy/systemd/oisha-crm-drive-daily.timer /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable --now oisha-crm-drive-poll.timer oisha-crm-drive-daily.timer
             # Kunlik Moizvonki qo'ng'iroq hisoboti (06:00 Toshkent)
             sudo install -m 0644 deploy/systemd/oisha-calls-report.service deploy/systemd/oisha-calls-report.timer /etc/systemd/system/
             # Soatlik sotuv nazorati (10:00-19:00, tushlik 13:00 dan tashqari).
