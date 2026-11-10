@@ -1,0 +1,17 @@
+[Unit]
+Description=Oisha amoCRM Drive safe recent-lead synchronization
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/oisha-os
+EnvironmentFile=/home/ubuntu/oisha-os/.env
+ExecStart=/usr/bin/flock -n /run/lock/oisha-crm-drive.lock /home/ubuntu/oisha-os/venv/bin/python scripts/safe_crm_drive_sync.py --recent 100 --stage-existing
+TimeoutStartSec=1800
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/run/lock
