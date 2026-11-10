@@ -16,6 +16,8 @@ from pathlib import Path
 
 import requests
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
 from google_auth_oauthlib.flow import Flow
 
 from src.database_pool import db_pool
@@ -181,6 +183,25 @@ def _validate_google_account(credentials) -> dict:
         raise PermissionError("Personal Drive destination is not writable")
     if not credentials.refresh_token:
         raise RuntimeError("Google did not issue an offline refresh token")
+    # Verify real create, read-back and cleanup before permitting CRM sync.
+    payload = b"Oisha Drive authorized write probe"
+    media = MediaIoBaseUpload(io.BytesIO(payload), mimetype="text/plain")
+    probe_id = None
+    try:
+        probe = drive.files().create(
+            body={"name": ".oisha-oauth-probe-" + secrets.token_hex(6),
+                  "parents": [folder_id]},
+            media_body=media, fields="id,size", supportsAllDrives=True,
+        ).execute()
+        probe_id = probe["id"]
+        fetched = drive.files().get(
+            fileId=probe_id, fields="id,size", supportsAllDrives=True,
+        ).execute()
+        if int(fetched.get("size", -1)) != len(payload):
+            raise RuntimeError("Google Drive write-probe readback failed")
+    finally:
+        if probe_id:
+            drive.files().delete(fileId=probe_id, supportsAllDrives=True).execute()
     return {"email": email, "quota_limit_bytes": limit, "folder_id": folder_id}
 
 
