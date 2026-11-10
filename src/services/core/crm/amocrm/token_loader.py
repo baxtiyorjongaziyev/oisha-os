@@ -31,6 +31,11 @@ logger = structlog.get_logger()
 class AmoCRMTokenLoaderMixin:
     def _load_token(self):
         """Tokenni long-lived env > env JSON > fayl > raw refresh > Turso DB tartibida o'qadi."""
+        source = os.environ.get("AMOCRM_TOKEN_SOURCE", "auto").strip().strip("'\"").lower()
+        if source == "file":
+            self._load_token_from_file()
+            self._apply_raw_refresh_fallback()
+            return
         if self._load_long_lived_from_env():
             return
         if self._load_token_from_env_json():
@@ -59,7 +64,7 @@ class AmoCRMTokenLoaderMixin:
         yozilmaydi — token_store ``expires_at``siz payload'ga +24 soat qo'yadi,
         bu esa keyinroq soxta "muddati tugadi" refresh'ini keltirib chiqaradi.
         """
-        token = (os.environ.get("AMOCRM_ACCESS_TOKEN") or "").strip()
+        token = (os.environ.get("AMOCRM_ACCESS_TOKEN") or "").strip().strip("'\"")
         if not token:
             return False
         self.token_data = {"access_token": token, "long_lived": True}

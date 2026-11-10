@@ -8,6 +8,13 @@ import pytest
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 
 
+@pytest.fixture(autouse=True)
+def isolate_amocrm_env(monkeypatch):
+    monkeypatch.delenv("AMOCRM_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("AMOCRM_TOKEN_SOURCE", raising=False)
+    monkeypatch.setattr("src.services.core.crm.amocrm.token_store.save_token_to_db", lambda *a, **k: None)
+
+
 class _Response:
     def __init__(self, status_code: int, payload: dict | None = None):
         self.status_code = status_code

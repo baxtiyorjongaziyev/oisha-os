@@ -248,15 +248,22 @@ async def _process_amocrm_event(data: Dict[str, Any]):
                         await api_state.admin_bot.notify_lead(f"⚠️ Vilgood Pipeline Violation!\nLead {lead_id} tried to move to status {new_status} without meeting conditions.")
                     # Optionally, revert status here via amocrm.update_lead()
 
-            # Sanity Publisher: Trigger if lead is marked as Won
-            if new_status and new_status == getattr(settings, "AMOCRM_WON_STATUS_ID", 142) and getattr(settings, "ENABLE_SANITY_PUBLISHER", True):
+            # Won transition: Sanity Case Publisher + Farmer Delivery Hand-off
+            if new_status and new_status == getattr(settings, "AMOCRM_WON_STATUS_ID", 142):
+                if getattr(settings, "ENABLE_SANITY_PUBLISHER", True):
+                    try:
+                        from src.services.core.sanity_publisher import SanityPublisher
+                        sanity = SanityPublisher(amocrm=amocrm)
+                        asyncio.create_task(sanity.publish_case_from_amocrm(int(lead_id), lead_data))
+                    except Exception as pub_exc:
+                        logger.error("[Webhook] Sanity Publisher trigger failed: %s", pub_exc, exc_info=True)
                 try:
-                    from src.services.core.sanity_publisher import SanityPublisher
-                    sanity = SanityPublisher(amocrm=amocrm)
-                    # Run in background to avoid blocking webhook
-                    asyncio.create_task(sanity.publish_case_from_amocrm(int(lead_id), lead_data))
-                except Exception as pub_exc:
-                    logger.error("[Webhook] Sanity Publisher trigger failed: %s", pub_exc, exc_info=True)
+                    from src.services.core.crm.farmer_transition import FarmerTransitionService
+                    bot_rt = getattr(api_state, "bot_client", None) or getattr(app_ctx, "bot_runtime", None)
+                    farmer_svc = FarmerTransitionService(amocrm=amocrm, bot_runtime=bot_rt, db=runtime_db)
+                    asyncio.create_task(farmer_svc.hand_off_to_farmer(int(lead_id), lead_data))
+                except Exception as farmer_exc:
+                    logger.error("[Webhook] Farmer transition trigger failed: %s", farmer_exc, exc_info=True)
 
         except Exception as e:
             logger.error("[Webhook] Vilgood engine error: %s", e)

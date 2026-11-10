@@ -14,6 +14,7 @@ import src.config as config
 from src.database import Database
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.crm.archiver.campaign import generate_outreach_campaign
+from src.services.core.leads.lead_filter_guard import is_excluded_contact
 from src.services.core.crm.archiver.schema import (
     init_archiver_tables,
     save_archived_lead_and_campaign,
@@ -180,6 +181,10 @@ class CRMArchiver:
 
         for lead in active_leads:
             lead_id = int(lead.get("id"))
+            lead_name = lead.get("name") or ""
+            excluded, _ = is_excluded_contact(name=lead_name)
+            if excluded:
+                continue
             updated_at = int(lead.get("updated_at") or 0)
             if lead_id not in open_task_lead_ids and updated_at < stagnant_threshold:
                 stagnant_leads.append(lead)
@@ -238,6 +243,10 @@ class CRMArchiver:
             contact_name = contact_details.get("name")
             phone = contact_details.get("phone")
 
+        excluded, reason = is_excluded_contact(name=contact_name or lead.get("name"), phone=phone)
+        if excluded:
+            logger.info(f"[ARCHIVER] Istisno qilindi ({reason}): lead #{lead_id}")
+            return {"lead_id": lead_id, "archived": False, "reason": reason}
         notes = await self.amocrm.get_lead_notes(lead_id)
         campaign = await self.generate_outreach_campaign(lead, phone, contact_name, notes)
 

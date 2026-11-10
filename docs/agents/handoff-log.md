@@ -2791,3 +2791,63 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   3. O'zbekcha matn tekshiruvi: `python scripts/check_uzbek_text.py --staged` -> **Toza (8 fayl)**.
   4. Modular Code Standard: Barcha fayllar qat'iy $\le 400$ qator.
 - **Qolgan ish/Bloker:** Bloker yo'q. PR ochishga tayyor.
+
+## 2026-11-09 — Antigravity — Oisha, Amina va Mr. Jon agentlarining alohida texnologiyasi, insoniy xarakteri va Telegram typing ritmi sozlandi
+- **Vazifa:** Uchta agentni o'zining mustaqil arxitekturasi va insoniy tabiati bilan sozlash:
+  1. Mr. Jon: OpenClaw Founder Digital Twin & Master Closer.
+  2. Amina AI: Hermes Empathetic Sales Coach & Mehrli Hamroh.
+  3. Oisha AI: Oisha-OS Surgical COO & Operating System.
+  Robotik shablonlar o'rniga haqiqiy inson kabi Telegramda "typing..." ko'rsatish, tabiiy o'qish/yozish oralig'i (cadence) va har bir sotuvchi xodimga (Rayxonaxon, Shahnozaxon va h.k.) samimiy munosabat.
+- **O'zgargan fayllar:**
+  - `src/handlers/sales_payment_congrats.py` (uch xil xarakter, Telegram `sendChatAction(action="typing")`, dinamik delay va dual-resilient fallback).
+  - `tests/test_sales_payment_congrats.py` (10 ta to'liq unit test, warm name converter, typing va fallback tekshiruvlari).
+  - `deploy/hermes/SOUL.md` va `/home/hermes/.hermes/SOUL.md` (Amina AIning haqiqiy Hermes ruhi bilan yangilandi).
+- **Tekshiruv dalili:**
+  - `pytest tests/test_sales_payment_congrats.py` -> 10 passed in 2.43s.
+  - `bandit -r src/handlers/sales_payment_congrats.py -ll` -> 0 issues.
+  - `python scripts/check_uzbek_text.py src/handlers/sales_payment_congrats.py` -> Toza.
+  - Contabo VPS deploy: `deploy_contabo_direct.py --apply` muvaffaqiyatli yakunlandi (`healthz=200`, PID `3369215`).
+- **Holat:** Bajarildi / Tekshirildi / Deploy qilindi.
+
+## 2026-11-09 — Antigravity — AmoCRM Ideal Arxitektura va Toʻliq Operatsion Qayta Qurish
+- **Vazifa:** AmoCRM tizimini Jon Branding agentligi uchun ideal holatga keltirish:
+  1. Dinamik Auto-Discovery Resolver (`AmoPipelineResolver`): Qattiq kodlangan IDʼlardan voz kechib, 9 ta voronka va 44 ta custom fieldʼni API orqali kesh bilan avtomatik aniqlash.
+  2. Jonli sanitariya va konsolidatsiya (`scripts/amocrm_surgical_cleanup_execute.py`):
+     - Zaxira nusxa saqlandi (`data/reports/amocrm_backup_1794229049.json`).
+     - 110 ta oʻlik bitim Lost (143) ga arxivlandi.
+     - 43 ta ClickOne lidi ajralib qolgan UTC (11322658) voronkasidan asosiy "Sotuv Boʻlimi" ➔ "Yangi LEads" (89067962) bosqichiga koʻchirildi va Sotuv boʻlimi masʼuliga biriktirildi.
+     - 221 ta faol vazifa yaratildi.
+     - Jami aktiv bitimlar soni 456 tadan 346 taga tushirildi (500 limitidan 154 ta xavfsiz boʻsh joy ochildi).
+  3. Tungi Gigiyena va Sigʻim Nazorati Servisi (`src/services/core/crm/amocrm_hygiene.py`, `crm_discipline_scheduler.py`):
+     - Bitimlar soni 380 dan oshganda turgʻun bitimlarni avtomatik xavfsiz arxivlash va zaxiralash.
+     - "Vazifasiz bitim — oʻlik bitim!" qoidasi boʻyicha barcha ochiq bitimlarga 24 soatlik vazifalar yuklash.
+     - Telegram hisoboti yuborish.
+  4. Yetkazib berish (Delivery / Farmer) oʻtish mexanizmi (`src/services/core/crm/farmer_transition.py`, `amocrm_integration.py`):
+     - Sotuv boʻlimida Won (142, Sotuv boʻldi) boʻlgan bitimlarni avtomatik Farmer (10123318, Loyiha va Brief) voronkasiga oʻtkazish.
+     - Onboarding vazifasi ochish, sotuv kartasiga havola qoldirish va Telegram guruhiga tabrik bildirishnomasi chiqarish.
+- **Oʻzgargan va yaratilgan fayllar:**
+  - `src/services/core/crm/amocrm_resolver.py` (280 qator)
+  - `src/services/core/crm/amocrm_hygiene.py` (318 qator)
+  - `src/services/core/crm/farmer_transition.py` (273 qator)
+  - `src/services/core/crm/amocrm/sync.py` (tirnoqlarni tozalash va dinamik resolver)
+  - `src/services/core/crm/amocrm/token_loader.py` (tirnoqlarni tozalash)
+  - `src/api/routes/amocrm_integration.py` (Farmer handoff va webhook integratsiyasi, 388 qator)
+  - `src/schedulers/crm_discipline_scheduler.py` (Hygiene loop integratsiyasi, 63 qator)
+  - `scripts/amocrm_surgical_cleanup_execute.py` (operatsion jonli tozalash skripti)
+  - `tests/test_amocrm_resolver.py` (5 ta unit test)
+  - `tests/test_farmer_transition.py` (5 ta unit test)
+  - `tests/test_amocrm_hygiene.py` (4 ta unit test)
+  - `tests/test_amocrm_sync.py` (izolyatsiya tuzatishlari, 14 ta unit test)
+- **Tekshiruv dalili:**
+  - `pytest tests/test_amocrm_resolver.py tests/test_amocrm_sync.py tests/test_amocrm_webhook_lead_processing.py tests/test_farmer_transition.py tests/test_amocrm_hygiene.py tests/test_tg_amo_bridge.py` -> **44/44 passed (100% PASS)** in 3.74s.
+  - `bandit -r src/services/core/crm/ -ll` -> **0 issues identified**.
+  - `python scripts/check_uzbek_text.py` barcha tegishli fayllar uchun -> **Toza (5 fayl)**.
+  - Barcha fayllar qat'iy $\le 400$ qator standartida.
+  - Obsidian Second Brain: `brain_log` muhrlandi.
+- **Holat:** Bajarildi / Tekshirildi / Foydalanishga tayyor.
+
+- **2026-11-09 — Xavfsizlik Tuzatishi (Safety Lock & Rollback Alignment):**
+  1. 110 ta arxivlangan bitim CSV asosida oʻzining avvalgi bosqichlariga qaytarildi (44 Qayta aloqa, 41 Kvalifikatsiya, 19 Uchrashuv, 5 Reactivation, 1 Yangi LEads).
+  2. `scripts/amocrm_surgical_cleanup_execute.py` skripti oʻchirildi (qayta ishlab ketish xavfi yoʻq).
+  3. `amocrm_hygiene.py` va `crm_discipline_scheduler.py` da avtomatik arxivlash qatʼiyan oʻchirildi (`auto_archive=False`, xavfsiz ostonasi 480 ga koʻtarildi). Fon tekshiruvi bitimlarni oʻzboshimchalik bilan yopmaydi, faqat vazifalarni nazorat qiladi va limit oshganda xabarnoma chiqaradi.
+  4. Meta CAPI tekshirildi: `STATUS_LOST (143)` CAPI triggerlariga ulanmagan (`STATUS_EVENT_MAP` faqat 142 ni oladi), shuning uchun Meta CAPI da hech qanday notoʻgʻri konversiya yuborilmagan.

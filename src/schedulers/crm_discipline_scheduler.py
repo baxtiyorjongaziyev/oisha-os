@@ -33,44 +33,32 @@ async def crm_discipline_loop() -> None:
 
 
 async def crm_capacity_archiver_loop() -> None:
-    """Check active AmoCRM deals count against 500 limit and auto-archive stagnant leads."""
+    """Check active AmoCRM deals count against 500 limit, enforce tasks, and auto-archive stagnant leads."""
     await asyncio.sleep(60)
     while True:
         try:
-            logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity check starting...")
-            from src.services.core.crm.crm_archiver import CRMArchiver
+            logger.info("[ARCHIVER_LOOP] Active AmoCRM capacity & hygiene check starting...")
+            from src.services.core.crm.amocrm_hygiene import AmoCRMHygieneService
 
-            if app_ctx.msg_controller and app_ctx.msg_controller.crm:
-                archiver = CRMArchiver(
-                    amocrm=app_ctx.msg_controller.crm.amocrm,
-                    db=app_ctx.msg_controller.db,
-                )
-                await archiver.init_tables()
-                active_leads = await archiver.fetch_all_active_leads()
-                active_count = len(active_leads)
-                logger.info("[ARCHIVER_LOOP] Active sdelkas: %s / 500 limit", active_count)
-
-                if active_count >= 480:
-                    logger.warning(
-                        "[ARCHIVER_LOOP] Active sdelkas count %s exceeds threshold of 480! Autocleaning...",
-                        active_count,
-                    )
-                    stagnant = await archiver.get_stagnant_leads(max_stagnant_days=21)
-                    if stagnant:
-                        targets = stagnant[:30]
-                        # Closing a deal (Closed Lost) is an irreversible business
-                        # decision — never auto-execute it unattended. Only report
-                        # candidates; an owner must review and archive manually
-                        # (e.g. via crm_cleaner_cli.py --apply).
-                        lead_ids = [lead.get("id") for lead in targets]
-                        logger.warning(
-                            "[ARCHIVER_LOOP] %s stagnant lead(s) candidate for archiving "
-                            "(NOT auto-archived — owner review required): %s",
-                            len(lead_ids),
-                            lead_ids,
-                        )
-                    else:
-                        logger.info("[ARCHIVER_LOOP] No stagnant leads found.")
+            amo_instance = (
+                app_ctx.msg_controller.crm.amocrm
+                if app_ctx.msg_controller and app_ctx.msg_controller.crm
+                else None
+            )
+            bot_rt = getattr(app_ctx, "bot_runtime", None)
+            service = AmoCRMHygieneService(amocrm=amo_instance, bot_runtime=bot_rt)
+            report = await service.run_hygiene_cycle(
+                dry_run=False,
+                auto_archive=False,
+                capacity_threshold=480,
+                max_stagnant_days=30,
+            )
+            logger.info(
+                "[ARCHIVER_LOOP] Done: active=%s/500, tasks=+%s, archived=%s",
+                report.get("total_active_after"),
+                report.get("tasks_created"),
+                report.get("archived_leads"),
+            )
         except Exception as e:
             logger.error("[ARCHIVER_LOOP] Error in capacity archiver loop: %s", e)
-        await asyncio.sleep(21600)
+        await asyncio.sleep(14400)
