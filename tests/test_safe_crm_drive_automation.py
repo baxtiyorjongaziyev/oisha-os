@@ -52,7 +52,7 @@ def test_deletion_requires_explicit_approval():
     record = CopyRecord(42, 7, "uuid", "drive-id", "https://example", "hash", 2)
     with pytest.raises(PermissionError):
         asyncio.run(automation.delete_approved_original(
-            record, approved_note_id=7, approval_token=""
+            record, approval_id="not-approved", acting_owner_id=0
         ))
     amo.delete_note.assert_not_called()
 
