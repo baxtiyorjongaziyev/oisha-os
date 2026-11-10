@@ -10,6 +10,7 @@ import os
 from typing import Any, Dict, List
 
 import src.config as config
+from src.services.core.leads.lead_filter_guard import sanitize_outreach_message
 
 logger = logging.getLogger("crm_archiver")
 
@@ -98,8 +99,9 @@ async def generate_outreach_campaign(
 
         text = response.text or ""
         data = json.loads(text.strip())
+        step1 = sanitize_outreach_message(data.get("step1", "").strip(), contact_name or lead_name)
         return {
-            "step1": data.get("step1", "").strip(),
+            "step1": step1,
             "step2": data.get("step2", "").strip(),
             "step3": data.get("step3", "").strip(),
         }
