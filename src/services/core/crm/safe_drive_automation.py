@@ -146,14 +146,32 @@ class SafeCRMDriveAutomation:
         return result
 
     async def delete_approved_original(
-        self, record: CopyRecord, *, approved_note_id: int,
-        approval_token: str,
+        self, record: CopyRecord, *, approval_id: str, acting_owner_id: int,
     ) -> bool:
-        """Explicit approval path. Caller must validate owner approval out-of-band."""
-        if approval_token != f"APPROVE_DELETE:{record.lead_id}:{record.note_id}":
-            raise PermissionError("Explicit matching approval token required")
-        if approved_note_id != record.note_id:
-            raise PermissionError("Approved note ID mismatch")
+        """Delete ONLY after a one-time, owner-claimed approval in Turso DB.
+
+        The Telegram callback verifies the sender; this method independently
+        checks the durable claim so a guessed string cannot authorize deletion.
+        """
+        from src.settings import settings
+        from src.database_pool import db_pool
+        if not settings.OWNER_ID or int(acting_owner_id) != int(settings.OWNER_ID):
+            raise PermissionError("Only the configured owner may approve deletion")
+        rows = await db_pool.execute(
+            "SELECT lead_id, note_id, drive_id, size, sha256 FROM "
+            "crm_drive_delete_approvals WHERE id = ? AND status = 'processing' "
+            "AND resolved_by = ?",
+            [approval_id, int(acting_owner_id)],
+        )
+        if len(rows) != 1:
+            raise PermissionError("Missing one-time, claimed approval")
+        grant = rows[0]
+        if (int(grant["lead_id"]) != record.lead_id or
+                int(grant["note_id"]) != record.note_id or
+                str(grant["drive_id"]) != record.drive_id or
+                int(grant["size"]) != record.size or
+                str(grant["sha256"]) != record.sha256):
+            raise PermissionError("Approval does not match verified file")
         notes = await self.amo.get_lead_notes(record.lead_id)
         receipt = f"{COPY_MARKER} lead={record.lead_id} note={record.note_id}"
         if not any(receipt in n.get("params", {}).get("text", "") and
