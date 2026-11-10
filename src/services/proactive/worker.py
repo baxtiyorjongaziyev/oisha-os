@@ -65,7 +65,7 @@ class ProactiveWorker:
                 return
 
             try:
-                stats = await self.crm_offloader.run(dry_run=False)
+                stats = await self.crm_offloader.run(dry_run=True)  # Never delete originals from background jobs
                 if stats and stats.get("offloaded", 0) > 0:
                     msg = (
                         f"🧹 **AMO_CRM STORAGE CLEANUP**\n\n"
