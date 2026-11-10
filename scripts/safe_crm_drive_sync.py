@@ -181,12 +181,12 @@ async def main() -> None:
     message = (
         f"Oisha CRM / Drive | {today} | {mode}\n"
         f"Tekshirilgan bitimlar: {stats['scanned']}\n"
-        f"Papka bog'langan: {stats['folders']}\n"
-        f"Fayllar ko'rilgan: {stats['files_found']}\n"
+        f"Papka bogʼlangan: {stats['folders']}\n"
+        f"Fayllar koʼrilgan: {stats['files_found']}\n"
         f"Nusxalangan: {stats['copied']}\n"
         f"Oldin ishlangan: {stats['skipped']}\n"
         f"Xatolar: {stats['errors']}\n"
-        "Original CRM fayllari o'chirilmadi."
+        "Original CRM fayllari oʼchirilmadi."
     )
     LOG.info(message)
     if args.telegram_report:
