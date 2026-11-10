@@ -29,7 +29,7 @@ SCOPES = (
     "https://www.googleapis.com/auth/userinfo.email",
 )
 GOOGLE_AUTH_URI = "https://accounts.google.com/o/oauth2/auth"
-GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+GOOGLE_OAUTH_EXCHANGE_ENDPOINT = "https://oauth2.googleapis.com/token"
 
 
 def _env(name: str, default: str = "") -> str:
@@ -63,7 +63,7 @@ def _flow() -> Flow:
         "client_id": client_id,
         "client_secret": client_secret,
         "auth_uri": GOOGLE_AUTH_URI,
-        "token_uri": GOOGLE_TOKEN_URI,
+        "token_uri": GOOGLE_OAUTH_EXCHANGE_ENDPOINT,
         "redirect_uris": [redirect],
     }}
     return Flow.from_client_config(config, scopes=list(SCOPES), redirect_uri=redirect)
