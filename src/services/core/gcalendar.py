@@ -47,11 +47,15 @@ def _is_missing_event_error(exc: Exception) -> bool:
 class GoogleCalendarSync:
     def __init__(
         self,
-        credentials_path: str = DEFAULT_CREDENTIALS_PATH,
+        credentials_path: Optional[str] = None,
         calendar_id: Optional[str] = None,
         token_path: Optional[str] = None,
     ):
-        self.credentials_path = credentials_path or DEFAULT_CREDENTIALS_PATH
+        self.credentials_path = (
+            os.getenv("GOOGLE_CALENDAR_CREDENTIALS_PATH")
+            or credentials_path
+            or DEFAULT_CREDENTIALS_PATH
+        )
         self.credentials_path_env = os.getenv(DEFAULT_CREDENTIALS_ENV, "").strip()
         self.calendar_id = (
             calendar_id or os.getenv("GOOGLE_CALENDAR_ID") or DEFAULT_CALENDAR_ID
