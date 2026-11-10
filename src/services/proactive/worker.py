@@ -25,11 +25,11 @@ class ProactiveWorker:
         stagnated_leads = self.crm.amocrm.check_stagnated_leads(hours=24)
 
         if stagnated_leads:
-            msg = "💡 **FOLLOW-UP DRAFT IDEAS (Stagnation) 💡**\n\nBu mijozlar 24 soatdan beri jim. Mana ba'zi xabar g'oyalari:\n"
+            msg = "💡 **FOLLOW-UP DRAFT IDEAS (Stagnation) 💡**\n\nBu mijozlar 24 soatdan beri jim. Mana baʼzi xabar gʼoyalari:\n"
             for lead in stagnated_leads[:5]:
-                msg += f"- **{lead.get('name')}** uchun draft:\n   `Assalomu alaykum, {lead.get('name')}. Loyihangiz bo'yicha qandaydir savollar bormi?`\n"
+                msg += f"- **{lead.get('name')}** uchun draft:\n   `Assalomu alaykum, {lead.get('name')}. Loyihangiz boʼyicha qandaydir savollar bormi?`\n"
 
-            msg += "\n@Oydin_JonBranding, @Inomjon_JonBranding va @jonbranding_pm, ushbu xabarlarni ko'rib chiqing va mijozga yuboring."
+            msg += "\n@Oydin_JonBranding, @Inomjon_JonBranding va @jonbranding_pm, ushbu xabarlarni koʼrib chiqing va mijozga yuboring."
             await self.bot.send_message(config.CRM_GROUP_ID, msg, parse_mode="Markdown")
 
     async def _send_daily_sales_report(self):
@@ -44,8 +44,8 @@ class ProactiveWorker:
                 report = self.crm.amocrm.get_sales_report()
                 msg = (
                     f"📈 **OYLIK SOTUV HISOBOTI (PLAN-FAKT)**\n\n"
-                    f"🎯 Reja: 80,000,000 so'm\n"
-                    f"✅ Fakt: {report['fact']:,} so'm\n"
+                    f"🎯 Reja: 80,000,000 soʼm\n"
+                    f"✅ Fakt: {report['fact']:,} soʼm\n"
                     f"📊 Progress: {report['percent']:.1f}%\n"
                     f"📦 Yopilgan bitimlar: {report['count']} ta"
                 )
@@ -69,8 +69,8 @@ class ProactiveWorker:
                 if stats and stats.get("offloaded", 0) > 0:
                     msg = (
                         f"🔎 **AMO_CRM STORAGE DRY RUN**\n\n"
-                        f"📋 Ko'chirishga nomzod fayllar: {stats['offloaded']} ta\n"
-                        f"⚠️ Bu faqat tekshiruv. Hech bir fayl ko'chirilmadi yoki o'chirilmadi.\n"
+                        f"📋 Koʼchirishga nomzod fayllar: {stats['offloaded']} ta\n"
+                        f"⚠️ Bu faqat tekshiruv. Hech bir fayl koʼchirilmadi yoki oʼchirilmadi.\n"
                         f"📊 Xatolar: {stats['errors']}"
                     )
                     await self.bot.send_message(
