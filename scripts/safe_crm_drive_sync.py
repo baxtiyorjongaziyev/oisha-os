@@ -71,11 +71,11 @@ async def main() -> None:
             LOG.exception("Lead automation failed: %s", lead.get("id"))
             stats["errors"] += 1
     today = datetime.now(ZoneInfo("Asia/Tashkent")).strftime("%Y-%m-%d")
-    message = (f"Oisha CRM -> Drive | {today}\\n"
-               f"Papka: {stats['folders']}\\n"
-               f"Nusxalandi: {stats['copied']}\\n"
-               f"O'tkazib yuborildi: {stats['skipped']}\\n"
-               f"Xatolar: {stats['errors']}\\n"
+    message = (f"Oisha CRM -> Drive | {today}\n"
+               f"Papka: {stats['folders']}\n"
+               f"Nusxalandi: {stats['copied']}\n"
+               f"O'tkazib yuborildi: {stats['skipped']}\n"
+               f"Xatolar: {stats['errors']}\n"
                f"CRM original fayllari o'chirilmadi.")
     LOG.info(message)
     if args.telegram_report:
