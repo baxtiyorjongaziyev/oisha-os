@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Run safe CRM/Drive sync from existing Oisha server cron.
+"""Safe existing-deal backfill and ongoing amoCRM -> Google Drive sync.
 
-Example:
-  python scripts/safe_crm_drive_sync.py --lead-id 123
-  python scripts/safe_crm_drive_sync.py --recent 100 --stage-existing
-
-Defaults to folder links only; existing CRM file copies require opt-in.
-Never deletes originals. For 24/7 automation schedule this on the server.
+All modes are non-destructive to CRM originals.  --dry-run does no writes.
+Full backfill uses pagination, while periodic --recent keeps new deals linked.
 """
+from __future__ import annotations
+
 import argparse
 import asyncio
 import logging
@@ -21,14 +19,14 @@ from src.services.core.gdrive import GoogleDriveSync
 from src.services.core.crm.safe_drive_automation import SafeCRMDriveAutomation
 from src.settings import settings
 
-logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
+CLOSED_STATUSES = {142, 143}
 
 
 def report_telegram(message: str) -> bool:
     token = settings.BOT_TOKEN.get_secret_value()
     if not token or not settings.CRM_GROUP_ID:
-        LOG.warning("CRM_GROUP_ID/BOT_TOKEN unavailable; Telegram report skipped")
+        LOG.warning("Telegram report not configured (BOT_TOKEN / CRM_GROUP_ID)")
         return False
     response = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",
@@ -39,48 +37,164 @@ def report_telegram(message: str) -> bool:
     return True
 
 
+async def fetch_all_leads(
+    amo: AmoCRMSync, *, page_size: int = 250, max_pages: int = 100
+):
+    """Yield all paginated leads. API failures raise, never imply empty CRM."""
+    amo._load_token()
+    seen: set[int] = set()
+    for page in range(1, max_pages + 1):
+        params = {"page": page, "limit": page_size, "order[created_at]": "asc"}
+        response = await amo._request_with_auth(
+            requests.get, f"{amo.base_url}/api/v4/leads",
+            params=params, timeout=35,
+        )
+        if response.status_code == 401:
+            refreshed = await asyncio.to_thread(amo.refresh_token)
+            if not refreshed:
+                raise RuntimeError("amoCRM authentication failed on backfill")
+            response = await amo._request_with_auth(
+                requests.get, f"{amo.base_url}/api/v4/leads",
+                params=params, timeout=35,
+            )
+        if response.status_code == 204:
+            return
+        if response.status_code != 200:
+            raise RuntimeError(f"amoCRM leads page={page}: HTTP {response.status_code}")
+        data = response.json()
+        items = data.get("_embedded", {}).get("leads")
+        if not isinstance(items, list):
+            raise RuntimeError(f"amoCRM leads page={page} has invalid payload")
+        for lead in items:
+            if not isinstance(lead, dict) or "id" not in lead:
+                raise RuntimeError(f"amoCRM leads page={page} malformed lead")
+            identifier = int(lead["id"])
+            if identifier not in seen:
+                seen.add(identifier)
+                yield lead
+        if len(items) < page_size:
+            return
+    raise RuntimeError(f"Backfill exceeded max_pages={max_pages}; incomplete scan")
+
+
+async def check_drive_access(drive: GoogleDriveSync, root: str) -> dict:
+    """Read-only preflight for the configured **service account**, not user OAuth."""
+    def read():
+        about = drive.service.about().get(fields="user(emailAddress),storageQuota").execute()
+        folder = drive.service.files().get(
+            fileId=root,
+            supportsAllDrives=True,
+            fields="id,name,mimeType,driveId,capabilities(canAddChildren),trashed",
+        ).execute()
+        return about, folder
+    about, folder = await asyncio.to_thread(read)
+    if folder.get("trashed") or folder.get("mimeType") != "application/vnd.google-apps.folder":
+        raise RuntimeError("Configured Drive target is not an accessible folder")
+    if not folder.get("capabilities", {}).get("canAddChildren", False):
+        raise PermissionError("Service account cannot add files to target Drive folder")
+    return {
+        "service_account": about.get("user", {}).get("emailAddress", "unknown"),
+        "folder": folder.get("name"),
+        "shared_drive": bool(folder.get("driveId")),
+        "can_add_children": True,
+        "quota_usage": (about.get("storageQuota") or {}).get("usage"),
+        "quota_limit": (about.get("storageQuota") or {}).get("limit"),
+    }
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--lead-id", type=int)
-    source.add_argument("--recent", type=int, help="Number of recent leads, max 250")
-    parser.add_argument("--stage-existing", action="store_true",
-                        help="Copy and checksum CRM attachments; never delete")
+    source.add_argument("--recent", type=int, help="Recent leads, max 250 (for polling)")
+    source.add_argument("--all-existing", action="store_true", help="Paginated complete CRM scan")
+    source.add_argument("--preflight", action="store_true", help="Read-only Drive permissions check")
+    parser.add_argument("--stage-existing", action="store_true", help="Copy/verify files, never delete originals")
+    parser.add_argument("--active-only", action="store_true", help="Skip won/lost leads")
+    parser.add_argument("--dry-run", action="store_true", help="No CRM/Drive writes")
     parser.add_argument("--telegram-report", action="store_true")
+    parser.add_argument("--max-pages", type=int, default=100)
     args = parser.parse_args()
-    if not settings.GDRIVE_OFFLOAD_FOLDER_ID:
-        parser.error("GDRIVE_OFFLOAD_FOLDER_ID is required")
-    amo = AmoCRMSync()
+    if args.max_pages < 1 or args.max_pages > 500:
+        parser.error("--max-pages must be between 1 and 500")
+    root = settings.GDRIVE_OFFLOAD_FOLDER_ID
+    if not root:
+        parser.error("GDRIVE_OFFLOAD_FOLDER_ID must point to an accessible Drive folder")
+
     drive = GoogleDriveSync(settings.GSHEET_CREDS_FILE)
-    automation = SafeCRMDriveAutomation(amo, drive, settings.GDRIVE_OFFLOAD_FOLDER_ID)
-    if args.lead_id:
-        leads = [{"id": args.lead_id}]
-    else:
-        leads = await amo.get_leads(limit=min(max(args.recent, 1), 250))
-    stats = {"folders": 0, "copied": 0, "skipped": 0, "errors": 0}
-    for lead in leads:
+    preflight = await check_drive_access(drive, root)
+    LOG.info("Drive service-account preflight: %s", preflight)
+    if args.preflight:
+        return
+
+    amo = AmoCRMSync()
+    automation = SafeCRMDriveAutomation(amo, drive, root)
+    stats = {"scanned": 0, "folders": 0, "files_found": 0,
+             "copied": 0, "skipped": 0, "errors": 0}
+
+    async def process(lead: dict) -> None:
+        identifier = int(lead["id"])
+        if args.active_only and int(lead.get("status_id") or 0) in CLOSED_STATUSES:
+            return
+        stats["scanned"] += 1
         try:
-            lead_id = int(lead["id"])
-            await automation.ensure_lead_folder(lead_id)
+            if args.dry_run:
+                if args.stage_existing:
+                    notes = await amo.get_lead_notes(identifier)
+                    if amo.last_error:
+                        raise RuntimeError(f"CRM notes unavailable: {amo.last_error}")
+                    stats["files_found"] += sum(n.get("note_type") == "file" for n in notes)
+                return
+            await automation.ensure_lead_folder(identifier)
             stats["folders"] += 1
             if args.stage_existing:
-                result = await automation.stage_lead(lead_id)
+                result = await automation.stage_lead(identifier)
                 for key in ("copied", "skipped", "errors"):
                     stats[key] += result[key]
         except Exception:
-            LOG.exception("Lead automation failed: %s", lead.get("id"))
+            LOG.exception("Lead sync failed: %s", identifier)
             stats["errors"] += 1
+
+    try:
+        if args.lead_id:
+            lead = await amo.get_lead(args.lead_id)
+            if not lead:
+                raise RuntimeError(f"Lead {args.lead_id} not found or inaccessible")
+            await process(lead)
+        elif args.recent:
+            if not 1 <= args.recent <= 250:
+                parser.error("--recent must be between 1 and 250")
+            recent = await amo.get_leads(limit=args.recent)
+            if amo.last_error:
+                raise RuntimeError(f"amoCRM recent list unavailable: {amo.last_error}")
+            for lead in recent:
+                await process(lead)
+        else:
+            async for lead in fetch_all_leads(amo, max_pages=args.max_pages):
+                await process(lead)
+    except Exception:
+        stats["errors"] += 1
+        LOG.exception("CRM scan stopped before completion")
+
     today = datetime.now(ZoneInfo("Asia/Tashkent")).strftime("%Y-%m-%d")
-    message = (f"Oisha CRM -> Drive | {today}\n"
-               f"Papka: {stats['folders']}\n"
-               f"Nusxalandi: {stats['copied']}\n"
-               f"O'tkazib yuborildi: {stats['skipped']}\n"
-               f"Xatolar: {stats['errors']}\n"
-               f"CRM original fayllari o'chirilmadi.")
+    mode = "DRY RUN" if args.dry_run else ("COPY" if args.stage_existing else "FOLDER SYNC")
+    message = (
+        f"Oisha CRM / Drive | {today} | {mode}\n"
+        f"Tekshirilgan bitimlar: {stats['scanned']}\n"
+        f"Papka bog'langan: {stats['folders']}\n"
+        f"Fayllar ko'rilgan: {stats['files_found']}\n"
+        f"Nusxalangan: {stats['copied']}\n"
+        f"Oldin ishlangan: {stats['skipped']}\n"
+        f"Xatolar: {stats['errors']}\n"
+        "Original CRM fayllari o'chirilmadi."
+    )
     LOG.info(message)
     if args.telegram_report:
         await asyncio.to_thread(report_telegram, message)
+    if stats["errors"]:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
