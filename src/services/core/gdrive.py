@@ -29,6 +29,9 @@ class GoogleDriveSync:
         """
         self.creds_file = creds_file
         mode = os.getenv("GDRIVE_AUTH_MODE", "service_account").strip().lower()
+        if mode == "auto":
+            oauth_file = os.getenv("GDRIVE_OAUTH_TOKEN_FILE", "").strip()
+            mode = "oauth" if oauth_file and os.path.isfile(oauth_file) else "service_account"
         if mode == "oauth":
             from google.oauth2.credentials import Credentials
             from google.auth.transport.requests import Request
@@ -50,7 +53,7 @@ class GoogleDriveSync:
                 creds_file, scopes=self.SCOPES
             )
         else:
-            raise ValueError("GDRIVE_AUTH_MODE must be oauth or service_account")
+            raise ValueError("GDRIVE_AUTH_MODE must be auto, oauth or service_account")
         if build is None:
             raise RuntimeError("google-api-python-client unavailable")
         self.service = build("drive", "v3", credentials=self.creds)

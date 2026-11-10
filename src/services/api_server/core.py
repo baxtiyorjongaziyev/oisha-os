@@ -123,6 +123,7 @@ from src.api.routes.chat_manager import router as chat_manager_router
 from src.api.routes.chat_widget import router as chat_router
 from src.api.routes.client_qa import router as client_qa_router
 from src.api.routes.crm_auth_routes import router as crm_auth_router
+from src.api.routes.drive_oauth_routes import router as drive_oauth_router
 from src.api.routes.crm_call_routes import router as crm_call_router
 from src.api.routes.crm_dashboard import router as crm_dashboard_router
 from src.api.routes.crm_dialer import router as crm_dialer_router
@@ -186,6 +187,7 @@ app.include_router(attendance_pages_router)
 app.include_router(attendance_setup_router)
 app.include_router(crm_dialer_router)
 app.include_router(crm_auth_router)
+app.include_router(drive_oauth_router)
 app.include_router(crm_call_router)
 app.include_router(crm_enterprise_router)
 app.include_router(twenty_moizvonki_router)

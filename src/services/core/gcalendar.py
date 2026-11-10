@@ -51,12 +51,13 @@ class GoogleCalendarSync:
         calendar_id: Optional[str] = None,
         token_path: Optional[str] = None,
     ):
-        self.credentials_path = (
-            os.getenv("GOOGLE_CALENDAR_CREDENTIALS_PATH")
-            or credentials_path
-            or DEFAULT_CREDENTIALS_PATH
-        )
         self.credentials_path_env = os.getenv(DEFAULT_CREDENTIALS_ENV, "").strip()
+        # Keep the public attribute env-first for existing callers, but retain
+        # the constructor/default path for a real on-disk fallback.
+        self.credentials_path_fallback = credentials_path or DEFAULT_CREDENTIALS_PATH
+        self.credentials_path = (
+            self.credentials_path_env or self.credentials_path_fallback
+        )
         self.calendar_id = (
             calendar_id or os.getenv("GOOGLE_CALENDAR_ID") or DEFAULT_CALENDAR_ID
         )
@@ -71,7 +72,7 @@ class GoogleCalendarSync:
         """Calendar service-account keys, env-scoped key first."""
         candidates = [
             self.credentials_path_env,
-            self.credentials_path,
+            self.credentials_path_fallback,
             *DEFAULT_CREDENTIALS_FALLBACKS,
         ]
         unique: list[str] = []

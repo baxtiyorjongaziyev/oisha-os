@@ -58,6 +58,39 @@ def build_admin_aiogram_dispatcher(
 
     dp = Dispatcher()
 
+    @dp.message(F.text.regexp(r"(?i)^/gdrive_connect$"))
+    async def _connect_gdrive(message: Any) -> None:
+        """Only the Telegram owner may begin the personal Drive OAuth grant."""
+        sender = getattr(message, "from_user", None)
+        chat = getattr(message, "chat", None)
+        if (
+            not owner_id or not sender or not chat
+            or int(sender.id) != int(owner_id)
+            or int(chat.id) != int(owner_id)
+            or getattr(chat, "type", "") != "private"
+        ):
+            await message.answer("Google Drive ulanishi faqat rahbarning shaxsiy chatida ishlaydi.")
+            return
+        from src.services.core.crm.drive_oauth_onboarding import issue_owner_link
+
+        try:
+            url = await issue_owner_link()
+        except RuntimeError:
+            await message.answer(
+                "Google OAuth web client sozlanmagan. OAuth client ID/secret "
+                "va callback URL ni serverda sozlash kerak."
+            )
+            return
+        except Exception:
+            logger.exception("Owner Drive OAuth ticket issue failed")
+            await message.answer("Ulanish havolasini yaratib boʻlmadi. Server logini tekshiring.")
+            return
+        await message.answer(
+            "Google Drive hisobingizni ulash uchun ushbu bir martalik "
+            "havolani oching (10 daqiqa amal qiladi):\n" + url,
+            disable_web_page_preview=True,
+        )
+
     @dp.message(F.text.regexp(r"(?i)^/chatid"))
     async def _chatid(message: Any) -> None:
         await handle_aiogram_chatid(message)
