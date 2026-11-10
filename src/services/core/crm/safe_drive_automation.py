@@ -69,7 +69,7 @@ class SafeCRMDriveAutomation:
             crm_url = f"{self.amo.base_url}/leads/detail/{lead_id}"
             saved = await asyncio.to_thread(
                 self.amo.add_lead_note, lead_id,
-                f"{marker}\\nGoogle Drive: {url}\\namoCRM: {crm_url}",
+                f"{marker}\nGoogle Drive: {url}\namoCRM: {crm_url}",
             )
             if not saved:
                 raise RuntimeError(f"CRM link note write failed for lead {lead_id}")
@@ -124,7 +124,7 @@ class SafeCRMDriveAutomation:
         file_id = remote["id"]
         url = remote.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
         receipt = (f"{existing_tag} drive={file_id} sha256={digest} size={len(data)}"
-                   f"\\nVerified Google Drive copy: {url}\\nCRM original retained.")
+                   f"\nVerified Google Drive copy: {url}\nCRM original retained.")
         saved = await asyncio.to_thread(self.amo.add_lead_note, lead_id, receipt)
         if not saved:
             raise RuntimeError("Drive copy verified, but CRM receipt write failed; original retained")
