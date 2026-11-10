@@ -94,3 +94,21 @@ def test_invalid_oauth_state_never_exchanges_code(monkeypatch):
     with pytest.raises(PermissionError):
         asyncio.run(oauth.complete_authorization("invalid", "code"))
     oauth._flow.assert_not_called()
+
+
+def test_crm_sync_refuses_missing_personal_oauth(monkeypatch, tmp_path):
+    """Even a manual migration must not fall back to a service account."""
+    import sys
+    from scripts import safe_crm_drive_sync as runner
+    from src.settings import settings
+
+    monkeypatch.setattr(settings, "GDRIVE_OFFLOAD_FOLDER_ID", "root123")
+    monkeypatch.setattr(oauth, "token_path", lambda: tmp_path / "not-authorized.json")
+    monkeypatch.setattr(sys, "argv", ["safe_crm_drive_sync.py", "--preflight"])
+    fake_drive = Mock()
+    monkeypatch.setattr(runner, "GoogleDriveSync", fake_drive)
+
+    with pytest.raises(SystemExit) as stop:
+        asyncio.run(runner.main())
+    assert stop.value.code == 2
+    fake_drive.assert_not_called()
