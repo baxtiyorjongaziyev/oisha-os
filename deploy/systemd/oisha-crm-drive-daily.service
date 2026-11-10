@@ -1,0 +1,16 @@
+[Unit]
+Description=Oisha full historical CRM to Drive reconciliation with Telegram report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/oisha-os
+EnvironmentFile=/home/ubuntu/oisha-os/.env
+ExecStart=/home/ubuntu/oisha-os/venv/bin/python scripts/safe_crm_drive_sync.py --all-existing --stage-existing --telegram-report
+TimeoutStartSec=7200
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
