@@ -228,7 +228,7 @@ jobs:
 
             # Preserve existing Meta / Instagram / Moizvonki / Payme / Telephony / Google credentials from .env
             if [ -f .env ]; then
-              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_|GOOGLE_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
+              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_|GOOGLE_|GDRIVE_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
               # Long-lived AmoCRM token: secret wins, else keep the value an
               # owner added by hand — .env is rebuilt below and would erase it.
               if [ -z "${AMOCRM_ACCESS_TOKEN:-}" ]; then
@@ -260,6 +260,11 @@ jobs:
             TURSO_DATABASE_URL=${TURSO_DATABASE_URL}
             TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
             OWNER_ID=150074828
+            # Personal Drive: metadata only, OAuth secrets remain on server.
+            GDRIVE_AUTH_MODE=auto
+            GDRIVE_OAUTH_TOKEN_FILE=/home/ubuntu/oisha-os/data/gdrive_oauth_token.json
+            GDRIVE_EXPECTED_EMAIL=baxtiyorjongaziyev@gmail.com
+            GDRIVE_OFFLOAD_FOLDER_ID=1C388jvMUp4sAgki6l6xVdqc0yOy7L_--
             OISHA_RUNTIME=vm_service
             CLOUD_RUN_CONTROL_PLANE_ONLY=false
             SESSION_MODE=file
@@ -411,6 +416,12 @@ jobs:
             Environment=PATH=/home/ubuntu/oisha-os/venv/bin:/usr/local/bin:/usr/bin:/bin
             UNIT
             sudo sed -i 's/^            //' /etc/systemd/system/oisha-os.service.d/10-resilience.conf
+            # Safe CRM Drive timers: no uploads until owner's OAuth token exists.
+            # Both services have ExecCondition guarding token availability.
+            sudo install -m 0644 deploy/systemd/oisha-crm-drive-poll.service deploy/systemd/oisha-crm-drive-poll.timer /etc/systemd/system/
+            sudo install -m 0644 deploy/systemd/oisha-crm-drive-daily.service deploy/systemd/oisha-crm-drive-daily.timer /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable --now oisha-crm-drive-poll.timer oisha-crm-drive-daily.timer
             # Kunlik Moizvonki qo'ng'iroq hisoboti (06:00 Toshkent)
             sudo install -m 0644 deploy/systemd/oisha-calls-report.service deploy/systemd/oisha-calls-report.timer /etc/systemd/system/
             # Soatlik sotuv nazorati (10:00-19:00, tushlik 13:00 dan tashqari).
