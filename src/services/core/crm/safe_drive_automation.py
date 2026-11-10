@@ -50,7 +50,7 @@ class SafeCRMDriveAutomation:
             q=f"name = '{safe}' and '{self.root}' in parents and "
               "mimeType = 'application/vnd.google-apps.folder' and trashed = false",
             fields="nextPageToken,files(id,name,webViewLink)",
-            pageSize=100,
+            pageSize=100, supportsAllDrives=True, includeItemsFromAllDrives=True,
         ).execute()
         return next(iter(response.get("files", [])), None)
 
@@ -64,6 +64,8 @@ class SafeCRMDriveAutomation:
             raise RuntimeError(f"Google Drive folder creation failed for lead {lead_id}")
         url = f"https://drive.google.com/drive/folders/{folder_id}"
         notes = await self.amo.get_lead_notes(lead_id)
+        if getattr(self.amo, "last_error", None):
+            raise RuntimeError("CRM notes unavailable; refusing duplicate link")
         marker = f"{LINK_MARKER} {folder_id}"
         if not any(marker in n.get("params", {}).get("text", "") for n in notes):
             crm_url = f"{self.amo.base_url}/leads/detail/{lead_id}"
@@ -85,6 +87,8 @@ class SafeCRMDriveAutomation:
         if not file_uuid:
             return None
         notes = await self.amo.get_lead_notes(lead_id)
+        if getattr(self.amo, "last_error", None):
+            raise RuntimeError("CRM notes unavailable; refusing duplicate copy")
         existing_tag = f"{COPY_MARKER} lead={lead_id} note={note_id}"
         if any(existing_tag in n.get("params", {}).get("text", "") for n in notes):
             return None
@@ -106,12 +110,12 @@ class SafeCRMDriveAutomation:
                 matches = self.drive.service.files().list(
                     q=f"'{folder_id}' in parents and trashed = false",
                     fields="nextPageToken,files(id,name,size,md5Checksum,webViewLink)",
-                    pageSize=1000,
+                    pageSize=1000, supportsAllDrives=True, includeItemsFromAllDrives=True,
                 ).execute().get("files", [])
                 matches = [f for f in matches if f.get("name") == name]
                 remote = matches[0] if matches else self.drive.service.files().create(
                     body={"name": name, "parents": [folder_id]},
-                    media_body=media, fields="id,name,size,md5Checksum,webViewLink"
+                    media_body=media, fields="id,name,size,md5Checksum,webViewLink", supportsAllDrives=True
                 ).execute()
                 if int(remote.get("size", -1)) != len(data):
                     raise RuntimeError("Drive size verification failed")
@@ -133,6 +137,8 @@ class SafeCRMDriveAutomation:
     async def stage_lead(self, lead_id: int) -> dict[str, int]:
         await self.ensure_lead_folder(lead_id)
         notes = await self.amo.get_lead_notes(lead_id)
+        if getattr(self.amo, "last_error", None):
+            raise RuntimeError("CRM notes unavailable for file staging")
         result = {"copied": 0, "skipped": 0, "errors": 0}
         for n in notes:
             if n.get("note_type") != "file":
@@ -173,6 +179,8 @@ class SafeCRMDriveAutomation:
                 str(grant["sha256"]) != record.sha256):
             raise PermissionError("Approval does not match verified file")
         notes = await self.amo.get_lead_notes(record.lead_id)
+        if getattr(self.amo, "last_error", None):
+            raise RuntimeError("CRM notes unavailable; refusing deletion")
         receipt = f"{COPY_MARKER} lead={record.lead_id} note={record.note_id}"
         if not any(receipt in n.get("params", {}).get("text", "") and
                    f"drive={record.drive_id}" in n.get("params", {}).get("text", "")
@@ -180,7 +188,7 @@ class SafeCRMDriveAutomation:
             raise PermissionError("Verified copy receipt is missing")
         remote = await asyncio.to_thread(
             lambda: self.drive.service.files().get(
-                fileId=record.drive_id, fields="id,size,md5Checksum,trashed"
+                fileId=record.drive_id, fields="id,size,md5Checksum,trashed", supportsAllDrives=True
             ).execute()
         )
         if remote.get("trashed") or int(remote.get("size", -1)) != record.size:
@@ -191,7 +199,7 @@ class SafeCRMDriveAutomation:
         def verify_remote():
             buf = io.BytesIO()
             downloader = MediaIoBaseDownload(
-                buf, self.drive.service.files().get_media(fileId=record.drive_id)
+                buf, self.drive.service.files().get_media(fileId=record.drive_id, supportsAllDrives=True)
             )
             done = False
             while not done:
