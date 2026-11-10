@@ -160,12 +160,12 @@ def register_crm_drive_approval_handlers(dp: Any, *, owner_id: int) -> None:
             amo = AmoCRMSync()
             records = await verified_records(amo, lead_id)
             if not records:
-                await message.answer("Tasdiqlangan nusxa topilmadi. Avval fayllarni Drive'ga nusxalang.")
+                await message.answer("Tasdiqlangan nusxa topilmadi. Avval fayllarni Driveʼga nusxalang.")
                 return
             for record in records[:5]:
                 rid = await request_approval(record)
                 buttons = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="✅ CRM originalini o'chirish",
+                    InlineKeyboardButton(text="✅ CRM originalini oʼchirish",
                                          callback_data=f"crmoff:yes:{rid}"),
                     InlineKeyboardButton(text="❌ Saqlab qolish",
                                          callback_data=f"crmoff:no:{rid}"),
@@ -175,17 +175,17 @@ def register_crm_drive_approval_handlers(dp: Any, *, owner_id: int) -> None:
                     f"Drive nusxasi: {record.drive_url}\n"
                     f"Hajm: {record.size} bayt\n"
                     "Tasdiq 12 soatda eskiradi. Original faqat ✅ bosilgandan "
-                    "va Drive checksum qayta tekshirilgandan keyin o'chiriladi.",
+                    "va Drive checksum qayta tekshirilgandan keyin oʼchiriladi.",
                     reply_markup=buttons,
                 )
             if len(records) > 5:
                 await message.answer(
-                    f"Bu safar 5/{len(records)} fayl ko'rsatildi. "
-                    "Qolganlarini keyin ko'rib chiqing."
+                    f"Bu safar 5/{len(records)} fayl koʼrsatildi. "
+                    "Qolganlarini keyin koʼrib chiqing."
                 )
         except Exception:
             LOG.exception("CRM Drive review listing failed")
-            await message.answer("Tekshiruv xatosi. Fayllar o'chirilmadi.")
+            await message.answer("Tekshiruv xatosi. Fayllar oʼchirilmadi.")
 
     @dp.callback_query(F.data.startswith("crmoff:"))
     async def decide(callback: Any) -> None:
@@ -194,13 +194,13 @@ def register_crm_drive_approval_handlers(dp: Any, *, owner_id: int) -> None:
             return
         pieces = str(callback.data or "").split(":")
         if len(pieces) != 3 or pieces[1] not in {"yes", "no"}:
-            await callback.answer("Noto'g'ri so'rov", show_alert=True)
+            await callback.answer("Notoʼg'ri soʼrov", show_alert=True)
             return
         action, request_id = pieces[1], pieces[2]
         try:
             row = await claim(request_id, actor=int(owner_id), approve=(action == "yes"))
             if not row:
-                await callback.answer("So'rov muddati o'tgan yoki qayta ishlangan.", show_alert=True)
+                await callback.answer("Soʼrov muddati oʼtgan yoki qayta ishlangan.", show_alert=True)
                 return
             if action == "no":
                 await callback.message.edit_text("❌ Rad etildi. CRM fayli saqlanib qoldi.")
@@ -226,9 +226,9 @@ def register_crm_drive_approval_handlers(dp: Any, *, owner_id: int) -> None:
                 await finish(request_id, status="failed")
                 success = False
             await callback.message.edit_text(
-                ("✅ Owner tasdig'i bilan CRM original note o'chirildi. "
+                ("✅ Owner tasdigʼi bilan CRM original note oʼchirildi. "
                  "Drive nusxasi saqlandi.") if success else
-                "⚠️ O'chirish tugamadi. Fayl holatini CRM'da tekshiring."
+                "⚠️ Oʼchirish tugamadi. Fayl holatini CRMʼda tekshiring."
             )
             await callback.answer()
         except Exception:
