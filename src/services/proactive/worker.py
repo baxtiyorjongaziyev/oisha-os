@@ -68,9 +68,9 @@ class ProactiveWorker:
                 stats = await self.crm_offloader.run(dry_run=True)  # Never delete originals from background jobs
                 if stats and stats.get("offloaded", 0) > 0:
                     msg = (
-                        f"🧹 **AMO_CRM STORAGE CLEANUP**\n\n"
-                        f"✅ Ko'chirilgan fayllar: {stats['offloaded']} ta\n"
-                        f"📂 Barcha fayllar Google Drive-ga xavfsiz o'tkazildi.\n"
+                        f"🔎 **AMO_CRM STORAGE DRY RUN**\n\n"
+                        f"📋 Ko'chirishga nomzod fayllar: {stats['offloaded']} ta\n"
+                        f"⚠️ Bu faqat tekshiruv. Hech bir fayl ko'chirilmadi yoki o'chirilmadi.\n"
                         f"📊 Xatolar: {stats['errors']}"
                     )
                     await self.bot.send_message(
