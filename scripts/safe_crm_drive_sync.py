@@ -133,6 +133,13 @@ async def main() -> None:
     if not root:
         parser.error("GDRIVE_OFFLOAD_FOLDER_ID must point to an accessible Drive folder")
 
+    # CRM migrations MUST NOT silently fall back to a service account.
+    # Personal owner OAuth is mandatory even for a manual CLI run.
+    import os
+    from src.services.core.crm.drive_oauth_onboarding import token_path
+    if not token_path().is_file():
+        parser.error("Personal Google Drive OAuth consent missing; refusing migration")
+    os.environ["GDRIVE_AUTH_MODE"] = "oauth"
     drive = GoogleDriveSync(settings.GSHEET_CREDS_FILE)
     preflight = await check_drive_access(drive, root)
     LOG.info("Drive service-account preflight: %s", preflight)
