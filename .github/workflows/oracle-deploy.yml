@@ -186,6 +186,12 @@ jobs:
               cp -a /home/ubuntu/.secrets/service_account.json service_account.json
               chmod 600 data/service_account.json service_account.json
             fi
+            # Calendar uchun alohida service account: u faqat "Oisha-OS"
+            # kalendariga ulashilgan, Sheets/Drive kalitiga tegilmaydi.
+            if [ -f /home/ubuntu/.secrets/service_account_calendar.json ]; then
+              cp -a /home/ubuntu/.secrets/service_account_calendar.json service_account_calendar.json
+              chmod 600 service_account_calendar.json
+            fi
 
             # Contabo'dagi venv'da `venv/bin/pip` skripti yo'q (servis
             # venv/bin/python bilan ishlaydi). pip'ni modul sifatida chaqiramiz,
@@ -219,9 +225,9 @@ jobs:
               printf '%s' "$AMOCRM_TOKEN_JSON" > data/amocrm_token.json
             fi
 
-            # Preserve existing Meta / Instagram / Moizvonki / Payme / Telephony credentials from .env
+            # Preserve existing Meta / Instagram / Moizvonki / Payme / Telephony / Google credentials from .env
             if [ -f .env ]; then
-              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
+              grep -E '^(META_|INSTAGRAM_|MOIZVONKI_|PAYME_|TELEPHONY_|MISSED_CALL_|CALLBACK_|GOOGLE_)' .env > /tmp/persisted_env_backup.env 2>/dev/null || true
               # Long-lived AmoCRM token: secret wins, else keep the value an
               # owner added by hand — .env is rebuilt below and would erase it.
               if [ -z "${AMOCRM_ACCESS_TOKEN:-}" ]; then
