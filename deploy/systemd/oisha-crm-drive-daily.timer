@@ -1,0 +1,9 @@
+[Unit]
+Description=Oisha daily full CRM Drive reconciliation at 03:30 Tashkent
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Tashkent
+Persistent=true
+
+[Install]
+WantedBy=timers.target
