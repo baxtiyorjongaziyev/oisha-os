@@ -45,17 +45,27 @@ async def gdrive_callback(
     if error:
         raise HTTPException(status_code=403, detail="Google consent was not granted")
     try:
-        info = await complete_authorization(state, code)
+        await complete_authorization(state, code)
     except PermissionError:
         raise HTTPException(status_code=403, detail="Google account/state rejected") from None
-    except Exception:
-        logger.exception("Google Drive authorization or verification failed")
+    except Exception as exc:
+        logger.error("Google Drive authorization failed: %s", type(exc).__name__)
         raise HTTPException(status_code=503, detail="Google Drive authorization failed") from None
-    message = (
-        "<html><head><meta charset='utf-8'></head>"
-        "<body><h2>Google Drive muvaffaqiyatli ulandi</h2>"
-        "<p>Ruxsat xavfsiz saqlandi. Endi bu oynani yopishingiz mumkin.</p>"
-        "<p>Hisob: " + info["email"] + "</p>"
-        "</body></html>"
+    # Never leave the Google authorization code in the browser address bar.
+    response = RedirectResponse("/api/integrations/gdrive/complete", status_code=303)
+    response.headers.update(SECURE_HEADERS)
+    return response
+
+
+@router.get("/api/integrations/gdrive/complete")
+async def gdrive_complete():
+    """Post-consent landing page without OAuth query parameters."""
+    return HTMLResponse(
+        content=(
+            "<html><head><meta charset='utf-8'></head>"
+            "<body><h2>Google Drive muvaffaqiyatli ulandi</h2>"
+            "<p>Ruxsat xavfsiz saqlandi. Endi oynani yopishingiz mumkin.</p>"
+            "</body></html>"
+        ),
+        headers=SECURE_HEADERS,
     )
-    return HTMLResponse(content=message, headers=SECURE_HEADERS)
