@@ -21,8 +21,8 @@ from src.services.core.crm.safe_drive_automation import (
 
 LOG = logging.getLogger(__name__)
 RECEIPT = re.compile(
-    r"\\[OISHA_DRIVE_COPY\\] lead=(\\d+) note=(\\d+) "
-    r"drive=([A-Za-z0-9_-]+) sha256=([a-f0-9]{64}) size=(\\d+)"
+    r"\[OISHA_DRIVE_COPY\] lead=(\d+) note=(\d+) "
+    r"drive=([A-Za-z0-9_-]+) sha256=([a-f0-9]{64}) size=(\d+)"
 )
 
 
@@ -146,7 +146,7 @@ def register_crm_drive_approval_handlers(dp: Any, *, owner_id: int) -> None:
             and getattr(chat, "type", "") == "private"
         )
 
-    @dp.message(F.text.regexp(r"(?i)^/crm_drive_review(?:\\s+\\d+)?$"))
+    @dp.message(F.text.regexp(r"(?i)^/crm_drive_review(?:\s+\d+)?$"))
     async def review(message: Any) -> None:
         if not is_owner_private_chat(message):
             await message.answer("Faqat rahbarning shaxsiy chatida ishlaydi.")
@@ -171,9 +171,9 @@ def register_crm_drive_approval_handlers(dp: Any, *, owner_id: int) -> None:
                                          callback_data=f"crmoff:no:{rid}"),
                 ]])
                 await message.answer(
-                    f"CRM bitim #{record.lead_id}, fayl note #{record.note_id}\\n"
-                    f"Drive nusxasi: {record.drive_url}\\n"
-                    f"Hajm: {record.size} bayt\\n"
+                    f"CRM bitim #{record.lead_id}, fayl note #{record.note_id}\n"
+                    f"Drive nusxasi: {record.drive_url}\n"
+                    f"Hajm: {record.size} bayt\n"
                     "Tasdiq 12 soatda eskiradi. Original faqat ✅ bosilgandan "
                     "va Drive checksum qayta tekshirilgandan keyin o'chiriladi.",
                     reply_markup=buttons,
