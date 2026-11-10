@@ -119,7 +119,7 @@ class SafeCRMDriveAutomation:
                 ).execute()
                 if int(remote.get("size", -1)) != len(data):
                     raise RuntimeError("Drive size verification failed")
-                if remote.get("md5Checksum") != hashlib.md5(data).hexdigest():
+                if remote.get("md5Checksum") != hashlib.md5(data, usedforsecurity=False).hexdigest():
                     raise RuntimeError("Drive checksum verification failed")
                 return remote
             remote = await asyncio.to_thread(upload_and_verify)
