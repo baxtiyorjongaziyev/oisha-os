@@ -113,10 +113,13 @@ async def main() -> None:
     parser.add_argument("--active-only", action="store_true", help="Skip won/lost leads")
     parser.add_argument("--dry-run", action="store_true", help="No CRM/Drive writes")
     parser.add_argument("--telegram-report", action="store_true")
+    parser.add_argument("--probe-write", action="store_true", help="In preflight, create/remove a tiny Drive test file")
     parser.add_argument("--max-pages", type=int, default=100)
     args = parser.parse_args()
     if args.max_pages < 1 or args.max_pages > 500:
         parser.error("--max-pages must be between 1 and 500")
+    if args.probe_write and not args.preflight:
+        parser.error("--probe-write requires --preflight")
     root = settings.GDRIVE_OFFLOAD_FOLDER_ID
     if not root:
         parser.error("GDRIVE_OFFLOAD_FOLDER_ID must point to an accessible Drive folder")
@@ -125,6 +128,30 @@ async def main() -> None:
     preflight = await check_drive_access(drive, root)
     LOG.info("Drive service-account preflight: %s", preflight)
     if args.preflight:
+        if args.probe_write:
+            from googleapiclient.http import MediaIoBaseUpload
+            import io
+            import secrets
+
+            def probe():
+                marker = f"oisha-drive-probe-{secrets.token_hex(6)}.txt"
+                created = drive.service.files().create(
+                    body={"name": marker, "parents": [root]},
+                    media_body=MediaIoBaseUpload(
+                        io.BytesIO(b"Oisha write probe"), mimetype="text/plain"
+                    ),
+                    fields="id,size", supportsAllDrives=True,
+                ).execute()
+                try:
+                    if int(created.get("size", -1)) != len(b"Oisha write probe"):
+                        raise RuntimeError("Drive probe uploaded an unexpected size")
+                finally:
+                    drive.service.files().delete(
+                        fileId=created["id"], supportsAllDrives=True
+                    ).execute()
+                return True
+            await asyncio.to_thread(probe)
+            LOG.info("Drive create/readback/delete probe passed")
         return
 
     amo = AmoCRMSync()
@@ -164,7 +191,9 @@ async def main() -> None:
         elif args.recent:
             if not 1 <= args.recent <= 250:
                 parser.error("--recent must be between 1 and 250")
-            recent = await amo.get_leads(limit=args.recent)
+            recent = await amo.get_leads(
+                limit=args.recent, **{"order[created_at]": "desc"}
+            )
             if amo.last_error:
                 raise RuntimeError(f"amoCRM recent list unavailable: {amo.last_error}")
             for lead in recent:
