@@ -22,10 +22,37 @@ class GoogleDriveSync:
     SCOPES = ["https://www.googleapis.com/auth/drive"]
 
     def __init__(self, creds_file: str):
+        """Authenticate via service account or explicitly configured user OAuth.
+
+        OAuth is required when files must use a personal account's storage
+        quota. No tokens are committed or logged.
+        """
         self.creds_file = creds_file
-        self.creds = service_account.Credentials.from_service_account_file(
-            creds_file, scopes=self.SCOPES
-        )
+        mode = os.getenv("GDRIVE_AUTH_MODE", "service_account").strip().lower()
+        if mode == "oauth":
+            from google.oauth2.credentials import Credentials
+            from google.auth.transport.requests import Request
+
+            token_path = os.getenv("GDRIVE_OAUTH_TOKEN_FILE", "").strip()
+            if not token_path or not os.path.isfile(token_path):
+                raise RuntimeError("GDRIVE_OAUTH_TOKEN_FILE is missing/inaccessible")
+            self.creds = Credentials.from_authorized_user_file(
+                token_path, scopes=self.SCOPES
+            )
+            if not self.creds.valid:
+                if not self.creds.refresh_token:
+                    raise RuntimeError("Google Drive OAuth refresh token missing")
+                self.creds.refresh(Request())
+        elif mode == "service_account":
+            if service_account is None:
+                raise RuntimeError("google-auth service-account support unavailable")
+            self.creds = service_account.Credentials.from_service_account_file(
+                creds_file, scopes=self.SCOPES
+            )
+        else:
+            raise ValueError("GDRIVE_AUTH_MODE must be oauth or service_account")
+        if build is None:
+            raise RuntimeError("google-api-python-client unavailable")
         self.service = build("drive", "v3", credentials=self.creds)
 
     def upload_file(
@@ -43,7 +70,7 @@ class GoogleDriveSync:
             media = MediaFileUpload(file_path, resumable=True)
             uploaded_file = (
                 self.service.files()
-                .create(body=file_metadata, media_body=media, fields="id, webViewLink")
+                .create(body=file_metadata, media_body=media, fields="id, webViewLink", supportsAllDrives=True)
                 .execute()
             )
 
@@ -75,7 +102,7 @@ class GoogleDriveSync:
                 file_metadata["parents"] = [parent_id]
 
             folder = (
-                self.service.files().create(body=file_metadata, fields="id").execute()
+                self.service.files().create(body=file_metadata, fields="id", supportsAllDrives=True).execute()
             )
             return folder.get("id")
         except Exception as e:
