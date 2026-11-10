@@ -136,10 +136,13 @@ async def main() -> None:
     # CRM migrations MUST NOT silently fall back to a service account.
     # Personal owner OAuth is mandatory even for a manual CLI run.
     import os
-    from src.services.core.crm.drive_oauth_onboarding import token_path
-    if not token_path().is_file():
+    from src.services.core.crm.drive_oauth_onboarding import token_path, expected_email
+    authorized_path = token_path()
+    if not authorized_path.is_file():
         parser.error("Personal Google Drive OAuth consent missing; refusing migration")
     os.environ["GDRIVE_AUTH_MODE"] = "oauth"
+    os.environ["GDRIVE_OAUTH_TOKEN_FILE"] = str(authorized_path)
+    os.environ["GDRIVE_EXPECTED_EMAIL"] = expected_email()
     drive = GoogleDriveSync(settings.GSHEET_CREDS_FILE)
     preflight = await check_drive_access(drive, root)
     LOG.info("Drive service-account preflight: %s", preflight)
