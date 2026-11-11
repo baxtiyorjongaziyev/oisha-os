@@ -224,11 +224,15 @@ async def kirim_topic_handler(event):
         return
     if event.chat_id != settings.TEAM_GROUP_ID:
         return
-    if not _is_kirim_topic_message(event.message):
-        return
 
     text = (getattr(event.message, "message", None) or getattr(event.message, "text", None) or "").strip()
-    if not _looks_like_income_announcement(text) and not _looks_like_payment_confirmation(event.message, text):
+    # Kirim eʼloni guruhning istalgan joyidan (summali xabar) qabul qilinadi.
+    # Summasiz toʻlov tasdigʻi faqat Kirim topicda ishlaydi.
+    if _looks_like_income_announcement(text):
+        pass
+    elif _is_kirim_topic_message(event.message) and _looks_like_payment_confirmation(event.message, text):
+        pass
+    else:
         return
 
     sender = await event.get_sender()
