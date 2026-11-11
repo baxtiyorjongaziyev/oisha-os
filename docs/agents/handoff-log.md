@@ -2702,3 +2702,18 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - andit -r src/ -ll -> 0 issues.
   - python scripts/check_uzbek_text.py -> toza (61 fayl).
 - **Qolgan ish/Keyingi qadam**: Ishxonadagi noutbukda git pull --rebase qilish va ishni silliq davom ettirish.
+
+## 2026-11-11 — Claude: Meta Ad Library havolalari (/adlib + lid dosyesi)
+- **Bajarilgan ish**: Meta Ad Library API Oʻzbekistondagi tijoriy reklamalarni qaytarmaydi (faqat EI ga yetgan yoki siyosiy reklamalar), shuning uchun API va scraping oʻrniga qoʻlda koʻrib chiqish uchun havola generatori qilindi.
+  - `/adlib <Instagram/Facebook havola, @username yoki brend nomi>` admin buyrugʻi (faqat OWNER/WHITELIST, private chat) faol UZ reklamalariga Ad Library havolasini qaytaradi.
+  - Telegram lid dosyesi (`TelegramLeadProfile.format_dossier`) bio yoki yozishmada Instagram/FB profil havolasi boʻlsa, "Meta reklamalari" boʻlimida Ad Library havolalarini koʻrsatadi (koʻpi bilan 3 ta).
+- **Oʻzgargan fayllar**:
+  - src/services/core/marketing/ad_library_links.py (yangi)
+  - src/handlers/msg_pipeline/admin_commands.py
+  - src/services/ai/lead_profiler.py
+  - tests/test_ad_library_links.py (yangi)
+- **Tekshiruv dalili**:
+  - SKIP_LIVE=1 pytest -q -> 3757 passed, 17 skipped.
+  - bandit (oʻzgargan fayllar) -ll -> 0 issues.
+  - Yangi qatorlarda ASCII apostrof yoʻq; admin_commands.py dagi 11 ta eski apostrof oldindan bor edi (tegilmadi).
+- **Qolgan ish/Keyingi qadam**: Prod (Contabo) da `/adlib` jonli sinalmagan; havola Ad Library sahifasida toʻgʻri ochilishini brauzerda bir marta tekshirish kerak. `src/commands/` registri hech qayerdan chaqirilmaydi (oʻlik kod), shuning uchun buyruq `admin_commands.py` ga qoʻshildi.

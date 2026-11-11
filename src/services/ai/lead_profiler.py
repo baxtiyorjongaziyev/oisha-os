@@ -57,6 +57,17 @@ class TelegramLeadProfile:
     communication_tip: str  # Menejer aynan qanday muloqot qilishi kerak
     recommended_package: str  # Tavsiya etiladigan Jon Branding xizmati
     key_icebreaker: str  # Muloqotni boshlash uchun eng zoʻr "muz yorar" mavzu
+    ad_library_queries: List[str] = field(default_factory=list)  # Instagram/FB sahifalar
+
+    def _ad_library_lines(self) -> List[str]:
+        if not self.ad_library_queries:
+            return []
+        from src.services.core.marketing.ad_library_links import build_ad_library_url
+
+        lines = ["", "📢 **Meta reklamalari (qoʻlda tekshiring):**"]
+        for query in self.ad_library_queries:
+            lines.append(f"👉 {query}: {build_ad_library_url(query)}")
+        return lines
 
     def format_dossier(self) -> str:
         """Chiroyli formatlangan Telegram dosyesi."""
@@ -81,6 +92,7 @@ class TelegramLeadProfile:
             "",
             f"📦 **Tavsiya etiladigan xizmat paketi:**",
             f"👉 {self.recommended_package}",
+            *self._ad_library_lines(),
             "────────────────────────────────────────",
         ]
         return "\n".join(lines)
@@ -191,6 +203,21 @@ class TelegramLeadProfiler:
         )
 
     async def analyze_lead(
+        self,
+        signals: TelegramRawSignals,
+        chat_history: str = "",
+    ) -> TelegramLeadProfile:
+        """Dosye tuzadi va Instagram/FB sahifalar uchun Ad Library havolalarini qoʻshadi."""
+        profile = await self._synthesize_profile(signals, chat_history)
+        try:
+            from src.services.core.marketing.ad_library_links import find_social_page_queries
+
+            profile.ad_library_queries = find_social_page_queries(f"{signals.about}\n{chat_history}")
+        except Exception as exc:
+            logger.debug("[PROFILER] Ad Library havolalari qoʻshilmadi: %s", exc)
+        return profile
+
+    async def _synthesize_profile(
         self,
         signals: TelegramRawSignals,
         chat_history: str = "",

@@ -170,6 +170,15 @@ async def _handle_promises(event: Any, text: str, msg_controller: Any, get_surgi
     return True
 
 
+async def _handle_ad_library(event: Any, text: str) -> bool:
+    if not (text == "/adlib" or text.startswith("/adlib ")):
+        return False
+    from src.services.core.marketing.ad_library_links import format_ad_library_reply
+
+    await event.respond(format_ad_library_reply(text[len("/adlib"):]), link_preview=False)
+    return True
+
+
 async def process_admin_commands(
     event,
     *,
@@ -219,5 +228,7 @@ async def process_admin_commands(
     if await _handle_client_qa(event, text, client, msg_controller, get_surgical_integration):
         return True
     if await _handle_promises(event, text, msg_controller, get_surgical_integration):
+        return True
+    if await _handle_ad_library(event, text):
         return True
     return False
