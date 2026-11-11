@@ -2791,3 +2791,38 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   3. O'zbekcha matn tekshiruvi: `python scripts/check_uzbek_text.py --staged` -> **Toza (8 fayl)**.
   4. Modular Code Standard: Barcha fayllar qat'iy $\le 400$ qator.
 - **Qolgan ish/Bloker:** Bloker yo'q. PR ochishga tayyor.
+
+
+## 2026-11-10 — Claude — Agentlik uchun 4 ta yangi mutaxassis agent (naming, trademark, packaging, reels_script)
+- **Vazifa:** Owner soʻrovi ("Yangi agentlar yozish"): Jon Branding jarayonlaridagi boʻshliqlar uchun yangi agentlar.
+- **Bajarilgan ish:**
+  1. `src/agents/specialist_base.py`: `SpecialistAgent` — umumiy `process_task`; kontekst `system_prompt` ni oʻzgartirmasdan oxirgi user xabariga qoʻshiladi.
+  2. `naming_agent.py`, `trademark_agent.py`, `packaging_agent.py`, `reels_script_agent.py`: prompt suffiks + `CONTEXT_FIELDS`. Promptlarda "tekshirilmagan" / "oʻylab topmang" guardraillari (AGENTS.md #10).
+  3. `orchestrator.py`: `AGENT_IDS` yagona roʻyxat (ikki dublikat oʻrniga), Gemini router promptiga 4 agent, keyword fallback.
+  4. `message_controller.py`: 4 agent roʻyxatdan oʻtkazildi.
+- **Oʻzgargan fayllar:** `src/agents/{specialist_base,naming_agent,trademark_agent,packaging_agent,reels_script_agent,orchestrator}.py`, `src/controllers/message_controller.py`, `tests/test_brand_studio_agents.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3870 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** Production'da jonli LLM javobi tekshirilmagan (faqat unit test, AI mock). `AGENTS.md` Locks'ga yozilmadi (Coordinator fayli). Mavjud agentlar `SpecialistAgent` ga koʻchirilmadi (refactor scope'dan tashqari).
+
+
+## 2026-11-10 — Claude — agency-agents reposidan 8 ta persona qoʻshildi
+- **Vazifa:** Owner `msitarzewski/agency-agents` havolasini berdi. Mavjud 35 persona shu repodan qisqartirilgan; yetishmayotgan, agentlikka kerakli 8 tasi qoʻshildi.
+- **Bajarilgan ish:**
+  1. `src/services/personas/agency_agents_extra.py`: `GROWTH_PERSONAS` — `paid-media-paid-social-strategist`, `paid-media-creative-strategist`, `paid-media-tracking-specialist`, `sales-offer-lead-gen-strategist`, `marketing-carousel-growth-engine`, `marketing-email-strategist`, `design-image-prompt-engineer`, `project-management-studio-producer`. Manba: upstream commit `8ae6164`, MIT (fayl docstringida).
+  2. `personas/__init__.py`, `core/agency_personas.py`: `GROWTH_PERSONAS` qoʻshildi va re-export qilindi.
+  3. `agents/persona_router.py`: 8 ta yangi pattern, umumiy "taklif"/"reklama" patternlaridan oldin.
+- **Oʻzgargan fayllar:** yuqoridagilar + `tests/test_agency_agents_personas.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3892 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** Persona matnlari upstream fayllarning qoʻlda qisqartirilgan varianti (soʻzma-soʻz nusxa emas). Jonli LLM javobi tekshirilmagan. PR #1050 da GitHub-hosted CI joblari ishga tushmayapti (hisob darajasidagi sabab, PR izohida).
+
+
+## 2026-11-11 — Claude — GitHub Actions sarfini kamaytirish (bepul kvota tugagan)
+- **Sabab:** Owner hisobida (GitHub Free) Actions bepul kvotasi 2026-11-10 da tugadi ($12.00/$12.00, owner skrinshoti); hosted joblar "job was not started ... spending limit" annotatsiyasi bilan boshlanmayapti. Shu oyda sarf: `oisha-os` $7.99, `jonbranding-web` $5.32 (owner skrinshoti). Asosiy manba — har PR pushda 5 workflow, har job kamida 1 daqiqa hisoblanadi.
+- **Bajarilgan ish:**
+  1. Draft PR'larda `changes`, `pull-request-tests`, `Import-time crash guard`, `gitleaks` oʻtkazib yuboriladi; `ready_for_review` hodisasi qoʻshildi.
+  2. Oʻzbekcha matn PR-diff tekshiruvi `Import-time crash guard` jobiga koʻchirildi; `uzbek-text-guard.yml` endi faqat `main` push va qoʻlda.
+  3. `labeler.yml`: `synchronize` olib tashlandi (faqat PR ochilganda / ready boʻlganda).
+  4. `tests/test_runner_workflow_contract.py`: uchta yangi shartnoma testi; `.claude/skills/steward/SKILL.md` ga draft qoidasi.
+- **Hisob (taxmin, oʻlchanmagan):** ready PR push ~7 → ~5 job-daqiqa, draft PR push ~7 → 0.
+- **Tekshiruv dalillari:** YAML parse OK; `SKIP_LIVE=1 pytest -q` → 3895 passed, 14 skipped; `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza. **GitHub'da ishga tushirib tekshirilmagan** — kvota tugagani uchun Actions ishlamayapti.
+- **Qolgan ish/Bloker:** `jonbranding-web` reposi bu sessiya doirasida emas — u ham kamaytirilmasa umumiy kvota baribir yetmasligi mumkin. Branch protection required checklari (`Import-time crash guard`, `gitleaks`) draftda "skipped" boʻladi; ready qilinganda ishlaydi.

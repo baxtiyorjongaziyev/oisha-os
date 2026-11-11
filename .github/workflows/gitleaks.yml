@@ -4,6 +4,9 @@ on:
   push:
     branches: [main, master]
   pull_request:
+    # Draft PR'larda ishlamaydi (Actions kvotasini tejash); "Ready for review"
+    # bosilganda ready_for_review hodisasi tekshiruvni ishga tushiradi.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, master]
   schedule:
     - cron: "0 2 * * 1"
@@ -20,6 +23,7 @@ permissions:
 jobs:
   gitleaks:
     name: gitleaks
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # GitHub-hosted runner: the Oracle self-hosted runner is a 1GB free-tier
     # VM that also runs the production oisha-os stack (userbot, minio,
     # docker). A full-history gitleaks scan competing with that for memory

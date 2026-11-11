@@ -38,6 +38,8 @@ Qadamlar: `ruff --select F821` → `bandit` → `pytest` (+ o'zgargan TS workspa
 **Taqiqlangan:** testni o'chirish / `skip` / `xfail` / karantin; bo'sh commit; PR'ni yopib-ochish.
 
 Repo-spetsifik eslatmalar:
+- **Draft PR'larda CI ishlamaydi** (Actions bepul kvotasini tejash). Lokal `preflight` yashil bo'lgach PR'ni
+  "Ready for review" qiling — shunda CI ishga tushadi. Labeler faqat PR ochilganda ishlaydi.
 - Testlar `SKIP_LIVE=1` bilan ishlaydi — live API'ga uriladigan yangi test `SKIP_LIVE` bilan himoyalanishi shart.
 - `oracle-deploy.yml` faqat `main` ga merge'dan keyin ishlaydi; PR'da deploy xatosi kutilmaydi.
 - `chore(auto):` yoki `[skip ci]` commit'lari CI'ni o'tkazib yuboradi — tuzatish commit'larida ishlatmang.

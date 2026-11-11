@@ -47,3 +47,33 @@ def test_oracle_probe_is_trusted_main_only_and_has_no_secrets():
     assert "pull_request" not in pre_steps
     assert "secrets." not in oracle_block
     assert "[self-hosted, oracle]" in oracle_block
+
+
+DRAFT_GATED_JOBS = {
+    "test.yml": ["changes", "pull-request-tests"],
+    "gitleaks.yml": ["gitleaks"],
+    "oracle-deploy.yml": ["import-guard"],
+}
+
+
+def test_pr_jobs_skip_draft_pull_requests_to_save_actions_minutes():
+    for name, jobs in DRAFT_GATED_JOBS.items():
+        workflow = load_workflow(name)
+        # PyYAML parses the bare `on:` key as boolean True.
+        types = workflow[True]["pull_request"]["types"]
+        assert "ready_for_review" in types, name
+        for job in jobs:
+            condition = str(workflow["jobs"][job]["if"])
+            assert "github.event.pull_request.draft == false" in condition, (name, job)
+
+
+def test_uzbek_guard_runs_inside_import_guard_on_pull_requests():
+    guard = load_workflow("uzbek-text-guard.yml")
+    assert "pull_request" not in guard[True]
+    steps = load_workflow("oracle-deploy.yml")["jobs"]["import-guard"]["steps"]
+    assert any("check_uzbek_text.py --base" in str(step.get("run", "")) for step in steps)
+
+
+def test_labeler_does_not_run_on_every_push():
+    types = load_workflow("labeler.yml")[True]["pull_request_target"]["types"]
+    assert "synchronize" not in types
