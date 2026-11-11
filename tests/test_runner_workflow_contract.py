@@ -101,6 +101,7 @@ def test_deploy_requires_a_passed_guard_for_each_trigger():
     assert set(deploy["needs"]) == {"import-guard", "manual-guard"}
     assert "github.event_name == 'push' && needs.import-guard.result == 'success'" in condition
     assert "github.event_name == 'workflow_dispatch' && needs.manual-guard.result == 'success'" in condition
+    assert "always()" in condition  # skipped manual-guard must not block push deploys
     assert "pull_request" not in condition
     # Hosted import-guard is skipped on manual runs so they do not burn minutes.
     assert "github.event_name != 'workflow_dispatch'" in str(workflow["jobs"]["import-guard"]["if"])

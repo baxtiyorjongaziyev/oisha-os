@@ -121,7 +121,7 @@ jobs:
     # Secrets-bearing production deploys only on reviewed main pushes.
     # Manual workflow_dispatch deploys only from main, with the typed
     # confirmation, after manual-guard passes on the self-hosted runner.
-    if: "!cancelled() && ((github.event_name == 'push' && needs.import-guard.result == 'success' && !startsWith(github.event.head_commit.message, 'chore(auto):')) || (github.event_name == 'workflow_dispatch' && needs.manual-guard.result == 'success'))"
+    if: "always() && !cancelled() && ((github.event_name == 'push' && needs.import-guard.result == 'success' && !startsWith(github.event.head_commit.message, 'chore(auto):')) || (github.event_name == 'workflow_dispatch' && needs.manual-guard.result == 'success'))"
     # Runner label "oracle" is historical: the runner itself lives on Contabo.
     runs-on: [self-hosted, oracle]
     environment: production
