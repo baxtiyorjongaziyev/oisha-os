@@ -89,3 +89,74 @@ def test_crm_failure_does_not_raise_or_remind():
         )
 
     send.assert_not_awaited()
+
+
+def test_crm_read_failure_sends_no_reminder():
+    from src.services.core.rop.fetchers import RopFetchError
+
+    db = FakeDb()
+    send = AsyncMock()
+    fetcher = SimpleNamespace(fetch_won_leads_since=AsyncMock(side_effect=RopFetchError("HTTP 500")))
+    ctx = SimpleNamespace(msg_controller=SimpleNamespace(db=db, crm=SimpleNamespace(amocrm=object())))
+    with (
+        patch.object(swc, "app_ctx", ctx),
+        patch.object(swc, "RopFetcher", return_value=fetcher),
+        patch.object(swc, "load_roster", AsyncMock(return_value=[SELLER])),
+        patch.object(swc, "is_quiet_hours", return_value=False),
+    ):
+        asyncio.run(
+            swc.check_won_after_payment(
+                send, CHAT_ID, MSG_ID, "@rayxona",
+                sender_id=555, card_seller=None, db=db, delay=0,
+            )
+        )
+
+    send.assert_not_awaited()
+    assert db.state[STATE_KEY] == "crm_unavailable"
+    fetcher.fetch_won_leads_since.assert_awaited_once()
+    assert fetcher.fetch_won_leads_since.await_args.kwargs == {"strict": True}
+
+
+def test_strict_fetch_raises_on_http_error_instead_of_empty_list():
+    import asyncio as _aio
+    from src.services.core.rop.fetchers import RopFetcher, RopFetchError
+
+    class Resp:
+        status_code = 500
+
+    session = MagicMock()
+    session.get = MagicMock(return_value=Resp())
+    amo = SimpleNamespace(base_url="https://x", _get_headers=lambda: {})
+    fetcher = RopFetcher(amo, session=session)
+
+    assert _aio.run(fetcher.fetch_won_leads_since(0)) == []
+    try:
+        _aio.run(fetcher.fetch_won_leads_since(0, strict=True))
+    except RopFetchError:
+        pass
+    else:
+        raise AssertionError("strict fetch must raise on HTTP 500")
+
+
+def test_strict_fetch_raises_when_pages_incomplete():
+    import asyncio as _aio
+    from src.services.core.rop.fetchers import RopFetcher, RopFetchError
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"_embedded": {"leads": [{"id": 1}]},
+                    "_links": {"next": {"href": "https://x/next"}}}
+
+    session = MagicMock()
+    session.get = MagicMock(return_value=Resp())
+    amo = SimpleNamespace(base_url="https://x", _get_headers=lambda: {})
+    fetcher = RopFetcher(amo, session=session)
+
+    try:
+        _aio.run(fetcher.fetch_won_leads_since(0, strict=True))
+    except RopFetchError:
+        pass
+    else:
+        raise AssertionError("strict fetch must raise when pages are incomplete")

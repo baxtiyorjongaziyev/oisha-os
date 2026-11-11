@@ -13,14 +13,13 @@ from typing import Any, Awaitable, Callable, Optional
 import structlog
 
 from src.context import app_ctx
-from src.services.core.rop.fetchers import RopFetcher
+from src.services.core.rop.fetchers import RopFetcher, RopFetchError
 from src.services.core.rop.targets import load_roster
 from src.settings import settings
 from src.time_utils import is_quiet_hours
 
 logger = structlog.get_logger()
 
-_DEFAULT_DELAY_SECONDS = 1800
 _WON_LOOKBACK_SECONDS = 86400
 _background_tasks: set = set()
 
@@ -48,9 +47,10 @@ def _find_seller(roster: list, sender_id: Optional[int], card_seller: Optional[s
 
 
 async def _won_lead_id(seller: Any, delay: int) -> Optional[int]:
+    """Won bitim id yoki None. CRM oʻqilmasa RopFetchError koʻtariladi (xulosa chiqarilmaydi)."""
     amocrm = app_ctx.msg_controller.crm.amocrm
     since = int(time.time()) - _WON_LOOKBACK_SECONDS - delay
-    for lead in await RopFetcher(amocrm).fetch_won_leads_since(since):
+    for lead in await RopFetcher(amocrm).fetch_won_leads_since(since, strict=True):
         if lead.get("responsible_user_id") == seller.responsible_user_id:
             return int(lead.get("id") or 0)
     return None
@@ -69,7 +69,7 @@ async def check_won_after_payment(
 ) -> None:
     """Kutadi, amoCRM ni tekshiradi va kerak boʻlsa sotuvchiga eslatadi. Xato koʻtarmaydi."""
     if delay is None:
-        delay = int(getattr(settings, "SALES_WON_CHECK_DELAY_SECONDS", _DEFAULT_DELAY_SECONDS))
+        delay = int(settings.SALES_WON_CHECK_DELAY_SECONDS)
     state_key = f"sales_won_check:{chat_id}:{message_id}"
     try:
         await asyncio.sleep(delay)
@@ -79,7 +79,12 @@ async def check_won_after_payment(
             await db.set_state(state_key, "unknown_seller")
             return
 
-        lead_id = await _won_lead_id(seller, delay)
+        try:
+            lead_id = await _won_lead_id(seller, delay)
+        except RopFetchError as exc:
+            logger.warning(f"[SALES_WON_CHECK] CRM oʻqilmadi, eslatma yuborilmadi: {exc}")
+            await db.set_state(state_key, "crm_unavailable")
+            return
         if lead_id is not None:
             await db.set_state(state_key, f"won:{lead_id}")
             return
