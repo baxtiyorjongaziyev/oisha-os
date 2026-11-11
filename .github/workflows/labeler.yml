@@ -2,7 +2,8 @@ name: PR Labeler
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    # synchronize olib tashlandi: har pushda 1 daqiqa Actions kvotasi ketardi.
+    types: [opened, reopened, ready_for_review]
 
 permissions:
   contents: read

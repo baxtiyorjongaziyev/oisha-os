@@ -7,6 +7,17 @@ from src.services.utils.gemini_fallback import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
+# Router qaytarishi mumkin boʻlgan barcha agent_id lar (tartib Bedrock
+# javobidan substring qidirishda ishlatiladi).
+AGENT_IDS = (
+    "sales", "support", "strategist", "researcher",
+    "copywriter", "finance", "ops", "brief", "welcome",
+    "project_update", "presentation", "feedback",
+    "referral", "anniversary", "upsell",
+    "branding_advisor", "competitor_watch", "checklist",
+    "naming", "trademark", "packaging", "reels_script",
+)
+
 
 class AgentOrchestrator:
     """Agentlarni boshqarish va vazifalarni yo'naltirish orkestratori."""
@@ -47,6 +58,10 @@ class AgentOrchestrator:
         7. 'copywriter' - Post, caption, reklama matni, SMM kontent-reja, email matn
         8. 'branding_advisor' - Brend strategiyasi, pozitsionlash, brand identity maslahat
         9. 'competitor_watch' - Raqobatchi tahlili, bozor o'rganish
+        19. 'naming' - Brend/kompaniya/mahsulot uchun nom tanlash, nom variantlari
+        20. 'trademark' - Tovar belgisi, patent, MKTU sinflari, nom/logoni huquqiy himoya qilish
+        21. 'packaging' - Qadoq (upakovka), etiketka dizayni brifi va konsepsiyasi
+        22. 'reels_script' - Reels/qisqa video uchun kadrma-kadr ssenariy
 
         MOLIYA VA RETENTION:
         10. 'finance' - Invoice, to'lov, byudjet, moliyaviy hisobot
@@ -80,14 +95,7 @@ class AgentOrchestrator:
                 log_prefix="[ORCHESTRATOR]",
             )
             intent = response.text.strip().lower()
-            _all_agents = {
-                "sales", "support", "strategist", "researcher",
-                "copywriter", "finance", "ops",
-                "brief", "welcome", "project_update", "presentation",
-                "feedback", "referral", "anniversary", "upsell",
-                "branding_advisor", "competitor_watch", "checklist",
-            }
-            if intent in _all_agents:
+            if intent in AGENT_IDS:
                 return intent
         except Exception as e:
             from src.services.utils.gemini_fallback import is_quota_error
@@ -109,13 +117,7 @@ class AgentOrchestrator:
                     if reply:
                         intent = reply.strip().lower()
                         # Extract intent if Claude adds fluff
-                        for possible in [
-                            "sales", "support", "strategist", "researcher",
-                            "copywriter", "finance", "ops", "brief", "welcome",
-                            "project_update", "presentation", "feedback",
-                            "referral", "anniversary", "upsell",
-                            "branding_advisor", "competitor_watch", "checklist",
-                        ]:
+                        for possible in AGENT_IDS:
                             if possible in intent:
                                 return possible
                 except Exception as b_err:
@@ -128,6 +130,14 @@ class AgentOrchestrator:
         msg = user_message.lower()
         if any(w in msg for w in ["cheklisti", "checklist", "bajarildi", "overdue", "kechikkan", "menejer ball", "reyting"]):
             return "checklist"
+        if any(w in msg for w in ["tovar belgi", "trademark", "patent", "mktu"]):
+            return "trademark"
+        if any(w in msg for w in ["naming", "neyming", "nom tanla", "nom top", "nom kerak"]):
+            return "naming"
+        if any(w in msg for w in ["qadoq", "upakovka", "packaging", "etiketka"]):
+            return "packaging"
+        if any(w in msg for w in ["ssenariy", "stsenariy", "skript", "script"]):
+            return "reels_script"
         if any(w in msg for w in ["brief", "loyiha ma'lumot", "nima yarattirasiz", "yangi loyiha"]):
             return "brief"
         if any(w in msg for w in ["xush kelibsiz", "yangi mijoz", "onboarding", "birinchi marta"]):
