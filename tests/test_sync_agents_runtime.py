@@ -31,7 +31,7 @@ class TestSyncAgentsRuntime(unittest.TestCase):
 
             updated = json.loads(cfg_file.read_text(encoding="utf-8"))
             self.assertEqual(updated["existing_key"], "preserved_val")
-            self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-2.5-flash")
+            self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-3.5-flash-lite")
             self.assertIn("groq/llama-3.3-70b-versatile", updated["agents"]["defaults"]["model"]["fallbacks"])
             self.assertEqual(updated["models"]["providers"]["google"]["apiKey"]["id"], "GEMINI_API_KEY")
             self.assertEqual(updated["models"]["providers"]["groq"]["apiKey"]["id"], "GROQ_API_KEY")
@@ -84,7 +84,7 @@ class TestSyncAgentsRuntime(unittest.TestCase):
                 sync_agents_runtime.sync_all_openclaw_installations(base_homes=[fake_home])
                 self.assertTrue(cfg_path.is_file())
                 updated = json.loads(cfg_path.read_text(encoding="utf-8"))
-                self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-2.5-flash")
+                self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-3.5-flash-lite")
         finally:
             shutil.rmtree(base_dir, ignore_errors=True)
 

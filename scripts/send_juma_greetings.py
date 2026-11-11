@@ -52,7 +52,7 @@ MAX_MESSAGES_PER_RUN = int(_max_per_run_raw) if _max_per_run_raw else None
 SHOM_HOUR = int(os.environ.get("JUMA_SHOM_HOUR", "19"))
 SHOM_MINUTE = int(os.environ.get("JUMA_SHOM_MINUTE", "30"))
 JUMA_HISTORY_LIMIT = int(os.environ.get("JUMA_HISTORY_LIMIT", "100"))
-JUMA_KEYWORDS = ("juma muborak", "juma ayyom", "jumaning")
+JUMA_KEYWORDS = ("juma muborak", "juma ayyom", "jumaning", "jumangiz")
 
 #: Guruhlar ustuvorlik tartibida: avval Tez Natija 6, keyin 5, 4, 3, 2.
 #: Har biri kamida bittasi mos kelsa yetarli (nom yoki ID orqali).
@@ -85,6 +85,7 @@ GROUP_PRIORITY = [
 ]
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from scripts.juma_greeting_text import build_juma_greeting, juma_window  # noqa: E402
 from scripts.telethon_guard import (  # noqa: E402
     SessionConflictError,
     SessionMissingError,
@@ -97,18 +98,24 @@ from scripts.telethon_guard import (  # noqa: E402
 TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
 _now_tashkent = datetime.now(TASHKENT_TZ)
 # Broadcast Payshanba (Thursday) Shomidan boshlanadi (workflow shu vaqtga
-# rejalashtirilgan) va Juma Shomigacha davom etadi — DEADLINE pastda.
-if _now_tashkent.weekday() != 3:  # 3 = Payshanba (Thursday)
+# rejalashtirilgan) va Juma Shomigacha davom etadi. GitHub schedule bir necha
+# soat kechikib Juma tuni boshlanishi mumkin (2026-11-05: 02:10 da) — bu ham
+# shu haftaning oynasi, shuning uchun Juma kuni Shomgacha ham ruxsat.
+_window = juma_window(_now_tashkent, SHOM_HOUR, SHOM_MINUTE)
+if _window is None:
     day_name = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"][_now_tashkent.weekday()]
-    print(f"Bugun {day_name} — Payshanba emas, boshlanish kuni emas. Yuborilmadi.")
+    print(
+        f"Bugun {day_name} {_now_tashkent.strftime('%H:%M')} — Payshanba/Juma "
+        "(Shomgacha) oynasi emas. Yuborilmadi."
+    )
     sys.exit(0)
 
-DEADLINE_TASHKENT = _now_tashkent.replace(
-    hour=SHOM_HOUR, minute=SHOM_MINUTE, second=0, microsecond=0
-) + timedelta(days=1)
+BROADCAST_DAY, DEADLINE_TASHKENT = _window
+WEEK_KEY = BROADCAST_DAY.strftime("%Y-%m-%d")
 
 print(
-    f"Payshanba tasdiqlandi: {_now_tashkent.strftime('%Y-%m-%d %H:%M')} Toshkent vaqti. "
+    f"Oyna ochiq: {_now_tashkent.strftime('%Y-%m-%d %H:%M')} Toshkent vaqti "
+    f"(hafta kaliti {WEEK_KEY}). "
     f"Deadline (Juma Shomi): {DEADLINE_TASHKENT.strftime('%Y-%m-%d %H:%M')}"
 )
 
@@ -118,7 +125,7 @@ print(
 #: yuborilganlarga IKKINCHI MARTA yozilmasligi uchun. Keyingi Payshanba —
 #: yangi sana, yangi fayl, ro'yxat tabiiy ravishda boshidan boshlanadi.
 SENT_LOG_DIR = Path(__file__).resolve().parent.parent / "data" / "juma_sent"
-SENT_LOG_PATH = SENT_LOG_DIR / f"{_now_tashkent.strftime('%Y-%m-%d')}.json"
+SENT_LOG_PATH = SENT_LOG_DIR / f"{WEEK_KEY}.json"
 
 
 def load_already_sent() -> set[int]:
@@ -145,25 +152,8 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "150074828"))
 # kaliti hech qachon Oracle VM dan tashqarida ochilmasligi kerak.
 DEDICATED_SESSION_ENV = "JUMA_SESSION_STRING"
 
-JUMA_TEMPLATES = [
-    (
-        "Assalomu alaykum! Juma muborak bo‘lsin 🤲\n\n"
-        "Alloh xonadoningizga baraka, ishlaringizga rivoj bersin. "
-        "Bugungi qilgan duolaringiz qabul bo‘lib, ko‘nglingiz doim xotirjam bo‘lsin."
-    ),
-    (
-        "Assalomu alaykum! Juma muborak bo‘lsin! 🤲\n\n"
-        "Alloh kuningizni xayrli, ishlaringizni barakali qilsin. "
-        "Yaxshi niyatlaringizga yetkazsin."
-    ),
-    (
-        "Assalomu alaykum! Juma muborak bo‘lsin! 🤲\n\n"
-        "Alloh rizqingizga baraka bersin, ko‘nglingizni xotirjam qilsin. "
-        "Niyat qilgan yaxshi ishlaringizga yetkazib, duolaringizni qabul qilsin."
-    ),
-]
-
-MESSAGE = JUMA_TEMPLATES[0]
+#: Shu jarayonda yuborilgan matnlar — ikki kishiga bir xil matn ketmasligi uchun.
+_USED_TEXTS: set[str] = set()
 
 
 def send_tg_notification(text: str) -> None:
@@ -207,7 +197,13 @@ async def collect_members(client: TelegramClient) -> list[dict]:
                     if user.bot or user.deleted or user.id in seen_ids:
                         continue
                     seen_ids.add(user.id)
-                    members.append({"id": user.id, "group": group["label"]})
+                    members.append(
+                        {
+                            "id": user.id,
+                            "group": group["label"],
+                            "first_name": user.first_name,
+                        }
+                    )
                     group_added += 1
             except ChatAdminRequiredError:
                 print(f"  SKIP {title}: admin huquqi kerak")
@@ -219,7 +215,10 @@ async def collect_members(client: TelegramClient) -> list[dict]:
 
 
 async def send_to_member(client: TelegramClient, member: dict) -> None:
-    text = random.choice(JUMA_TEMPLATES)
+    # Har kimga alohida, qoʻlda yozilgandek qisqa matn (juma_greeting_text).
+    text = build_juma_greeting(
+        member["id"], member.get("first_name"), WEEK_KEY, _USED_TEXTS
+    )
     await client.send_message(member["id"], text)
 
 

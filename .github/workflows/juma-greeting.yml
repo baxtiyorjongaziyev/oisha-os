@@ -1,14 +1,16 @@
 # Oisha-OS: Juma Greeting Automation
-# Runs directly on Oracle VM using the live Telethon session —
-# no StringSession expiry, no manual token renewal needed.
+# Contabo VPS'dagi self-hosted runner'da, prod checkout ichida to'g'ridan-to'g'ri
+# ishlaydi (SSH yo'q). Eski variant ORACLE_HOST ga SSH qilar edi — Oracle VM
+# o'chirilgach 2026-10 dan beri har hafta "dial tcp :22 i/o timeout" bilan
+# yiqilgan.
+#
+# Session: skript prod userbot kalitini ishlatishni RAD ETADI — Contabo
+# .env da alohida JUMA_SESSION_STRING bo'lishi shart (telethon_guard).
 #
 # Payshanba Shomidan (taxminan 19:30 Toshkent) boshlab Juma Shomigacha davom
-# etadigan ~24 soatlik oynada, guruh tartibida (6→5→4→3→2) tarqatiladi —
-# skriptning o'zi DEADLINE'ni ushlaydi. GitHub-hosted runner'lar 6 soatdan
-# uzoq ishlay olmaydi, shuning uchun jarayon Oracle VM'da FON rejimida
-# (nohup) ishga tushiriladi — GH Actions job faqat ishga tushganini
-# tasdiqlab, darhol tugaydi; skriptning o'zi Telegram orqali progress
-# xabarlarini yuboradi (send_tg_notification).
+# etadigan ~24 soatlik oynada tarqatiladi — skriptning o'zi DEADLINE'ni
+# ushlaydi. Job faqat jarayon ishga tushganini tasdiqlab tugaydi; skript fon
+# rejimida davom etadi va Telegram orqali progress yuboradi.
 name: Juma Tabrigi — Tez Natija guruhlar
 
 on:
@@ -23,52 +25,52 @@ concurrency:
 
 jobs:
   send-greetings:
-    name: Tez Natija Juma Tabrigi (Oracle VM)
+    name: Tez Natija Juma Tabrigi (Contabo VPS)
     runs-on: [self-hosted, oracle]
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - name: Send Juma greetings on Oracle VM (fon rejimida)
-        uses: appleboy/ssh-action@v1
+      - name: Start Juma greetings in prod checkout (fon rejimida)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          timeout: 30s
-          command_timeout: 5m
-          envs: GITHUB_TOKEN
-          script: |
-            set -euo pipefail
-            cd /home/ubuntu/oisha-os
+        run: |
+          set -euo pipefail
+          cd /home/ubuntu/oisha-os
 
-            # Pull latest script from main
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
-            git fetch origin main
-            git stash --include-untracked 2>/dev/null || true
-            git checkout origin/main -- scripts/send_juma_greetings.py scripts/telethon_guard.py scripts/__init__.py
+          # Skriptning main'dagi oxirgi versiyasini olamiz (faqat shu fayllar —
+          # prod checkout'ning qolgan qismiga tegilmaydi).
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+          git fetch origin main
+          git checkout origin/main --             scripts/send_juma_greetings.py             scripts/juma_greeting_text.py             scripts/telethon_guard.py             scripts/__init__.py
 
-            # Load credentials from VM's .env (same session the main service uses)
-            if [ -f .env ]; then
-              set -o allexport
-              source .env
-              set +o allexport
-            fi
+          set -a
+          . ./.env
+          set +a
 
-            # Fon rejimida ishga tushirish: SSH ulanish/GH Actions job yopilsa
-            # ham jarayon Oracle VM'da davom etaveradi (~24 soatlik oyna kerak,
-            # GH-hosted runner esa 6 soatdan uzoq ushlab turolmaydi).
-            mkdir -p data/logs
-            LOG_FILE="data/logs/juma_$(date +%Y%m%d_%H%M%S).log"
-            nohup ./venv/bin/python scripts/send_juma_greetings.py > "$LOG_FILE" 2>&1 < /dev/null &
-            disown
-            PID=$!
-            sleep 5
-            if kill -0 "$PID" 2>/dev/null; then
-              echo "Juma tabrigi fon rejimida ishga tushdi (PID $PID), log: $LOG_FILE"
+          if [ -z "${JUMA_SESSION_STRING:-}" ] && [ -z "${TELEGRAM_ONEOFF_SESSION_STRING:-}" ]; then
+            echo "XATO: .env da JUMA_SESSION_STRING yo'q. Skript prod userbot kalitini ishlatmaydi —"
+            echo "alohida session generatsiya qilib, Contabo .env ga JUMA_SESSION_STRING=... qo'shing."
+            exit 1
+          fi
+
+          # Fon rejimi: ~24 soatlik oyna job timeout'idan uzun. RUNNER_TRACKING_ID
+          # bo'shatilmasa, runner job tugaganda "orphan process" deb o'ldiradi.
+          mkdir -p data/logs
+          LOG_FILE="data/logs/juma_$(date +%Y%m%d_%H%M%S).log"
+          RUNNER_TRACKING_ID="" setsid nohup ./venv/bin/python scripts/send_juma_greetings.py > "$LOG_FILE" 2>&1 < /dev/null &
+          PID=$!
+          sleep 8
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "Juma tabrigi fon rejimida ishga tushdi (PID $PID), log: $LOG_FILE"
+          else
+            # Oyna yopiq bo'lsa skript 0 bilan chiqadi — bu xato emas.
+            if wait "$PID"; then
+              echo "Skript darhol va xatosiz tugadi. Log:"
+              cat "$LOG_FILE" || true
             else
-              echo "OGOHLANTIRISH: jarayon darhol to'xtadi. Log:"
+              echo "XATO: jarayon darhol yiqildi. Log:"
               cat "$LOG_FILE" || true
               exit 1
             fi
+          fi

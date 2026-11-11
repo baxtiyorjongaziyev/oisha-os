@@ -182,3 +182,6 @@ data/brain_digest_state.txt
 # Media downloads (video reels, ad creatives)
 media/
 data/telegram_history_digest.md
+
+# Ignore the raw submodule after integration
+agency-agents/

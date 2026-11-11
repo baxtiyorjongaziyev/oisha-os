@@ -35,10 +35,10 @@ def update_openclaw_config_file(config_path: pathlib.Path) -> bool:
         agents = data.setdefault("agents", {})
         defaults = agents.setdefault("defaults", {})
         defaults["model"] = {
-            "primary": "google/gemini-2.5-flash",
+            "primary": "google/gemini-3.5-flash-lite",
             "fallbacks": [
+                "google/gemini-3.8-flash",
                 "groq/llama-3.3-70b-versatile",
-                "google/gemini-2.5-flash-lite",
             ],
         }
 
@@ -125,7 +125,7 @@ def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None
         if owner_user and os.name != "nt":
             cmd = (
                 "command -v openclaw >/dev/null 2>&1 && "
-                'openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash" 2>/dev/null || true'
+                'openclaw config set agents.defaults.model.primary "google/gemini-3.5-flash-lite" 2>/dev/null || true'
             )
             subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False)
 
