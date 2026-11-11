@@ -12,6 +12,9 @@ on:
       - 'data/service_account.json'
       - '.github/workflows/oracle-deploy.yml'
   pull_request:
+    # Draft PR'larda ishlamaydi (Actions kvotasini tejash); "Ready for review"
+    # bosilganda ready_for_review hodisasi tekshiruvni ishga tushiradi.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     # No paths filter here on purpose: "Import-time crash guard" is a required
     # status check on main's branch protection, so it must report on every PR
@@ -46,16 +49,27 @@ jobs:
   # Bu gate GitHub-hosted runner'da ishlaydi va sekundlar oladi.
   import-guard:
     name: Import-time crash guard
-    if: "!startsWith(github.event.head_commit.message, 'chore(auto):')"
+    if: "!startsWith(github.event.head_commit.message, 'chore(auto):') && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          # PR'da o'zbekcha matn guard'i base bilan diff oladi — to'liq tarix kerak.
+          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+
+      - name: Uzbek text guard (PR diff — yangi apostrof bloklanadi)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          python scripts/check_uzbek_text.py --base "origin/$BASE_REF"
 
       - name: Compile every source file
         run: python -m compileall -q src/ scripts/

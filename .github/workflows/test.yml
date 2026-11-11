@@ -22,6 +22,9 @@ on:
       - 'marketing-os/**'
       - '.github/workflows/test.yml'
   pull_request:
+    # Draft PR'larda ishlamaydi (Actions kvotasini tejash); "Ready for review"
+    # bosilganda ready_for_review hodisasi tekshiruvni ishga tushiradi.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [ main, master ]
     paths:
       - 'src/**'
@@ -48,6 +51,7 @@ permissions:
 
 jobs:
   changes:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -78,7 +82,7 @@ jobs:
               - 'marketing-os/backend/**'
 
   pull-request-tests:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:

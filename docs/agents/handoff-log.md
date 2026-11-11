@@ -2814,3 +2814,15 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Oʻzgargan fayllar:** yuqoridagilar + `tests/test_agency_agents_personas.py`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3892 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
 - **Qolgan ish/Bloker:** Persona matnlari upstream fayllarning qoʻlda qisqartirilgan varianti (soʻzma-soʻz nusxa emas). Jonli LLM javobi tekshirilmagan. PR #1050 da GitHub-hosted CI joblari ishga tushmayapti (hisob darajasidagi sabab, PR izohida).
+
+
+## 2026-11-11 — Claude — GitHub Actions sarfini kamaytirish (bepul kvota tugagan)
+- **Sabab:** Owner hisobida (GitHub Free) Actions bepul kvotasi 2026-11-10 da tugadi ($12.00/$12.00, owner skrinshoti); hosted joblar "job was not started ... spending limit" annotatsiyasi bilan boshlanmayapti. Shu oyda sarf: `oisha-os` $7.99, `jonbranding-web` $5.32 (owner skrinshoti). Asosiy manba — har PR pushda 5 workflow, har job kamida 1 daqiqa hisoblanadi.
+- **Bajarilgan ish:**
+  1. Draft PR'larda `changes`, `pull-request-tests`, `Import-time crash guard`, `gitleaks` oʻtkazib yuboriladi; `ready_for_review` hodisasi qoʻshildi.
+  2. Oʻzbekcha matn PR-diff tekshiruvi `Import-time crash guard` jobiga koʻchirildi; `uzbek-text-guard.yml` endi faqat `main` push va qoʻlda.
+  3. `labeler.yml`: `synchronize` olib tashlandi (faqat PR ochilganda / ready boʻlganda).
+  4. `tests/test_runner_workflow_contract.py`: uchta yangi shartnoma testi; `.claude/skills/steward/SKILL.md` ga draft qoidasi.
+- **Hisob (taxmin, oʻlchanmagan):** ready PR push ~7 → ~5 job-daqiqa, draft PR push ~7 → 0.
+- **Tekshiruv dalillari:** YAML parse OK; `SKIP_LIVE=1 pytest -q` → 3895 passed, 14 skipped; `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza. **GitHub'da ishga tushirib tekshirilmagan** — kvota tugagani uchun Actions ishlamayapti.
+- **Qolgan ish/Bloker:** `jonbranding-web` reposi bu sessiya doirasida emas — u ham kamaytirilmasa umumiy kvota baribir yetmasligi mumkin. Branch protection required checklari (`Import-time crash guard`, `gitleaks`) draftda "skipped" boʻladi; ready qilinganda ishlaydi.
