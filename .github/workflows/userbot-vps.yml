@@ -11,13 +11,15 @@
 #    No app secrets are needed for a stop-only operation.
 name: Userbot — VPS Decommission (stop only)
 
-# Manual only. 109.199.100.137 is now the Contabo PRODUCTION host: an
-# automatic run here would stop the live userbot. Never re-add a push trigger.
+# Manual only. Historical VPS decommission workflow.
+# ⚠️ 109.199.100.137 (sobiq Contabo prod) endi Jon Branding'ga tegishli emas;
+# prod userbot hozir Hetzner VPS'da (2.29.198.0) ishlaydi.
+# Never hardcode third-party IPs or re-add a push trigger.
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type STOP_PRODUCTION_USERBOT to stop the userbot on prod'
+        description: 'Type STOP_PRODUCTION_USERBOT to stop leftover userbot on legacy VPS'
         required: true
 
 env:
@@ -29,17 +31,18 @@ concurrency:
 
 jobs:
   stop-userbot:
-    name: SSH → VPS → Stop userbot
+    name: SSH → Legacy VPS → Stop userbot
     if: ${{ inputs.confirm == 'STOP_PRODUCTION_USERBOT' }}
     runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
-      - name: Stop on VPS 1 (109.199.100.137)
+      - name: Stop on Legacy VPS 1 (requires LEGACY_VPS_1_HOST secret)
         id: vps1
+        if: ${{ secrets.LEGACY_VPS_1_HOST != '' }}
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         continue-on-error: true
         with:
-          host: 109.199.100.137
+          host: ${{ secrets.LEGACY_VPS_1_HOST }}
           username: root
           password: ${{ secrets.VPS_PASSWORD_1 }}
           port: 22
@@ -47,7 +50,7 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            echo "=== VPS 1 (109.199.100.137): userbot decommission ==="
+            echo "=== Legacy VPS 1: userbot decommission ==="
             systemctl stop oisha-userbot 2>/dev/null || true
             systemctl disable oisha-userbot 2>/dev/null || true
             pkill -f "python.*main.py" 2>/dev/null || true

@@ -29,7 +29,7 @@ mix of **Uzbek and English** — this is expected, not noise.
 - **Sync / Integrations:** Airtable, Google Sheets/Drive/Calendar/Contacts, Instagram/Meta
   Graph API, DocuSign, Apollo, SMS Gateway (sms-gate.app)
 - **API:** FastAPI + uvicorn (internal HTTP control plane, `src/api_server.py`)
-- **Infra:** **Contabo VPS (primary production, 109.199.100.137)**; Oracle Cloud VM (decommissioned); Google Cloud Run / Cloud Build (legacy fallback)
+- **Infra:** **Hetzner VPS (primary production, 2.29.198.0)**; Contabo VPS (`109.199.100.137`, sobiq prod) va Oracle Cloud VM (`163.192.10.104`) to'xtatilgan; Google Cloud Run / Cloud Build (legacy fallback)
 
 ## Commands
 
@@ -64,7 +64,7 @@ bandit -r src/ -ll
 # .env.example ships ALLOW_LOCAL_RUN=0, which trips the Anti-Local Execution Lock
 # in boot.py (the process exits before wiring services). To run on a dev machine:
 #   1. Set ALLOW_LOCAL_RUN=1
-#   2. Use a DEDICATED, non-production Telegram session (never the Contabo-owned
+#   2. Use a DEDICATED, non-production Telegram session (never the Hetzner-owned
 #      USERBOT_SESSION_STRING) or you will invalidate prod with AuthKeyDuplicatedError.
 ALLOW_LOCAL_RUN=1 python src/main.py
 ```
@@ -163,12 +163,14 @@ checklist, commit/branch conventions, and a "Dead Files (don't touch)" list.
 | EnterpriseReporter | `services/core/enterprise_reporter.py` | Daily plan + audit reports |
 | Free-AI router | `services/utils/free_ai_router.py` | Multi-provider LLM failover |
 
-### Runtime (important: Contabo VPS is primary now)
-- **Contabo VPS (109.199.100.137)** — **primary production**. Runs `src/main.py` under systemd
-  (`oisha.service`), owns the single userbot session. **Never run a parallel userbot
-  locally** — it invalidates the Contabo session with `AuthKeyDuplicatedError`. Set
-  `ALLOW_LOCAL_RUN=0` unless you know what you're doing.
-- **Oracle Cloud VM (163.192.10.104)** — decommissioned (services stopped and disabled).
+### Runtime (important: Hetzner VPS is primary now)
+- **Hetzner VPS (`2.29.198.0`)** — **primary production**. Runs `src/main.py` under systemd
+  (`oisha.service`), owns the single userbot session (alongside `openclaw-gateway.service` / Mr.Jon
+  and `hermes-gateway.service` / Amina). **Never run a parallel userbot locally** — it invalidates
+  the Hetzner session with `AuthKeyDuplicatedError`. Set `ALLOW_LOCAL_RUN=0` unless you know what
+  you're doing.
+- **Contabo VPS (`109.199.100.137`)** — decommissioned (former prod; IP no longer owned by Jon Branding).
+- **Oracle Cloud VM (`163.192.10.104`)** — decommissioned (services stopped and disabled).
 - **Cloud Run / Cloud Build** — legacy fallback (`cloudbuild.yaml`, `scripts/entrypoint.sh`,
   `RUNNING_IN_CLOUD=True`).
 - Runtime is auto-detected via `services/core/agent_runtime.py` (`resolve_runtime_mode`).
@@ -200,7 +202,7 @@ Required:
 ```
 API_ID / API_HASH        Telegram app credentials
 BOT_TOKEN                Telegram bot token
-USERBOT_SESSION_STRING   Telethon userbot session (Contabo-owned in prod)
+USERBOT_SESSION_STRING   Telethon userbot session (Hetzner-owned in prod)
 GEMINI_API_KEY           Google Gemini
 AMOCRM_CLIENT_ID / AMOCRM_CLIENT_SECRET / AMOCRM_SUBDOMAIN   AmoCRM OAuth
 TURSO_DATABASE_URL / TURSO_AUTH_TOKEN   Turso cloud DB (production). Unset ⇒ local
@@ -237,9 +239,11 @@ ALLOW_LOCAL_RUN, ENABLE_CLOUD_USERBOT, SURGICAL_MODE, ENABLE_AI_NEGOTIATION
 ## CI/CD
 
 - **`test.yml`** — CI on `main`/PRs (path-filtered to `src/`, `tests/`, `requirements*`).
-  Runs on the **self-hosted Oracle runner**: bandit → `pytest --cov` → Codecov.
-- **`oracle-deploy.yml`** — **primary production deploy** to the Oracle VM (self-hosted,
-  health-verified via `/readyz`). Skips commits starting with `chore(auto):`.
+  Runs on the **self-hosted runner** (runner label `"oracle"` tarixiy; Hetzner'ga
+  runner ko'chirilishi tekshirilmagan): bandit → `pytest --cov` → Codecov.
+- **`oracle-deploy.yml`** — **primary production deploy workflow** (runner label
+  `"oracle"` tarixiy; health-verified via `/readyz`, skips `chore(auto):` commits).
+  Hetzner (`2.29.198.0`) da runner va Nginx/TLS to'liq moslanishi alohida tekshiriladi.
 - Other workflows: `codeql.yml`, `gitleaks.yml`, `oisha-web.yml`, `userbot-vps.yml`,
   `generate-session.yml`/`verify-session.yml`, `mcp-diagnose.yml`, plus scheduled AmoCRM
   audits (`amocrm-*.yml`) and greetings (`juma-greeting.yml`, `qurbon-greeting.yml`).
@@ -260,7 +264,7 @@ ALLOW_LOCAL_RUN, ENABLE_CLOUD_USERBOT, SURGICAL_MODE, ENABLE_AI_NEGOTIATION
 - `src/services/debug/` — excluded from bandit, must NEVER be imported in production
 - **O'zbekcha matn:** faqat ikki tirnoq ichida yoziladi; ASCII `'` so'z ichida taqiqlanadi (`'qo'ng'iroq'` SyntaxError beradi). `oʻ`/`gʻ` → `ö`/`ğ` yoki `ʻ` (U+02BB), tutuq → `ʼ` (U+02BC). Identifikator, email, teg, username — ASCII. Tekshiruv: `python scripts/check_uzbek_text.py --staged`. Batafsil: `.agents/skills/uzbek-text/SKILL.md`.
 - **Code Mode:** Koʻp qadamli API/MCP operatsiyalarida yoki katta maʼlumotlar tahlilida ketma-ket tool chaqirib kontekst oynasini toʻldirmang; uning oʻrniga ixcham skript yozib (`execute`), lokal filtrlab faqat yakuniy natijani oling. Batafsil: `.claude/skills/code-mode/SKILL.md`.
-- Do not run a local userbot while Oracle owns the session (see Runtime)
+- Do not run a local userbot while Hetzner prod (`2.29.198.0`) owns the session (see Runtime)
 
 ## TypeScript Monorepos
 
@@ -302,10 +306,11 @@ Standalone Meta-OAuth app (independent of the pnpm workspaces): FastAPI `backend
 ### Deployment targets
 | Target | Use |
 |--------|-----|
-| Oracle Cloud VM (systemd) | **Primary production** (Python core + userbot) |
+| Hetzner VPS (`2.29.198.0`, systemd) | **Primary production** (`oisha.service`, `openclaw-gateway.service`, `hermes-gateway.service`) |
+| Contabo VPS (`109.199.100.137`) | Decommissioned (former prod; DNS migration pending as of 2026-11-15) |
+| Oracle Cloud VM (`163.192.10.104`) | Decommissioned |
 | Google Cloud Run / Cloud Build (europe-west3) | Legacy fallback |
-| VPS | Legacy Telethon userbot |
-| Oracle web (`oisha.jonbranding.uz`) | Admin web UI |
+| Web / API (`oisha.jonbranding.uz`) | Admin UI & webhooks (Nginx/TLS Hetzner setup pending DNS switch) |
 
 ## AI Providers
 

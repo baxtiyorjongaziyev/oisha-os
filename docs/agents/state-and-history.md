@@ -15,11 +15,18 @@
 
 ### Operational Notes
 - Telegram MCP approval gateway: upstream `127.0.0.1:8765/mcp`, gateway `127.0.0.1:8766/mcp`. `TELEGRAM_MCP_SESSION_STRING` must be a dedicated session and must never equal `USERBOT_SESSION_STRING`. Read tools are automatic; every mutation is owner-approved through Telegram. Neither port may be exposed by Nginx.
-- ⚠️ **USERBOT SESSION OWNER: Oracle VM.** 
+- ⚠️ **USERBOT SESSION OWNER: Hetzner prod VPS (`2.29.198.0`).**
   - **STATUS (FIXED):** Windows kompyuterlarda `AuthKeyDuplicatedError` oldini olish uchun `boot.py` da Userbot lokal ishlashi **qat'iyan to'sib qo'yilgan (`client = None`)**.
-  - Yangi session string faqat Oracle VM (Linux) da ishlaydi va qayta uzilmaydi. Hozirda Oracle VM da MUVAFFAQIYATLI ISHLAMOQDA.
+  - Prod session faqat Hetzner VPS (Linux, `oisha.service`) da ishlaydi; Contabo (`109.199.100.137`) va Oracle VM (`163.192.10.104`) sobiq prod sifatida to'xtatilgan.
 - **Telegram architecture decision:** userbot Telethon'da qoladi. Bot akkaunt (`BOT_TOKEN`, @jonairobot) bosqichma-bosqich Aiogram'ga ko'chiriladi. Migratsiya adapter-first bo'lsin: avval `bot_client.send_message`/callback/command yuzasi uchun compatibility adapter, keyin Hisobchi approvals, admin commands, Frog reports va boshqa bot-token flows alohida ko'chiriladi. Bir martada to'liq almashtirmang; har bosqichda test va production-safe rollback bo'lsin.
 - Telegram Bot API guruh access qayta tiklandi: `crm_group` va `team_group` `getChat` tekshiruvida `200 OK`. `scripts/prod/probe_integrations.py` bilan AmoCRM, Airtable va Telegram Bot API ham OK tasdiqlangan.
+
+### Hetzner Migration Status (2026-11-15)
+- **Active services (owner SSH tekshiruvi):** `oisha.service`, `openclaw-gateway.service` (Mr.Jon), `hermes-gateway.service` (Amina) Hetzner (`2.29.198.0`) da faol; Oisha `/readyz` `ready:true`, Telegram userbot authorized, AmoCRM connected (agentda SSH kirish mavjud emas — mustaqil SSH bilan qayta tekshirilmagan).
+- **Kutilayotgan ishlar (tasdiqlangan blockerlar):**
+  - DNS (`oisha.jonbranding.uz`, `crm.jonbranding.uz`) Cloudflare'da hali `109.199.100.137` (sobiq Contabo, hozir begona "Waffly | Admin Panel") ga qaraydi; `2.29.198.0` ga o'tkazilishi kerak.
+  - Hetzner Nginx/TLS (`2.29.198.0:80` hozir standart Nginx 404 beradi): DNS o'tgach certbot/SSL va webhook yo'llari (`/api/amocrm/*`, `/api/instagram/webhook`, `/webhook/*`, `/capi`, `/sotuv`, `/payme`) uchun `auth_basic off` sozlanishi kerak.
+  - Instagram (`META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`) va 3 ta alohida Gemini kaliti (Oisha, Mr.Jon/OpenClaw, Amina/Hermes) hali `.env`/runtime ga kiritilmagan (`instagram` status `degraded`).
 
 ### Done (Code Refactoring to 150–400 Lines Standard — Antigravity)
 - **20,000+ qatordan ortiq barcha yirik "God-file"lar 150–400 qatorli toza modullarga ajratildi (Facade + Mixin Pattern):**
@@ -28,14 +35,6 @@
   3. `src/services/core/call_analyzer.py` (2,396L) → `src/services/call_analytics/` (`helpers.py`, `transcriber.py`, `scorer.py`, `normalizer.py`, `crm_notes.py`, `crm_tasks.py`, `runner.py`, `backfill.py`, Facade).
   4. `src/services/core/admin_bot.py` (2,601L) → `src/services/core/admin_bot/` (`bot.py`, `handlers_commands.py`, `handlers_callbacks.py`, `handlers_search.py`, `handlers_settings.py`, `reports.py`, `alerts.py`, `mission_scheduler.py`, `cron_runner.py`, Facade).
   5. `src/agents/tools.py` (1,490L) → `src/agents/agent_tools/` (`declarations.py`, `crm_actions.py`, `google_actions.py`, `team_actions.py`, `executor.py`, Facade).
-
-### Operational Notes
-- Telegram MCP approval gateway: upstream `127.0.0.1:8765/mcp`, gateway `127.0.0.1:8766/mcp`. `TELEGRAM_MCP_SESSION_STRING` must be a dedicated session and must never equal `USERBOT_SESSION_STRING`. Read tools are automatic; every mutation is owner-approved through Telegram. Neither port may be exposed by Nginx.
-- ⚠️ **USERBOT SESSION OWNER: Oracle VM.** 
-  - **STATUS (FIXED):** Windows kompyuterlarda `AuthKeyDuplicatedError` oldini olish uchun `boot.py` da Userbot lokal ishlashi **qat'iyan to'sib qo'yilgan (`client = None`)**.
-  - Yangi session string faqat Oracle VM (Linux) da ishlaydi va qayta uzilmaydi. Hozirda Oracle VM da MUVAFFAQIYATLI ISHLAMOQDA.
-- **Telegram architecture decision:** userbot Telethon'da qoladi. Bot akkaunt (`BOT_TOKEN`, @jonairobot) bosqichma-bosqich Aiogram'ga ko'chiriladi. Migratsiya adapter-first bo'lsin: avval `bot_client.send_message`/callback/command yuzasi uchun compatibility adapter, keyin Hisobchi approvals, admin commands, Frog reports va boshqa bot-token flows alohida ko'chiriladi. Bir martada to'liq almashtirmang; har bosqichda test va production-safe rollback bo'lsin.
-- Telegram Bot API guruh access qayta tiklandi: `crm_group` va `team_group` `getChat` tekshiruvida `200 OK`. `scripts/prod/probe_integrations.py` bilan AmoCRM, Airtable va Telegram Bot API ham OK tasdiqlangan.
 
 ### Done (Code Refactoring Summary)
 1. `src/services/core/proactive_worker.py` (2,444L) → `src/services/proactive/` (Modularized)

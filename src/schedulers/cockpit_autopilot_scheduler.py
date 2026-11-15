@@ -176,7 +176,7 @@ class CockpitAutopilotScheduler:
         return False
 
     async def run_autopilot_loop(self) -> None:
-        """Master background loop running 24/7 on Contabo VPS."""
+        """Master background loop running 24/7 on Hetzner prod VPS."""
         logger.info("[AUTOPILOT] Cockpit Autopilot 24/7 background loop started.")
         await asyncio.sleep(10)  # Initial stabilization delay
 

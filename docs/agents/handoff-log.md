@@ -2826,3 +2826,28 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Hisob (taxmin, oʻlchanmagan):** ready PR push ~7 → ~5 job-daqiqa, draft PR push ~7 → 0.
 - **Tekshiruv dalillari:** YAML parse OK; `SKIP_LIVE=1 pytest -q` → 3895 passed, 14 skipped; `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza. **GitHub'da ishga tushirib tekshirilmagan** — kvota tugagani uchun Actions ishlamayapti.
 - **Qolgan ish/Bloker:** `jonbranding-web` reposi bu sessiya doirasida emas — u ham kamaytirilmasa umumiy kvota baribir yetmasligi mumkin. Branch protection required checklari (`Import-time crash guard`, `gitleaks`) draftda "skipped" boʻladi; ready qilinganda ishlaydi.
+
+
+## 2026-11-15 — Antigravity — Hetzner migratsiyasi tekshiruvi (DNS, Nginx/TLS, Meta/Gemini) va hujjatlarni yangilash
+- **Vazifa:**
+  1. `oisha.jonbranding.uz` va `crm.jonbranding.uz` DNS holatini (`2.29.198.0` ga oʻtgan-oʻtmaganini) tekshirish.
+  2. Hetzner (`2.29.198.0`) da Nginx + TLS sozlash (DNS oʻtgan boʻlsa).
+  3. Instagram (`META_*`) va 3 ta alohida Gemini kaliti holatini ulash/tekshirish.
+  4. `AGENTS.md` va loyiha hujjatlaridagi eski Contabo (`109.199.100.137`) / Oracle eslatmalarini yangilash.
+- **Tekshiruv natijalari va blockerlar:**
+  1. **DNS (blocker — koʻchirilmagan):** `Resolve-DnsName` (lokal, `1.1.1.1`, `8.8.8.8`) → `oisha.jonbranding.uz` va `crm.jonbranding.uz` hali `109.199.100.137` (`TTL 300`, Cloudflare NS `karl.ns.cloudflare.com`, `katja.ns.cloudflare.com`) ga qaraydi. `https://oisha.jonbranding.uz/` va `crm.jonbranding.uz` sertifikat xatosi (`SEC_E_WRONG_PRINCIPAL`) hamda begona `<title>Waffly | Admin Panel</title>` sahifasini qaytardi.
+  2. **Hetzner Nginx/TLS (blocker):** `http://2.29.198.0/` → `200 OK` (`nginx/1.24.0 (Ubuntu)`, standart 615 bayt sahifa), `Host: oisha.jonbranding.uz /readyz/` → `404 Not Found`, `:8080/readyz/` → tashqi timeout. DNS hali oʻtmagani va agent muhitida Hetzner SSH kaliti/ruxsati (`Permission denied`) yoʻqligi sabab Nginx vhost va Certbot SSL oʻrnatilmadi. Shuningdek, `deploy/nginx-oisha.conf` `/api/` va `/` ga `auth_basic "Oisha Admin"` qoʻygani hamda `/webhook/*`, `/capi`, `/sotuv`, `/payme` yoʻllarini proxy qilmagani aniqlandi — Hetzner Nginx'da webhook yoʻllari uchun `auth_basic off` va toʻgʻri proxy kerak boʻladi (`src/api/security.py` `_PUBLIC_PATHS` da mavjud).
+  3. **Instagram (`META_*`) va Gemini kalitlari (blocker):** kodda talab qilinadigan nomlar tekshirildi (`src/services/core/instagram/config_guard.py`, `src/settings.py`: `META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`; OpenClaw `scripts/sync_agents_runtime.py`: `GEMINI_API_KEY` env; Hermes `deploy/hermes/`). Egadan kalitlar olinmagani, Hetzner'ga SSH kirish yoʻqligi va `.env`/sirlar taqiqi sababli serverda sozlanmadi.
+- **Oʻzgargan fayllar (`.worktrees/docs-hetzner-migration`, branch `docs/hetzner-migration-sync`):**
+  - Hujjatlar: `AGENTS.md` (120 qator ≤ 150), `CLAUDE.md`, `docs/agents/state-and-history.md` (dublikat tozalandi + Hetzner status qoʻshildi), `docs/agents/golden-principles.md`, `docs/agents/code-mode.md`, `docs/operations/telethon-session-ownership.md`, `.env.example`, `docs/google-calendar-setup.md`, `docs/crm-drive-safe-automation.md`, `docs/gdrive-personal-consent.md`, `deploy/OISHA_WEB_DEPLOY.md`, `docs/agents/handoff-log.md`.
+  - Xavfsizlik/skript/workflow: `109.199.100.137` hardcoded fallback/host `.github/workflows/userbot-vps.yml`, `deploy/{deploy_and_verify,deploy_creds,deploy_final_fix,deploy_to_vps_root,deploy_v5_agentic}.py`, `scripts/debug/{analyze_last_chat,check_db,check_remote_status}.py`, `src/scripts/oauth_server.py` dan olib tashlandi; `.github/workflows/{claude,hunter-limit-report,tn-revenue-audit}.yml`, `scripts/hunter_limit_report.py`, `scripts/lead_assignment_check.py`, `scripts/prod/tn_revenue_audit.py`, `src/api/routes/attendance_routes.py`, `src/schedulers/cockpit_autopilot_scheduler.py` yangilandi.
+- **Tekshiruv dalillari:**
+  - `check_uzbek_text.py --staged` → toza (`14 fayl`; yakuniy stage bilan qayta tekshiriladi).
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 ... src/` → `All checks passed!`.
+  - `bandit -r src/ -ll` → `No issues identified` (`135663` qator).
+  - Workflow YAML parse (`yaml.safe_load`) → `YAML OK`.
+  - `SKIP_LIVE=1 pytest -q --tb=short` (Windows `.venv` Python 3.12.15) → `3889 passed, 3 failed, 17 skipped` (3 ta yiqilish Windows muhitidagi oldindan mavjud POSIX testlar: `test_drive_oauth_onboarding.py::test_credentials_saved_privately_and_atomically` [NTFS `0o666` vs `0o600`] va `test_sync_agents_deploy_safety.py` [2 ta test — `scripts/sync_agents_runtime.py:136` da `os.name != "nt"` guard]). Focused workflow/deploy/security/telephony shartnoma testlari → `75 passed, 4 skipped`.
+- **Qolgan ish/Bloker:**
+  - Owner Cloudflare'da `oisha.jonbranding.uz` va `crm.jonbranding.uz` A yozuvlarini `2.29.198.0` ga oʻzgartirishi kerak.
+  - Shundan keyin SSH bilan Hetzner'da Nginx (webhooklarga `auth_basic off` bilan) + Certbot SSL va 4 ta `META_*` + 3 ta alohida `GEMINI_API_KEY` ulanadi.
+  - Ushbu branch (`docs/hetzner-migration-sync`) `origin/main` ga PR orqali birlashtirilishi kerak (`main` ga toʻgʻridan push qilinmadi).

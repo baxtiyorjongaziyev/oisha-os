@@ -1,7 +1,7 @@
 """Hunter kunlik limiti uchun o'lchov: amoCRM "Sotuv" voronkasiga kuniga nechta lid tushadi
 va sotuvchilar ularni qanchalik tez "Yangi"dan olib chiqadi. FAQAT O'QISH.
 
-Contabo'da (prod amoCRM tokeni bor joyda) ishga tushiriladi:
+Hetzner prod serverda (prod amoCRM tokeni bor joyda) ishga tushiriladi:
 
     python scripts/hunter_limit_report.py --days 30
 
@@ -96,7 +96,7 @@ async def main() -> None:
     # Lokal mashinada ishga tushirilsa, amoCRM token yangilanishi prod tokenini
     # aylantirib yuborishi mumkin. Faqat prod sozlamalari bor serverda ishlaydi.
     if not (settings.AMOCRM_SUBDOMAIN or "").strip():
-        sys.exit("AMOCRM_SUBDOMAIN yo'q: bu skript faqat Contabo serverda ishga tushiriladi.")
+        sys.exit("AMOCRM_SUBDOMAIN yoʻq: bu skript faqat Hetzner prod serverda ishga tushiriladi.")
     from src.services.core.crm.amocrm.sync import AmoCRMSync
 
     amocrm = AmoCRMSync()

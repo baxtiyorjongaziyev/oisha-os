@@ -14,8 +14,8 @@ Hech kimga xabar yubormaydi, CRM/Airtable'da hech narsani o'zgartirmaydi.
 Session: USERBOT_SESSION_STRING ishlatilMAYDI (AuthKeyDuplicatedError xavfi).
 TN_AUDIT_SESSION_STRING yoki TELEGRAM_MCP_SESSION_STRING (dedicated) kerak.
 
-Usage (Contabo):
-    cd /opt/oisha && venv/bin/python scripts/prod/tn_revenue_audit.py [--send]
+Usage (Hetzner prod, <OISHA_DIR> dan):
+    cd <OISHA_DIR> && .venv/bin/python scripts/prod/tn_revenue_audit.py [--send]
 """
 
 import argparse
