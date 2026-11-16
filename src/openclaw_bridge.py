@@ -7,6 +7,7 @@ Bu modul ularni tegishli Oisha agentiga yoʻnaltiradi va javob qaytaradi.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -38,7 +39,8 @@ def _get_numeric_user_id(sender_id: str, channel: str) -> int:
         numeric = int(sender_id)
         return prefix + abs(numeric)
     except (ValueError, TypeError):
-        return prefix + abs(hash(sender_id)) % 1_000_000_000
+        digest = hashlib.sha256(str(sender_id).encode("utf-8")).digest()
+        return prefix + int.from_bytes(digest[:8], "big") % 1_000_000_000
 
 
 def _build_context(
