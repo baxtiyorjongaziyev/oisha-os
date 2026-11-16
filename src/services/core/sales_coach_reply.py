@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable, Optional
 
+from src.services.core.checkin_composer import is_valid_reply, router_generate_complete
+
 logger = logging.getLogger(__name__)
 
 Generate = Callable[..., Awaitable[str]]
@@ -39,21 +41,19 @@ FALLBACK = "Rahmat, {name}! Yaxshi ishlayapsiz 💪 Biror mijoz bo'yicha maslaha
 
 
 async def _router_generate(prompt: str, *, system: str, max_tokens: int, temperature: float) -> str:
-    from src.services.utils.free_ai_router import get_free_ai_router
-
-    result = await get_free_ai_router().generate_text(
-        prompt, system=system, max_tokens=max_tokens, temperature=temperature
+    return await router_generate_complete(
+        prompt, system=system, max_tokens=max_tokens, temperature=temperature, log_tag="[SALES-COACH]"
     )
-    return (getattr(result, "text", "") or "").strip()
 
 
 async def coach_reply(
     seller_name: str,
     reply_text: str,
     checkin_text: str,
-    generate: Generate = _router_generate,
+    generate: Optional[Generate] = None,
 ) -> str:
     """Hech qachon raise qilmaydi: AI ishlamasa iliq zaxira matn qaytadi."""
+    gen = generate or _router_generate
     prompt = (
         f"Menejer: {seller_name}\n\n"
         f"Oisha'ning check-in xabari:\n{checkin_text}\n\n"
@@ -61,9 +61,9 @@ async def coach_reply(
     )
     text: Optional[str] = None
     try:
-        text = (await generate(prompt, system=COACH_SYSTEM, max_tokens=600, temperature=0.6)).strip()
+        text = (await gen(prompt, system=COACH_SYSTEM, max_tokens=900, temperature=0.6)).strip()
     except Exception:
         logger.warning("[SALES-COACH] AI javob bermadi.", exc_info=True)
-    if not text or len(text) < 20 or len(text) > MAX_CHARS:
+    if not text or not is_valid_reply(text, max_chars=MAX_CHARS):
         return FALLBACK.format(name=seller_name)
     return text
