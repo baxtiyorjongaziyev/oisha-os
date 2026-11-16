@@ -118,7 +118,10 @@ async def poll_leadgen_forms_once() -> int:
     token = _get_page_token()
     if not token:
         # Silent return here hid a lost .env for days — alert (rate-limited) instead.
-        _alert_token_invalid(MetaAuthError("META_PAGE_ACCESS_TOKEN sozlanmagan (.env da yoʻq)"))
+        # to_thread: the alert does a blocking HTTP post and this path recurs every interval.
+        await asyncio.to_thread(
+            _alert_token_invalid, MetaAuthError("META_PAGE_ACCESS_TOKEN sozlanmagan (.env da yoʻq)")
+        )
         return 0
 
     version = os.getenv("META_GRAPH_API_VERSION", "v19.0").strip() or "v19.0"
