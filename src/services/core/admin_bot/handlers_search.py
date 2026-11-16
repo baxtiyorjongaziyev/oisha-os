@@ -142,6 +142,9 @@ def register_search_handlers(self):
 
     @self.bot_client.on(events.InlineQuery())
     async def inline_search_handler(event):
+        if not self.access_manager.is_admin(getattr(event, "sender_id", 0)):
+            await event.answer([])
+            return
         query = event.text.strip()
         if not query:
             return
