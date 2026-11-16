@@ -15,27 +15,30 @@ Generate = Callable[..., Awaitable[str]]
 
 MAX_CHARS = 1200
 
-COACH_SYSTEM = """Sen Oisha'san — Jon Branding sotuv bo'limining samimiy do'sti va tajribali sotuv
-murabbiyisan. Jon Branding brending, logo, patent/tovar belgisi ro'yxatdan o'tkazish,
-qadoq dizayni xizmatlarini sotadi. Onlayn ishlayotgan sotuv menejeri o'z mijozlari haqida yozdi.
+COACH_SYSTEM = """Sen Oishasan — Jon Branding sotuv boʻlimining samimiy doʻsti va tajribali sotuv
+murabbiyisan. Jon Branding brending, logo, patent/tovar belgisi roʻyxatdan oʻtkazish,
+qadoq dizayni xizmatlarini sotadi. Onlayn ishlayotgan sotuv menejeri oʻz mijozlari haqida yozdi.
 Maqsading: unga konversiyani oshirishga yordam berish.
 
 Qanday javob berish kerak:
-- Avval qisqa, samimiy reaksiya (ishini ko'rganingni bildir, kerak bo'lsa maqta).
-- Keyin muhim mijozlar bo'yicha 1 tadan aniq, amaliy maslahat. Imkon bo'lsa mijozga
-  aytiladigan tayyor 1 gaplik namuna (qo'shtirnoqda) ber. Masalan:
-  * "band edi" -> qachon va qanday qayta terish, birinchi gap namunasi;
-  * "to'lov qiladi" -> to'lovni tezlashtirish: aniq sana kelishish, hisob-faktura yuborish,
-    yengil eslatma matni;
-  * "o'ylab ko'radi"/"qimmat" -> e'tirozga javob, qiymatni ko'rsatish;
-  * "raqam o'chirilgan" -> boshqa kanal (Telegram, Instagram) orqali topishni taklif qil.
-- Hamma narsaga maslahat berma: eng ko'p natija beradigan 2–3 tasini tanla.
-- Oxirida bitta iliq, ruhlantiruvchi gap.
+- Qisqa va odamdek gapir. Uzoq kirish va hamdu sanodan qoch.
+- Muhim mijozlar boʻyicha 1 tadan aniq, amaliy maslahat va darhol yozsa boʻladigan
+  1 gaplik namuna (qoʻshtirnoqda) ber ("band edi", "toʻlov qiladi", "oʻylab koʻradi", "raqam oʻchirilgan").
+- Hamma narsaga maslahat berma: eng muhim 1–2 tasini tanla.
 - CRM'ga vazifa qo'ydim, eslatma yozdim dema — sen hech qanday amal bajarmaysan.
-- 4–9 qator. Menejer qaysi alifboda (kirill/lotin) yozsa, o'shanda javob ber.
-  0–2 emoji. Markdown, HTML ishlatma. Hech kimni ayblama."""
+- 2–5 qisqa gap. Menejer qaysi alifboda (kirill/lotin) yozsa, oʻshanda javob ber.
+  0–1 emoji. Markdown, HTML ishlatma. Hech kimni ayblama."""
 
-FALLBACK = "Rahmat, {name}! Yaxshi ishlayapsiz 💪 Biror mijoz bo'yicha maslahat kerak bo'lsa, shu yerga yozing."
+OWNER_REPLY_SYSTEM = """Sen Oishasan — Jon Branding agentligining yordamchisi.
+Senga hozir agentlik rahbari (Owner) murojaat qildi yoki izoh/tuzatish yozdi.
+
+QOIDALAR:
+- 1–3 qisqa, tirik gapda javob ber. Odamdek loʻnda va tabiiy yoz.
+- MUTLAQO xushomad va hamdu sano yozma ("haqiqiy rahbar sifatida...", "samimiy tanbehingiz uchun rahmat...").
+- Agar uslub yoki tartib haqida tuzatish bergan boʻlsa, faqat qisqacha qabul qil (masalan: "Tushundim, qisqa va odamdek yozaman.") — soʻralmagan sotuv skripti yoki hisobot tiqishtirma.
+- Agar aniq savol bersa, faqat soʻralgan javobni ber. Markdown/HTML ishlatma."""
+
+FALLBACK = "Rahmat, {name}! Yaxshi ishlayapsiz 💪 Biror mijoz boʻyicha maslahat kerak boʻlsa, shu yerga yozing."
 
 
 async def _router_generate(prompt: str, *, system: str, max_tokens: int, temperature: float) -> str:
@@ -52,18 +55,30 @@ async def coach_reply(
     reply_text: str,
     checkin_text: str,
     generate: Generate = _router_generate,
+    *,
+    is_owner: bool = False,
 ) -> str:
     """Hech qachon raise qilmaydi: AI ishlamasa iliq zaxira matn qaytadi."""
+    who_label = "Rahbar (Owner)" if is_owner else "Menejer"
     prompt = (
-        f"Menejer: {seller_name}\n\n"
-        f"Oisha'ning check-in xabari:\n{checkin_text}\n\n"
-        f"Menejerning javobi:\n{reply_text}"
+        f"{who_label}: {seller_name}\n\n"
+        f"Reply qilingan xabar:\n{checkin_text}\n\n"
+        f"Xabar matni:\n{reply_text}"
     )
+    system = OWNER_REPLY_SYSTEM if is_owner else COACH_SYSTEM
+    try:
+        from src.services.core.adaptive_learning import get_adaptive_prompt_context
+
+        learned = await get_adaptive_prompt_context(category="sales", max_chars=450)
+        if learned:
+            system = f"{system}\n\n{learned}"
+    except Exception:
+        logger.debug("[SALES-COACH] Adaptive context skipped", exc_info=True)
     text: Optional[str] = None
     try:
-        text = (await generate(prompt, system=COACH_SYSTEM, max_tokens=600, temperature=0.6)).strip()
+        text = (await generate(prompt, system=system, max_tokens=400 if is_owner else 600, temperature=0.55)).strip()
     except Exception:
         logger.warning("[SALES-COACH] AI javob bermadi.", exc_info=True)
-    if not text or len(text) < 20 or len(text) > MAX_CHARS:
-        return FALLBACK.format(name=seller_name)
+    if not text or len(text) < 12 or len(text) > MAX_CHARS:
+        return "Tushundim, hisobga oldim." if is_owner else FALLBACK.format(name=seller_name)
     return text

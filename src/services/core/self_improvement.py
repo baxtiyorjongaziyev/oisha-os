@@ -112,6 +112,26 @@ class SelfImprovementService:
             notified=notified,
         )
 
+    async def _send_owner_message(
+        self, target_id: int, text: str, buttons: Any = None
+    ) -> None:
+        is_runtime = getattr(self.bot_client, "backend", None) in {"aiogram", "telethon"}
+        kwargs: Dict[str, Any] = {"parse_mode": "html"}
+        if is_runtime:
+            kwargs["disable_web_page_preview"] = True
+            if buttons is not None:
+                kwargs["buttons"] = buttons
+        else:
+            kwargs["link_preview"] = False
+            if buttons is not None:
+                from telethon import Button
+
+                kwargs["buttons"] = [
+                    [Button.inline(btn["text"], btn["callback_data"]) for btn in row]
+                    for row in buttons
+                ]
+        await self.bot_client.send_message(target_id, text, **kwargs)
+
     async def notify_digest(self, proposals: List[ImprovementProposal]) -> bool:
         if not self.bot_client or not self.owner_id:
             logger.info(
@@ -120,12 +140,7 @@ class SelfImprovementService:
             return False
         message = OishaSelfDiagnosis.format_telegram_report(proposals)
         try:
-            await self.bot_client.send_message(
-                self.owner_id,
-                message,
-                parse_mode="html",
-                link_preview=False,
-            )
+            await self._send_owner_message(self.owner_id, message)
             return True
         except Exception:
             logger.warning(
@@ -196,26 +211,29 @@ class SelfImprovementService:
             )
             return 0
 
-        from telethon import Button
-
         for proposal in proposals:
             proposal_id = str(proposal["id"])
             buttons = [
                 [
-                    Button.inline(
-                        "✅ AI-agent bajaradi (Tasdiqlash)", f"improve:accept:{proposal_id}"
-                    )
+                    {
+                        "text": "✅ AI-agent bajaradi (Tasdiqlash)",
+                        "callback_data": f"improve:accept:{proposal_id}",
+                    }
                 ],
                 [
-                    Button.inline("⏸ 7 kunga qoldirish", f"improve:defer:{proposal_id}"),
-                    Button.inline("❌ Rad etish", f"improve:reject:{proposal_id}"),
-                ]
+                    {
+                        "text": "⏸ 7 kunga qoldirish",
+                        "callback_data": f"improve:defer:{proposal_id}",
+                    },
+                    {
+                        "text": "❌ Rad etish",
+                        "callback_data": f"improve:reject:{proposal_id}",
+                    },
+                ],
             ]
-            await self.bot_client.send_message(
+            await self._send_owner_message(
                 target_id,
                 OishaSelfDiagnosis.format_proposal_card(proposal),
-                parse_mode="html",
-                link_preview=False,
                 buttons=buttons,
             )
         return len(proposals)

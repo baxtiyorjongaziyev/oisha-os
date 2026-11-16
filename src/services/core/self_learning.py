@@ -63,60 +63,111 @@ Har bir qoida:
 JSON array qaytaring. Faqat JSON."""
 
 
+def _row_val(row: Any, key: str, index: int) -> Any:
+    if isinstance(row, dict) or hasattr(row, "keys"):
+        try:
+            return row[key]
+        except (KeyError, IndexError, TypeError):
+            pass
+    return row[index]
+
+
+def _extract_json_array(raw: str) -> List[Dict[str, Any]]:
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, list) else []
+    except ValueError:
+        pass
+    start, end = text.find("["), text.rfind("]")
+    if start == -1 or end <= start:
+        return []
+    try:
+        parsed = json.loads(text[start : end + 1])
+        return parsed if isinstance(parsed, list) else []
+    except ValueError:
+        return []
+
+
 class SelfLearningEngine:
     """Conversation feedback → lesson extraction → prompt evolution."""
 
-    def __init__(self, db: Database, gemini_api_key: str):
+    def __init__(self, db: Database, gemini_api_key: str = "", router: Any = None):
         self.db = db
-        self.client = genai.Client(api_key=gemini_api_key)
+        self.client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
         self.model = os.getenv("GEMINI_SELF_LEARNING_MODEL", settings.GEMINI_CALL_MODEL)
+        self._router = router
+
+    async def _generate_json_array(
+        self, prompt: str, *, system_instruction: str = "Faqat valid JSON array qaytaring."
+    ) -> List[Dict[str, Any]]:
+        raw_text = ""
+        if self._router is None and self.client is not None:
+            try:
+                from src.utils.ai_utils import safe_ai_call
+
+                response = await safe_ai_call(
+                    client=self.client,
+                    prompt=[prompt],
+                    system_instruction=system_instruction,
+                    model=self.model,
+                )
+                raw_text = getattr(response, "text", "") or ""
+            except Exception as exc:
+                logger.debug("[LEARN] safe_ai_call fallback to free router: %s", exc)
+        if not raw_text.strip():
+            from src.services.utils.free_ai_router import get_free_ai_router
+
+            router = self._router or get_free_ai_router()
+            res = await router.generate_text(
+                prompt, system=system_instruction, max_tokens=900, temperature=0.2
+            )
+            raw_text = getattr(res, "text", "") or ""
+        return _extract_json_array(raw_text)
 
     async def ensure_tables(self):
+        ddl = (
+            "CREATE TABLE IF NOT EXISTS learning_journal (id INTEGER PRIMARY KEY AUTOINCREMENT, pattern TEXT NOT NULL, lesson TEXT NOT NULL, strategy TEXT, confidence REAL DEFAULT 0.5, category TEXT DEFAULT 'general', times_applied INTEGER DEFAULT 0, times_successful INTEGER DEFAULT 0, source_chat_id INTEGER, source_user_id INTEGER, created_at TEXT, last_applied_at TEXT)",
+            "CREATE TABLE IF NOT EXISTS strategy_rules (id INTEGER PRIMARY KEY AUTOINCREMENT, rule TEXT NOT NULL, trigger_condition TEXT, weight REAL DEFAULT 0.5, active BOOLEAN DEFAULT 1, applied_count INTEGER DEFAULT 0, success_count INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)",
+            "CREATE TABLE IF NOT EXISTS learning_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, metric_type TEXT NOT NULL, metric_value REAL, context_json TEXT, recorded_at TEXT)",
+            "CREATE INDEX IF NOT EXISTS idx_journal_category ON learning_journal(category)",
+            "CREATE INDEX IF NOT EXISTS idx_journal_confidence ON learning_journal(confidence)",
+        )
         async with await self.db.get_connection() as conn:
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS learning_journal (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    pattern TEXT NOT NULL,
-                    lesson TEXT NOT NULL,
-                    strategy TEXT,
-                    confidence REAL DEFAULT 0.5,
-                    category TEXT DEFAULT 'general',
-                    times_applied INTEGER DEFAULT 0,
-                    times_successful INTEGER DEFAULT 0,
-                    source_chat_id INTEGER,
-                    source_user_id INTEGER,
-                    created_at TEXT,
-                    last_applied_at TEXT
-                )
-            """)
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS strategy_rules (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    rule TEXT NOT NULL,
-                    trigger_condition TEXT,
-                    weight REAL DEFAULT 0.5,
-                    active BOOLEAN DEFAULT 1,
-                    applied_count INTEGER DEFAULT 0,
-                    success_count INTEGER DEFAULT 0,
-                    created_at TEXT,
-                    updated_at TEXT
-                )
-            """)
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS learning_metrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    metric_type TEXT NOT NULL,
-                    metric_value REAL,
-                    context_json TEXT,
-                    recorded_at TEXT
-                )
-            """)
+            for stmt in ddl:
+                await conn.execute(stmt)
+            await conn.commit()
+
+    async def _upsert_lesson(
+        self, conn: Any, lesson: Dict[str, Any], *, chat_id: Optional[int], user_id: Optional[int], now: str
+    ) -> bool:
+        lesson_text = str(lesson.get("lesson") or "").strip()
+        if not lesson_text:
+            return False
+        pattern = str(lesson.get("pattern") or lesson_text[:80]).strip()
+        category = str(lesson.get("category") or "general").strip() or "general"
+        strategy = str(lesson.get("strategy") or "").strip()
+        conf = min(max(float(lesson.get("confidence", 0.5)), 0.0), 1.0)
+        cur = await conn.execute(
+            "SELECT id, confidence FROM learning_journal WHERE pattern = ? AND category = ? LIMIT 1",
+            (pattern, category),
+        )
+        existing = await cur.fetchone()
+        if existing is not None:
+            row_id = _row_val(existing, "id", 0)
+            prev_conf = float(_row_val(existing, "confidence", 1) or 0.5)
             await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_journal_category ON learning_journal(category)"
+                "UPDATE learning_journal SET lesson = ?, strategy = ?, confidence = ? WHERE id = ?",
+                (lesson_text, strategy, min(max(prev_conf, conf), 1.0), row_id),
             )
-            await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_journal_confidence ON learning_journal(confidence)"
-            )
+            return True
+        await conn.execute(
+            "INSERT INTO learning_journal (pattern, lesson, strategy, confidence, category, source_chat_id, source_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (pattern, lesson_text, strategy, conf, category, chat_id, user_id, now),
+        )
+        return True
 
     async def extract_lessons(
         self,
@@ -130,57 +181,27 @@ class SelfLearningEngine:
         """Suhbatdan darslar chiqarish."""
         if not conversation or len(conversation) < 50:
             return []
-
         prompt = LESSON_EXTRACTION_PROMPT.format(
             conversation=conversation[:3000],
             client_type=client_type,
             outcome=outcome,
             manager_name=manager_name,
         )
-
         try:
-            from src.utils.ai_utils import safe_ai_call
-            response = await safe_ai_call(
-                client=self.client,
-                prompt=[prompt],
-                system_instruction="Faqat valid JSON array qaytaring.",
-                model=self.model,
-            )
-            text = response.text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-
-            lessons = json.loads(text)
-            if not isinstance(lessons, list):
+            lessons = await self._generate_json_array(prompt)
+            if not lessons:
                 return []
-
             now = get_local_now().isoformat()
             saved = []
             async with await self.db.get_connection() as conn:
                 for lesson in lessons:
-                    if not lesson.get("lesson"):
-                        continue
-                    await conn.execute(
-                        """INSERT INTO learning_journal
-                           (pattern, lesson, strategy, confidence, category,
-                            source_chat_id, source_user_id, created_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
-                            lesson.get("pattern", ""),
-                            lesson["lesson"],
-                            lesson.get("strategy", ""),
-                            min(max(float(lesson.get("confidence", 0.5)), 0.0), 1.0),
-                            lesson.get("category", "general"),
-                            chat_id,
-                            user_id,
-                            now,
-                        ),
-                    )
-                    saved.append(lesson)
-
+                    if isinstance(lesson, dict) and await self._upsert_lesson(
+                        conn, lesson, chat_id=chat_id, user_id=user_id, now=now
+                    ):
+                        saved.append(lesson)
+                await conn.commit()
             logger.info(f"[LEARN] Extracted {len(saved)} lessons from conversation")
             return saved
-
         except Exception as exc:
             logger.warning(f"[LEARN] Lesson extraction failed: {exc}")
             return []
@@ -215,12 +236,12 @@ class SelfLearningEngine:
             results = []
             for row in await rows.fetchall():
                 results.append({
-                    "pattern": row[0],
-                    "lesson": row[1],
-                    "strategy": row[2],
-                    "confidence": row[3],
-                    "applied": row[4],
-                    "successful": row[5],
+                    "pattern": _row_val(row, "pattern", 0),
+                    "lesson": _row_val(row, "lesson", 1),
+                    "strategy": _row_val(row, "strategy", 2),
+                    "confidence": _row_val(row, "confidence", 3),
+                    "applied": _row_val(row, "times_applied", 4),
+                    "successful": _row_val(row, "times_successful", 5),
                 })
             return results[:limit]
 
@@ -235,7 +256,11 @@ class SelfLearningEngine:
                    LIMIT 10"""
             )
             return [
-                {"rule": r[0], "when": r[1], "weight": r[2]}
+                {
+                    "rule": _row_val(r, "rule", 0),
+                    "when": _row_val(r, "trigger_condition", 1),
+                    "weight": _row_val(r, "weight", 2),
+                }
                 for r in await rows.fetchall()
             ]
 
@@ -262,71 +287,64 @@ class SelfLearningEngine:
                        WHERE pattern = ?""",
                     (now, pattern),
                 )
+            await conn.commit()
+
+    async def _save_synthesized_strategies(
+        self, strategies: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        now = get_local_now().isoformat()
+        saved = []
+        async with await self.db.get_connection() as conn:
+            for strat in strategies:
+                if not isinstance(strat, dict) or not strat.get("rule"):
+                    continue
+                rule_text = str(strat["rule"]).strip()
+                cur = await conn.execute(
+                    "SELECT id FROM strategy_rules WHERE rule = ? AND active = 1 LIMIT 1",
+                    (rule_text,),
+                )
+                if await cur.fetchone() is not None:
+                    continue
+                await conn.execute(
+                    "INSERT INTO strategy_rules (rule, trigger_condition, weight, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        rule_text,
+                        str(strat.get("when", "") or "").strip(),
+                        min(max(float(strat.get("weight", 0.5)), 0.0), 1.0),
+                        now,
+                        now,
+                    ),
+                )
+                saved.append(strat)
+            await conn.commit()
+        return saved
 
     async def synthesize_strategies(self) -> List[Dict[str, Any]]:
-        """Yig'ilgan darslardan umumiy strategiyalar chiqarish (haftalik)."""
+        """Yigʻilgan darslardan umumiy strategiyalar chiqarish (haftalik)."""
         async with await self.db.get_connection() as conn:
             rows = await conn.execute(
-                """SELECT pattern, lesson, strategy, confidence, category
-                   FROM learning_journal
-                   WHERE confidence > 0.5
-                   ORDER BY confidence DESC
-                   LIMIT 30"""
+                "SELECT pattern, lesson, strategy, confidence, category FROM learning_journal WHERE confidence > 0.5 ORDER BY confidence DESC LIMIT 30"
             )
             lessons = [
                 {
-                    "pattern": r[0],
-                    "lesson": r[1],
-                    "strategy": r[2],
-                    "confidence": r[3],
-                    "category": r[4],
+                    "pattern": _row_val(r, "pattern", 0),
+                    "lesson": _row_val(r, "lesson", 1),
+                    "strategy": _row_val(r, "strategy", 2),
+                    "confidence": _row_val(r, "confidence", 3),
+                    "category": _row_val(r, "category", 4),
                 }
                 for r in await rows.fetchall()
             ]
-
         if len(lessons) < 5:
             return []
-
         prompt = STRATEGY_SYNTHESIS_PROMPT.format(lessons_json=json.dumps(lessons, ensure_ascii=False))
-
         try:
-            from src.utils.ai_utils import safe_ai_call
-            response = await safe_ai_call(
-                client=self.client,
-                prompt=[prompt],
-                system_instruction="Faqat valid JSON array qaytaring.",
-                model=self.model,
-            )
-            text = response.text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-
-            strategies = json.loads(text)
-            if not isinstance(strategies, list):
+            strategies = await self._generate_json_array(prompt)
+            if not strategies:
                 return []
-
-            now = get_local_now().isoformat()
-            saved = []
-            async with await self.db.get_connection() as conn:
-                for strat in strategies:
-                    if not strat.get("rule"):
-                        continue
-                    await conn.execute(
-                        """INSERT INTO strategy_rules (rule, trigger_condition, weight, created_at, updated_at)
-                           VALUES (?, ?, ?, ?, ?)""",
-                        (
-                            strat["rule"],
-                            strat.get("when", ""),
-                            min(max(float(strat.get("weight", 0.5)), 0.0), 1.0),
-                            now,
-                            now,
-                        ),
-                    )
-                    saved.append(strat)
-
+            saved = await self._save_synthesized_strategies(strategies)
             logger.info(f"[LEARN] Synthesized {len(saved)} new strategies")
             return saved
-
         except Exception as exc:
             logger.warning(f"[LEARN] Strategy synthesis failed: {exc}")
             return []
@@ -339,6 +357,7 @@ class SelfLearningEngine:
                    VALUES (?, ?, ?, ?)""",
                 (metric_type, value, json.dumps(context or {}), get_local_now().isoformat()),
             )
+            await conn.commit()
 
     def build_learning_context(self, lessons: List[Dict], strategies: List[Dict]) -> str:
         """Prompt'ga inject qilinadigan learning context string."""

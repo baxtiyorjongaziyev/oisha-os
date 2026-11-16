@@ -104,9 +104,18 @@ async def compose_checkin(
         prompt_parts.append(f"Sening oldingi xabaring:\n{ctx['last_checkin']}")
     if same_day and ctx.get("last_reply"):
         prompt_parts.append(f"Menejerning oxirgi javobi:\n{ctx['last_reply']}")
+    system = COMPOSE_SYSTEM
+    try:
+        from src.services.core.adaptive_learning import get_adaptive_prompt_context
+
+        learned = await get_adaptive_prompt_context(category="sales", max_chars=350)
+        if learned:
+            system = f"{system}\n\n{learned}"
+    except Exception:
+        logger.debug("[CHECKIN] Adaptive context skipped", exc_info=True)
     try:
         text = await generate(
-            "\n\n".join(prompt_parts), system=COMPOSE_SYSTEM, max_tokens=300, temperature=0.8
+            "\n\n".join(prompt_parts), system=system, max_tokens=300, temperature=0.8
         )
     except Exception:
         logger.warning("[CHECKIN] AI matn yozmadi, qolipga qaytiladi.", exc_info=True)

@@ -31,9 +31,26 @@ async def _handle_improvement_callback(self, event: Any, data: str) -> None:
 
     badges = {"accept": "✅ AI agent uchun qabul qilindi", "defer": "⏸ 7 kunga kechiktirildi", "reject": "❌ Rad etildi"}
     try:
-        from telethon.extensions import html
-        current_html = html.unparse(event.message.message, event.message.entities or [])
-        await event.edit(current_html + f"\n\n<b>{badges[action]}</b>", parse_mode="html", buttons=None)
+        import html as std_html
+
+        current_html = ""
+        msg = getattr(event, "message", None)
+        entities = getattr(msg, "entities", None)
+        raw_text = str(getattr(msg, "raw_text", None) or getattr(msg, "message", None) or "")
+        if entities:
+            try:
+                from telethon.extensions import html as telethon_html
+
+                current_html = telethon_html.unparse(raw_text, entities)
+            except Exception:
+                current_html = std_html.escape(raw_text)
+        else:
+            current_html = std_html.escape(raw_text)
+        await event.edit(
+            current_html + f"\n\n<b>{badges[action]}</b>",
+            parse_mode="html",
+            buttons=None,
+        )
     except Exception:
         logger.debug("[SELF-IMPROVEMENT] Decision card edit failed", exc_info=True)
     if action == "accept":
@@ -136,6 +153,15 @@ def register_callback_handlers(self):
         try:
             if data.startswith("improve:"):
                 await _handle_improvement_callback(self, event, data)
+            elif data.startswith("skill:"):
+                from src.services.core.skill_learner_bot import handle_skill_callback
+
+                await handle_skill_callback(
+                    event,
+                    data,
+                    owner_id=self.self_improvement.owner_id,
+                    db=getattr(self, "db", None),
+                )
             elif data.startswith(("mcp:approve:", "mcp:cancel:")):
                 await _handle_mcp_callback(self, event, data)
             elif data.startswith("capi:"):

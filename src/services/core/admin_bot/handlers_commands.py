@@ -340,8 +340,22 @@ def _register_basic_commands(self):
                 await self.send_recent_logs(event)
 
 
+def _register_skill_commands(self):
+    @self.bot_client.on(events.NewMessage(pattern=r"(?i)^/(?:skills|skill_ok|skill_no)(?:@[A-Za-z0-9_]+)?(?:\s+\d+)?$"))
+    async def admin_skills_handler(event):
+        from src.services.core.skill_learner_bot import handle_admin_skill_command
+
+        await handle_admin_skill_command(
+            event,
+            owner_id=self.self_improvement.owner_id,
+            db=getattr(self, "db", None),
+            bot_runtime=getattr(self.self_improvement, "bot_client", None),
+        )
+
+
 def register_command_handlers(self):
     _register_audit_commands(self)
     _register_plan_commands(self)
     _register_command_center_commands(self)
     _register_basic_commands(self)
+    _register_skill_commands(self)

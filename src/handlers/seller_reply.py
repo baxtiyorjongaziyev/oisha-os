@@ -58,16 +58,27 @@ def register_seller_reply_handlers(
             return False
 
     async def _handle(message: Any) -> None:
+        from src.services.core.adaptive_learning import is_owner_user, record_owner_feedback_rule
         from src.services.core.checkin_composer import save_context
         from src.services.core.sales_coach_reply import coach_reply
         from src.time_utils import get_local_now
 
         try:
             now = get_local_now()
-            name = getattr(message.from_user, "first_name", None) or "do'stim"
+            user = getattr(message, "from_user", None)
+            name = getattr(user, "first_name", None) or "doʻstim"
             reply_text = _text_of(message)
-            save_context({"date": now.strftime("%Y-%m-%d"), "last_reply": reply_text})
-            answer = await coach_reply(name, reply_text, _text_of(message.reply_to_message))
+            is_owner = is_owner_user(user)
+            if is_owner:
+                await record_owner_feedback_rule(
+                    reply_text,
+                    user_id=getattr(user, "id", None),
+                    speaker=name,
+                    chat_id=getattr(getattr(message, "chat", None), "id", None),
+                )
+            else:
+                save_context({"date": now.strftime("%Y-%m-%d"), "last_reply": reply_text})
+            answer = await coach_reply(name, reply_text, _text_of(message.reply_to_message), is_owner=is_owner)
             await message.reply(answer, parse_mode=None)
         except Exception:
             logger.error("[SELLER-REPLY] Javob berishda xato.", exc_info=True)
