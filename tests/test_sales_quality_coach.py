@@ -50,6 +50,21 @@ def test_report_names_best_and_weakest_manager():
     assert "Aniq tanishtirish" in report
 
 
+def test_owner_is_not_counted_as_seller():
+    rows = [
+        _row("Shahnoza", 85),
+        _row("Shahnoza", 85),
+        _row("Baxtiyorjongaziyev", 41, weaknesses=["Narx vilkasi aytilmadi"]),
+        _row("Baxtiyorjongaziyev", 41),
+    ]
+
+    report = SalesQualityCoach(db=None).build_daily_report(rows, DAY)
+
+    assert "Baxtiyorjon" not in report
+    assert "Baholangan qo'ng'iroqlar: 2" in report
+    assert "Eng past natija" not in report
+
+
 def test_report_counts_red_calls():
     rows = [_row("Aziz", 30), _row("Aziz", 20), _row("Sardor", 80)]
 
