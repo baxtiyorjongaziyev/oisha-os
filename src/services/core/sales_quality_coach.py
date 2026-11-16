@@ -32,6 +32,25 @@ logger = logging.getLogger(__name__)
 MIN_CALLS_FOR_RANKING = 2
 
 
+# Admin/owner/founder sotuvchi emas — uning qoʻngʻiroqlari reytingga,
+# oʻrtacha ballga va tavsiyalarga kirmaydi. Nom normallashtirilib
+# (kichik harf, faqat harflar) qismi boʻyicha solishtiriladi.
+NON_SALES_NAME_KEYS = ("baxtiyorjon",)
+
+
+def _norm_name(name: Any) -> str:
+    return "".join(ch for ch in str(name or "").lower() if ch.isalpha())
+
+
+def _is_non_sales(name: Any) -> bool:
+    key = _norm_name(name)
+    return any(k in key for k in NON_SALES_NAME_KEYS)
+
+
+def _exclude_non_sales(rows: List[Any]) -> List[Any]:
+    return [r for r in rows if not _is_non_sales(_row_get(r, "manager_name"))]
+
+
 def _json_list(value: Any) -> List[str]:
     if isinstance(value, list):
         return [str(v) for v in value]
@@ -119,6 +138,7 @@ class SalesQualityCoach:
 
     def build_daily_report(self, rows: List[Any], day_iso: str) -> Optional[str]:
         """Kunlik sifat hisoboti matni. Ma'lumot bo'lmasa None."""
+        rows = _exclude_non_sales(rows)
         if not rows:
             return None
 
@@ -212,7 +232,7 @@ class SalesQualityCoach:
         qamrab oladi. LLM yo'q bo'lsa, deterministik zaiflik ro'yxati bilan
         qaytadi — hech qachon jim qolmaydi.
         """
-        rows = await self.fetch_day_analyses(day_iso)
+        rows = _exclude_non_sales(await self.fetch_day_analyses(day_iso))
         if not rows:
             return None
 
