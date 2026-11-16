@@ -68,7 +68,13 @@ async def openclaw_webhook(request: Request):
         user_id = data.get("user_id", "openclaw_user")
 
         from src.openclaw_bridge import handle_openclaw_message
-        reply = await handle_openclaw_message(message, user_id=user_id)
+        reply = await handle_openclaw_message(
+            text=str(message),
+            sender=str(user_id),
+            sender_id=str(user_id),
+            channel=str(data.get("channel") or "webchat"),
+            session=str(data.get("session") or ""),
+        )
 
         return {"reply": reply, "status": "ok"}
     except Exception as exc:
@@ -110,7 +116,12 @@ async def v1_chat_completions(request: Request):
         last_msg = messages[-1].get("content", "")
 
         from src.openclaw_bridge import handle_openclaw_message
-        reply = await handle_openclaw_message(last_msg)
+        reply = await handle_openclaw_message(
+            text=str(last_msg),
+            sender="openai_gateway",
+            sender_id="openai_gateway",
+            channel="webchat",
+        )
 
         return {
             "id": "chatcmpl-oisha",

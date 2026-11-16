@@ -6,6 +6,7 @@ Signal, iMessage ...) xabarlarni /webhook/openclaw ga yuboradi.
 Bu modul ularni tegishli Oisha agentiga yo'naltiradi va javob qaytaradi.
 """
 
+import hashlib
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -37,7 +38,8 @@ def _get_numeric_user_id(sender_id: str, channel: str) -> int:
         numeric = int(sender_id)
         return prefix + abs(numeric)
     except (ValueError, TypeError):
-        return prefix + abs(hash(sender_id)) % 1_000_000_000
+        digest = hashlib.sha256(str(sender_id).encode("utf-8")).digest()
+        return prefix + int.from_bytes(digest[:8], "big") % 1_000_000_000
 
 
 def _build_context(
@@ -81,7 +83,7 @@ async def handle_openclaw_message(
     sender: str,
     sender_id: str,
     channel: str,
-    session: str,
+    session: str = "",
     db: Optional[Any] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
