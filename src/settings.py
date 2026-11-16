@@ -252,6 +252,7 @@ class AppSettings(BaseSettings):
     TOPIC_FOLLOWUP_ID: Optional[int] = None
     TOPIC_GENERAL_ID: Optional[int] = None
     TOPIC_KIRIM_ID: Optional[int] = None
+    SALES_WON_CHECK_DELAY_SECONDS: int = 1800
     STAGNATION_TOPIC_ID: Optional[int] = None
     WOW_SERVICE_TOPIC_ID: Optional[int] = None
     GDRIVE_OFFLOAD_FOLDER_ID: Optional[str] = None
