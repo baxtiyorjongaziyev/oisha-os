@@ -26,6 +26,9 @@ BOT_API_10_ALLOWED_UPDATES: List[str] = [
     "message_reaction",
     "message_reaction_count",
     "purchased_paid_media",
+    # Bot API 10.4 widgets
+    "widget_query",
+    "shared_widget_query",
 ]
 
 
