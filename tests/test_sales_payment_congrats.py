@@ -169,3 +169,45 @@ def test_oisha_reconnects_once_after_connection_error():
         asyncio.run(spc._send_as_oisha(-100, 7, "tabrik"))
     bot.connect.assert_awaited_once()
     assert bot.send_message.await_count == 2
+
+
+def test_oisha_falls_back_to_userbot_when_bot_client_fails():
+    bot = SimpleNamespace(send_message=AsyncMock(side_effect=RuntimeError("bot dead")))
+    user_client = SimpleNamespace(send_message=AsyncMock())
+    with patch.object(spc, "app_ctx", SimpleNamespace(bot_client=bot, client=user_client)):
+        asyncio.run(spc._send_as_oisha(-100, 7, "tabrik"))
+    user_client.send_message.assert_awaited_once_with(-100, "tabrik", reply_to=7, link_preview=False)
+
+
+def test_warm_seller_name_formatting():
+    assert spc._warm_seller_name("@RayxonJonbranding") == "Rayxonaxon"
+    assert spc._warm_seller_name("Shahnoza") == "Shahnozaxon"
+    assert spc._warm_seller_name("Hasanboy") == "Hasanboy"
+
+
+def test_send_typing_via_bot_api_posts_thread_id():
+    posted = []
+
+    class _FakeHttp:
+        def __init__(self, timeout=None):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, json=None):
+            posted.append((url, json))
+            return SimpleNamespace(status_code=200)
+
+    with patch.object(spc.httpx, "AsyncClient", _FakeHttp):
+        asyncio.run(spc._send_typing_via_bot_api("amina-token", -100, thread_id=2976))
+
+    assert posted == [
+        (
+            "https://api.telegram.org/botamina-token/sendChatAction",
+            {"chat_id": -100, "action": "typing", "message_thread_id": 2976},
+        )
+    ]
