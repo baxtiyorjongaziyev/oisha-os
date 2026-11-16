@@ -23,6 +23,11 @@ on:
     # pending, blocking merge even via admin bypass. The push trigger above
     # keeps its path filter since that one gates actual production deploys.
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Production deploy uchun DEPLOY_PRODUCTION deb yozing"
+        required: true
+        default: ""
 
 concurrency:
   # Keyed by event so PR runs (import-guard only) never share a concurrency
@@ -49,7 +54,9 @@ jobs:
   # Bu gate GitHub-hosted runner'da ishlaydi va sekundlar oladi.
   import-guard:
     name: Import-time crash guard
-    if: "!startsWith(github.event.head_commit.message, 'chore(auto):') && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)"
+    # workflow_dispatch da ishlamaydi: qoʻlda deploy GitHub-hosted daqiqalarga
+    # bogʻliq boʻlmasligi uchun oʻrniga manual-guard (self-hosted) ishlaydi.
+    if: "!startsWith(github.event.head_commit.message, 'chore(auto):') && github.event_name != 'workflow_dispatch' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -88,14 +95,33 @@ jobs:
           SKIP_LIVE: "1"
         run: pytest tests/test_syntax_guard.py -q
 
+  # Qoʻlda deploy uchun yengil gate. Hisobning Actions kvotasi tugaganda
+  # GitHub-hosted import-guard boshlanmaydi va deploy bloklanadi (2026-11-10).
+  # Bu job production runnerʻda ishlaydi, shuning uchun ataylab arzon: faqat
+  # compileall (SyntaxError/IndentationError), dependency oʻrnatmaydi va
+  # pytest yurgizmaydi. Faqat mainʻdan va aniq tasdiq bilan ishga tushadi.
+  manual-guard:
+    name: Manual deploy guard (self-hosted)
+    if: "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY_PRODUCTION'"
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Compile every source file
+        run: python3 -m compileall -q src/ scripts/
+
   deploy:
     name: Contabo VPS healthy deploy
-    needs: import-guard
+    needs: [import-guard, manual-guard]
     # Deploy only on push to main; on pull_request events run import-guard alone
     # so the required check can report without touching production.
     # Secrets-bearing production deploys only on reviewed main pushes.
-    # Manual workflow_dispatch runs import guard, not live deployment.
-    if: "github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(auto):')"
+    # Manual workflow_dispatch deploys only from main, with the typed
+    # confirmation, after manual-guard passes on the self-hosted runner.
+    if: "always() && !cancelled() && ((github.event_name == 'push' && needs.import-guard.result == 'success' && !startsWith(github.event.head_commit.message, 'chore(auto):')) || (github.event_name == 'workflow_dispatch' && needs.manual-guard.result == 'success'))"
     # Runner label "oracle" is historical: the runner itself lives on Contabo.
     runs-on: [self-hosted, oracle]
     environment: production

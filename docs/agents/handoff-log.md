@@ -2828,6 +2828,11 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Qolgan ish/Bloker:** `jonbranding-web` reposi bu sessiya doirasida emas — u ham kamaytirilmasa umumiy kvota baribir yetmasligi mumkin. Branch protection required checklari (`Import-time crash guard`, `gitleaks`) draftda "skipped" boʻladi; ready qilinganda ishlaydi.
 
 
+## 2026-11-11 — Claude — Qoʻlda production deploy yoʻli (Actions kvotasiga bogʻliq emas)
+- **Sabab:** PR #1050 merge qilindi (`4ff1d5e`), lekin deploy ishlamadi: hosted `Import-time crash guard` kvota tugagani uchun boshlanmadi, `deploy` esa unga bogʻliq. Qayta ishga tushirish ham xuddi shunday yiqildi (annotatsiya: "job was not started ... spending limit"). Owner 2-variantni tanladi.
+- **Bajarilgan ish:** `.github/workflows/oracle-deploy.yml` — `workflow_dispatch` ga `confirm` inputi; yangi `manual-guard` job (self-hosted, faqat `main`, `confirm == DEPLOY_PRODUCTION`, faqat `compileall`); `deploy` endi push da `import-guard`, qoʻlda esa `manual-guard` oʻtganda ishlaydi; hosted `import-guard` qoʻlda ishga tushirishda oʻtkazib yuboriladi. `tests/test_runner_workflow_contract.py` ga 2 ta shartnoma testi.
+- **Cheklov:** qoʻlda yoʻldagi tekshiruv hosted variantdan sust — dependency oʻrnatilmaydi, `tests/test_syntax_guard.py` yurgizilmaydi. Push orqali deploy oʻzgarmagan.
+- **Tekshiruv dalillari:** PR tavsifida.
 ## 2026-11-15 — Antigravity — Hetzner migratsiyasi tekshiruvi (DNS, Nginx/TLS, Meta/Gemini) va hujjatlarni yangilash
 - **Vazifa:**
   1. `oisha.jonbranding.uz` va `crm.jonbranding.uz` DNS holatini (`2.29.198.0` ga oʻtgan-oʻtmaganini) tekshirish.

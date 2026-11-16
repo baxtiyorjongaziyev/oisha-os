@@ -77,3 +77,31 @@ def test_uzbek_guard_runs_inside_import_guard_on_pull_requests():
 def test_labeler_does_not_run_on_every_push():
     types = load_workflow("labeler.yml")[True]["pull_request_target"]["types"]
     assert "synchronize" not in types
+
+
+def test_manual_deploy_is_main_only_confirmed_and_does_not_need_hosted_runner():
+    workflow = load_workflow("oracle-deploy.yml")
+    guard = workflow["jobs"]["manual-guard"]
+    condition = str(guard["if"])
+    assert guard["runs-on"] == ["self-hosted", "oracle"]
+    assert "github.event_name == 'workflow_dispatch'" in condition
+    assert "github.ref == 'refs/heads/main'" in condition
+    assert "inputs.confirm == 'DEPLOY_PRODUCTION'" in condition
+    assert "pull_request" not in condition
+    # The self-hosted guard must stay cheap: no dependency install, no pytest.
+    runs = " ".join(str(step.get("run", "")) for step in guard["steps"])
+    assert "compileall" in runs
+    assert "pip install" not in runs and "pytest" not in runs
+
+
+def test_deploy_requires_a_passed_guard_for_each_trigger():
+    workflow = load_workflow("oracle-deploy.yml")
+    deploy = workflow["jobs"]["deploy"]
+    condition = str(deploy["if"])
+    assert set(deploy["needs"]) == {"import-guard", "manual-guard"}
+    assert "github.event_name == 'push' && needs.import-guard.result == 'success'" in condition
+    assert "github.event_name == 'workflow_dispatch' && needs.manual-guard.result == 'success'" in condition
+    assert "always()" in condition  # skipped manual-guard must not block push deploys
+    assert "pull_request" not in condition
+    # Hosted import-guard is skipped on manual runs so they do not burn minutes.
+    assert "github.event_name != 'workflow_dispatch'" in str(workflow["jobs"]["import-guard"]["if"])
