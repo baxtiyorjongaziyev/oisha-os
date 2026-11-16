@@ -12,6 +12,20 @@ from typing import Any, Optional, Protocol
 import logging
 logger = logging.getLogger(__name__)
 
+_AIOGRAM_PARSE_MODES = {
+    "md": "Markdown",
+    "markdown": "Markdown",
+    "markdownv2": "MarkdownV2",
+    "html": "HTML",
+}
+
+
+def normalize_aiogram_parse_mode(value: Optional[str]) -> Optional[str]:
+    """Map Telethon-style parse_mode aliases (e.g. 'md') to Telegram Bot API values."""
+    if not value:
+        return None
+    return _AIOGRAM_PARSE_MODES.get(value.strip().lower(), value)
+
 
 @dataclass(frozen=True)
 class SentBotMessage:
@@ -123,8 +137,9 @@ class AiogramBotRuntime:
         kwargs: dict[str, Any] = dict(extra)
         buttons = kwargs.pop("buttons", None)
         reply_to = kwargs.pop("reply_to", None)
-        if parse_mode:
-            kwargs["parse_mode"] = parse_mode
+        normalized_parse_mode = normalize_aiogram_parse_mode(parse_mode)
+        if normalized_parse_mode:
+            kwargs["parse_mode"] = normalized_parse_mode
         if message_thread_id:
             kwargs["message_thread_id"] = message_thread_id
         if disable_notification:

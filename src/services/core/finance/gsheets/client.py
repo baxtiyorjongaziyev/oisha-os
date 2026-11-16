@@ -91,7 +91,7 @@ class GsheetClientMixin:
                         "fields": "properties,sheets(properties)",
                     },
                 )
-                spreadsheet = object.__new__(Spreadsheet)
+                spreadsheet = object.__new__(gspread.Spreadsheet)
                 spreadsheet.client = self.client.http_client
                 spreadsheet._properties = {
                     "id": self.spreadsheet_id,
@@ -100,7 +100,7 @@ class GsheetClientMixin:
                 self.spreadsheet = spreadsheet
                 self._worksheets.update(
                     {
-                        item["properties"]["title"]: Worksheet(
+                        item["properties"]["title"]: gspread.Worksheet(
                             spreadsheet,
                             item["properties"],
                             self.spreadsheet_id,
