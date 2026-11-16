@@ -2910,6 +2910,12 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` (Windows, lokal) → 3895 passed, 18 skipped, 5 failed; 5 ta xato bu PR fayllariga tegmaydi (`test_drive_oauth_onboarding` fayl ruxsati 438≠384, `test_runner_workflow_contract` cp1252 UnicodeDecodeError ×2, `test_sync_agents_deploy_safety` ×2) — `main` da alohida tekshirilmagan. `bandit -r src/ -ll` → exit 0. Uzbek-text commit guard oʻtdi.
 - **Qolgan ish/Bloker:** (a) Egasi Hetzner `.env` ga `META_PAGE_ACCESS_TOKEN` va CAPI kalitlarini qoʻyib `oisha` ni restart qilishi kerak — busiz lidlar olinmaydi. (b) GitHub Actions joblari boshlanmayapti: "recent account payments have failed or your spending limit needs to be increased" — PR checklari shu sababli qizil. (c) Prod deliveries bazasida `test_in_flight_*` qatorlari bor, watchdog har daqiqada WARNING yozadi — tegilmagan.
 
+- **2026-11-16 — Claude Code — Kunlik sotuv sifati: owner reytingdan chiqarildi, tavsiyalar Oʻquv topicga:**
+  - **Bajarilgan ish:** (1) Admin/owner/founder (Baxtiyorjon) kunlik sifat hisoboti va konversiya tavsiyalaridan chiqarib tashlandi (`NON_SALES_NAME_KEYS`). (2) `TOPIC_TRAINING_ID` sozlamasi qoʻshildi; konversiya tavsiyalari shu topicga ketadi, sozlanmagan boʻlsa `TOPIC_REPORTS_ID` ga qaytadi. (3) Filtr yordamchilari 400-qator chegarasi uchun alohida modulga ajratildi.
+  - **Oʻzgargan fayllar:** `src/services/core/sales_quality_coach.py`, `src/services/core/sales_quality_filters.py`, `src/schedulers/bg_monitor/jobs_analytics.py`, `src/settings.py`, `tests/test_sales_quality_coach.py`, `tests/test_coach_scheduling.py`, `docs/agents/handoff-log.md`.
+  - **Tekshiruv dalili:** `SKIP_LIVE=1 pytest tests/test_sales_quality_coach.py tests/test_coach_scheduling.py` — oʻtdi; Uzbek-text guard toza.
+  - **Qolgan ish:** `.env` ga `TOPIC_TRAINING_ID` qiymatini yozish (Oʻquv topic ID). `ideal_script` va haftalik zaiflik tahlili hali ham owner qoʻngʻiroqlarini oʻz ichiga oladi.
+
 ## 2026-11-16 — Antigravity — Bot va API uzilishlari (OpenClaw, Inline Search, Sales Congrats, Sync Runtime)
 - **Sabab:** 3-bot (Oisha/Amina/Mr.Jon) arxitektura tahlilida 4 ta uzilish aniqlandi:
   1. `POST /webhook/openclaw`, `/v1/chat/completions` va `guest_message` `openclaw_bridge.handle_openclaw_message` ning eskirgan signaturasiga urilib `TypeError` va notoʻgʻri `AgentManager(db=db)` chaqirigʻida yiqilar edi.
