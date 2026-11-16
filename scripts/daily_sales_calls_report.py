@@ -19,23 +19,23 @@ Env:
 from __future__ import annotations
 
 import argparse
-import html
 import logging
 import os
 import sys
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Dict, Iterable, List, Optional
+
+import requests
 
 # Repository rootni sys.path ga qo'shish
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Iterable, List, Optional
 
-import requests
-
-from src.services.call_analytics.moizvonki_roster import load_excludes, load_roster
+from src.services.call_analytics.moizvonki_roster import load_excludes, load_roster  # noqa: E402
 
 logger = logging.getLogger("daily_sales_calls_report")
 
@@ -326,9 +326,20 @@ def send_telegram(bot_token: str, chat_id: str, text: str, topic_id: Optional[st
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     if topic_id:
         payload["message_thread_id"] = int(topic_id)
-    resp = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=30)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Telegram sendMessage http={resp.status_code}: {resp.text[:200]}")
+    last_err = "unknown"
+    for attempt in range(3):
+        try:
+            resp = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=30)
+            if resp.status_code == 200:
+                return
+            last_err = f"http={resp.status_code}: {resp.text[:200]}"
+            if resp.status_code not in (429, 500, 502, 503, 504):
+                break
+        except requests.RequestException as exc:
+            last_err = str(exc)
+        if attempt < 2:
+            time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"Telegram sendMessage {last_err}")
 
 
 # ---------------------------------------------------------------- main

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from src.services.core.llm_coach import SalesCoachLLM
 from typing import Any, Dict, List, Optional
 
@@ -50,15 +51,34 @@ def _cfg(name: str, default: Any) -> Any:
 class SalesCoachSync:
     """Client for the side-by-side salescoach-ai REST API."""
 
+    _CONNECT_COOLDOWN_SEC = 600.0
+
     def __init__(self):
         self.base_url = str(_cfg("SALESCOACH_API_URL", "")).rstrip("/")
         self.token = _secret_text(_cfg("SALESCOACH_SERVICE_TOKEN", ""))
         self.enabled = bool(_cfg("SALESCOACH_ENABLED", False)) and bool(self.base_url)
         self._client: Optional[httpx.AsyncClient] = None
+        self._down_until: float = 0.0
+
+    def _is_available(self) -> bool:
+        return self.enabled and time.monotonic() >= self._down_until
+
+    def _handle_request_error(self, op: str, exc: Exception) -> None:
+        if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+            if time.monotonic() >= self._down_until:
+                logger.warning(
+                    "[SalesCoach] %s unreachable (%s); pausing for %ds",
+                    op,
+                    type(exc).__name__,
+                    int(self._CONNECT_COOLDOWN_SEC),
+                )
+            self._down_until = time.monotonic() + self._CONNECT_COOLDOWN_SEC
+            return
+        logger.warning("[SalesCoach] %s failed: %s", op, type(exc).__name__)
 
     @property
     def client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
+        if self._client is None or getattr(self._client, "is_closed", False):
             headers = {"Content-Type": "application/json"}
             if self.token:
                 headers["Authorization"] = f"Bearer {self.token}"
@@ -81,7 +101,7 @@ class SalesCoachSync:
         service_type: str = "branding",
         customer_name: str = "",
     ) -> Optional[Dict[str, Any]]:
-        if not self.enabled:
+        if not self._is_available():
             return None
         try:
             payload = {
@@ -97,10 +117,7 @@ class SalesCoachSync:
             data = response.json()
             return data if isinstance(data, dict) else None
         except Exception as exc:
-            logger.warning(
-                "[SalesCoach] suggestion failed: %s",
-                type(exc).__name__,
-            )
+            self._handle_request_error("suggestion", exc)
             return None
 
     async def analyze_conversation(
@@ -180,7 +197,7 @@ class SalesCoachSync:
         content_type: str = "audio/ogg",
         ext: str = "ogg",
     ) -> Optional[Dict[str, Any]]:
-        if not self.enabled:
+        if not self._is_available():
             return None
         try:
             init_response = await self.client.post(
@@ -216,17 +233,14 @@ class SalesCoachSync:
             logger.info("[SalesCoach] call uploaded: %s", call_id)
             return {"callId": call_id, "status": "TRANSCRIBING"}
         except Exception as exc:
-            logger.warning(
-                "[SalesCoach] voice upload failed: %s",
-                type(exc).__name__,
-            )
+            self._handle_request_error("voice upload", exc)
             return None
 
     async def get_pipeline_insights(
         self,
         days: int = 7,
     ) -> Optional[Dict[str, Any]]:
-        if not self.enabled:
+        if not self._is_available():
             return None
         try:
             response = await self.client.get(
@@ -236,10 +250,7 @@ class SalesCoachSync:
             data = response.json()
             return data if isinstance(data, dict) else None
         except Exception as exc:
-            logger.warning(
-                "[SalesCoach] pipeline insights failed: %s",
-                type(exc).__name__,
-            )
+            self._handle_request_error("pipeline insights", exc)
             return None
 
 

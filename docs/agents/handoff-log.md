@@ -2909,3 +2909,16 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   3. Testlar: `tests/test_leadgen_status_reporter.py` (+3), `tests/test_meta_leadgen_token_alert.py` (+1).
 - **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` (Windows, lokal) → 3895 passed, 18 skipped, 5 failed; 5 ta xato bu PR fayllariga tegmaydi (`test_drive_oauth_onboarding` fayl ruxsati 438≠384, `test_runner_workflow_contract` cp1252 UnicodeDecodeError ×2, `test_sync_agents_deploy_safety` ×2) — `main` da alohida tekshirilmagan. `bandit -r src/ -ll` → exit 0. Uzbek-text commit guard oʻtdi.
 - **Qolgan ish/Bloker:** (a) Egasi Hetzner `.env` ga `META_PAGE_ACCESS_TOKEN` va CAPI kalitlarini qoʻyib `oisha` ni restart qilishi kerak — busiz lidlar olinmaydi. (b) GitHub Actions joblari boshlanmayapti: "recent account payments have failed or your spending limit needs to be increased" — PR checklari shu sababli qizil. (c) Prod deliveries bazasida `test_in_flight_*` qatorlari bor, watchdog har daqiqada WARNING yozadi — tegilmagan.
+
+
+## 2026-11-16 — Antigravity — Production xatolari (BackgroundMonitor, C360, GContacts, Hourly Telegram retry, Watchdog, SalesCoach cooldown)
+- **Sabab:** Hetzner (`jon-ai-prod-01`) loglarida aniqlangan xatolar:
+  1. `Customer360Collector._enrich_from_amocrm`: `AmoCRMSync.get_lead` `async def` boʻlgani uchun `asyncio.to_thread` coroutine qaytarib `'coroutine' object has no attribute 'get'` bergan.
+  2. `scripts/daily_sales_calls_report.py:send_telegram`: Telegram `502 Bad Gateway` da retry qilmay `oisha-sales-hourly.service` ni yiqitgan.
+  3. `src/services/core/gcontacts.py`: `data/service_account.json` va `data/token.json` yoʻllarini tekshirmagan (`Avtorizatsiya fayli topilmadi`).
+  4. `src/services/core/instagram/leadgen_watchdog.py`: `test_*` sintetik qatorlarni hamda `destination missing` loglarini har 60 soniyada takror chiqargan.
+  5. `src/services/core/salescoach_sync.py`: `localhost:4000` oʻchiq boʻlganda har chaqiruvda `ConnectError` yozgan (cooldown yoʻq).
+  6. Hetzner'da `lead_operating_system.py` va `bg_monitor/monitor.py` ning `origin/main` dagi datetime normallashtirish tuzatishi hali deploy boʻlmagani uchun `BackgroundMonitor` har daqiqa yiqilgan.
+- **Bajarilgan ish:** Yuqoridagi 5 ta kod tuzatishi kiritildi va unit testlar (`tests/test_customer_360.py`, `tests/test_daily_sales_calls_report.py`, `tests/test_salescoach_sync_conversation.py`, `tests/test_prod_stability_fixes.py`) qoʻshildi.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 python -m pytest tests/test_customer_360.py tests/test_daily_sales_calls_report.py tests/test_leadgen_watchdog.py tests/test_leadgen_capi_recovery.py tests/test_salescoach_sync_conversation.py tests/test_prod_stability_fixes.py -q` → **53 passed**; `ruff check` → **All checks passed**; `check_uzbek_text.py --staged` → **toza**; `bandit -r src/ -ll -q` → **exit 0**.
+- **Qolgan ish/Bloker:** Meta (`META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`) kalitlari `.env` da yoʻq va Google GCP `982617914297` da People API yoqilmagan (`403 SERVICE_DISABLED`).

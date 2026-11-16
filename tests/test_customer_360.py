@@ -138,6 +138,18 @@ async def test_collector_enrichment():
 
 
 @pytest.mark.asyncio
+async def test_collector_supports_async_amocrm_get_lead():
+    class AsyncAmoCRM:
+        async def get_lead(self, lead_id: int):
+            return {"id": lead_id, "name": "Async Brand", "price": 9000000, "tags": []}
+
+    collector = Customer360Collector(amocrm=AsyncAmoCRM(), airtable=MagicMock(get_projects=MagicMock(return_value=[])))
+    profile = await collector.collect_profile(identifier="Async Brand", lead_id=777)
+    assert profile.amocrm_lead_name == "Async Brand"
+    assert profile.amocrm_budget == 9000000
+
+
+@pytest.mark.asyncio
 async def test_query_engine_reads_card():
     with tempfile.TemporaryDirectory() as tmpdir:
         folder = os.path.join(tmpdir, "70-Mijozlar")
