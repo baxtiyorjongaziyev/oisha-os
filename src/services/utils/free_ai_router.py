@@ -28,6 +28,21 @@ class ProviderResult:
     model: str
     tokens_in: int = 0
     tokens_out: int = 0
+    finish_reason: str = ""
+
+
+def _clean_llm_text(raw: Any) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
+    idx = text.lower().find("<think>")
+    if idx != -1:
+        text = text[:idx].strip()
+    marker = "<|channel|>final<|message|>"
+    if marker in text:
+        return text.split(marker, 1)[1].split("<|return|>", 1)[0].strip()
+    return "" if "<|channel|>" in text else text
 
 
 def _text(value: Any) -> str:
@@ -35,29 +50,6 @@ def _text(value: Any) -> str:
     if callable(getter):
         value = getter()
     return str(value or "").strip()
-
-
-def _reasoning_effort_for(provider: str, model: str) -> Optional[str]:
-    """Keep reasoning overhead off/low for short text calls on thinking models."""
-    model_lower = str(model or "").lower()
-    if provider == "gemini":
-        if "gemini-2.5-" in model_lower and "pro" not in model_lower:
-            return "none"
-        if "gemini-3" in model_lower:
-            return "minimal"
-        if "gemini-4" in model_lower or "gemini-2.5-pro" in model_lower:
-            return "low"
-    if provider == "cerebras" and "gpt-oss" in model_lower:
-        return "low"
-    return None
-
-
-def _clean_openai_content(raw: Any) -> str:
-    """Strip inline <think> blocks and reject unclosed thinking traces."""
-    text = re.sub(r"<think>.*?</think>", "", str(raw or ""), flags=re.DOTALL).strip()
-    if "<think>" in text:
-        return ""
-    return text
 
 
 # OpenAI-compatible chat-completion providers offering free / trial tiers
@@ -111,18 +103,40 @@ _OPENAI_COMPATIBLE: dict[str, dict[str, str]] = {
 # Default free-first fallback order: Gemini first (1M TPM), fast hardware next, hosted
 # free tiers next, local Ollama last.
 DEFAULT_TEXT_PROVIDERS: tuple[str, ...] = (
-    "gemini",
-    "groq",
-    "cerebras",
-    "sambanova",
-    "together",
-    "openrouter",
-    "nvidia",
-    "mistral",
-    "huggingface",
-    "cloudflare",
-    "ollama",
+    "gemini", "groq", "cerebras", "sambanova", "together",
+    "openrouter", "nvidia", "mistral", "huggingface", "cloudflare", "ollama",
 )
+
+
+def _parse_openai_result(provider: str, model: str, payload: Any) -> ProviderResult:
+    data = payload if isinstance(payload, dict) else {}
+    choices = data.get("choices")
+    if not choices:
+        error = data.get("error")
+        detail = error.get("message", "") if isinstance(error, dict) else str(error or "")
+        raise ValueError(f"{provider}: no choices in response ({detail or 'unexpected format'})")
+    choice = choices[0] if isinstance(choices[0], dict) else {}
+    finish_reason = str(choice.get("finish_reason") or "")
+    msg = choice.get("message") if isinstance(choice, dict) else None
+    text = _clean_llm_text((msg or {}).get("content") if isinstance(msg, dict) else None)
+    if not text:
+        raise ValueError(f"{provider}: empty content (finish_reason={finish_reason or 'unknown'})")
+    usage = data.get("usage") or {}
+    return ProviderResult(
+        text, provider, model,
+        int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0), finish_reason,
+    )
+
+
+def _default_reasoning_effort(provider: str, model: str) -> Optional[str]:
+    low = str(model or "").lower()
+    if provider == "gemini":
+        if "gemini-4" in low or "pro" in low:
+            return "low"
+        return None if "lite" in low else "none"
+    if provider == "cerebras" and "gpt-oss" in low:
+        return "low"
+    return None
 
 
 class FreeAIProviderRouter:
@@ -176,6 +190,7 @@ class FreeAIProviderRouter:
         max_tokens: int = 2048,
         temperature: float = 0.3,
         providers: Iterable[str] = DEFAULT_TEXT_PROVIDERS,
+        reasoning_effort: Optional[str] = None,
     ) -> ProviderResult:
         errors: list[str] = []
         for provider in providers:
@@ -190,7 +205,7 @@ class FreeAIProviderRouter:
                     return await self._ollama_text(prompt, system, temperature)
                 if provider in self._OPENAI_COMPATIBLE:
                     return await self._openai_compatible_text(
-                        provider, prompt, system, max_tokens, temperature
+                        provider, prompt, system, max_tokens, temperature, reasoning_effort
                     )
             except Exception as exc:
                 self._pause(provider, exc)
@@ -236,15 +251,7 @@ class FreeAIProviderRouter:
             headers={"Authorization": f"Bearer {_text(self.settings.GROQ_API_KEY)}"},
             json={"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature},
         )
-        data = response.json()
-        usage = data.get("usage") or {}
-        cleaned = _clean_openai_content(data["choices"][0]["message"].get("content"))
-        if not cleaned:
-            raise ValueError("groq: empty content in response")
-        return ProviderResult(
-            cleaned, "groq", model,
-            int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0),
-        )
+        return _parse_openai_result("groq", model, response.json())
 
     async def _openai_compatible_text(
         self,
@@ -253,6 +260,7 @@ class FreeAIProviderRouter:
         system: Optional[str],
         max_tokens: int,
         temperature: float,
+        reasoning_effort: Optional[str] = None,
     ) -> ProviderResult:
         """Shared OpenAI-format chat call for hosted free providers."""
         spec = self._OPENAI_COMPATIBLE[provider]
@@ -260,37 +268,26 @@ class FreeAIProviderRouter:
         messages = [{"role": "system", "content": system}] if system else []
         messages.append({"role": "user", "content": prompt})
         body: dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
+            "model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature,
         }
-        effort = _reasoning_effort_for(provider, model)
-        if effort is not None:
-            body["reasoning_effort"] = effort
-        response = await self._request(
-            "POST",
-            spec["url"],
-            headers={"Authorization": f"Bearer {_text(getattr(self.settings, spec['key']))}"},
-            json=body,
-        )
-        payload = response.json()
-        data = payload if isinstance(payload, dict) else {}
-        choices = data.get("choices")
-        if not choices:
-            error = data.get("error")
-            detail = error.get("message", "") if isinstance(error, dict) else str(error or "")
-            raise ValueError(f"{provider}: no choices in response ({detail or 'unexpected format'})")
-        message = choices[0].get("message") if isinstance(choices[0], dict) else None
-        content = (message or {}).get("content") if isinstance(message, dict) else None
-        cleaned = _clean_openai_content(content)
-        if not cleaned:
-            raise ValueError(f"{provider}: empty content in response")
-        usage = data.get("usage") or {}
-        return ProviderResult(
-            cleaned, provider, model,
-            int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0),
-        )
+        auto_reasoning = False
+        if reasoning_effort is not None:
+            body["reasoning_effort"] = reasoning_effort
+        else:
+            effort = _default_reasoning_effort(provider, model)
+            if effort is not None:
+                body["reasoning_effort"] = effort
+                auto_reasoning = True
+        headers = {"Authorization": f"Bearer {_text(getattr(self.settings, spec['key']))}"}
+        try:
+            response = await self._request("POST", spec["url"], headers=headers, json=body)
+        except httpx.HTTPStatusError as exc:
+            if auto_reasoning and exc.response.status_code == 400:
+                body.pop("reasoning_effort", None)
+                response = await self._request("POST", spec["url"], headers=headers, json=body)
+            else:
+                raise
+        return _parse_openai_result(provider, model, response.json())
 
     _GROQ_EXTENSIONS = {
         "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a",
@@ -335,10 +332,10 @@ class FreeAIProviderRouter:
             json={"prompt": f"{system}\n\n{prompt}" if system else prompt},
         )
         result = response.json().get("result") or {}
-        cleaned = _clean_openai_content(result.get("response"))
-        if not cleaned:
-            raise ValueError("cloudflare: empty content in response")
-        return ProviderResult(cleaned, "cloudflare", model)
+        text = _clean_llm_text(result.get("response"))
+        if not text:
+            raise ValueError("cloudflare: empty content")
+        return ProviderResult(text, "cloudflare", model)
 
     async def _cloudflare_whisper(self, audio_bytes: bytes) -> ProviderResult:
         model = self.settings.CLOUDFLARE_WHISPER_MODEL
@@ -376,10 +373,10 @@ class FreeAIProviderRouter:
                 "options": {"temperature": temperature},
             },
         )
-        cleaned = _clean_openai_content(response.json().get("response"))
-        if not cleaned:
-            raise ValueError("ollama: empty content in response")
-        return ProviderResult(cleaned, "ollama", model)
+        text = _clean_llm_text(response.json().get("response"))
+        if not text:
+            raise ValueError("ollama: empty content")
+        return ProviderResult(text, "ollama", model)
 
 
 app_ctx.router: Optional[FreeAIProviderRouter] = None

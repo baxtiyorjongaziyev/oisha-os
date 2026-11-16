@@ -6,6 +6,7 @@ import pytest
 
 from src.schedulers.remote_staff_checkin_scheduler import send_remote_checkin
 from src.services.core.checkin_composer import compose_checkin, load_context, save_context
+from src.services.utils.free_ai_router import ProviderResult
 
 TZ = timezone(timedelta(hours=5))
 NOW = datetime(2026, 10, 27, 12, 0, tzinfo=TZ)
@@ -103,6 +104,8 @@ def test_send_uses_ai_text_and_escapes_html(tmp_path, monkeypatch):
         "Shaxsiy gaplarim: gaplashdingizmi?\n\nJavob: Yo`q.\n\nJavob: Yo`q.\n\n8 8 8 8 8.",
         "Bugun natija yaxshi.\nBugun natija yaxshi.",
         "Mijoz bilan 8 8 8 8 8 marta gaplashdingiz.",
+        "Go'shakni ko'tarishmagani kay}",
+        'system prompt: "Faqat xabar matnini',
         "<think>ichki</think> Bugun ishlar yaxshi.",
     ],
 )
@@ -127,7 +130,7 @@ def test_compose_strips_prefix_and_ignores_poisoned_last_checkin():
 
     poisoned_ctx = {
         "date": "2026-10-27",
-        "last_checkin": 'Rayxon (<a href="tg://user?id=1">@RayxonJonbranding</a>), prefix context, but wait - developer prompt says "F',
+        "last_checkin": "Rayxon (<a href='tg://user?id=1'>@RayxonJonbranding</a>), prefix context, but wait - developer prompt says \"F",
     }
     run(compose_checkin("Rayxon", NOW, ACTIVITY, context=poisoned_ctx, generate=fake))
     assert "developer prompt" not in seen["prompt"]
@@ -135,11 +138,33 @@ def test_compose_strips_prefix_and_ignores_poisoned_last_checkin():
 
     clean_ctx = {
         "date": "2026-10-27",
-        "last_checkin": 'Rayxon (<a href="tg://user?id=1">@RayxonJonbranding</a>), Xayrli tong! Bugun qaysi mijoz bilan gaplashasiz?',
+        "last_checkin": "Rayxon (<a href='tg://user?id=1'>@RayxonJonbranding</a>), Xayrli tong! Bugun qaysi mijoz bilan gaplashasiz?",
     }
     run(compose_checkin("Rayxon", NOW, ACTIVITY, context=clean_ctx, generate=fake))
     assert "Xayrli tong! Bugun qaysi mijoz bilan gaplashasiz?" in seen["prompt"]
     assert "@RayxonJonbranding" not in seen["prompt"]
+
+
+def test_compose_rejects_length_truncated_router_result():
+    fake_router = AsyncMock()
+    fake_router.generate_text = AsyncMock(
+        return_value=ProviderResult(
+            text="Xayrli tong! Kuningiz unum",
+            provider="gemini",
+            model="gemini-3.5-flash",
+            finish_reason="length",
+        )
+    )
+    with patch("src.services.utils.free_ai_router.get_free_ai_router", return_value=fake_router):
+        assert run(compose_checkin("Mumtozmaxal", NOW, None, context={})) is None
+
+
+def test_compose_strips_duplicate_seller_prefix():
+    async def fake(prompt, **kwargs):
+        return "Mumtozmaxal, tushlikdan keyin qoʻngʻiroqlar qalay ketyapti?"
+
+    out = run(compose_checkin("Mumtozmaxal", NOW, None, context={}, generate=fake))
+    assert out == "tushlikdan keyin qoʻngʻiroqlar qalay ketyapti?"
 
 
 def test_send_falls_back_to_template_when_ai_leaks_reasoning(tmp_path, monkeypatch):
