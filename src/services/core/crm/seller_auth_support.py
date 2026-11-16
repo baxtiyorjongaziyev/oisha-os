@@ -22,7 +22,7 @@ INITIAL_SELLERS: List[Dict[str, Any]] = [
         "name": "Baxtiyorjon Gaziyev",
         "rep_id": 8128012,
         "phone": "+998336450097",
-        "tg": "@baxtiyorjongaziyev",
+        "tg": "@baxtiyorgaziyev",
         "role": "admin",
     },
     {

@@ -32,7 +32,7 @@ class EscalationAgent:
     1) Xodim javob bermasa — uning bevosita rahbari (PM yoki sotuv menejeri)ga
        ma'lum qilinadi.
     2) Rahbar ham choralarni ko'rmasa (yoki zanjirda rahbar topilmasa) — Owner
-       (@baxtiyorjong_gaziyev) ga eskalatsiya qilinadi.
+       (@baxtiyorgaziyev) ga eskalatsiya qilinadi.
     """
 
     def __init__(self, db: Database, bot_client=None):

@@ -122,3 +122,15 @@ def test_start_cockpit_autopilot_scheduler(monkeypatch):
     monkeypatch.setenv("ENABLE_COCKPIT_AUTOPILOT", "0")
     task = start_cockpit_autopilot_scheduler(None)
     assert task is None
+
+
+@pytest.mark.asyncio
+async def test_speed_to_lead_skips_sunday_without_force(mock_bot_runtime):
+    engine = MagicMock()
+    engine.scan_speed_to_lead_alerts = AsyncMock(return_value=[])
+    scheduler = CockpitAutopilotScheduler(mock_bot_runtime, engine=engine)
+
+    sunday_dt = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
+    sent = await scheduler.execute_speed_to_lead_cycle(now=sunday_dt, force=False)
+    assert sent == 0
+    engine.scan_speed_to_lead_alerts.assert_not_awaited()

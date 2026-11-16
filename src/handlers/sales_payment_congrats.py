@@ -18,7 +18,7 @@ import httpx
 import structlog
 
 from src.context import app_ctx
-from src.settings import settings
+from src.handlers.sales_won_check import schedule_won_check
 from src.time_utils import is_quiet_hours
 
 logger = structlog.get_logger()
@@ -180,6 +180,10 @@ async def sales_payment_congrats_handler(event: Any) -> None:
         return
     await db.set_state(state_key, "sent")
 
-    await _congratulate(
-        chat_id, message_id, _seller_label(sender, card), card, _topic_id(event.message)
+    seller = _seller_label(sender, card)
+    await _congratulate(chat_id, message_id, seller, card, _topic_id(event.message))
+    # Tabrikdan keyin: bitim amoCRM da Won ga oʻtkazilganini tekshiradi.
+    schedule_won_check(
+        _send_as_oisha, chat_id, message_id, seller,
+        sender_id=getattr(sender, "id", None), card_seller=card.get("seller"), db=db,
     )
