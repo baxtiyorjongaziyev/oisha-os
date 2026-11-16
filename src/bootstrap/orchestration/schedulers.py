@@ -162,13 +162,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     except ImportError as exc:
         logger.warning("[JAMOA-RITM] scheduler unavailable: %s", exc)
 
+    # Soatlik guruh check-in oʻchirilgan; oʻrniga kunlik "eng muhim ish" kun tartibi.
     try:
-        from src.schedulers.remote_staff_checkin_scheduler import (
-            remote_staff_checkin_loop,
-        )
-        asyncio.create_task(remote_staff_checkin_loop(bot_runtime), name="remote_staff_checkin_loop")
+        from src.schedulers.daily_priority_checkin import daily_priority_checkin_loop
+        asyncio.create_task(daily_priority_checkin_loop(bot_runtime), name="daily_priority_checkin_loop")
     except ImportError as exc:
-        logger.warning("[REMOTE CHECKIN] scheduler unavailable: %s", exc)
+        logger.warning("[DAILY] scheduler unavailable: %s", exc)
     try:
         from src.schedulers.cockpit_autopilot_scheduler import (
             start_cockpit_autopilot_scheduler,
