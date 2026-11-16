@@ -49,15 +49,19 @@ def send_alert(key: str, text: str) -> None:
     now = time.time()
     if now - _last_alert.get(key, 0) < ALERT_COOLDOWN_SECONDS:
         return
-    _last_alert[key] = now
     try:
-        requests.post(
+        resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": chat_id, "text": text},
             timeout=10,
         )
+        if resp.status_code == 200:
+            _last_alert[key] = now  # cooldown faqat muvaffaqiyatli yuborilgandan keyin
+        else:
+            logger.error(f"Alert send failed: HTTP {resp.status_code}")
     except Exception as e:
-        logger.error(f"Alert send failed: {e}")
+        # Exception matnida /bot<TOKEN>/ yoʼli boʼlishi mumkin — faqat turini log qilamiz.
+        logger.error(f"Alert send failed: {type(e).__name__}")
 
 
 def check_extra_services() -> None:
