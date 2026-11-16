@@ -25,23 +25,25 @@ client = TestClient(app)
 
 
 @pytest.mark.asyncio
-async def test_live_db_bridge_fallback_and_records():
-    """Verify LiveDataBridge falls back gracefully to baseline sets when DB is empty."""
-    bridge = LiveDataBridge(db_connection=None)
+async def test_live_db_bridge_empty_without_fake_fallback(tmp_path):
+    """Verify LiveDataBridge returns empty collections when DB has no data (no fake data)."""
+    bridge = LiveDataBridge(
+        db_connection=None,
+        dialer_db_path=str(tmp_path / "missing_dialer.db"),
+        ad_spend_db_path=str(tmp_path / "missing_spend.db"),
+        attribution_db_path=str(tmp_path / "missing_attr.db"),
+        use_local_files=False,
+    )
 
     deals = await bridge.fetch_active_deal_records()
-    assert len(deals) >= 2
-    assert any(d.deal_id == "deal_live_1" for d in deals)
-    assert deals[0].entered_stage_at.tzinfo is not None
+    assert deals == []
 
     interactions = await bridge.fetch_recent_lead_interactions()
-    assert len(interactions) >= 3
-    assert any(i.channel == "telegram" for i in interactions)
+    assert interactions == []
 
     campaigns, leads = await bridge.fetch_ad_attribution_data()
-    assert len(campaigns) >= 1
-    assert len(leads) >= 4
-    assert campaigns[0].spend > 0
+    assert campaigns == []
+    assert leads == []
 
 
 @pytest.mark.asyncio
@@ -102,6 +104,9 @@ def test_api_metasell_executive_dashboard():
     assert "ad_attribution" in data
     assert data["speed_to_lead"]["sla_rate_pct"] >= 0.0
     assert data["stuck_deals"]["total_stuck_deals"] >= 0
+    leaderboard_names = [m["manager_name"] for m in data["team_leaderboard"]]
+    assert "Aziz Karimov" not in leaderboard_names
+    assert "Dilnoza Rahimova" not in leaderboard_names
 
 
 def test_api_sales_simulator_text_and_voice():
