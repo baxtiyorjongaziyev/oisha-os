@@ -121,23 +121,23 @@
     <!-- Hero KPI Cards -->
     <div class="grid-4">
       <div class="card">
-        <div class="card-header"><span class="card-title">Yutilgan Savdolar</span><span class="badge badge-good">+4.2%</span></div>
-        <div class="big-num" id="heroSales">27,000,000 soʻm</div>
-        <div style="font-size: 12px; color: var(--muted);"><span id="heroWonCount">2</span> ta bitim muvaffaqiyatli yopildi</div>
+        <div class="card-header"><span class="card-title">Yutilgan Savdolar</span><span class="badge badge-good">Jonli</span></div>
+        <div class="big-num" id="heroSales">—</div>
+        <div style="font-size: 12px; color: var(--muted);"><span id="heroWonCount">0</span> ta bitim muvaffaqiyatli yopildi</div>
       </div>
       <div class="card">
-        <div class="card-header"><span class="card-title">Konversiya Darajasi</span><span class="badge badge-good">Yuqori</span></div>
-        <div class="big-num" id="heroConversion">50.0%</div>
+        <div class="card-header"><span class="card-title">Konversiya Darajasi</span><span class="badge badge-good">CRM</span></div>
+        <div class="big-num" id="heroConversion">—</div>
         <div style="font-size: 12px; color: var(--muted);">Lidlardan yutilgan sotuvgacha</div>
       </div>
       <div class="card">
-        <div class="card-header"><span class="card-title">Speed to Lead (SLA 30m)</span><span class="badge badge-good">Normada</span></div>
-        <div class="big-num" id="heroSla">66.7%</div>
-        <div style="font-size: 12px; color: var(--muted);">Oʻrtacha javob vaqti: <span id="heroAvgResp">35</span> daqiqa</div>
+        <div class="card-header"><span class="card-title">Speed to Lead (SLA 30m)</span><span class="badge badge-good">SLA</span></div>
+        <div class="big-num" id="heroSla">—</div>
+        <div style="font-size: 12px; color: var(--muted);">Oʻrtacha javob vaqti: <span id="heroAvgResp">0</span> daqiqa</div>
       </div>
       <div class="card">
-        <div class="card-header"><span class="card-title">Asosiy Yoʻqotish Sababi</span><span class="badge badge-bad">Eʼtiroz</span></div>
-        <div style="font-size: 16px; font-weight: 700; color: #fca5a5; margin-top: 4px;" id="heroLossReason">Arzonroq taklifni tanladi</div>
+        <div class="card-header"><span class="card-title">Asosiy Yoʻqotish Sababi</span><span class="badge badge-bad">Tahlil</span></div>
+        <div style="font-size: 16px; font-weight: 700; color: #fca5a5; margin-top: 4px;" id="heroLossReason">Yuklanmoqda...</div>
         <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">Qiymat taqdimotini kuchaytirish zarur</div>
       </div>
     </div>
@@ -349,10 +349,11 @@
 
       // Ad Attribution
       const ad = data.ad_attribution;
+      const spendUnit = ad.spend_currency === 'USD' ? ' USD' : ' soʻm';
       document.getElementById('adAttributionContainer').innerHTML = `
-        <div class="bucket-row"><span>Xarajat</span><b>${Number(ad.total_spend).toLocaleString()} soʻm</b></div>
+        <div class="bucket-row"><span>Xarajat</span><b>${Number(ad.total_spend).toLocaleString()}${spendUnit}</b></div>
         <div class="bucket-row"><span>Yangi lidlar</span><b>${Number(ad.total_new_leads)} ta</b></div>
-        <div class="bucket-row"><span>Lid narxi (CPL)</span><b>${Number(ad.cost_per_lead).toLocaleString()} soʻm</b></div>
+        <div class="bucket-row"><span>Lid narxi (CPL)</span><b>${Number(ad.cost_per_lead).toLocaleString()}${spendUnit}</b></div>
         <div class="bucket-row"><span>Sotuvlar soni</span><b>${Number(ad.total_sales)} ta</b></div>
         <div class="bucket-row"><span>Jami tushum</span><b style="color: var(--good);">${Number(ad.total_revenue).toLocaleString()} soʻm</b></div>
         <div class="bucket-row"><span>Marketing ROI</span><b style="color: var(--good);">${Number(ad.overall_roi_pct)}%</b></div>
@@ -360,12 +361,12 @@
 
       // Leaderboard
       const lb = document.getElementById('leaderboardContainer');
-      lb.innerHTML = data.team_leaderboard.map(m => `
+      lb.innerHTML = data.team_leaderboard.length ? data.team_leaderboard.map(m => `
         <div class="bucket-row">
           <div><b>${escapeHtml(m.manager_name)}</b> <span style="color: var(--muted); font-size: 11px;">(${Number(m.calls_count)} ta qoʻngʻiroq)</span></div>
           <span><b style="color: var(--good);">${Number(m.won_amount).toLocaleString()} soʻm</b> (${Number(m.won_sales)} ta)</span>
         </div>
-      `).join('');
+      `).join('') : '<div class="bucket-row"><span style="color: var(--muted);">Maʼlumot hozircha mavjud emas</span></div>';
     } catch (e) {
       console.error(e);
     }
