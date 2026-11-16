@@ -179,3 +179,30 @@ async def test_notify_admin_uses_bot_client_when_available():
         150074828, "Admin alert"
     )
     user_client.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_growth_tips_go_to_training_topic(monkeypatch):
+    mon = BackgroundMonitor(
+        msg_controller=SimpleNamespace(db=SimpleNamespace()),
+        client=SimpleNamespace(send_message=AsyncMock()),
+        settings=SimpleNamespace(TOPIC_REPORTS_ID=7, TOPIC_TRAINING_ID=99),
+    )
+    mon._notify_admin = AsyncMock()
+    mon._send_to_group_or_admin = AsyncMock()
+
+    async def fake_report(self, day_iso):
+        return "HISOBOT"
+
+    async def fake_tips(self, day_iso):
+        return "TAVSIYA"
+
+    base = "src.services.core.sales_quality_coach.SalesQualityCoach."
+    monkeypatch.setattr(base + "generate_daily_report", fake_report)
+    monkeypatch.setattr(base + "generate_manager_growth_tips", fake_tips)
+
+    await mon._job_call_quality_daily(datetime(2026, 7, 21, 20, 0))
+
+    calls = {c[0][0]: c[1] for c in mon._send_to_group_or_admin.call_args_list}
+    assert calls["HISOBOT"]["reply_to"] == 7
+    assert calls["TAVSIYA"]["reply_to"] == 99

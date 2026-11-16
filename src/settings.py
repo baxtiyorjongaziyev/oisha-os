@@ -245,6 +245,7 @@ class AppSettings(BaseSettings):
     PROJECTS_TOPIC_ID: Optional[int] = None
     TOPIC_CRM_ID: Optional[int] = None
     TOPIC_REPORTS_ID: Optional[int] = None
+    TOPIC_TRAINING_ID: Optional[int] = None  # Oʻquv boʻlimi topic (konversiya tavsiyalari)
     TOPIC_TASKS_ID: Optional[int] = None
     TOPIC_MEETINGS_ID: Optional[int] = None
     TOPIC_SELLER_1_LEADS_ID: Optional[int] = None

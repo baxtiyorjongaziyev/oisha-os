@@ -84,14 +84,48 @@ SAFE_FILES = [
 class SelfEvolutionEngine:
     """AI-driven prompt evolution with GitHub PR workflow."""
 
-    def __init__(self, db: Database, gemini_api_key: str):
+    def __init__(self, db: Database, gemini_api_key: str = "", router: Any = None):
         self.db = db
-        self.client = genai.Client(api_key=gemini_api_key)
+        self.client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
         self.model = os.getenv(
             "GEMINI_SELF_EVOLUTION_MODEL", settings.GEMINI_CALL_MODEL
         )
-        self.repo_dir = os.environ.get("OISHA_REPO_DIR", "/home/ubuntu/oisha-os")
+        self.repo_dir = os.environ.get("OISHA_REPO_DIR", "/home/deploy/oisha-os")
         self.github_token = os.environ.get("GITHUB_TOKEN", "")
+        self._router = router
+
+    async def _generate_evolution_json(self, prompt: str) -> Optional[Dict[str, Any]]:
+        raw_text = ""
+        system_inst = "Faqat valid JSON qaytaring. Kod logikasini oʻzgartirmang."
+        if self._router is None and self.client is not None:
+            try:
+                from src.utils.ai_utils import safe_ai_call
+
+                response = await safe_ai_call(
+                    client=self.client,
+                    prompt=[prompt],
+                    system_instruction=system_inst,
+                    model=self.model,
+                )
+                raw_text = getattr(response, "text", "") or ""
+            except Exception as exc:
+                logger.debug("[EVOLVE] safe_ai_call fallback to free router: %s", exc)
+        if not raw_text.strip():
+            from src.services.utils.free_ai_router import get_free_ai_router
+
+            router = self._router or get_free_ai_router()
+            res = await router.generate_text(
+                prompt, system=system_inst, max_tokens=1000, temperature=0.2
+            )
+            raw_text = getattr(res, "text", "") or ""
+        text = raw_text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        start, end = text.find("{"), text.rfind("}")
+        if start == -1 or end <= start:
+            return None
+        parsed = json.loads(text[start : end + 1])
+        return parsed if isinstance(parsed, dict) else None
 
     async def propose_evolution(self) -> Optional[Dict[str, Any]]:
         """Darslar asosida prompt yaxshilanishini taklif qilish."""
@@ -114,34 +148,16 @@ class SelfEvolutionEngine:
         )
 
         try:
-            from src.utils.ai_utils import safe_ai_call
-
-            response = await safe_ai_call(
-                client=self.client,
-                prompt=[prompt],
-                system_instruction="Faqat valid JSON qaytaring. Kod logikasini o'zgartirmang.",
-                model=self.model,
-            )
-            text = response.text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-
-            proposal = json.loads(text)
-            if not proposal.get("changes"):
+            proposal = await self._generate_evolution_json(prompt)
+            if not proposal or not proposal.get("changes"):
                 logger.info("[EVOLVE] AI decided no changes needed")
                 return None
 
-            for change in proposal["changes"]:
-                if not self._is_safe_file(change.get("file", "")):
-                    logger.warning(
-                        f"[EVOLVE] Unsafe file rejected: {change.get('file')}"
-                    )
-                    proposal["changes"] = [
-                        c
-                        for c in proposal["changes"]
-                        if self._is_safe_file(c.get("file", ""))
-                    ]
-
+            proposal["changes"] = [
+                c
+                for c in proposal["changes"]
+                if isinstance(c, dict) and self._is_safe_file(c.get("file", ""))
+            ]
             if not proposal["changes"]:
                 return None
 
@@ -152,82 +168,59 @@ class SelfEvolutionEngine:
             logger.warning(f"[EVOLVE] Evolution proposal failed: {exc}")
             return None
 
+    def _apply_safe_changes(self, changes: List[Dict[str, Any]]) -> List[str]:
+        changed_files: List[str] = []
+        root = Path(self.repo_dir).resolve()
+        for change in changes:
+            file_path = self._resolve_safe_file(change.get("file", ""))
+            if file_path is None or not file_path.exists():
+                continue
+            content = file_path.read_text(encoding="utf-8")
+            old_text, new_text = change.get("old_text", ""), change.get("new_text", "")
+            if isinstance(old_text, str) and isinstance(new_text, str) and old_text and old_text in content:
+                updated = content.replace(old_text, new_text, 1)
+                ast.parse(updated, filename=str(file_path))
+                file_path.write_text(updated, encoding="utf-8")
+                changed_files.append(str(file_path.relative_to(root)))
+        return changed_files
+
     async def create_evolution_pr(self, proposal: Dict[str, Any]) -> Optional[str]:
-        """Create a review PR after an explicit owner-approved call.
-
-        The scheduler no longer calls this method directly. A clean tree and
-        exact resolved-path allowlist keep a future executor from staging
-        runtime or unrelated files.
-        """
-        if not self.github_token:
-            logger.warning("[EVOLVE] No GITHUB_TOKEN — cannot create PR")
-            return None
-
-        if not proposal.get("changes"):
+        """Create a review PR after an explicit owner-approved call."""
+        if not self.github_token or not proposal.get("changes"):
+            if not self.github_token:
+                logger.warning("[EVOLVE] No GITHUB_TOKEN — cannot create PR")
             return None
 
         branch_name = f"oisha/auto-evolve-{get_local_now().strftime('%Y%m%d-%H%M')}"
         changed_files: List[str] = []
-
         try:
             if self._git_cmd(["status", "--porcelain"]):
                 logger.warning("[EVOLVE] Dirty repository — PR creation blocked")
                 return None
             self._git_cmd(["checkout", "-b", branch_name])
-
-            for change in proposal["changes"]:
-                file_path = self._resolve_safe_file(change.get("file", ""))
-                if file_path is None or not file_path.exists():
-                    continue
-
-                content = file_path.read_text(encoding="utf-8")
-
-                old_text = change.get("old_text", "")
-                new_text = change.get("new_text", "")
-                if not isinstance(old_text, str) or not isinstance(new_text, str):
-                    continue
-                if old_text and old_text in content:
-                    updated = content.replace(old_text, new_text, 1)
-                    ast.parse(updated, filename=str(file_path))
-                    file_path.write_text(updated, encoding="utf-8")
-                    changed_files.append(
-                        str(file_path.relative_to(Path(self.repo_dir).resolve()))
-                    )
-
+            changed_files = self._apply_safe_changes(proposal["changes"])
             if not changed_files:
-                logger.info("[EVOLVE] No valid prompt changes to commit")
                 self._git_cmd(["checkout", "main"])
                 return None
-
             self._git_cmd(["add", "--", *changed_files])
-
-            commit_msg = f"feat(ai): self-evolve — {proposal.get('pr_title', 'prompt improvement')}"
-            self._git_cmd(["commit", "-m", commit_msg])
+            self._git_cmd(["commit", "-m", f"feat(ai): self-evolve — {proposal.get('pr_title', 'prompt improvement')}"])
             self._git_cmd(["push", "-u", "origin", branch_name])
-
             pr_url = self._create_pr(
                 branch=branch_name,
                 title=proposal.get("pr_title", "AI Self-Evolution"),
                 body=self._format_pr_body(proposal),
             )
-
             self._git_cmd(["checkout", "main"])
             logger.info(f"[EVOLVE] PR created: {pr_url}")
             return pr_url
-
         except Exception as exc:
             logger.error(f"[EVOLVE] PR creation failed: {exc}")
             try:
                 if changed_files:
-                    self._git_cmd(
-                        ["restore", "--staged", "--worktree", "--", *changed_files]
-                    )
+                    self._git_cmd(["restore", "--staged", "--worktree", "--", *changed_files])
                 self._git_cmd(["checkout", "main"])
             except Exception:
-                logger.debug(
-                    "[EVOLVE] Failed to checkout main after PR creation error",
-                    exc_info=True,
-                )
+                logger.debug("[EVOLVE] Failed to checkout main after error", exc_info=True)
             return None
 
     def _resolve_safe_file(self, file_path: str) -> Optional[Path]:
@@ -318,6 +311,15 @@ class SelfEvolutionEngine:
                     continue
         return ""
 
+    @staticmethod
+    def _row_val(row: Any, key: str, idx: int) -> Any:
+        if isinstance(row, dict) or hasattr(row, "keys"):
+            try:
+                return row[key]
+            except (KeyError, IndexError, TypeError):
+                pass
+        return row[idx]
+
     async def _get_recent_lessons(self) -> List[Dict[str, Any]]:
         async with await self.db.get_connection() as conn:
             rows = await conn.execute(
@@ -329,11 +331,11 @@ class SelfEvolutionEngine:
             )
             return [
                 {
-                    "pattern": r[0],
-                    "lesson": r[1],
-                    "strategy": r[2],
-                    "confidence": r[3],
-                    "category": r[4],
+                    "pattern": self._row_val(r, "pattern", 0),
+                    "lesson": self._row_val(r, "lesson", 1),
+                    "strategy": self._row_val(r, "strategy", 2),
+                    "confidence": self._row_val(r, "confidence", 3),
+                    "category": self._row_val(r, "category", 4),
                 }
                 for r in await rows.fetchall()
             ]
@@ -347,11 +349,11 @@ class SelfEvolutionEngine:
             )
             return [
                 {
-                    "rule": r[0],
-                    "when": r[1],
-                    "weight": r[2],
-                    "success": r[3],
-                    "applied": r[4],
+                    "rule": self._row_val(r, "rule", 0),
+                    "when": self._row_val(r, "trigger_condition", 1),
+                    "weight": self._row_val(r, "weight", 2),
+                    "success": self._row_val(r, "success_count", 3),
+                    "applied": self._row_val(r, "applied_count", 4),
                 }
                 for r in await rows.fetchall()
             ]
@@ -359,21 +361,23 @@ class SelfEvolutionEngine:
     async def _get_metrics_summary(self) -> Dict[str, Any]:
         async with await self.db.get_connection() as conn:
             quality_row = await conn.execute(
-                """SELECT AVG(metric_value) FROM learning_metrics
+                """SELECT AVG(metric_value) AS val FROM learning_metrics
                    WHERE metric_type = 'response_quality'
                    AND recorded_at > datetime('now', '-7 days')"""
             )
             avg_q = await quality_row.fetchone()
 
             conversion_row = await conn.execute(
-                """SELECT AVG(metric_value) FROM learning_metrics
+                """SELECT AVG(metric_value) AS val FROM learning_metrics
                    WHERE metric_type = 'lead_conversion'
                    AND recorded_at > datetime('now', '-7 days')"""
             )
             avg_c = await conversion_row.fetchone()
 
+        q_val = self._row_val(avg_q, "val", 0) if avg_q else None
+        c_val = self._row_val(avg_c, "val", 0) if avg_c else None
         return {
-            "avg_quality": f"{(avg_q[0] or 0):.1f}/10" if avg_q else "N/A",
-            "conversion_rate": f"{(avg_c[0] or 0) * 100:.0f}%" if avg_c else "N/A",
+            "avg_quality": f"{(q_val or 0):.1f}/10" if avg_q else "N/A",
+            "conversion_rate": f"{(c_val or 0) * 100:.0f}%" if avg_c else "N/A",
             "top_issue": "data insufficient",
         }

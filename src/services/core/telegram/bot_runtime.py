@@ -137,6 +137,12 @@ class AiogramBotRuntime:
         kwargs: dict[str, Any] = dict(extra)
         buttons = kwargs.pop("buttons", None)
         reply_to = kwargs.pop("reply_to", None)
+        link_preview = kwargs.pop("link_preview", None)
+        silent = kwargs.pop("silent", None)
+        if not disable_web_page_preview and link_preview is False:
+            disable_web_page_preview = True
+        if not disable_notification and silent is True:
+            disable_notification = True
         normalized_parse_mode = normalize_aiogram_parse_mode(parse_mode)
         if normalized_parse_mode:
             kwargs["parse_mode"] = normalized_parse_mode

@@ -42,7 +42,13 @@ class JobsAnalyticsMixin:
 
             growth_tips = await coach.generate_manager_growth_tips(day_iso)
             if growth_tips:
-                await self._send_to_group_or_admin(growth_tips, **send_kwargs)
+                # Tavsiyalar Oʻquv boʻlimi topiciga ketadi; sozlanmagan boʻlsa
+                # hisobotlar topiciga qaytadi.
+                tips_kwargs = dict(send_kwargs)
+                training_topic = getattr(self.settings, "TOPIC_TRAINING_ID", None)
+                if training_topic:
+                    tips_kwargs["reply_to"] = training_topic
+                await self._send_to_group_or_admin(growth_tips, **tips_kwargs)
                 logger.info("[COACH] Konversiya tavsiyalari yuborildi.")
         except Exception as exc:
             logger.error("[COACH][DAILY] Error: %s", exc)
