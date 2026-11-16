@@ -16,13 +16,14 @@ from typing import Any, Awaitable, Callable, Optional
 from src.services.core.telegram.bot_runtime import (
     AiogramBotRuntime,
     _coerce_aiogram_inline_keyboard,
+    normalize_aiogram_parse_mode,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def _parse_mode(value: Optional[str]) -> Optional[str]:
-    return value.upper() if value else None
+    return normalize_aiogram_parse_mode(value)
 
 
 class AiogramLegacyMessageEvent:

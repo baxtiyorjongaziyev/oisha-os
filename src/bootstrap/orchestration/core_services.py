@@ -15,6 +15,15 @@ from src.settings import settings
 logger = logging.getLogger("OishaBootstrap")
 
 
+async def _warm_hisobchi_cache(store: Any, spreadsheet_id: str) -> None:
+    """Populate Hisobchi in-memory sheet cache without blocking bot startup."""
+    try:
+        await asyncio.wait_for(store.init(), timeout=45.0)
+        logger.info("[HISOBCHI] Google Sheets cache warmed (spreadsheet: %s)", spreadsheet_id)
+    except Exception as exc:
+        logger.warning("[HISOBCHI] Background cache warmup skipped/deferred: %s", exc)
+
+
 async def init_core_services() -> Tuple[Dict[str, Any], Database, Any, MessageController]:
     api_keys = {
         "gemini": settings.GEMINI_API_KEY.get_secret_value(),
@@ -46,7 +55,10 @@ async def init_core_services() -> Tuple[Dict[str, Any], Database, Any, MessageCo
             hisobchi_gs_store,
             tracking_start_date=settings.HISOBCHI_TRACKING_START_DATE,
         )
-        await hisobchi_gs_store.init()
+        asyncio.create_task(
+            _warm_hisobchi_cache(hisobchi_gs_store, str(hisobchi_gs_id)),
+            name="hisobchi_gs_cache_warmup",
+        )
         logger.info("[HISOBCHI] Google Sheets backend is ready (spreadsheet: %s)", hisobchi_gs_id)
     else:
         hisobchi_gs_store = None
