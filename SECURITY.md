@@ -15,7 +15,7 @@ If you discover a security vulnerability within this project, please report it t
 
 Please send security reports to:
 - **Email**: baxtiyor@jonbranding.uz
-- **Telegram**: [@baxtiyorjong_gaziyev](https://t.me/baxtiyorjong_gaziyev)
+- **Telegram**: [@baxtiyorgaziyev](https://t.me/baxtiyorgaziyev)
 
 Please include as much detail as possible, including:
 1. Type of issue (e.g., buffer overflow, SQL injection, information disclosure).

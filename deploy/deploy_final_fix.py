@@ -6,8 +6,10 @@ import sys
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# Using the credentials from deploy_creds.py as it seems more specific
-HOST = os.environ.get('SSH_HOST', '109.199.100.137')
+# Explicit SSH_HOST required; legacy Contabo IP removed after Hetzner migration
+HOST = os.environ.get('SSH_HOST', '').strip()
+if not HOST:
+    raise SystemExit("SSH_HOST env talab qilinadi (sobiq Contabo 109.199.100.137 oʻchirilgan)")
 USER = os.environ.get('SSH_USER', 'root')
 PASSWORD = os.environ.get('SSH_PASSWORD', '')
 REMOTE_DIR = "/root/telegram_bot"

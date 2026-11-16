@@ -28,9 +28,15 @@ class LeadOperatingSystem:
         if not value:
             return None
         try:
-            return datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            parsed = datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         except ValueError:
             return None
+        # `last_client_message_at` is stored naive (server-local `datetime.now()`),
+        # while `lifecycle_updated_at` is timezone-aware. Normalise so the two
+        # can be compared without a TypeError.
+        if parsed.tzinfo is None:
+            parsed = parsed.astimezone()
+        return parsed
 
     async def review_recent_active_leads(
         self,

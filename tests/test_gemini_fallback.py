@@ -143,3 +143,28 @@ async def test_base_agent_does_not_expose_internal_429_message():
 
     assert reply == ""
     assert "429" not in reply
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_fallback_never_leaks_reasoning_field():
+    from src.services.utils.gemini_failover.providers import _call_openai_compatible
+
+    fake_resp = SimpleNamespace(
+        raise_for_status=lambda: None,
+        json=lambda: {"choices": [{"message": {"content": None, "reasoning": "internal thought"}}]},
+    )
+    fake_client = AsyncMock()
+    fake_client.__aenter__ = AsyncMock(return_value=fake_client)
+    fake_client.__aexit__ = AsyncMock(return_value=False)
+    fake_client.post = AsyncMock(return_value=fake_resp)
+
+    with patch("httpx.AsyncClient", return_value=fake_client):
+        result = await _call_openai_compatible(
+            api_key="k",
+            base_url="https://api.cerebras.ai/v1",
+            model="gpt-oss-120b",
+            messages=[{"role": "user", "content": "salom"}],
+            provider_name="cerebras",
+        )
+
+    assert result is None

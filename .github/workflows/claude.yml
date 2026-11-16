@@ -1,6 +1,6 @@
 # Claude Code: PR / issue izohlarida @claude deb chaqirilganda ishlaydi.
 # Token: repo secret CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token` bilan olinadi).
-# GitHub-hosted runner — prod (Contabo) self-hosted runnerdan foydalanmaydi.
+# GitHub-hosted runner — prod (Hetzner) self-hosted runnerdan foydalanmaydi.
 name: Claude Code
 
 on:

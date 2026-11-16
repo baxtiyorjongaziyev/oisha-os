@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable, Optional
 
+from src.services.core.checkin_composer import is_valid_reply, router_generate_complete
+
 logger = logging.getLogger(__name__)
 
 Generate = Callable[..., Awaitable[str]]
@@ -42,23 +44,21 @@ FALLBACK = "Rahmat, {name}! Yaxshi ishlayapsiz 💪 Biror mijoz boʻyicha maslah
 
 
 async def _router_generate(prompt: str, *, system: str, max_tokens: int, temperature: float) -> str:
-    from src.services.utils.free_ai_router import get_free_ai_router
-
-    result = await get_free_ai_router().generate_text(
-        prompt, system=system, max_tokens=max_tokens, temperature=temperature
+    return await router_generate_complete(
+        prompt, system=system, max_tokens=max_tokens, temperature=temperature, log_tag="[SALES-COACH]"
     )
-    return (getattr(result, "text", "") or "").strip()
 
 
 async def coach_reply(
     seller_name: str,
     reply_text: str,
     checkin_text: str,
-    generate: Generate = _router_generate,
+    generate: Optional[Generate] = None,
     *,
     is_owner: bool = False,
 ) -> str:
     """Hech qachon raise qilmaydi: AI ishlamasa iliq zaxira matn qaytadi."""
+    gen = generate or _router_generate
     who_label = "Rahbar (Owner)" if is_owner else "Menejer"
     prompt = (
         f"{who_label}: {seller_name}\n\n"
@@ -76,9 +76,9 @@ async def coach_reply(
         logger.debug("[SALES-COACH] Adaptive context skipped", exc_info=True)
     text: Optional[str] = None
     try:
-        text = (await generate(prompt, system=system, max_tokens=400 if is_owner else 600, temperature=0.55)).strip()
+        text = (await gen(prompt, system=system, max_tokens=400 if is_owner else 900, temperature=0.55 if is_owner else 0.6)).strip()
     except Exception:
         logger.warning("[SALES-COACH] AI javob bermadi.", exc_info=True)
-    if not text or len(text) < 12 or len(text) > MAX_CHARS:
+    if not text or not is_valid_reply(text, max_chars=MAX_CHARS):
         return "Tushundim, hisobga oldim." if is_owner else FALLBACK.format(name=seller_name)
     return text

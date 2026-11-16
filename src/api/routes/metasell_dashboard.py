@@ -5,7 +5,7 @@ Speed to Lead (SLA), Stuck Deals Radar, Marketing Ad Attribution, AI Sales Simul
 Voice Roleplay (TTS/STT), Native WebRTC PBX Softphone, GSM SMS Gateway,
 Knowledge Quizzes, and Morning Task Triage.
 """
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +31,6 @@ from src.services.command_center.ad_attribution import (
 )
 from src.services.command_center.live_db_bridge import LiveDataBridge
 from src.services.command_center.morning_tasks import (
-    MorningTaskItem,
     MorningTriageService,
 )
 from src.services.command_center.speed_to_lead import (
@@ -110,78 +109,86 @@ async def dispatch_sms(req: SmsDispatchRequest) -> dict[str, Any]:
     }
 
 
+def _format_stuck_payload(stuck_summary: Any) -> dict[str, Any]:
+    """Serialize StuckDealsSummary for executive API payload."""
+    return {
+        "total_stuck_deals": stuck_summary.total_stuck_deals,
+        "total_stuck_value": stuck_summary.total_stuck_value,
+        "stage_summaries": [
+            {
+                "stage_id": s.stage_id,
+                "stage_name": s.stage_name,
+                "stuck_count": s.stuck_count,
+                "oldest_days": s.oldest_days,
+                "stuck_amount": s.stuck_amount,
+            }
+            for s in stuck_summary.stage_summaries
+        ],
+        "oldest_deal": (
+            {
+                "deal_name": stuck_summary.oldest_deal.deal_name,
+                "stuck_days": stuck_summary.oldest_deal.stuck_days,
+                "manager_name": stuck_summary.oldest_deal.manager_name,
+            }
+            if stuck_summary.oldest_deal
+            else None
+        ),
+    }
+
+
+def _format_speed_payload(stl_metrics: Any) -> dict[str, Any]:
+    """Serialize SpeedToLeadMetrics for executive API payload."""
+    return {
+        "total_leads": stl_metrics.total_leads,
+        "answered_leads": stl_metrics.answered_leads,
+        "unanswered_leads": stl_metrics.unanswered_leads,
+        "sla_rate_pct": stl_metrics.sla_rate_pct,
+        "avg_response_minutes": stl_metrics.avg_response_minutes,
+        "buckets": stl_metrics.buckets,
+        "channel_breakdown": stl_metrics.channel_breakdown,
+        "longest_wait": (
+            {
+                "customer_name": stl_metrics.longest_wait.customer_name,
+                "channel": stl_metrics.longest_wait.channel,
+                "wait_minutes": stl_metrics.longest_wait.wait_minutes,
+            }
+            if stl_metrics.longest_wait
+            else None
+        ),
+    }
+
+
 @router.get("/metasell-executive")
 async def get_metasell_executive_dashboard() -> dict[str, Any]:
     """Return aggregated executive dashboard for Oisha-OS Cockpit."""
     now = datetime.now(UTC)
 
-    # 1. Fetch live data from Turso/Database bridge
     interactions = await _bridge.fetch_recent_lead_interactions()
     deal_records = await _bridge.fetch_active_deal_records()
     campaigns, ad_leads = await _bridge.fetch_ad_attribution_data()
+    extras = await _bridge.fetch_executive_extras()
+    leaderboard = await _bridge.fetch_team_leaderboard()
 
-    # 2. Compute dynamic metrics
-    stl_calc = SpeedToLeadCalculator(reference_time=now, target_sla_minutes=30)
-    stl_metrics = stl_calc.calculate(interactions)
-
-    stuck_radar = StuckDealsRadar(reference_time=now, default_threshold_days=3)
-    stuck_summary = stuck_radar.analyze(deal_records)
-
-    ad_engine = AdAttributionEngine()
-    ad_summary = ad_engine.calculate(campaigns, ad_leads)
+    stl_metrics = SpeedToLeadCalculator(reference_time=now, target_sla_minutes=30).calculate(interactions)
+    stuck_summary = StuckDealsRadar(reference_time=now, default_threshold_days=3).analyze(deal_records)
+    ad_summary = AdAttributionEngine().calculate(campaigns, ad_leads)
+    missed_calls = len([i for i in interactions if i.channel == "call" and i.first_response_at is None])
+    unassigned = len([d for d in deal_records if not d.manager_id or d.manager_id in ("0", "None")])
 
     return {
         "hero": {
             "sales_won_amount": ad_summary.total_revenue,
             "sales_won_count": ad_summary.total_sales,
-            "sales_lost_count": 1,
+            "sales_lost_count": extras["lost_count"],
             "conversion_rate_pct": ad_summary.conversion_rate_pct,
-            "vs_previous_points": 4.2,
-            "top_loss_reason": "Boshqa arzonroq taklifni tanladi",
+            "vs_previous_points": 0.0,
+            "top_loss_reason": extras["top_loss_reason"],
         },
-        "speed_to_lead": {
-            "total_leads": stl_metrics.total_leads,
-            "answered_leads": stl_metrics.answered_leads,
-            "unanswered_leads": stl_metrics.unanswered_leads,
-            "sla_rate_pct": stl_metrics.sla_rate_pct,
-            "avg_response_minutes": stl_metrics.avg_response_minutes,
-            "buckets": stl_metrics.buckets,
-            "channel_breakdown": stl_metrics.channel_breakdown,
-            "longest_wait": (
-                {
-                    "customer_name": stl_metrics.longest_wait.customer_name,
-                    "channel": stl_metrics.longest_wait.channel,
-                    "wait_minutes": stl_metrics.longest_wait.wait_minutes,
-                }
-                if stl_metrics.longest_wait
-                else None
-            ),
-        },
-        "stuck_deals": {
-            "total_stuck_deals": stuck_summary.total_stuck_deals,
-            "total_stuck_value": stuck_summary.total_stuck_value,
-            "stage_summaries": [
-                {
-                    "stage_id": s.stage_id,
-                    "stage_name": s.stage_name,
-                    "stuck_count": s.stuck_count,
-                    "oldest_days": s.oldest_days,
-                    "stuck_amount": s.stuck_amount,
-                }
-                for s in stuck_summary.stage_summaries
-            ],
-            "oldest_deal": (
-                {
-                    "deal_name": stuck_summary.oldest_deal.deal_name,
-                    "stuck_days": stuck_summary.oldest_deal.stuck_days,
-                    "manager_name": stuck_summary.oldest_deal.manager_name,
-                }
-                if stuck_summary.oldest_deal
-                else None
-            ),
-        },
+        "speed_to_lead": _format_speed_payload(stl_metrics),
+        "stuck_deals": _format_stuck_payload(stuck_summary),
         "ad_attribution": {
             "total_spend": ad_summary.total_spend,
+            "spend_currency": getattr(_bridge, "last_spend_currency", "UZS"),
             "total_new_leads": ad_summary.total_new_leads,
             "cost_per_lead": ad_summary.cost_per_lead,
             "total_sales": ad_summary.total_sales,
@@ -192,30 +199,11 @@ async def get_metasell_executive_dashboard() -> dict[str, Any]:
         },
         "attention": {
             "waiting_customers_count": stl_metrics.unanswered_leads,
-            "missed_calls_count": 2,
-            "overdue_tasks_count": 3,
-            "unassigned_deals_count": 1,
+            "missed_calls_count": missed_calls,
+            "overdue_tasks_count": extras["overdue_tasks_count"],
+            "unassigned_deals_count": unassigned,
         },
-        "team_leaderboard": [
-            {
-                "manager_name": "Aziz Karimov",
-                "new_leads": 14,
-                "won_sales": 5,
-                "won_amount": 35_000_000.0,
-                "conversion_pct": 35.7,
-                "calls_count": 48,
-                "talk_time_minutes": 112,
-            },
-            {
-                "manager_name": "Dilnoza Rahimova",
-                "new_leads": 12,
-                "won_sales": 4,
-                "won_amount": 26_000_000.0,
-                "conversion_pct": 33.3,
-                "calls_count": 41,
-                "talk_time_minutes": 95,
-            },
-        ],
+        "team_leaderboard": leaderboard,
     }
 
 
@@ -305,26 +293,8 @@ async def submit_quiz(req: QuizSubmitRequest) -> dict[str, Any]:
 @router.get("/morning-tasks")
 async def get_morning_tasks_overview() -> dict[str, Any]:
     """Return overview of morning tasks partitioned into today and overdue."""
-    now = datetime.now(UTC)
-    sample_tasks = [
-        MorningTaskItem(
-            task_id="T_101",
-            lead_id="L_101",
-            lead_name="Artel Korporativ",
-            text="Qayta qoʻngʻiroq qilish va shartnoma holatini soʻrash",
-            due_date=now.date(),
-            manager_id="mgr_1",
-        ),
-        MorningTaskItem(
-            task_id="T_102",
-            lead_id="L_102",
-            lead_name="Crafers Logistika",
-            text="Tijoriy taklif boʻyicha uchrashuv belgilash",
-            due_date=(now - timedelta(days=2)).date(),
-            manager_id="mgr_1",
-        ),
-    ]
-    overview = _triage_service.get_overview(sample_tasks)
+    tasks = await _bridge.fetch_morning_tasks()
+    overview = _triage_service.get_overview(tasks)
     return {
         "today_count": overview.today_count,
         "overdue_count": overview.overdue_count,

@@ -43,26 +43,33 @@ class RopFetcher:
             timeout=_TIMEOUT,
         )
 
-    async def _paged(self, url, params, key, *, max_pages, embed, raise_on_first=False):
+    async def _paged(self, url, params, key, *, max_pages, embed, raise_on_first=False, strict=False):
+        """strict=True: xato yoki toliq boshlanmagan natija RopFetchError beradi (boʻsh roʻyxat emas)."""
         out: list[dict] = []
         page_url, page_params = url, dict(params)
+        complete = False
         for i in range(max_pages):
             try:
                 resp = await self._get(page_url, page_params)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[ROP] %s page %s failed: %s", url, i, exc)
+                if strict:
+                    raise RopFetchError(f"{url} page {i} failed") from exc
                 break
             if resp.status_code != 200:
                 logger.warning("[ROP] %s page %s -> HTTP %s", url, i, resp.status_code)
-                if i == 0 and raise_on_first:
+                if (i == 0 and raise_on_first) or strict:
                     raise RopFetchError(f"{url} -> {resp.status_code}")
                 break
             body = resp.json()
             out.extend(body.get("_embedded", {}).get(embed, []))
             nxt = body.get("_links", {}).get("next", {}).get("href")
             if not nxt:
+                complete = True
                 break
             page_url, page_params = nxt, None
+        if strict and not complete:
+            raise RopFetchError(f"{url} -> incomplete after {max_pages} pages")
         return out
 
     async def fetch_active_sales_leads(self) -> list[dict]:
@@ -140,13 +147,13 @@ class RopFetcher:
                 grouped.setdefault(eid, []).append(e)
         return grouped
 
-    async def fetch_won_leads_since(self, since_epoch):
+    async def fetch_won_leads_since(self, since_epoch, *, strict=False):
         return await self._paged(
             f"{self._amo.base_url}/api/v4/leads",
             {"filter[pipeline_id]": SALES_PIPELINE_ID,
              "filter[statuses][0][status_id]": STATUS_WON,
              "filter[closed_at][from]": since_epoch, "limit": 250},
-            key="leads", max_pages=4, embed="leads",
+            key="leads", max_pages=4, embed="leads", strict=strict,
         )
 
     async def fetch_closed_leads_since(self, status_id, since_epoch):

@@ -65,7 +65,7 @@ else:
 if completed_deals == 0 and active_deals > 100:
     report.append(f"_⚠️ {active_deals} ta aktiv bitim ichida yopilgan yo'q - menejerlar nazoratini kuchaytiring._")
 
-report.append(f"\n📊 *Davom ettirish uchun @baxtiyorjong_gaziyev nazoratida* 👑")
+report.append(f"\n📊 *Davom ettirish uchun @baxtiyorgaziyev nazoratida* 👑")
 
 # Natija
 print("\n".join(report))

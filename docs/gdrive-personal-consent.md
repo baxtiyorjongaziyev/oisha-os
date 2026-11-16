@@ -9,7 +9,7 @@ Folder URL: https://drive.google.com/drive/folders/1C388jvMUp4sAgki6l6xVdqc0yOy7
 Folder ID: 1C388jvMUp4sAgki6l6xVdqc0yOy7L_--
 
 The folder was created under the connected personal Google account and verified.
-This does NOT give the independent Contabo server OAuth access.
+This does NOT give the independent Hetzner prod server (`2.29.198.0`) OAuth access.
 
 ## Google owner action (cannot be done by an assistant)
 
@@ -36,7 +36,7 @@ The code never extracts or imports Google tokens from the ChatGPT connector.
 - Callback verifies the exact email address, 5 TB quota (>= 4.5e12 bytes),
   and destination folder write permissions.
 - Credentials are atomically saved as a mode-0600 file at:
-  /home/ubuntu/oisha-os/data/gdrive_oauth_token.json
+  `<OISHA_DIR>/data/gdrive_oauth_token.json` (masalan, `/home/ubuntu/oisha-os/data/gdrive_oauth_token.json`)
 - The auto-auth mode switches to user OAuth when the token exists.
 - CRM Drive systemd services have an ExecCondition to skip all work until
   that file exists.
@@ -49,9 +49,9 @@ The code never extracts or imports Google tokens from the ChatGPT connector.
 
 ## Verification and operational commands
 
-On the Contabo VPS, as ubuntu:
+On the Hetzner prod VPS (`2.29.198.0`), inside `<OISHA_DIR>` (sobiq Contabo yo'li: `/home/ubuntu/oisha-os`):
 
-    cd /home/ubuntu/oisha-os
+    cd <OISHA_DIR>
     ./venv/bin/python scripts/safe_crm_drive_sync.py --preflight
     ./venv/bin/python scripts/safe_crm_drive_sync.py --all-existing --stage-existing --dry-run --telegram-report
     systemctl status oisha-crm-drive-poll.timer

@@ -135,5 +135,5 @@ class BackgroundMonitor(BaseMonitorHelpersMixin, JobsCrmMixin, JobsAnalyticsMixi
 
                 await asyncio.sleep(300)
             except Exception as exc:
-                logger.error("[MONITOR ERROR] %s", exc)
+                logger.error("[MONITOR ERROR] %s", exc, exc_info=True)
                 await asyncio.sleep(60)

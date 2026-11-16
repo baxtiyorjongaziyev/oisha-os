@@ -1,7 +1,7 @@
 """
 AmoCRM OAuth redirect server.
 VPS da ishga tushiring: python oauth_server.py
-Brauzerda oching: http://109.199.100.137:9999/auth
+Brauzerda oching: http://<SERVER_IP>:9999/auth
 """
 import http.server
 import os

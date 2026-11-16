@@ -122,3 +122,32 @@ def test_meta_24h_status_none_without_token(monkeypatch):
 
     monkeypatch.setattr(m, "_get_page_token", lambda: "")
     assert rep._meta_24h_status() is None
+
+
+def _report(monkeypatch, meta_24h, pending=0):
+    stats = {"last_24h_total": 0, "pending_retries": pending, "meta_total_forms_leads": None}
+    monkeypatch.setattr(rep, "audit_leadgen_health", lambda: stats)
+    monkeypatch.setattr(rep, "_meta_24h_status", lambda: meta_24h)
+    monkeypatch.setattr(rep, "build_loss_lines", lambda: [])
+    monkeypatch.setattr(rep, "build_seller_lines", lambda: [])
+    monkeypatch.setattr(rep, "_capi_telemetry_lines", lambda: [])
+    return rep.build_status_report_text(summary=[])
+
+
+def test_report_not_green_when_meta_unreadable(monkeypatch):
+    text = _report(monkeypatch, None)
+    assert "24/7 FAOL" not in text
+    assert "100% toʻliq yetkazildi" not in text
+    assert "META_PAGE_ACCESS_TOKEN" in text
+
+
+def test_report_red_when_meta_leads_missing_in_amocrm(monkeypatch):
+    text = _report(monkeypatch, (5, 2))
+    assert "24/7 FAOL" not in text
+    assert "2 ta Meta lidi" in text
+
+
+def test_report_green_when_meta_ok(monkeypatch):
+    text = _report(monkeypatch, (3, 0))
+    assert "24/7 FAOL" in text
+    assert "100% toʻliq yetkazildi" in text
