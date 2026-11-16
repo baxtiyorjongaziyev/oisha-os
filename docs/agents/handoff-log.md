@@ -2828,6 +2828,15 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Qolgan ish/Bloker:** `jonbranding-web` reposi bu sessiya doirasida emas — u ham kamaytirilmasa umumiy kvota baribir yetmasligi mumkin. Branch protection required checklari (`Import-time crash guard`, `gitleaks`) draftda "skipped" boʻladi; ready qilinganda ishlaydi.
 
 
+## 2026-11-16 — Antigravity — Owner Telegram username `@baxtiyorgaziyev` ga yangilandi (`fix/owner-telegram-handle`)
+- **Sabab:** Owner (`Baxtiyorjon Gaziyev`) Telegram username'i `@baxtiyorjong_gaziyev` emas, `@baxtiyorgaziyev` (`https://t.me/baxtiyorgaziyev`) ekanini bildirdi.
+- **Bajarilgan ish:**
+  1. `SECURITY.md`, `src/services/core/escalation_agent.py`, `src/services/reporter/plans.py`, `scripts/debug/weekly_report_sample.py` dagi xato `@baxtiyorjong_gaziyev` havolalari `@baxtiyorgaziyev` ga almashtirildi (`plans.py:266` dagi ASCII apostrof ham `oʻz` ga toʻgʻrilandi).
+  2. `src/services/core/safe_responder.py` (`team_whitelist`) ga `@baxtiyorgaziyev` qoʻshildi (eski `@baxtiyorjongaziyev` bilan birga), `src/services/core/crm/seller_auth_support.py` dagi `baxtiyorjon` yozuvi `@baxtiyorgaziyev` ga yangilandi.
+  3. Obsidian vault: `10-Projects/JonBranding.md` ga qoʻshildi (`brain_append`), `90-AI/Context.md` uchun `brain_memory_proposal` va `brain_log` yozildi.
+- **Oʻzgargan fayllar:** `SECURITY.md`, `scripts/debug/weekly_report_sample.py`, `src/services/core/escalation_agent.py`, `src/services/reporter/plans.py`, `src/services/core/safe_responder.py`, `src/services/core/crm/seller_auth_support.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 python -m pytest tests/test_seller_pin_hardening.py tests/test_userbot_private_policy.py tests/test_crm_weekly_report.py -q` → **30 passed** (`18.85s`); `check_uzbek_text.py --staged` → toza; `ruff` → toza; `bandit -r src/ -ll` → exit 0.
+- **Qolgan ish/Bloker:** PR merge qilinib deploy boʻlishi kerak. (`plans.py` dagi ikki eski funksiya — `generate_plan_fact_report` 98L, `generate_weekly_report_uz` 95L — oldindan 60 qatordan uzun, bu PR scope'idan tashqari.)
 ## 2026-11-16 — Antigravity — Cockpit LiveDataBridge fallback ("Jasur Tursunov") bartaraf etildi
 - **Sabab:** Telegram guruhiga ketgan `🚨 [SLA BUZILIShI OGOHLANTIRISHI] — Jasur Tursunov (telegram), mgr_1, 69 daqiqa` xabari `LiveDataBridge._get_fallback_interactions()` dagi hardcoded demo yozuvdan kelayotgan edi (`src.api.state` import xatosi + `dialer_call_logs`/`dialer_leads`/`meta_ad_spend`/`lead_attribution` ustun nomlari real DB sxemasiga mos kelmagani uchun barcha soʻrovlar yiqilib fallbackga tushgan).
 - **Bajarilgan ish:**
