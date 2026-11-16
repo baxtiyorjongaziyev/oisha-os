@@ -61,17 +61,17 @@ avtomatik nusxalaydi va `GOOGLE_` bilan boshlanadigan `.env` qatorlarini saqlayd
    ```
 
    Brauzer ochiladi. Eventlar tushadigan Google akkaunt bilan ruxsat bering.
-6. `token.json` ni prod serverga qoʻying:
+6. `token.json` ni Hetzner prod serveriga (`2.29.198.0`) qoʻying (`<SSH_USER>` va `<OISHA_DIR>` serverdagi `oisha.service` sozlamasiga koʻra; Contabo `109.199.100.137` toʻxtatilgan):
 
    ```bash
-   scp token.json root@109.199.100.137:/home/ubuntu/oisha-os/token.json
-   ssh root@109.199.100.137 "chown ubuntu:ubuntu /home/ubuntu/oisha-os/token.json && chmod 600 /home/ubuntu/oisha-os/token.json"
+   scp token.json <SSH_USER>@2.29.198.0:<OISHA_DIR>/token.json
+   ssh <SSH_USER>@2.29.198.0 "chmod 600 <OISHA_DIR>/token.json"
    ```
 
 7. Servisni restart qiling va logni tekshiring:
 
    ```bash
-   ssh root@109.199.100.137 "systemctl restart oisha-os.service && journalctl -u oisha-os.service -n 80 --no-pager | grep GCALENDAR"
+   ssh <SSH_USER>@2.29.198.0 "systemctl restart oisha.service && journalctl -u oisha.service -n 80 --no-pager | grep GCALENDAR"
    ```
 
    Kutilgan satrlar:

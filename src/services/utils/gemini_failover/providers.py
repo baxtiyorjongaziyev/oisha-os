@@ -99,6 +99,8 @@ async def _call_openai_compatible(
             "messages": messages,
             "max_tokens": max_tokens,
         }
+        if "gpt-oss" in str(model or "").lower():
+            payload["reasoning_effort"] = "low"
         async with httpx.AsyncClient(timeout=45) as http:
             resp = await http.post(
                 f"{base_url.rstrip('/')}/chat/completions",
@@ -108,7 +110,7 @@ async def _call_openai_compatible(
             resp.raise_for_status()
             data = resp.json()
             msg = data["choices"][0]["message"]
-            text = msg.get("content") or msg.get("reasoning") or ""
+            text = msg.get("content") or ""
             if text:
                 logger.info("[AI_FALLBACK] %s muvaffaqiyatli (model=%s)", provider_name, model)
                 return _FallbackResponse(text.strip(), provider_name, model)

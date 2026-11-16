@@ -1,8 +1,11 @@
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from src.handlers.seller_reply import is_checkin_text, register_seller_reply_handlers
+from src.services.core.checkin_composer import load_context
 from src.services.core.sales_coach_reply import COACH_SYSTEM, coach_reply
+from src.services.utils.free_ai_router import ProviderResult
 
 
 def run(coro):
@@ -89,3 +92,51 @@ def test_filter_catches_ai_checkin_that_mentions_replier():
     ai_text = "Rayxon (@RayxonJonbranding), Shaxboz aka bilan gaplasha oldingizmi?"
     assert run(flt(_message(-100, 999, ai_text, username="RayxonJonbranding")))
     assert not run(flt(_message(-100, 999, ai_text, username="boshqa")))
+
+
+def test_coach_reply_falls_back_on_truncated_or_leaked_output():
+    async def dangling(prompt, **kwargs):
+        return "Shahnoza, barakalla! Bir soat ichida ham uchrashuv o'tkazib,"
+
+    text = run(coach_reply("Shahnoza", "javob", "check-in", generate=dangling))
+    assert text.startswith("Rahmat, Shahnoza!")
+
+    fake_router = AsyncMock()
+    fake_router.generate_text = AsyncMock(
+        return_value=ProviderResult(
+            text="Shahnoza, barakalla! Bir soat ichida ham",
+            provider="gemini",
+            model="gemini-3.5-flash",
+            finish_reason="length",
+        )
+    )
+    with patch("src.services.utils.free_ai_router.get_free_ai_router", return_value=fake_router):
+        text2 = run(coach_reply("Shahnoza", "javob", "check-in"))
+        assert text2.startswith("Rahmat, Shahnoza!")
+
+
+def test_seller_reply_catches_topic_ai_checkin_and_routes_context_per_rep(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir()
+
+    disp = FakeDispatcher()
+    register_seller_reply_handlers(disp, group_id_getter=lambda: -100)
+    handler, (flt,) = disp.handlers[0]
+
+    msg = _message(-100, 999, "Shahnoza, tushlikdan keyin qo'ng'iroqlar qalay?")
+    msg.message_thread_id = 122
+    msg.reply_to_message.message_thread_id = 122
+    msg.from_user.first_name = "Shahnoza"
+    msg.text = "1 ta uchrashuv o'tkazdim!"
+    msg.reply = AsyncMock()
+
+    assert run(flt(msg))
+
+    with patch(
+        "src.services.core.sales_coach_reply.coach_reply",
+        AsyncMock(return_value="Zo'r natija, Shahnoza! Keyingi qadamni kelishib oling."),
+    ):
+        run(handler(msg))
+
+    assert load_context("data/checkin_context_shahnoza.json").get("last_reply") == "1 ta uchrashuv o'tkazdim!"
+    assert load_context("data/checkin_context.json") == {}

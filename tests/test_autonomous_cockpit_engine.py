@@ -176,3 +176,61 @@ async def test_build_evening_closing_card(mock_bridge):
     assert "Kunlik Savdo Sarhisobi (19:30)" in wrapup_text
     assert "Qayta ishlangan lidlar" in wrapup_text
     assert "Kunlik SLA foizi" in wrapup_text
+
+
+@pytest.mark.asyncio
+async def test_stale_leads_and_unmapped_sellers_are_guarded(tmp_path):
+    now = datetime(2026, 11, 7, 10, 0, tzinfo=UTC)
+    bridge = MagicMock()
+    bridge.fetch_recent_lead_interactions = AsyncMock(
+        return_value=[
+            LeadInteraction(
+                lead_id="STALE_1",
+                customer_name="Eski Mijoz",
+                channel="telegram",
+                manager_id="mgr_1",
+                created_at=now - timedelta(days=3),
+                first_response_at=None,
+            ),
+            LeadInteraction(
+                lead_id="FRESH_1",
+                customer_name="Yangi Mijoz",
+                channel="telegram",
+                manager_id="mgr_unmapped",
+                created_at=now - timedelta(minutes=35),
+                first_response_at=None,
+            ),
+        ]
+    )
+
+    state_file = tmp_path / "autopilot_state.json"
+    engine = AutonomousCockpitEngine(bridge=bridge, state_path=state_file)
+    alerts = await engine.scan_speed_to_lead_alerts(
+        now=now,
+        seller_map={},
+        escalation_chat_id="-1001234567",
+    )
+    # STALE_1 ignored (> 24h), FRESH_1 does not emit invalid nudge to "mgr_unmapped", only valid escalation
+    assert len(alerts) == 1
+    assert alerts[0].alert_type == "sla_escalation"
+    assert alerts[0].metadata["lead_id"] == "FRESH_1"
+
+    # Restart simulation: reloaded engine must NOT re-emit the same escalation
+    restarted = AutonomousCockpitEngine(bridge=bridge, state_path=state_file)
+    replay_alerts = await restarted.scan_speed_to_lead_alerts(
+        now=now + timedelta(minutes=2),
+        seller_map={},
+        escalation_chat_id="-1001234567",
+    )
+    assert replay_alerts == []
+
+
+@pytest.mark.asyncio
+async def test_ad_anomalies_skip_non_uzs_spend(mock_bridge, monkeypatch):
+    from src.settings import settings
+    monkeypatch.setattr(settings, "OWNER_ID", "150074828")
+    mock_bridge.last_spend_currency = "USD"
+
+    engine = AutonomousCockpitEngine(bridge=mock_bridge)
+    alerts = await engine.scan_ad_spend_anomalies(cpl_alert_threshold=45_000.0)
+    assert alerts == []

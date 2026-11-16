@@ -38,6 +38,8 @@ class AiogramBotHead:
         "business_message",
         "edited_business_message",
         "deleted_business_messages",
+        "widget_query",
+        "shared_widget_query",
     )
 
     def _register_raw_update_middleware(self) -> None:
@@ -87,6 +89,7 @@ class AiogramBotHead:
                 "removed_chat_boost", "business_connection", "business_message",
                 "edited_business_message", "deleted_business_messages",
                 "message_reaction", "message_reaction_count", "purchased_paid_media",
+                "widget_query", "shared_widget_query",
             }
             valid_updates = [u for u in self.allowed_updates if u in valid_set]
 

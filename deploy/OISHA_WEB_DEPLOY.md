@@ -1,5 +1,7 @@
 # oisha.jonbranding.uz — Deploy Runbook
 
+> **Migration status (2026-11-15):** Prod backend (`oisha.service`) Hetzner (`2.29.198.0`) ga ko'chirildi; eski Oracle (`163.192.10.104`) va Contabo (`109.199.100.137`) serverlari to'xtatilgan. Quyidagi buyruqlar tarixiy Oracle runbook'idan qolgan — Hetzner'da domen DNS va Nginx/TLS alohida sozlanishi kerak.
+
 Oracle `jon-free-micro` (163.192.10.104, Ubuntu 24.04, 1GB RAM + 2GB swap) uchun.
 
 ## Arxitektura

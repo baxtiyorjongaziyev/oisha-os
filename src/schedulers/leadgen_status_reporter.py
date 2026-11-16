@@ -240,8 +240,12 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     amo_ok = stats.get("last_24h_amocrm", 0)
     sheets_ok = stats.get("last_24h_sheets", 0)
     tg_ok = stats.get("last_24h_telegram", 0)
-    meta_24h_line, meta_total_line = _meta_lines(_meta_24h_status(), stats.get("meta_total_forms_leads"))
+    meta_24h = _meta_24h_status()
+    meta_24h_line, meta_total_line = _meta_lines(meta_24h, stats.get("meta_total_forms_leads"))
     pending = stats.get("pending_retries", 0)
+    # Meta unreadable ⇒ "0 leads, 100% delivered" is unverified, not healthy.
+    meta_blind = meta_24h is None
+    meta_missing = meta_24h[1] if meta_24h else 0
 
     amo_pct = int((amo_ok / total) * 100) if total > 0 else 100
     sheets_pct = int((sheets_ok / total) * 100) if total > 0 else 100
@@ -250,7 +254,14 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     amo_icon = "🟢" if amo_ok >= total else "🟡"
     sheets_icon = "🟢" if sheets_ok >= total else "🟡"
     tg_icon = "🟢" if tg_ok >= total else "🟡"
-    status_icon = "🟢 24/7 FAOL (O'lmas rejim)" if pending == 0 else "🟠 Qayta tiklanmoqda"
+    if meta_blind:
+        status_icon = "🔴 META TEKSHIRILMADI — lidlar tasdiqlanmagan"
+    elif meta_missing:
+        status_icon = "🔴 Lidlar AmoCRMʼga yetmayapti"
+    elif pending:
+        status_icon = "🟠 Qayta tiklanmoqda"
+    else:
+        status_icon = "🟢 24/7 FAOL (Oʻlmas rejim)"
 
     creative_lines = []
     for c_name, c_count, c_pct, ad_id in summary:
@@ -262,11 +273,19 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     if not creative_lines:
         creative_lines.append("• Oxirgi 24 soatda kreativ bo'yicha lid yo'q")
 
-    footer_note = (
-        "✅ <i>Barcha lidlar avtomatik tarzda 3 ta tizimga (AmoCRM, Sheets, Telegram) 100% to'liq yetkazildi.</i>"
-        if pending == 0
-        else f"⚠️ <i>{pending} ta lid integratsiyasi navbatda / qayta urinish jarayonida.</i>"
-    )
+    if meta_blind:
+        footer_note = (
+            "🚨 <i>Meta tekshiruvi bajarilmadi — yuqoridagi raqamlar tasdiqlanmagan. "
+            "META_PAGE_ACCESS_TOKEN va loglarni tekshiring.</i>"
+        )
+    elif meta_missing:
+        footer_note = f"🚨 <i>{meta_missing} ta Meta lidi AmoCRMʼga yetmagan.</i>"
+    elif pending:
+        footer_note = f"⚠️ <i>{pending} ta lid integratsiyasi navbatda / qayta urinish jarayonida.</i>"
+    else:
+        footer_note = (
+            "✅ <i>Barcha lidlar avtomatik tarzda 3 ta tizimga (AmoCRM, Sheets, Telegram) 100% toʻliq yetkazildi.</i>"
+        )
 
     lines = [
         "🛡 <b>OISHA-OS: 24/7 AVTOMATLASHTIRISH HOLAT HISOBOTI</b>",
