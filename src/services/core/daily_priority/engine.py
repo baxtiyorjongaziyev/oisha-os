@@ -1,7 +1,13 @@
-"""Kun tartibi: ertalab taklif, eslatma, kunduzgi soʻrov, kechki xulosa, javoblar."""
+"""Kun tartibi: ertalab taklif, eslatma, kunduzgi soʻrov, kechki xulosa, javoblar.
+
+Holat fayli xodim javoblari bilan birga yoziladi. Shuning uchun hech bir funksiya
+faylni `await`dan oldin oʻqib, keyin eski nusxasini saqlamaydi: har oʻzgarish
+`state.update_entry` orqali eng soʻnggi faylga qoʻllanadi.
+"""
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, List, Optional
 
 from src.services.core.daily_priority import composer, state as st
@@ -10,16 +16,26 @@ from src.services.core.daily_priority.team import find_member, get_team
 
 logger = logging.getLogger("DailyPriority")
 
+SUMMARY_KEY = "_summary"
+
+
+def is_enabled() -> bool:
+    """`DAILY_PRIORITY_ENABLED=0` jadvalni ham, javob handlerini ham oʻchiradi."""
+    return os.getenv("DAILY_PRIORITY_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+
 
 def _day(now) -> str:
     return now.strftime("%Y-%m-%d")
+
+
+def _entry(day: str, key: str) -> Optional[dict]:
+    return st.get_entry(st.load(), day, key)
 
 
 async def run_morning(bot: Any, now, *, fetch=None, generate=None) -> int:
     """Har bir aʼzoga bugungi asosiy pul ishini taklif qiladi. Kuniga bir marta."""
     team = get_team()
     day = _day(now)
-    data = st.load()
     try:
         tasks_by_member = await gather_tasks(team, fetch=fetch, now_ts=now.timestamp())
     except Exception:
@@ -29,10 +45,10 @@ async def run_morning(bot: Any, now, *, fetch=None, generate=None) -> int:
     sent = 0
     for member in team:
         key = member["key"]
-        if st.get_entry(data, day, key):
+        if _entry(day, key):
             continue
         tasks = tasks_by_member.get(key) or []
-        yesterday = st.last_entry_before(data, day, key)
+        yesterday = st.last_entry_before(st.load(), day, key)
         text = await composer.compose_morning(member, tasks, yesterday, generate=generate)
         try:
             await bot.send_message(int(member["user_id"]), text)
@@ -40,60 +56,58 @@ async def run_morning(bot: Any, now, *, fetch=None, generate=None) -> int:
             logger.error("[DAILY] %s ga ertalabki xabar ketmadi: %s", key, exc)
             continue
         top = tasks[0] if tasks else None
-        st.set_entry(data, day, key, {
+        proposal = {
             "task": composer.task_action(top, member.get("role", "sales")) if top else "",
             "lead_id": top.get("lead_id") if top else None,
             "status": st.STATUS_PROPOSED,
             "proposed_at": now.isoformat(),
             "message": text,
-        })
-        st.save(data, day)  # har yuborishdan keyin — qayta ishga tushsa takror ketmaydi
+        }
+        # Javob xabar yetib borgunicha kelgan boʻlsa — uni saqlab qolamiz.
+        st.update_entry(day, key, lambda cur: {**proposal, **cur})
         sent += 1
     logger.info("[DAILY] Ertalabki takliflar: %s ta", sent)
     return sent
 
 
+async def _send_once(bot, now, member, flag: str, allowed_status, make_text) -> bool:
+    day, key = _day(now), member["key"]
+    entry = _entry(day, key)
+    if not entry or entry.get(flag) or entry.get("status") not in allowed_status:
+        return False
+    text = await make_text(entry)
+    # Yozish paytida holat oʻzgargan boʻlishi mumkin (xodim javob berdi) — qayta tekshiramiz.
+    entry = _entry(day, key)
+    if not entry or entry.get(flag) or entry.get("status") not in allowed_status:
+        return False
+    try:
+        await bot.send_message(int(member["user_id"]), text)
+    except Exception as exc:
+        logger.error("[DAILY] %s ga %s ketmadi: %s", key, flag, exc)
+        return False
+    st.update_entry(day, key, lambda cur: {**cur, flag: now.isoformat()})
+    return True
+
+
 async def run_nudge(bot: Any, now, *, generate=None) -> int:
     """Javob bermaganlarga bir marta muloyim eslatma."""
-    day = _day(now)
-    data = st.load()
     sent = 0
     for member in get_team():
-        entry = st.get_entry(data, day, member["key"])
-        if not entry or entry.get("status") != st.STATUS_PROPOSED or entry.get("nudge_sent"):
-            continue
-        text = await composer.compose_nudge(member, entry.get("task") or "bugungi asosiy ish", generate=generate)
-        try:
-            await bot.send_message(int(member["user_id"]), text)
-        except Exception as exc:
-            logger.error("[DAILY] %s ga eslatma ketmadi: %s", member["key"], exc)
-            continue
-        entry["nudge_sent"] = now.isoformat()
-        st.save(data, day)
-        sent += 1
+        sent += await _send_once(
+            bot, now, member, "nudge_sent", (st.STATUS_PROPOSED,),
+            lambda e, m=member: composer.compose_nudge(m, e.get("task") or "bugungi asosiy ish", generate=generate),
+        )
     return sent
 
 
 async def run_followup(bot: Any, now, *, generate=None) -> int:
     """Kelishilgan, lekin hali bajarilmagan ish boʻyicha kunduzi bir marta soʻraydi."""
-    day = _day(now)
-    data = st.load()
     sent = 0
     for member in get_team():
-        entry = st.get_entry(data, day, member["key"])
-        if not entry or entry.get("followup_sent"):
-            continue
-        if entry.get("status") not in (st.STATUS_ACCEPTED, st.STATUS_CHANGED):
-            continue
-        text = await composer.compose_followup(member, entry.get("task") or "bugungi ish", generate=generate)
-        try:
-            await bot.send_message(int(member["user_id"]), text)
-        except Exception as exc:
-            logger.error("[DAILY] %s ga kunduzgi soʻrov ketmadi: %s", member["key"], exc)
-            continue
-        entry["followup_sent"] = now.isoformat()
-        st.save(data, day)
-        sent += 1
+        sent += await _send_once(
+            bot, now, member, "followup_sent", (st.STATUS_ACCEPTED, st.STATUS_CHANGED),
+            lambda e, m=member: composer.compose_followup(m, e.get("task") or "bugungi ish", generate=generate),
+        )
     return sent
 
 
@@ -103,8 +117,8 @@ async def run_owner_summary(bot: Any, now, owner_id: Optional[int]) -> bool:
         return False
     day = _day(now)
     data = st.load()
-    entries = data.get(day) or {}
-    if not entries or entries.get("_summary_sent"):
+    entries = {k: v for k, v in (data.get(day) or {}).items() if not k.startswith("_")}
+    if not entries or st.get_entry(data, day, SUMMARY_KEY):
         return False
     text = composer.compose_owner_summary(day, get_team(), entries)
     try:
@@ -112,9 +126,24 @@ async def run_owner_summary(bot: Any, now, owner_id: Optional[int]) -> bool:
     except Exception as exc:
         logger.error("[DAILY] Egasiga xulosa ketmadi: %s", exc)
         return False
-    entries["_summary_sent"] = now.isoformat()
-    st.save(data, day)
+    st.update_entry(day, SUMMARY_KEY, lambda cur: {"sent_at": now.isoformat()})
     return True
+
+
+def _apply_reply(entry: dict, text: str, status: str, now) -> dict:
+    entry = dict(entry)
+    if entry.get("followup_sent") and entry.get("status") in (st.STATUS_ACCEPTED, st.STATUS_CHANGED):
+        # Kunduzgi soʻrovga javob: faqat aniq "bajarildi" holatni oʻzgartiradi.
+        entry["followup_reply"] = text
+        if status == st.STATUS_DONE:
+            entry["status"] = st.STATUS_DONE
+        return entry
+    entry["reply"] = text
+    entry["reply_at"] = now.isoformat()
+    if status == st.STATUS_CHANGED:
+        entry["task"] = text.strip()[:200]
+    entry["status"] = status
+    return entry
 
 
 async def handle_reply(user_id: int, text: str, now, *, generate=None) -> Optional[str]:
@@ -126,25 +155,12 @@ async def handle_reply(user_id: int, text: str, now, *, generate=None) -> Option
     if not member:
         return None
     day = _day(now)
-    data = st.load()
-    entry = st.get_entry(data, day, member["key"])
-    if not entry:
+    if not _entry(day, member["key"]):
         return None
-
     status = composer.classify_reply(text)
-    if entry.get("followup_sent") and entry.get("status") in (st.STATUS_ACCEPTED, st.STATUS_CHANGED):
-        # Kunduzgi soʻrovga javob: faqat "bajarildi"ni holatga yozamiz.
-        entry["followup_reply"] = text
-        if status == st.STATUS_DONE:
-            entry["status"] = st.STATUS_DONE
-    else:
-        entry["reply"] = text
-        entry["reply_at"] = now.isoformat()
-        if status == st.STATUS_CHANGED:
-            entry["task"] = text.strip()[:200]
-        entry["status"] = status
-    st.save(data, day)
-    return await composer.compose_reply(member, status, text, entry.get("task") or "", generate=generate)
+    updated = st.update_entry(day, member["key"], lambda cur: _apply_reply(cur, text, status, now))
+    task = (updated or {}).get("task") or ""
+    return await composer.compose_reply(member, status, text, task, generate=generate)
 
 
 def is_team_member(user_id: Optional[int]) -> bool:
@@ -152,5 +168,6 @@ def is_team_member(user_id: Optional[int]) -> bool:
 
 
 __all__: List[str] = [
-    "run_morning", "run_nudge", "run_followup", "run_owner_summary", "handle_reply", "is_team_member",
+    "run_morning", "run_nudge", "run_followup", "run_owner_summary", "handle_reply",
+    "is_team_member", "is_enabled",
 ]

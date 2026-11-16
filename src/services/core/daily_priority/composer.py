@@ -128,9 +128,16 @@ async def compose_morning(
 
 # Apostrof turlari: ʻ ʼ ` va ASCII (\x27) — foydalanuvchi qaysi birini yozsa ham mos keladi.
 _AP = r"[ʻʼ`\x27]?"
+# Faqat pul ishining oʻzi tugaganini bildiruvchi iboralar. "qildim", "oldim" kabi
+# umumiy feʼllar oraliq harakat boʻlishi mumkin (masalan, "qoʻngʻiroq qildim").
 _DONE = re.compile(
-    rf"\b(bajardim|bajarildi|qildim|tugadi|to{_AP}ladi|tuladi|oldim|imzoladi|yopdim|yopildi)\b", re.I
+    rf"\b(bajarildi|bajardim|to{_AP}ladi|tuladi|to{_AP}lov\s+(keldi|tushdi|qildi)|"
+    rf"(avans|pul|pulni|to{_AP}lov|to{_AP}lovni)\s+oldim|imzolandi|imzoladi|"
+    rf"shartnoma\s+imzolandi|yopildi|yopdim)\b",
+    re.I,
 )
+# Inkor yoki "hali" boʻlsa — ish tugamagan.
+_NOT_YET = re.compile(rf"\b(hali|emas|yo{_AP}q)\b|\w+madi\b|\w+magan\b", re.I)
 _YES = re.compile(
     rf"^\s*(ha|xa|xo{_AP}p|hop|ok|okey|roziman|mayli|albatta|to{_AP}g{_AP}ri|tugri|shu)\b", re.I
 )
@@ -142,7 +149,7 @@ def classify_reply(text: str) -> str:
     cleaned = (text or "").strip()
     if not cleaned:
         return STATUS_DECLINED
-    if _DONE.search(cleaned):
+    if _DONE.search(cleaned) and not _NOT_YET.search(cleaned):
         return STATUS_DONE
     if _YES.search(cleaned):
         return STATUS_ACCEPTED

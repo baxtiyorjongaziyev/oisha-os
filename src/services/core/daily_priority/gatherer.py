@@ -34,17 +34,31 @@ MAX_PER_MEMBER = 3
 FetchLeads = Callable[[int, int], Awaitable[List[Dict[str, Any]]]]
 
 
+PAGE_SIZE = 250
+MAX_PAGES = 20  # 5000 ta bitim — bosqich uchun yetarli chegara
+
+
 async def _default_fetch(pipeline_id: int, status_id: int) -> List[Dict[str, Any]]:
+    """Bosqichdagi barcha bitimlarni sahifama-sahifa oladi (saralashdan oldin)."""
     from src.services.api_server.helpers import _get_amocrm_instance
 
     amo = _get_amocrm_instance()
     if amo is None:
         return []
-    return await amo.get_leads(
-        status_id=status_id,
-        limit=250,
-        **{"filter[statuses][0][pipeline_id]": pipeline_id},
-    )
+    leads: List[Dict[str, Any]] = []
+    for page in range(1, MAX_PAGES + 1):
+        batch = await amo.get_leads(
+            status_id=status_id,
+            limit=PAGE_SIZE,
+            page=page,
+            **{"filter[statuses][0][pipeline_id]": pipeline_id},
+        )
+        leads.extend(batch or [])
+        if len(batch or []) < PAGE_SIZE:
+            break
+    else:
+        logger.warning("[DAILY] Bosqich %s: %s sahifadan koʻp, qolgani olinmadi.", status_id, MAX_PAGES)
+    return leads
 
 
 def _to_task(lead: Dict[str, Any], stage: str, now_ts: float) -> Dict[str, Any]:

@@ -71,9 +71,89 @@ def test_gather_splits_sales_pool_without_duplicates_and_ranks_by_money():
     ("yo\x27q", st.STATUS_DECLINED),
     ("Yoʻq, bugun Akmal aka bilan uchrashuvim bor", st.STATUS_CHANGED),
     ("Bugun Sardor akaga KP yuboraman", st.STATUS_CHANGED),
+    ("Shartnoma imzolandi", st.STATUS_DONE),
 ])
 def test_classify_reply(text, expected):
     assert composer.classify_reply(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "Qoʻngʻiroq qildim, lekin hali toʻlamadi",
+    "Mijozga qoʻngʻiroq qildim, hali toʻlov qilmadi",
+    "Uchrashuvga bordim, pul oldim emas",
+    "Hali bajarilmagan",
+])
+def test_partial_progress_is_never_done(text):
+    assert composer.classify_reply(text) != st.STATUS_DONE
+
+
+def test_reply_during_morning_send_is_not_lost():
+    class ReplyingBot(FakeBot):
+        async def send_message(self, chat_id, text, **_):
+            await super().send_message(chat_id, text)
+            if chat_id == 2:  # Mumtozmaxalga yuborilayotganda Rayxona javob beradi
+                await engine.handle_reply(1, "ha", NOW, generate=no_ai)
+
+    asyncio.run(engine.run_morning(ReplyingBot(), NOW, fetch=fake_fetch, generate=no_ai))
+    entry = st.get_entry(st.load(), NOW.strftime("%Y-%m-%d"), "rayxona")
+    assert entry["status"] == st.STATUS_ACCEPTED and entry["reply"] == "ha"
+
+
+def test_reply_during_followup_compose_is_not_lost():
+    bot = FakeBot()
+    asyncio.run(engine.run_morning(bot, NOW, fetch=fake_fetch, generate=no_ai))
+    asyncio.run(engine.handle_reply(1, "ha", NOW, generate=no_ai))
+    asyncio.run(engine.handle_reply(3, "ha", NOW, generate=no_ai))
+
+    async def slow_ai(prompt, **_):
+        # Dilbarga matn yozilayotganda Rayxona ishni tugatadi.
+        if "Dilbar" in prompt:
+            await engine.handle_reply(1, "Bajarildi, avans oldim", NOW, generate=no_ai)
+        raise RuntimeError
+
+    asyncio.run(engine.run_followup(bot, NOW.replace(hour=15, minute=0), generate=slow_ai))
+    day = NOW.strftime("%Y-%m-%d")
+    assert st.get_entry(st.load(), day, "rayxona")["status"] == st.STATUS_DONE
+
+
+def _msg(text, user_id=1, chat_type="private"):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        text=text, caption=None,
+        chat=SimpleNamespace(type=chat_type),
+        from_user=SimpleNamespace(id=user_id, is_bot=False),
+    )
+
+
+def test_handler_skips_commands_and_respects_disable_switch(monkeypatch):
+    from src.handlers import daily_priority_reply as handler
+
+    asyncio.run(engine.run_morning(FakeBot(), NOW, fetch=fake_fetch, generate=no_ai))
+    monkeypatch.setattr("src.time_utils.get_local_now", lambda: NOW)
+    assert asyncio.run(handler._is_daily_reply(_msg("ha"))) is True
+    assert asyncio.run(handler._is_daily_reply(_msg("/start"))) is False
+    assert asyncio.run(handler._is_daily_reply(_msg("ha", chat_type="group"))) is False
+    assert asyncio.run(handler._is_daily_reply(_msg("ha", user_id=999))) is False
+    monkeypatch.setenv("DAILY_PRIORITY_ENABLED", "0")
+    assert asyncio.run(handler._is_daily_reply(_msg("ha"))) is False
+
+
+def test_default_fetch_reads_all_pages(monkeypatch):
+    calls = []
+
+    class FakeAmo:
+        async def get_leads(self, status_id=None, limit=None, page=None, **kwargs):
+            calls.append(page)
+            if page == 1:
+                return [{"id": i} for i in range(250)]
+            if page == 2:
+                return [{"id": 999, "price": 99}]
+            return []
+
+    monkeypatch.setattr("src.services.api_server.helpers._get_amocrm_instance", lambda: FakeAmo())
+    leads = asyncio.run(gatherer._default_fetch(11162698, 88871066))
+    assert calls == [1, 2] and len(leads) == 251
 
 
 def test_full_day_flow():

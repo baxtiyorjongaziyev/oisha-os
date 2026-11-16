@@ -11,7 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("DailyPriority")
 
@@ -60,6 +60,25 @@ def get_entry(state: Dict[str, Any], day: str, key: str) -> Optional[Dict[str, A
 
 def set_entry(state: Dict[str, Any], day: str, key: str, entry: Dict[str, Any]) -> None:
     state.setdefault(day, {})[key] = entry
+
+
+def update_entry(
+    day: str, key: str, updater: Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]
+) -> Optional[Dict[str, Any]]:
+    """Eng soʻnggi faylni oʻqib, bitta yozuvni oʻzgartirib, darhol saqlaydi.
+
+    Ichida `await` yoʻq, shuning uchun asyncioʼda boshqa korutinlar (masalan,
+    xodim javobi) orada faylni oʻzgartira olmaydi — eski nusxa yangi javobni
+    oʻchirib yubormaydi. `updater` yangi yozuvni (yoki None — oʻzgarishsiz) qaytaradi.
+    """
+    data = load()
+    current = dict(get_entry(data, day, key) or {})
+    updated = updater(current)
+    if updated is None:
+        return get_entry(data, day, key)
+    set_entry(data, day, key, updated)
+    save(data, day)
+    return updated
 
 
 def last_entry_before(state: Dict[str, Any], day: str, key: str) -> Optional[Dict[str, Any]]:

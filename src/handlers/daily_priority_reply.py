@@ -21,12 +21,17 @@ async def _is_daily_reply(message: Any) -> bool:
         user = getattr(message, "from_user", None)
         if getattr(chat, "type", None) != "private" or user is None or getattr(user, "is_bot", False):
             return False
-        if not _text_of(message).strip():
+        text = _text_of(message).strip()
+        # Buyruqlar (/start va boshqalar) oʻz handlerlariga oʻtadi.
+        if not text or text.startswith("/"):
             return False
         from src.services.core.daily_priority import state as st
+        from src.services.core.daily_priority.engine import is_enabled
         from src.services.core.daily_priority.team import find_member
         from src.time_utils import get_local_now
 
+        if not is_enabled():
+            return False
         member = find_member(getattr(user, "id", None))
         if not member:
             return False

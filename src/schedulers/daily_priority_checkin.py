@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
 from src.time_utils import get_local_now
@@ -28,7 +27,9 @@ SLOTS: Dict[Tuple[int, int], str] = {
 
 
 def is_enabled() -> bool:
-    return os.getenv("DAILY_PRIORITY_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+    from src.services.core.daily_priority.engine import is_enabled as _enabled
+
+    return _enabled()
 
 
 def slot_for(now) -> Optional[str]:
