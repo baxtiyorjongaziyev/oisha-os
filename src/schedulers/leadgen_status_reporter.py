@@ -255,7 +255,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     sheets_icon = "🟢" if sheets_ok >= total else "🟡"
     tg_icon = "🟢" if tg_ok >= total else "🟡"
     if meta_blind:
-        status_icon = "🔴 META KOʻRINMAYAPTI — lidlar tekshirilmagan"
+        status_icon = "🔴 META TEKSHIRILMADI — lidlar tasdiqlanmagan"
     elif meta_missing:
         status_icon = "🔴 Lidlar AmoCRMʼga yetmayapti"
     elif pending:
@@ -275,8 +275,8 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
 
     if meta_blind:
         footer_note = (
-            "🚨 <i>Meta oʻqilmadi (META_PAGE_ACCESS_TOKEN yoʻq yoki ishlamayapti) — "
-            "yangi lidlar olinmayapti, yuqoridagi 0/100% tasdiqlanmagan.</i>"
+            "🚨 <i>Meta tekshiruvi bajarilmadi — yuqoridagi raqamlar tasdiqlanmagan. "
+            "META_PAGE_ACCESS_TOKEN va loglarni tekshiring.</i>"
         )
     elif meta_missing:
         footer_note = f"🚨 <i>{meta_missing} ta Meta lidi AmoCRMʼga yetmagan.</i>"

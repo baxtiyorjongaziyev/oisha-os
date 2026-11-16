@@ -2837,3 +2837,13 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   4. Testlar yangilandi (`tests/test_live_db_bridge.py`, `tests/test_cockpit_full_features.py`, `tests/test_autonomous_cockpit_engine.py`, `tests/test_cockpit_autopilot_scheduler.py`).
 - **Tekshiruv dalillari:** `SKIP_LIVE=1 python -m pytest tests/test_live_db_bridge.py tests/test_autonomous_cockpit_engine.py tests/test_cockpit_autopilot_scheduler.py tests/test_cockpit_full_features.py -q` → 25 passed; `ruff check` → All checks passed; `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py` → toza. Toʻliq suite (`SKIP_LIVE=1 pytest -q`): 3886 passed, 18 skipped, 10 failed (Windows `0o600` ruxsati va lokal muhitga bogʻliq mavjud testlar: `test_amocrm_sync.py`, `test_amocrm_token_fallback.py`, `test_drive_oauth_onboarding.py`, `test_incoming_call_card.py`, `test_sync_agents_deploy_safety.py`).
 - **Qolgan ish/Bloker:** Contabo prod serveriga deploy qilingandan keyin `main` ga merge va live tekshiruv kerak.
+
+
+## 2026-11-16 — Claude — Leadgen holat hisoboti: Meta oʻqilmaganda yashil koʻrsatmaydi (PR #1064)
+- **Sabab:** 16.11 09:00 hisoboti "Meta API javob bermadi" deb turib "🟢 24/7 FAOL" va "100% yetkazildi" koʻrsatdi. Prod (Hetzner) `/home/deploy/oisha-os/.env` da `META_*` / `INSTAGRAM_*` kalit nomlari umuman yoʻq (faqat nomlar tekshirildi) — poller boʻsh token bilan jim `return 0` qilgan, log ham alert ham boʻlmagan.
+- **Bajarilgan ish:**
+  1. `src/schedulers/leadgen_status_reporter.py`: Meta tekshiruvi `None` qaytarsa holat "🔴 META TEKSHIRILMADI", footer raqamlar tasdiqlanmaganini aytadi; Meta lidi AmoCRMga yetmagan boʻlsa ham qizil.
+  2. `src/schedulers/meta_leadgen_scheduler.py`: token boʻsh boʻlsa mavjud rate-limited admin alert (6 soatda bir) yuboriladi.
+  3. Testlar: `tests/test_leadgen_status_reporter.py` (+3), `tests/test_meta_leadgen_token_alert.py` (+1).
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` (Windows, lokal) → 3895 passed, 18 skipped, 5 failed; 5 ta xato bu PR fayllariga tegmaydi (`test_drive_oauth_onboarding` fayl ruxsati 438≠384, `test_runner_workflow_contract` cp1252 UnicodeDecodeError ×2, `test_sync_agents_deploy_safety` ×2) — `main` da alohida tekshirilmagan. `bandit -r src/ -ll` → exit 0. Uzbek-text commit guard oʻtdi.
+- **Qolgan ish/Bloker:** (a) Egasi Hetzner `.env` ga `META_PAGE_ACCESS_TOKEN` va CAPI kalitlarini qoʻyib `oisha` ni restart qilishi kerak — busiz lidlar olinmaydi. (b) GitHub Actions joblari boshlanmayapti: "recent account payments have failed or your spending limit needs to be increased" — PR checklari shu sababli qizil. (c) Prod deliveries bazasida `test_in_flight_*` qatorlari bor, watchdog har daqiqada WARNING yozadi — tegilmagan.
