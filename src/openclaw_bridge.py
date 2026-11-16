@@ -1,10 +1,11 @@
 """
-OpenClaw ↔ Oisha-OS ko'prüsü.
+OpenClaw <-> Oisha-OS koʻprigi.
 
 OpenClaw gateway barcha kanallardan (WhatsApp, Slack, Discord, Telegram,
 Signal, iMessage ...) xabarlarni /webhook/openclaw ga yuboradi.
-Bu modul ularni tegishli Oisha agentiga yo'naltiradi va javob qaytaradi.
+Bu modul ularni tegishli Oisha agentiga yoʻnaltiradi va javob qaytaradi.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -12,7 +13,7 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger("OpenClawBridge")
 
-# Kanal → user_id prefiks (har bir kanal uchun noyob ID maydoni)
+# Kanal -> user_id prefiks (har bir kanal uchun noyob ID maydoni)
 _CHANNEL_PREFIX: Dict[str, int] = {
     "telegram": 0,
     "whatsapp": 1_000_000_000,
@@ -51,9 +52,55 @@ def _build_context(
     }
 
 
+def _running_orchestrator() -> Optional[Any]:
+    """Agar Oisha-OS MessageController ishga tushgan boʻlsa, uning orkestratorini qaytaradi."""
+    try:
+        from src.api.routes.state import api_state
+
+        ctrl = getattr(api_state, "msg_controller", None)
+        if ctrl is not None and getattr(ctrl, "orchestrator", None) is not None:
+            return ctrl.orchestrator
+    except Exception:
+        logger.debug("[OpenClawBridge] api_state.msg_controller oʻqilmadi", exc_info=True)
+    try:
+        from src.context import app_ctx
+
+        ctrl = getattr(app_ctx, "msg_controller", None)
+        if ctrl is not None and getattr(ctrl, "orchestrator", None) is not None:
+            return ctrl.orchestrator
+    except Exception:
+        logger.debug("[OpenClawBridge] app_ctx.msg_controller oʻqilmadi", exc_info=True)
+    return None
+
+
+def _register_core_agents(manager: Any, api_keys: Dict[str, str], db: Optional[Any]) -> None:
+    """Standalone rejimda OpenClaw koʻprigi uchun asosiy agentlarni roʻyxatdan oʻtkazadi."""
+    from src.agents.pm_agent import PMAgent
+    from src.agents.researcher_agent import ResearcherAgent
+    from src.agents.sales_agent import SalesAgent
+    from src.agents.support_agent import SupportAgent
+    from src.settings import settings
+
+    base = getattr(settings, "SYSTEM_INSTRUCTION", "Siz JonBranding yordamchisisiz.")
+    manager.register_agent(SalesAgent("sales", base, api_keys, None, db))
+    manager.register_agent(
+        PMAgent("strategist", base + "\n\nLoyihalar va reja uchun masʼulsiz.", api_keys, None, db)
+    )
+    manager.register_agent(
+        ResearcherAgent("researcher", base + "\n\nBozor tahlili va tadqiqot uchun masʼulsiz.", api_keys, None, db)
+    )
+    manager.register_agent(
+        SupportAgent("support", base + "\n\nTezkor yordam va texnik savollar uchun masʼulsiz.", api_keys, None, db)
+    )
+
+
 async def _get_orchestrator(db: Optional[Any]):
-    """Agent manager va orchestratorni lazy init qilish."""
+    """Mavjud MessageController orkestratorini olish yoki standalone init qilish."""
     global _agent_manager, _orchestrator
+
+    live = _running_orchestrator()
+    if live is not None:
+        return live
 
     if _orchestrator is not None:
         return _orchestrator
@@ -69,7 +116,8 @@ async def _get_orchestrator(db: Optional[Any]):
     if groq_key:
         api_keys["groq"] = groq_key
 
-    _agent_manager = AgentManager(api_keys=api_keys, db=db)
+    _agent_manager = AgentManager(api_keys=api_keys)
+    _register_core_agents(_agent_manager, api_keys, db)
     _orchestrator = AgentOrchestrator(agent_manager=_agent_manager)
     logger.info("[OpenClawBridge] AgentOrchestrator tayyor.")
     return _orchestrator
@@ -78,30 +126,19 @@ async def _get_orchestrator(db: Optional[Any]):
 async def handle_openclaw_message(
     *,
     text: str,
-    sender: str,
-    sender_id: str,
-    channel: str,
-    session: str,
+    sender: str = "Mijoz",
+    sender_id: str = "openclaw_user",
+    channel: str = "telegram",
+    session: str = "oisha-main",
     db: Optional[Any] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """
-    OpenClaw webhook dan kelgan xabarni qayta ishlash va javob qaytarish.
-
-    Parametrlar:
-        text       - foydalanuvchi xabari
-        sender     - ko'rsatma ismi (display name)
-        sender_id  - kanal ichidagi ID (raqam yoki satr)
-        channel    - whatsapp / slack / discord / telegram / ...
-        session    - openclaw session nomi
-        db         - database instance (yoki None)
-        metadata   - qo'shimcha kanal ma'lumotlari
-    """
+    """OpenClaw webhook yoki Telegram AI yangilanishidan kelgan xabarni qayta ishlash."""
     if metadata is None:
         metadata = {}
 
     user_id = _get_numeric_user_id(sender_id, channel)
-    context = _build_context(channel, sender, metadata)
+    context = _build_context(channel, sender, {**metadata, "session": session})
 
     logger.info(
         "[OpenClawBridge] %s/%s (uid=%d): %s",
@@ -120,11 +157,11 @@ async def handle_openclaw_message(
             message=text,
             context=context,
         )
-        return reply or "Javob tayyorlanmadi. Qayta urinib ko'ring."
+        return reply or "Javob tayyorlanmadi. Qayta urinib koʻring."
 
     except Exception as exc:
         logger.exception("[OpenClawBridge] Xato: %s", exc)
         return (
             "Kechirasiz, hozir texnik muammo yuz berdi. "
-            "Biroz kutib qayta yozing yoki Telegram orqali bog'laning."
+            "Biroz kutib qayta yozing yoki Telegram orqali bogʻlaning."
         )
