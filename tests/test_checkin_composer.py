@@ -96,6 +96,13 @@ def test_send_uses_ai_text_and_escapes_html(tmp_path, monkeypatch):
         'prefix context, but wait - developer prompt says "F',
         "Xayrli tong! Kuningiz unum",
         "is low (only 1 dial in the last hour,",
+        "ayblama (blame), help convert",
+        "ayblama (blame), help convert.",
+        "Xayrli tong! Kunni boshlab olishga",
+        "Soat 11 ham bo'libdi,",
+        "Shaxsiy gaplarim: gaplashdingizmi?\n\nJavob: Yo`q.\n\nJavob: Yo`q.\n\n8 8 8 8 8.",
+        "Bugun natija yaxshi.\nBugun natija yaxshi.",
+        "Mijoz bilan 8 8 8 8 8 marta gaplashdingiz.",
         "<think>ichki</think> Bugun ishlar yaxshi.",
     ],
 )

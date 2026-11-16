@@ -36,17 +36,18 @@ _LEAK_MARKERS = (
     "no dials",
     "instruction says",
     "prompt says",
+    "shaxsiy gaplarim:",
+    "raqamlar:",
+    "savol:",
+    "maslahat:",
+    "javob:",
+    "menejer:",
 )
 _ENGLISH_META_WORDS = frozenset({
     "the", "is", "are", "was", "but", "wait", "only", "last", "hour",
     "low", "script", "context", "prefix", "prompt", "developer",
     "emoji", "should", "must", "dial", "dials", "latin",
-})
-_UZBEK_WORDS = frozenset({
-    "salom", "xayrli", "tong", "kun", "soat", "mijoz", "raqam", "bilan",
-    "uchun", "qanday", "yaxshi", "qoldi", "bering", "yozing", "rahmat",
-    "javob", "gaplash", "terdingiz", "bugun", "hozir", "qadam", "taklif",
-    "ishlayapsiz", "yopish", "muloqot", "suhbat", "kelishdingiz",
+    "blame", "help", "convert", "thinking", "reasoning", "instruction", "draft",
 })
 
 COMPOSE_SYSTEM = """Sen Oisha'san — Jon Branding sotuv bo'limining samimiy, do'stona hamkasbisan.
@@ -57,7 +58,7 @@ Qanday yozish kerak:
 - Odamdek, jonli gapir. Har safar boshqacha boshla: salomni har soat takrorlama
   (kun davomida bir marta salom yetadi), shablon iboralardan qoch.
 - Avvalgi xabaring va menejerning oxirgi javobi berilsa, o'shandan davom et: aytgan
-  mijozlarini, va'dalarini ismi bilan eslat ("Shaxboz aka bilan qayta gaplasha oldingizmi?").
+  mijozlarini, vaʼdalarini ismi bilan eslat (masalan: "Mijoz bilan qayta gaplasha oldingizmi?").
 - Qo'ng'iroq raqamlarini faqat mazmunli bo'lsa qisqa eslat; hamma raqamni ro'yxat qilma.
 - Faqat bitta, aniq savol ber. Kerak bo'lsa bitta foydali maslahat yoki tayyor gap qo'sh.
 - Yaxshi natijani maqta, qiyin soatda ruhlantir. Hech qachon ayblama.
@@ -138,13 +139,15 @@ def _looks_like_reasoning_leak(text: str) -> bool:
         return True
     if any(marker in lowered for marker in _LEAK_MARKERS):
         return True
+    if re.search(r"\((?:blame|thinking|note|optional|hint|example)\)", lowered):
+        return True
+    if re.search(r"\b(\w+)(?:\s+\1){3,}\b", lowered):
+        return True
+    lines = [ln.strip().lower() for ln in text.splitlines() if len(ln.strip()) >= 6]
+    if len(lines) != len(set(lines)):
+        return True
     ascii_words = [w.lower() for w in re.findall(r"[A-Za-z]+", text)]
-    eng_hits = sum(1 for w in ascii_words if w in _ENGLISH_META_WORDS)
-    uz_hits = sum(1 for w in ascii_words if w in _UZBEK_WORDS)
-    has_uz_diacritics = any(ch in text for ch in "ʻʼöğçşÖĞÇŞ") or any(
-        tok in lowered for tok in ("o'", "g'")
-    )
-    return eng_hits >= 3 and uz_hits == 0 and not has_uz_diacritics
+    return sum(1 for w in ascii_words if w in _ENGLISH_META_WORDS) >= 2
 
 
 def _is_valid_checkin_text(text: str) -> bool:
@@ -184,7 +187,7 @@ async def compose_checkin(
         prompt_parts.append(f"Menejerning oxirgi javobi:\n{ctx['last_reply']}")
     try:
         text = await generate(
-            "\n\n".join(prompt_parts), system=COMPOSE_SYSTEM, max_tokens=600, temperature=0.8
+            "\n\n".join(prompt_parts), system=COMPOSE_SYSTEM, max_tokens=600, temperature=0.6
         )
     except Exception:
         logger.warning("[CHECKIN] AI matn yozmadi, qolipga qaytiladi.", exc_info=True)

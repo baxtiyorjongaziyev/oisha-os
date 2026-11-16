@@ -238,12 +238,12 @@ class FreeAIProviderRouter:
         )
         data = response.json()
         usage = data.get("usage") or {}
+        cleaned = _clean_openai_content(data["choices"][0]["message"].get("content"))
+        if not cleaned:
+            raise ValueError("groq: empty content in response")
         return ProviderResult(
-            str(data["choices"][0]["message"]["content"]).strip(),
-            "groq",
-            model,
-            int(usage.get("prompt_tokens") or 0),
-            int(usage.get("completion_tokens") or 0),
+            cleaned, "groq", model,
+            int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0),
         )
 
     async def _openai_compatible_text(
@@ -335,7 +335,10 @@ class FreeAIProviderRouter:
             json={"prompt": f"{system}\n\n{prompt}" if system else prompt},
         )
         result = response.json().get("result") or {}
-        return ProviderResult(str(result.get("response") or "").strip(), "cloudflare", model)
+        cleaned = _clean_openai_content(result.get("response"))
+        if not cleaned:
+            raise ValueError("cloudflare: empty content in response")
+        return ProviderResult(cleaned, "cloudflare", model)
 
     async def _cloudflare_whisper(self, audio_bytes: bytes) -> ProviderResult:
         model = self.settings.CLOUDFLARE_WHISPER_MODEL
@@ -373,7 +376,10 @@ class FreeAIProviderRouter:
                 "options": {"temperature": temperature},
             },
         )
-        return ProviderResult(str(response.json().get("response") or "").strip(), "ollama", model)
+        cleaned = _clean_openai_content(response.json().get("response"))
+        if not cleaned:
+            raise ValueError("ollama: empty content in response")
+        return ProviderResult(cleaned, "ollama", model)
 
 
 app_ctx.router: Optional[FreeAIProviderRouter] = None
