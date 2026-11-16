@@ -211,3 +211,21 @@ def test_send_typing_via_bot_api_posts_thread_id():
             {"chat_id": -100, "action": "typing", "message_thread_id": 2976},
         )
     ]
+
+
+def test_handler_succeeds_even_when_won_check_unavailable():
+    db = FakeDb()
+    bot = SimpleNamespace(send_message=AsyncMock())
+    ctx = SimpleNamespace(bot_client=bot, msg_controller=SimpleNamespace(db=db))
+    bot_api = AsyncMock()
+    with (
+        patch.object(spc, "app_ctx", ctx),
+        patch.object(spc, "_send_via_bot_api", bot_api),
+        patch.object(spc, "is_quiet_hours", return_value=False),
+        patch.object(spc, "_SEND_GAP_SECONDS", 0),
+        patch.object(spc, "schedule_won_check", None),
+        patch.dict(spc.os.environ, TOKENS),
+    ):
+        asyncio.run(spc.sales_payment_congrats_handler(_event()))
+    bot.send_message.assert_awaited_once()
+    assert bot_api.await_count == 2
