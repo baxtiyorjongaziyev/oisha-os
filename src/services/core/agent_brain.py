@@ -102,37 +102,48 @@ class OishaBrain:
             logger.error(f"[OishaBrain] fetch failures error: {e}")
             return []
 
-    async def _diagnose(self, failures: list, task: str) -> Dict[str, Any]:
-        if not self._client:
-            return {
-                "diagnosis": "Gemini client not configured (GEMINI_API_KEY missing).",
-                "affected_component": "agent_brain",
-                "proposed_fix": "Set GEMINI_API_KEY in environment.",
-                "priority": "high",
-                "safe_to_auto_apply": False,
-                "owner_action_needed": "Add GEMINI_API_KEY to Cloud Secret Manager.",
-                "task": task,
-                "analyzed_at": datetime.now().isoformat(),
-            }
+    async def _call_diagnose_llm(self, prompt: str) -> str:
+        if self._client is not None:
+            try:
+                import asyncio
 
-        prompt = _DIAGNOSE_PROMPT.format(
-            n=len(failures),
-            failures_json=json.dumps(failures, ensure_ascii=False, indent=2)[:3000],
+                response = await asyncio.to_thread(
+                    self._client.models.generate_content,
+                    model=self.gemini_model,
+                    contents=prompt,
+                )
+                text = (getattr(response, "text", "") or "").strip()
+                if text:
+                    return text
+            except Exception as exc:
+                logger.debug("[OishaBrain] Primary Gemini failed, falling back: %s", exc)
+        from src.services.utils.free_ai_router import get_free_ai_router
+
+        router = getattr(self, "_router", None) or get_free_ai_router()
+        result = await router.generate_text(
+            prompt,
+            system="Faqat valid JSON obyekt qaytaring.",
+            max_tokens=700,
+            temperature=0.2,
+        )
+        return (getattr(result, "text", "") or "").strip()
+
+    async def _diagnose(self, failures: list, task: str) -> Dict[str, Any]:
+        failures_dump = json.dumps(failures, ensure_ascii=False, indent=2)[:3000]
+        prompt = (
+            _DIAGNOSE_PROMPT
+            .replace("{n}", str(len(failures)))
+            .replace("{failures_json}", failures_dump)
         )
 
         try:
-            response = self._client.models.generate_content(
-                model=self.gemini_model,
-                contents=prompt,
-            )
-            raw = response.text or "{}"
-            # Strip markdown fences if present
-            raw = raw.strip()
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
+            raw = (await self._call_diagnose_llm(prompt)) or "{}"
+            start, end = raw.find("{"), raw.rfind("}")
+            if start != -1 and end > start:
+                raw = raw[start : end + 1]
             parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError("Diagnosis JSON is not an object")
             parsed["task"] = task
             parsed["analyzed_at"] = datetime.now().isoformat()
             return parsed
@@ -152,13 +163,15 @@ class OishaBrain:
     async def _notify_owner(self, result: Dict[str, Any]) -> None:
         if not self.bot_token or not self.owner_id:
             return
+        import html as std_html
+
         text = (
-            f"🧠 *OishaBrain Alert*\n"
-            f"Priority: `{result.get('priority', 'unknown')}`\n\n"
-            f"*Diagnosis*\n{result.get('diagnosis', '')}\n\n"
-            f"*Component*: `{result.get('affected_component', '')}`\n"
-            f"*Proposed fix*: {result.get('proposed_fix', '')}\n\n"
-            f"*Owner action*: {result.get('owner_action_needed', '')}"
+            "🧠 <b>OishaBrain Alert</b>\n"
+            f"Priority: <code>{std_html.escape(str(result.get('priority', 'unknown')))}</code>\n\n"
+            f"<b>Diagnosis</b>\n{std_html.escape(str(result.get('diagnosis', '')))}\n\n"
+            f"<b>Component</b>: <code>{std_html.escape(str(result.get('affected_component', '')))}</code>\n"
+            f"<b>Proposed fix</b>: {std_html.escape(str(result.get('proposed_fix', '')))}\n\n"
+            f"<b>Owner action</b>: {std_html.escape(str(result.get('owner_action_needed', '')))}"
         )
         try:
             import aiohttp
@@ -167,7 +180,7 @@ class OishaBrain:
                 await session.post(url, json={
                     "chat_id": self.owner_id,
                     "text": text,
-                    "parse_mode": "Markdown",
+                    "parse_mode": "HTML",
                 })
         except Exception as e:
             logger.error(f"[OishaBrain] Telegram notify error: {e}")
