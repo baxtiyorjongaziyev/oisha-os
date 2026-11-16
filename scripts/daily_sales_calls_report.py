@@ -19,23 +19,23 @@ Env:
 from __future__ import annotations
 
 import argparse
-import html
 import logging
 import os
 import sys
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Dict, Iterable, List, Optional
+
+import requests
 
 # Repository rootni sys.path ga qo'shish
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Iterable, List, Optional
 
-import requests
-
-from src.services.call_analytics.moizvonki_roster import load_excludes, load_roster
+from src.services.call_analytics.moizvonki_roster import load_excludes, load_roster  # noqa: E402
 
 logger = logging.getLogger("daily_sales_calls_report")
 
@@ -189,16 +189,10 @@ def build_report(
     exclude_accounts: Iterable[str] = (),
     known_accounts: Iterable[str] = (),
 ) -> Report:
-    """Qo'ng'iroqlarni sotuvchi bo'yicha guruhlaydi.
-
-    followup_calls — hisobot kunidan keyingi qo'ng'iroqlar; javobsiz kiruvchiga
-    keyinroq qayta aloqa bo'lganini aniqlash uchun. Istisno qilingan hisoblar
-    (admin) statistikaga kirmaydi, lekin ularning qayta qo'ng'irog'i hisoblanadi.
-    """
+    """Qoʻngʻiroqlarni sotuvchi boʻyicha guruhlaydi."""
     excluded = {a.strip().lower() for a in exclude_accounts if a and a.strip()}
     all_calls = sorted(calls, key=lambda c: c.get("start_time") or 0)
     rep_calls = [c for c in all_calls if (c.get("user_account") or "").lower() not in excluded]
-
     report = Report(day=day)
     reps: Dict[str, RepStats] = {}
     for c in rep_calls:
@@ -208,8 +202,6 @@ def build_report(
         if c.get("start_time"):
             hour = datetime.fromtimestamp(c["start_time"], TASHKENT).hour
             report.hourly[hour] = report.hourly.get(hour, 0) + 1
-
-    # Javobsiz kiruvchi -> keyin shu raqam bilan javobli suhbat yoki chiquvchi bo'lmagan
     later = all_calls + sorted(followup_calls, key=lambda c: c.get("start_time") or 0)
     seen: set = set()
     for c in rep_calls:
@@ -230,19 +222,13 @@ def build_report(
             report.missed_no_callback.append(c)
             reps[c.get("user_account") or "noma'lum"].no_callback += 1
             report.total.no_callback += 1
-
-    # Ro'yxatdagi, lekin bu kun qo'ng'iroq qilmagan sotuvchilar ham ko'rinsin
     present = {a.lower() for a in reps}
     for account in known_accounts:
         if account and account.lower() not in present and account.lower() not in excluded:
             reps[account] = RepStats(account=account)
             present.add(account.lower())
-
     report.reps = sorted(reps.values(), key=lambda r: (r.talk_seconds, r.total), reverse=True)
     return report
-
-
-# ---------------------------------------------------------------- format
 
 def fmt_duration(seconds: int) -> str:
     seconds = int(seconds or 0)
@@ -254,15 +240,12 @@ def fmt_duration(seconds: int) -> str:
         return f"{m} daq {s} son"
     return f"{s} son"
 
-
 def _hhmm(ts: int) -> str:
     return datetime.fromtimestamp(ts, TASHKENT).strftime("%H:%M") if ts else "—"
-
 
 def parse_rep_names(raw: str) -> Dict[str, str]:
     """``email:Ism`` juftliklari (asosiy manba — moizvonki_roster)."""
     from src.services.call_analytics.moizvonki_roster import parse_rep_names as _parse
-
     return _parse(raw)
 
 
@@ -326,9 +309,20 @@ def send_telegram(bot_token: str, chat_id: str, text: str, topic_id: Optional[st
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     if topic_id:
         payload["message_thread_id"] = int(topic_id)
-    resp = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=30)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Telegram sendMessage http={resp.status_code}: {resp.text[:200]}")
+    last_err = "unknown"
+    for attempt in range(3):
+        try:
+            resp = requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json=payload, timeout=30)
+            if resp.status_code == 200:
+                return
+            last_err = f"http={resp.status_code}: {resp.text[:200]}"
+            if resp.status_code not in (429, 500, 502, 503, 504):
+                break
+        except requests.RequestException as exc:
+            last_err = str(exc)
+        if attempt < 2:
+            time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"Telegram sendMessage {last_err}")
 
 
 # ---------------------------------------------------------------- main
