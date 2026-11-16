@@ -29,6 +29,61 @@ RESTART_COUNT_FILE = os.environ.get(
     "OISHA_WATCHDOG_RESTART_COUNT_FILE", "/run/oisha-watchdog-restarts"
 )
 
+EXTRA_SERVICES = [
+    s.strip()
+    for s in os.environ.get(
+        "OISHA_WATCHED_SERVICES", "openclaw-gateway,hermes-gateway"
+    ).split(",")
+    if s.strip()
+]
+ALERT_COOLDOWN_SECONDS = int(os.environ.get("OISHA_ALERT_COOLDOWN", "600"))
+_last_alert: dict = {}
+
+
+def send_alert(key: str, text: str) -> None:
+    """Telegramʼga ownerʼga xabar yuboradi (BOT_TOKEN/OWNER_ID boʼlmasa no-op)."""
+    token = os.environ.get("BOT_TOKEN")
+    chat_id = os.environ.get("OWNER_ID")
+    if not token or not chat_id:
+        return
+    now = time.time()
+    if now - _last_alert.get(key, 0) < ALERT_COOLDOWN_SECONDS:
+        return
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            _last_alert[key] = now  # cooldown faqat muvaffaqiyatli yuborilgandan keyin
+        else:
+            logger.error(f"Alert send failed: HTTP {resp.status_code}")
+    except Exception as e:
+        # Exception matnida /bot<TOKEN>/ yoʼli boʼlishi mumkin — faqat turini log qilamiz.
+        logger.error(f"Alert send failed: {type(e).__name__}")
+
+
+def check_extra_services() -> None:
+    """Qoʼshimcha servislar (OpenClaw, Hermes) yiqilgan boʼlsa qayta koʼtaradi."""
+    if os.name == "nt":
+        return
+    for name in EXTRA_SERVICES:
+        try:
+            res = subprocess.run(
+                ["systemctl", "is-active", name],
+                capture_output=True, text=True, timeout=10,
+            )
+            if res.stdout.strip() == "active":
+                continue
+            logger.warning(f"{name} is {res.stdout.strip() or 'unknown'}; restarting")
+            subprocess.run(["systemctl", "restart", name], check=True, timeout=60)
+            send_alert(name, f"Watchdog: {name} toʼxtagan edi, qayta ishga tushirildi.")
+        except Exception as e:
+            logger.error(f"Extra service check failed for {name}: {e}")
+            send_alert(name + ":fail", f"Watchdog: {name} ni tiklab boʼlmadi: {e}")
+
+
 def service_uptime_seconds():
     """Return the systemd service process age so boot-time failures are tolerated."""
     if os.name == "nt":
@@ -56,6 +111,10 @@ def restart_service():
             # We are running as root in systemd, so we can directly run systemctl
             subprocess.run(["systemctl", "restart", SERVICE_NAME], check=True)
             logger.info(f"systemctl restart {SERVICE_NAME} executed successfully.")
+            send_alert(
+                SERVICE_NAME,
+                f"Watchdog: {SERVICE_NAME} healthz javob bermadi, qayta ishga tushirildi.",
+            )
             # Record restart count
             try:
                 count = 0
@@ -88,6 +147,7 @@ def main():
     
     while True:
         try:
+            check_extra_services()
             if check_health():
                 consecutive_failures = 0
             else:
