@@ -2915,3 +2915,25 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - **Oʻzgargan fayllar:** `src/services/core/sales_quality_coach.py`, `src/services/core/sales_quality_filters.py`, `src/schedulers/bg_monitor/jobs_analytics.py`, `src/settings.py`, `tests/test_sales_quality_coach.py`, `tests/test_coach_scheduling.py`, `docs/agents/handoff-log.md`.
   - **Tekshiruv dalili:** `SKIP_LIVE=1 pytest tests/test_sales_quality_coach.py tests/test_coach_scheduling.py` — oʻtdi; Uzbek-text guard toza.
   - **Qolgan ish:** `.env` ga `TOPIC_TRAINING_ID` qiymatini yozish (Oʻquv topic ID). `ideal_script` va haftalik zaiflik tahlili hali ham owner qoʻngʻiroqlarini oʻz ichiga oladi.
+
+## 2026-11-16 — Antigravity — Bot va API uzilishlari (OpenClaw, Inline Search, Sales Congrats, Sync Runtime)
+- **Sabab:** 3-bot (Oisha/Amina/Mr.Jon) arxitektura tahlilida 4 ta uzilish aniqlandi:
+  1. `POST /webhook/openclaw`, `/v1/chat/completions` va `guest_message` `openclaw_bridge.handle_openclaw_message` ning eskirgan signaturasiga urilib `TypeError` va notoʻgʻri `AgentManager(db=db)` chaqirigʻida yiqilar edi.
+  2. Aiogram `inline_search.py` va Telethon `handlers_search.py` `InlineQuery` handerlari `is_admin` tekshiruvisiz barcha Telegram userlarga `users` jadvali / `perform_global_lookup` maʼlumotlarini ochib qoʻygan edi.
+  3. `sales_payment_congrats.py` dagi Amina/Mr.Jon persona shablonlari, `typing...` ritmi va `userbot` fallback `origin/main` dagi `schedule_won_check`, `_topic_id` va `ConnectionError` reconnect bilan birlashtirildi.
+  4. `scripts/sync_agents_runtime.py` loglarida Hermes SOUL.md nomi Amina ga moslandi; `tests/test_sync_agents_deploy_safety.py` Windows da ham ishlashi uchun `os.name="posix"` monkeypatch qoʻshildi.
+- **Oʻzgargan fayllar:** `src/openclaw_bridge.py`, `src/api/routes/openclaw_gateway.py`, `src/services/core/dispatcher/inline_search.py`, `src/services/core/admin_bot/handlers_search.py`, `src/handlers/sales_payment_congrats.py`, `scripts/sync_agents_runtime.py`, `tests/test_openclaw_gateway_bridge.py`, `tests/test_dispatcher_inline_search.py`, `tests/test_sales_payment_congrats.py`, `tests/test_sync_agents_deploy_safety.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `check_uzbek_text.py --base origin/main` → toza; `ruff check` → All checks passed; `bandit -r src/ -ll -q` → exit 0; `python -m compileall -q src/ scripts/` → exit 0; maqsadli 11 test fayli (`test_syntax_guard`, `test_sales_won_check`, `test_sales_payment_congrats`, `test_openclaw_gateway_bridge`, `test_dispatcher_inline_search` va b.) → 1200 passed; toʻliq `SKIP_LIVE=1 python -m pytest -q --tb=short` → 3979 passed, 18 skipped, 8 failed (barchasi pre-existing Windows `.env`/`AMOCRM_*` va `0o600` POSIX ruxsat testlari, bu PR ga aloqasiz).
+- **Qolgan ish/Bloker:** PR merge va Hetzner (`jon-ai-prod-01`) ga deploy.
+
+## 2026-11-16 — Claude — Kunlik "pul keltiradigan eng muhim ish" boshqaruvchisi (PR #1069)
+- **Sabab:** Egasi har kuni jamoa aʼzolariga eng muhim pul ishini aniqlab, odamdek soʻrab, nazorat qilishni soʻradi. Aʼzolar (egasi tasdiqlagan): Shahnoza `@jonbranding_assistant`, Rayxona `@RayxonJonbranding`, Mumtozmaxal `@MumtozmaxalJonbranding` (sotuv), Dilbar `@jonbranding_finansist` (moliya). Oisha boti `@jonairobot`.
+- **Bajarilgan ish:**
+  1. `src/services/core/daily_priority/` — jamoa, holat (`data/daily_priority_state.json`, 7 kun), amoCRM yigʻuvchi (sahifalab; sotuv: Kelishuv/Yopish, Shartnoma; moliya: Avans va Yakuniy 50% toʻlov kutilmoqda), matn tuzuvchi (free-AI router + zaxira matn), javob tasnifi, kun tartibi mantiqi.
+  2. `src/schedulers/daily_priority_checkin.py` — Du–Shan 09:30 taklif, 11:30 eslatma, 15:00 kunduzgi soʻrov, 18:30 egasiga xulosa; `DAILY_PRIORITY_ENABLED=0` jadval va handlerni oʻchiradi.
+  3. `src/handlers/daily_priority_reply.py` — faqat shaxsiy chat, roʻyxatdagi aʼzo, bugun savol ketgan boʻlsa; `/` buyruqlari oʻtkazib yuboriladi.
+  4. `bot_head.py` / `schedulers.py` — handler va jadval ulandi; soatlik guruh check-in (`remote_staff_checkin_loop`) endi ishga tushirilmaydi.
+  5. Review tuzatishlari: holat eski nusxa bilan ustidan yozilmaydi (`state.update_entry`), "qildim" kabi oraliq harakat "bajarildi" hisoblanmaydi, buyruqlar va oʻchirish kaliti handlerda hisobga olinadi, amoCRM sahifalab oʻqiladi.
+- **Oʻzgargan fayllar:** yuqoridagilar + `tests/test_daily_priority.py`, `tests/test_bootstrap_aiogram_bot_head.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest tests/test_daily_priority.py tests/test_bootstrap_aiogram_bot_head.py -q` → 24 passed; tegishli (`seller_reply or checkin or bot_head or scheduler`) → 182 passed; `check_uzbek_text.py` → yangi fayllar toza.
+- **Qolgan ish/Bloker:** (a) Prod (Hetzner) ga hali deploy qilinmagan — `/home/deploy/oisha-os` git emas, Claude sessiyasidan scp ruxsati rad etildi; egasi qoʻlda nusxalaydi. (b) amoCRM bosqich filtri prodda jonli tekshirilmagan. (c) Aʼzolar `@jonairobot` ga `/start` bosmagan boʻlsa shaxsiy xabar yetmaydi. (d) Uch sotuvchi bitta amoCRM foydalanuvchisida — bitimlar navbat bilan boʻlinadi. (e) GitHub Actions billing sababli PR checklari ishlamayapti.

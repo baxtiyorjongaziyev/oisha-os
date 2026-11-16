@@ -38,6 +38,12 @@ def register_inline_search_handlers(
 
     @dp.inline_query()
     async def _inline_search(query: Any) -> None:
+        sender = getattr(query, "from_user", None)
+        sender_id = int(getattr(sender, "id", 0) or 0)
+        if not is_admin(sender_id):
+            await query.answer([], cache_time=1, is_personal=True)
+            return
+
         text = (
             getattr(query, "query", "") or getattr(query, "text", "") or ""
         ).strip()

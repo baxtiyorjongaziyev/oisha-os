@@ -5,6 +5,7 @@ from scripts import sync_agents_runtime as agents
 
 
 def _run_sync(tmp_path, monkeypatch, *, enable_doctor=False):
+    monkeypatch.setattr(agents.os, "name", "posix")
     home = tmp_path / "home" / "ubuntu"
     (home / ".openclaw").mkdir(parents=True)
     calls = []
