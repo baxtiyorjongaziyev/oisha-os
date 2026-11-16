@@ -130,3 +130,71 @@ def test_gsheets_client_metadata_uses_gspread_classes(tmp_path):
         obj._authenticate()
     assert obj.spreadsheet is not None
     assert "Pul oqimi" in obj._worksheets
+
+
+def test_database_pool_resets_idle_hrana_transaction_error():
+    from src.database_pool import _is_resettable_connection_error
+
+    err = ValueError(
+        'Hrana: `stream error: Error { message: "SQLite error: interactive transaction was rolled back because the stream was idle for too long; retry the transaction", code: "SQLITE_BUSY" }`'
+    )
+    assert _is_resettable_connection_error(err) is True
+
+
+def test_gsheets_client_sets_http_timeout(tmp_path):
+    import gspread
+    from src.services.core.finance.gsheets.client import GsheetClientMixin
+
+    creds_file = tmp_path / "sa.json"
+    creds_file.write_text("{}", encoding="utf-8")
+    obj = GsheetClientMixin.__new__(GsheetClientMixin)
+    obj.spreadsheet_id = "sheet-123"
+    obj.credentials_path = str(creds_file)
+    obj.client = None
+    obj.spreadsheet = None
+    obj._worksheets = {}
+
+    http_client = MagicMock(spec=gspread.http_client.HTTPClient)
+    http_client.fetch_sheet_metadata.return_value = {"properties": {"title": "Book"}, "sheets": []}
+    fake_client = MagicMock()
+    fake_client.http_client = http_client
+    with patch("src.services.core.finance.gsheets.client.Credentials") as mock_creds, \
+         patch("src.services.core.finance.gsheets.client.gspread.authorize", return_value=fake_client):
+        mock_creds.from_service_account_file.return_value = MagicMock()
+        obj._authenticate()
+    fake_client.set_timeout.assert_called_once_with(15)
+
+
+@pytest.mark.asyncio
+async def test_init_core_services_does_not_block_on_slow_gsheets_cache(monkeypatch):
+    from src.bootstrap.orchestration import core_services
+    from src.api.routes.state import api_state
+
+    slow_done = asyncio.Event()
+
+    class _SlowStore:
+        def __init__(self, gs_id, creds):
+            self._worksheets = {}
+
+        async def init(self):
+            await asyncio.sleep(5.0)
+            slow_done.set()
+
+    fake_db = MagicMock()
+    fake_db.init_instance = AsyncMock()
+    monkeypatch.setattr(core_services, "Database", lambda: fake_db)
+    monkeypatch.setattr(core_services, "MessageController", lambda **kw: MagicMock())
+    monkeypatch.setattr(core_services.settings, "HISOBCHI_GSHEET_ID", "sheet-123")
+    monkeypatch.setattr(core_services.settings, "HISOBCHI_GSHEET_CREDS_FILE", "sa.json")
+    monkeypatch.setattr(core_services, "init_core_services", core_services.init_core_services)
+    monkeypatch.setattr("src.services.core.hisobchi_gsheets.HisobchiGsheetStore", _SlowStore)
+
+    t0 = time.monotonic()
+    _, _, store, _ = await core_services.init_core_services()
+    elapsed = time.monotonic() - t0
+    assert elapsed < 0.5, f"boot blocked on slow gsheets init: {elapsed:.2f}s"
+    assert store is not None
+    assert api_state.finance_source is not None
+    for task in asyncio.all_tasks():
+        if task.get_name() == "hisobchi_gs_cache_warmup":
+            task.cancel()

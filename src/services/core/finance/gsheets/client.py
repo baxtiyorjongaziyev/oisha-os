@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import threading
 from typing import Any, Optional
 import gspread
 try:
@@ -83,6 +84,8 @@ class GsheetClientMixin:
                 creds_file, scopes=_GSHEET_SCOPES
             )
             self.client = gspread.authorize(creds)
+            if self.client and hasattr(self.client, "set_timeout"):
+                self.client.set_timeout(15)
             if self.spreadsheet_id and self.client:
                 metadata = self.client.http_client.fetch_sheet_metadata(
                     self.spreadsheet_id,
@@ -181,13 +184,20 @@ class GsheetClientMixin:
     def _load_cache(self):
         if self._loaded or not self.spreadsheet:
             return
-        self._load_sheet_cache(SHEET_XOTIRA)
-        self._load_sheet_cache(SHEET_QOIDALAR)
-        self._load_sheet_cache(SHEET_PUL_OQIMI)
-        self._load_sheet_cache(SHEET_SHAXSIY)
-        for s in (SHEET_QARZ, SHEET_BYUDJET, SHEET_MAOSH, SHEET_FOYDA_ZARAR, SHEET_BALANS):
-            self._load_sheet_cache(s)
-        self._loaded = True
+        lock = getattr(self, "_cache_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._cache_lock = lock
+        with lock:
+            if self._loaded or not self.spreadsheet:
+                return
+            self._load_sheet_cache(SHEET_XOTIRA)
+            self._load_sheet_cache(SHEET_QOIDALAR)
+            self._load_sheet_cache(SHEET_PUL_OQIMI)
+            self._load_sheet_cache(SHEET_SHAXSIY)
+            for s in (SHEET_QARZ, SHEET_BYUDJET, SHEET_MAOSH, SHEET_FOYDA_ZARAR, SHEET_BALANS):
+                self._load_sheet_cache(s)
+            self._loaded = True
 
     def _load_sheet_cache(self, sheet_name: str):
         ws = self._worksheets.get(sheet_name)
