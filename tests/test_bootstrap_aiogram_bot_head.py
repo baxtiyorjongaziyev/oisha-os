@@ -135,6 +135,10 @@ def patched(monkeypatch):
         lambda dp: None,
     )
     monkeypatch.setattr(
+        "src.bootstrap.orchestration.bot_head.register_daily_priority_handlers",
+        lambda dp: None,
+    )
+    monkeypatch.setattr(
         "src.bootstrap.orchestration.bot_head.register_existing_contact_signal_callbacks",
         lambda dp, *, msg_controller, owner_id: existing_contact_signal_calls.append(
             (msg_controller, owner_id)

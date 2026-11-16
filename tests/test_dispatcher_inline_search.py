@@ -136,6 +136,34 @@ async def test_phone_message_ignored_for_non_admin():
     assert calls == []
 
 
+@pytest.mark.asyncio
+async def test_inline_query_ignored_for_non_admin():
+    dp = _Dispatcher()
+    lookup_calls = []
+
+    async def fake_lookup(phone):
+        lookup_calls.append(phone)
+        return {"first_name": "Secret", "last_name": "Lead", "user_id": 99}
+
+    class _DB:
+        def get_connection(self):
+            raise AssertionError("non-admin inline query must not touch DB")
+
+    register_inline_search_handlers(
+        dp, is_admin=lambda uid: False, perform_global_lookup=fake_lookup, db=_DB()
+    )
+    _filters, handler = dp.inline_handlers[0]
+
+    q_phone = _InlineQuery("+998901234567")
+    await handler(q_phone)
+    assert lookup_calls == []
+    assert q_phone.answered[0][0] == []
+
+    q_name = _InlineQuery("Kamila")
+    await handler(q_name)
+    assert q_name.answered[0][0] == []
+
+
 def test_phone_re_matches_uz_numbers_only():
     assert re.search(PHONE_RE, "+998901234567")
     assert re.search(PHONE_RE, "call me on 90 123 45 67 please")

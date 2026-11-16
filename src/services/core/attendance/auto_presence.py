@@ -121,8 +121,10 @@ async def _punch(svc: AttendanceService, actor: Actor, kind: str, day: str, meth
 
 async def on_location(db, telegram_id: int, latitude: float, longitude: float,
                       accuracy_m: Optional[float], *, service: Optional[AttendanceService] = None,
-                      now_local: Optional[datetime] = None) -> Optional[str]:
-    """Telegram lokatsiyasi. Qo'yilgan belgi ("check_in"/"check_out") yoki None."""
+                      now_local: Optional[datetime] = None, allow_check_in: bool = True) -> Optional[str]:
+    """Telegram lokatsiyasi. Qoʻyilgan belgi ("check_in"/"check_out"), "face_required" yoki None.
+
+    ``allow_check_in=False`` (yuz tasdigʻi talab qilinadi): hududga kirgan boʻlsa ham "keldi" qoʻyilmaydi."""
     await init_tables(db)
     actor = await _actor_for_telegram(db, telegram_id)
     if actor is None:
@@ -154,6 +156,8 @@ async def on_location(db, telegram_id: int, latitude: float, longitude: float,
     svc = service or _default_service(db)
     day, came, left = await _today_flags(db, svc, actor.employee_id)
     if inside and not came:
+        if not allow_check_in:
+            return "face_required"
         return await _punch(svc, actor, CHECK_IN, day, "telegram_live_location")
     if (not inside and came and not left and leave_allowed(now_local)
             and now - outside_since >= LEAVE_AFTER_SECONDS):
