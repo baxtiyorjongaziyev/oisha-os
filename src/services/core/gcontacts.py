@@ -25,18 +25,28 @@ class GoogleContactsSync:
 
     def _authenticate(self):
         """Google API bilan avtorizatsiya (JSON token yoki Service Account)."""
-        creds = load_user_credentials("token.json", self.scopes)
-        if creds:
-            logger.info("[GCONTACTS OK] Shaxsiy Google akkaunti (Token) ishga tushdi.")
+        creds = None
+        for token_path in ("token.json", "data/token.json"):
+            creds = load_user_credentials(token_path, self.scopes)
+            if creds:
+                logger.info("[GCONTACTS OK] Shaxsiy Google akkaunti (Token) ishga tushdi.")
+                break
 
         # 2. service_account.json (Fallback)
         if not creds:
-            if os.path.exists(self.credentials_path):
+            candidates = [
+                self.credentials_path,
+                "service_account.json",
+                "data/service_account.json",
+                os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip(),
+            ]
+            sa_path = next((p for p in dict.fromkeys(candidates) if p and os.path.exists(p)), None)
+            if sa_path:
                 try:
                     creds = ServiceAccountCredentials.from_service_account_file(
-                        self.credentials_path, scopes=self.scopes
+                        sa_path, scopes=self.scopes
                     )
-                    logger.info("[GCONTACTS OK] Service Account ulandi.")
+                    logger.info("[GCONTACTS OK] Service Account ulandi (%s).", sa_path)
                 except Exception as e:
                     logger.error(
                         f"[GCONTACTS] Service Account avtorizatsiyasida xato: {e}"

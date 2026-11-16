@@ -7,8 +7,9 @@ Instagram, and Voice Calls into a unified Customer360Profile.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from src.services.customer_360.models import CallInteraction, Customer360Profile
 
@@ -75,6 +76,14 @@ class Customer360Collector:
 
         return profile
 
+    @staticmethod
+    async def _call_sync_or_async(fn: Any, *args: Any) -> Any:
+        """Invoke either an async coroutine method or a blocking sync method safely."""
+        if inspect.iscoroutinefunction(fn):
+            return await fn(*args)
+        result = await asyncio.to_thread(fn, *args)
+        return await result if inspect.isawaitable(result) else result
+
     async def _enrich_from_amocrm(self, profile: Customer360Profile) -> None:
         """AmoCRM dan bitim, kontakt va statuslarni olish."""
         if not self.amocrm:
@@ -88,11 +97,11 @@ class Customer360Collector:
         lead_data: Optional[Dict[str, Any]] = None
         try:
             if profile.amocrm_lead_id:
-                lead_data = await asyncio.to_thread(
+                lead_data = await self._call_sync_or_async(
                     self.amocrm.get_lead, profile.amocrm_lead_id
                 )
             elif profile.phone:
-                lead_data = await asyncio.to_thread(
+                lead_data = await self._call_sync_or_async(
                     self.amocrm.find_active_lead_by_phone, profile.phone
                 )
         except Exception as ex:

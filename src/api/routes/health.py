@@ -5,7 +5,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -83,10 +83,73 @@ async def liveness_probe():
     )
 
 
+async def _probe_database() -> tuple[str, Optional[str]]:
+    """Run readiness database check with a 3s bound."""
+    if api_state.db_instance is None:
+        return "no_instance", "database_not_initialized"
+    try:
+        conn = await asyncio.wait_for(
+            api_state.db_instance.get_connection(), timeout=3.0
+        )
+        result = conn.execute("SELECT 1")
+        if hasattr(result, "__await__"):
+            await asyncio.wait_for(result, timeout=3.0)
+        return "ok", None
+    except asyncio.TimeoutError:
+        return "timeout", "database_timeout"
+    except Exception as exc:
+        logger.error("Exception handled in %s", __name__, exc_info=True)
+        return f"failed: {type(exc).__name__}", "database_unavailable"
+
+
+async def _probe_userbot(
+    *, control_plane_mode: bool, vm_service_mode: bool, runtime: Dict[str, Any]
+) -> tuple[str, Optional[str]]:
+    """Check Telethon userbot authorization without blocking bot-token readiness."""
+    if control_plane_mode:
+        return "delegated", None
+    if vm_service_mode:
+        userbot_ok = runtime.get("userbot_authorized") is True
+    elif api_state.user_client is not None:
+        try:
+            userbot_ok = await asyncio.wait_for(
+                api_state.user_client.is_user_authorized(), timeout=2.0
+            )
+        except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
+            userbot_ok = False
+    else:
+        userbot_ok = False
+    return ("authorized" if userbot_ok else "unauthorized"), (
+        None if userbot_ok else "userbot_unauthorized"
+    )
+
+
+async def _probe_amocrm(*, control_plane_mode: bool) -> tuple[str, Optional[str], Optional[str]]:
+    """Check AmoCRM readiness concurrently within a tight 4s ceiling."""
+    amocrm_ok = False
+    amocrm = None
+    detail: Optional[str] = None
+    try:
+        from src.api.routes.amocrm_integration import _get_amocrm_instance
+
+        amocrm = _get_amocrm_instance()
+        if amocrm and hasattr(amocrm, "check_connection"):
+            amocrm_ok = await asyncio.wait_for(amocrm.check_connection(), timeout=4.0)
+    except asyncio.TimeoutError:
+        detail = "probe_timeout"
+    except Exception as exc:
+        logger.debug("[HEALTH] AmoCRM check: %s", exc)
+    if amocrm_ok:
+        return "connected", None, None
+    detail = detail or (getattr(amocrm, "last_error", None) if amocrm else None)
+    return "unavailable", detail, (None if control_plane_mode else "amocrm_unavailable")
+
+
 @router.get("/readyz")
 @router.get("/readyz/")
 async def production_readiness_probe():
-    """Cloud Run readiness probe."""
+    """Cloud Run readiness probe (probes DB, userbot and AmoCRM concurrently)."""
     from src.services.core.agent_runtime import get_runtime_context
     from src.time_utils import get_local_now
 
@@ -100,75 +163,34 @@ async def production_readiness_probe():
     control_plane_mode = scheduler_mode == "control-plane"
     vm_service_mode = runtime_source == "vm_service"
 
-    if api_state.db_instance is not None:
-        try:
-            conn = await asyncio.wait_for(
-                api_state.db_instance.get_connection(), timeout=3.0
-            )
-            result = conn.execute("SELECT 1")
-            if hasattr(result, "__await__"):
-                result = await result
-            checks["database"] = "ok"
-        except asyncio.TimeoutError:
-            checks["database"] = "timeout"
-            problems.append("database_timeout")
-        except Exception as exc:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
-            checks["database"] = f"failed: {type(exc).__name__}"
-            problems.append("database_unavailable")
-    else:
-        checks["database"] = "no_instance"
-        problems.append("database_not_initialized")
-
-    userbot_ok = False
-    if control_plane_mode:
-        checks["userbot"] = "delegated"
-    elif vm_service_mode:
-        # The Oracle VM owns the Telethon connection if configured. If userbot
-        # session is expired, it runs gracefully in bot-token mode.
-        userbot_ok = runtime.get("userbot_authorized") is True
-        checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
-    elif api_state.user_client is not None:
-        try:
-            userbot_ok = await asyncio.wait_for(
-                api_state.user_client.is_user_authorized(), timeout=2.0
-            )
-        except Exception:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
-            userbot_ok = False
-        checks["userbot"] = "authorized" if userbot_ok else "unauthorized"
-    else:
-        checks["userbot"] = "unauthorized"
-
-    if not userbot_ok and not control_plane_mode:
-        problems.append("userbot_unauthorized")
-
-    amocrm_ok = False
-    amocrm = None
-    try:
-        from src.api.routes.amocrm_integration import _get_amocrm_instance
-        amocrm = _get_amocrm_instance()
-        if amocrm and hasattr(amocrm, "check_connection"):
-            amocrm_ok = await asyncio.wait_for(amocrm.check_connection(), timeout=8.0)
-    except asyncio.TimeoutError:
-        # Sekin tarmoq != o'lik token. Sababsiz "unavailable" owner'ni
-        # keraksiz qayta avtorizatsiyaga undardi.
-        checks["amocrm_detail"] = "probe_timeout"
-    except Exception as exc:
-        logger.debug("[HEALTH] AmoCRM check: %s", exc)
-    checks["amocrm"] = "connected" if amocrm_ok else "unavailable"
-    if not amocrm_ok:
-        # Surface *why* — "unavailable" alone hides the difference between a
-        # transient network blip and a dead refresh token that needs a human
-        # to re-authorize. This reaches the owner via the deploy notification's
-        # degraded-checks summary.
-        detail = getattr(amocrm, "last_error", None) if amocrm else None
-        if detail and "amocrm_detail" not in checks:
-            checks["amocrm_detail"] = detail
-        if not control_plane_mode:
-            problems.append("amocrm_unavailable")
+    (db_status, db_problem), (ub_status, ub_problem), (crm_status, crm_detail, crm_problem) = (
+        await asyncio.gather(
+            _probe_database(),
+            _probe_userbot(
+                control_plane_mode=control_plane_mode,
+                vm_service_mode=vm_service_mode,
+                runtime=runtime,
+            ),
+            _probe_amocrm(control_plane_mode=control_plane_mode),
+        )
+    )
+    checks["database"] = db_status
+    checks["userbot"] = ub_status
+    checks["amocrm"] = crm_status
+    if crm_detail:
+        checks["amocrm_detail"] = crm_detail
+    for problem in (db_problem, ub_problem, crm_problem):
+        if problem:
+            problems.append(problem)
     checks["runtime"] = runtime_source
 
+    return _build_readiness_response(checks, problems, now)
+
+
+def _build_readiness_response(
+    checks: Dict[str, Any], problems: List[str], now: datetime
+) -> JSONResponse:
+    """Partition readiness problems into blocking vs degraded and serialize HTTP status."""
     soft = (
         STRICT_SOFT_DEPENDENCY_PROBLEMS
         if _strict_dependencies()
@@ -176,15 +198,8 @@ async def production_readiness_probe():
     )
     blocking = [p for p in problems if p not in soft]
     degraded = [p for p in problems if p in soft]
-
     serving = len(blocking) == 0
-    if not serving:
-        status = "not_ready"
-    elif degraded:
-        status = "degraded"
-    else:
-        status = "ready"
-
+    status = "not_ready" if not serving else ("degraded" if degraded else "ready")
     result = {
         "ready": serving,
         "status": status,

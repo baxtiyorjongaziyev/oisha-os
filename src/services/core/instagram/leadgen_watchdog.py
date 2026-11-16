@@ -6,7 +6,7 @@ import logging
 import os
 import time
 import requests
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from src.services.core.instagram.leadgen_delivery import (
     get_pending_deliveries,
@@ -14,7 +14,7 @@ from src.services.core.instagram.leadgen_delivery import (
     increment_delivery_retry,
     get_delivery_summary,
 )
-from src.services.core.instagram.leadgen_dedup import is_leadgen_processed, mark_leadgen_processed
+from src.services.core.instagram.leadgen_dedup import mark_leadgen_processed
 
 logger = logging.getLogger("LeadgenWatchdog")
 
@@ -24,6 +24,7 @@ _IN_FLIGHT_GRACE_SEC = int(os.getenv("LEADGEN_WATCHDOG_GRACE_SEC", "600"))
 
 
 _DISPATCHED_SOS: set[str] = set()
+_SKIPPED_DEST_WARNED: set[str] = set()
 
 
 def send_lead_sos_alert(leadgen_id: str, lead_id: Optional[int], channel: str, error: str) -> bool:
@@ -102,7 +103,6 @@ async def retry_pending_leadgen_deliveries() -> int:
         build_telegram_message,
         _fetch_leadgen_payload,
         flatten_field_data,
-        _pick,
         _pick_name,
         _pick_phone,
         _amocrm_instance,
@@ -122,6 +122,8 @@ async def retry_pending_leadgen_deliveries() -> int:
 
     for item in pending:
         leadgen_id = str(item["leadgen_id"])
+        if leadgen_id.startswith("test_"):
+            continue
         lead_id = item.get("lead_id")
         amocrm_ok = bool(item.get("amocrm_ok"))
         sheets_ok = bool(item.get("sheets_ok"))
@@ -130,7 +132,9 @@ async def retry_pending_leadgen_deliveries() -> int:
         retries = int(item.get("retries") or 0)
         if destination not in ("utc", "inhouse"):
             # Taqsimot yozilmagan bo'lsa taxmin qilmaymiz (noto'g'ri voronkaga tushmasin).
-            logger.warning("[WATCHDOG] destination missing, skip leadgen_id=%s", leadgen_id)
+            if leadgen_id not in _SKIPPED_DEST_WARNED:
+                _SKIPPED_DEST_WARNED.add(leadgen_id)
+                logger.warning("[WATCHDOG] destination missing, skip leadgen_id=%s", leadgen_id)
             continue
 
         if destination == "inhouse":

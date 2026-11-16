@@ -1,21 +1,6 @@
-"""Skill Learner — Owner'ning Telegram harakatlaridan skill o'rganish (Hermes uslubi).
-
-Oqim:
-  1. ``record_owner_action`` — Owner yuborgan har bir chiquvchi xabar (va u javob
-     bergan xabar) ``owner_actions`` jadvaliga yoziladi.
-  2. ``mine_skills`` — davriy ravishda yig'ilgan harakatlar LLM'ga beriladi, u
-     takrorlanuvchi naqshlarni skill qoralamasi sifatida chiqaradi.
-  3. Qoralamalar ``learned_skills`` jadvaliga ``pending`` holatda tushadi va
-     Owner'ga Saved Messages orqali yuboriladi.
-  4. Owner ``/skill_ok <id>`` yoki ``/skill_no <id>`` bilan tasdiqlaydi/rad etadi.
-     Tasdiqlangan skill ``data/learned_skills/<slug>/SKILL.md`` ga yoziladi.
-
-Shadow rejim: o'rganilgan skill hech qachon o'zi harakat qilmaydi. U faqat
-``get_active_skills_context`` orqali kontekst sifatida beriladi.
-"""
+"""Skill Learner — Ownerʼning Telegram harakatlaridan skill oʻrganish (Shadow rejim)."""
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -32,30 +17,16 @@ MINE_BATCH = 200
 MINE_INTERVAL_SECONDS = int(os.getenv("SKILL_LEARNER_INTERVAL_SECONDS", str(6 * 3600)))
 SKILLS_DIR = Path(os.getenv("SKILL_LEARNER_DIR", "data/learned_skills"))
 
-_CREATE_ACTIONS = """
-CREATE TABLE IF NOT EXISTS owner_actions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chat_id TEXT,
-    chat_kind TEXT,
-    text TEXT,
-    reply_to_text TEXT,
-    processed INTEGER DEFAULT 0,
-    created_at TEXT
+_CREATE_ACTIONS = (
+    "CREATE TABLE IF NOT EXISTS owner_actions ("
+    "id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, chat_kind TEXT, "
+    "text TEXT, reply_to_text TEXT, processed INTEGER DEFAULT 0, created_at TEXT)"
 )
-"""
-
-_CREATE_SKILLS = """
-CREATE TABLE IF NOT EXISTS learned_skills (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    trigger TEXT,
-    steps TEXT,
-    example TEXT,
-    status TEXT DEFAULT 'pending',
-    created_at TEXT,
-    decided_at TEXT
+_CREATE_SKILLS = (
+    "CREATE TABLE IF NOT EXISTS learned_skills ("
+    "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, trigger TEXT, steps TEXT, "
+    "example TEXT, status TEXT DEFAULT 'pending', created_at TEXT, decided_at TEXT)"
 )
-"""
 
 _ensured: Set[int] = set()
 
@@ -266,12 +237,16 @@ async def mine_skills(db: Any = None, router: Any = None) -> List[int]:
         if slugify(draft["name"]) in existing_slugs:
             continue
         cursor = await _maybe_await(conn.execute(
-            "INSERT INTO learned_skills (name, trigger, steps, example, status, created_at) "
-            "VALUES (?, ?, ?, ?, 'pending', ?)",
-            (draft["name"], draft["trigger"], json.dumps(draft["steps"], ensure_ascii=False),
-             draft["example"], _now()),
+            "INSERT INTO learned_skills (name, trigger, steps, example, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)",
+            (draft["name"], draft["trigger"], json.dumps(draft["steps"], ensure_ascii=False), draft["example"], _now()),
         ))
         new_id = getattr(cursor, "lastrowid", None)
+        if new_id is None:
+            id_rows = await _fetchall(
+                conn, "SELECT id FROM learned_skills WHERE name = ? ORDER BY id DESC LIMIT 1", (draft["name"],)
+            )
+            if id_rows:
+                new_id = _row_get(id_rows[0], "id", 0)
         if new_id is not None:
             new_ids.append(int(new_id))
         existing_slugs.add(slugify(draft["name"]))
@@ -307,30 +282,21 @@ async def _get_skill(conn: Any, skill_id: int) -> Optional[Dict[str, Any]]:
 
 def format_skill_card(skill: Dict[str, Any]) -> str:
     steps = "\n".join(f"  {i}. {s}" for i, s in enumerate(skill.get("steps") or [], 1))
-    card = (
+    ex = f"Namuna: {skill['example']}\n" if skill.get("example") else ""
+    return (
         f"🧠 Yangi skill #{skill['id']}: {skill['name']}\n"
-        f"Qachon: {skill['trigger']}\n"
-        f"Qadamlar:\n{steps}\n"
+        f"Qachon: {skill['trigger']}\nQadamlar:\n{steps}\n{ex}"
+        f"\n/skill_ok {skill['id']} — tasdiqlash\n/skill_no {skill['id']} — rad etish"
     )
-    if skill.get("example"):
-        card += f"Namuna: {skill['example']}\n"
-    card += f"\n/skill_ok {skill['id']} — tasdiqlash\n/skill_no {skill['id']} — rad etish"
-    return card
 
 
 def render_skill_md(skill: Dict[str, Any]) -> str:
     steps = "\n".join(f"{i}. {s}" for i, s in enumerate(skill.get("steps") or [], 1))
     example = f"\n## Namuna\n\n{skill['example']}\n" if skill.get("example") else ""
     return (
-        "---\n"
-        f"name: {slugify(skill['name'])}\n"
-        f"description: {skill['trigger']}\n"
-        "source: owner-telegram-actions\n"
-        "---\n\n"
-        f"# {skill['name']}\n\n"
-        f"**Qachon:** {skill['trigger']}\n\n"
-        f"## Qadamlar\n\n{steps}\n"
-        f"{example}"
+        f"---\nname: {slugify(skill['name'])}\ndescription: {skill['trigger']}\n"
+        f"source: owner-telegram-actions\n---\n\n# {skill['name']}\n\n"
+        f"**Qachon:** {skill['trigger']}\n\n## Qadamlar\n\n{steps}\n{example}"
     )
 
 
@@ -349,6 +315,12 @@ async def decide_skill(skill_id: int, approve: bool, db: Any = None) -> Optional
     ))
     await _maybe_await(conn.commit())
     skill["status"] = status
+    try:
+        from src.services.core.adaptive_learning import reset_adaptive_cache
+
+        reset_adaptive_cache()
+    except Exception:
+        pass
     if approve:
         try:
             path = SKILLS_DIR / slugify(skill["name"]) / "SKILL.md"
@@ -383,15 +355,11 @@ async def get_active_skills_context(db: Any = None, limit: int = 10) -> str:
     return "\n".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# 4. Telegram integratsiya
-# ---------------------------------------------------------------------------
-
 _CMD_RE = re.compile(r"^/(skills|skill_ok|skill_no)(?:\s+(\d+))?\s*$")
 
 
 async def handle_skill_command(event: Any, db: Any = None) -> bool:
-    """Saved Messages'dagi /skills, /skill_ok <id>, /skill_no <id> buyruqlari."""
+    """Saved Messagesʼdagi /skills, /skill_ok <id>, /skill_no <id> buyruqlari."""
     match = _CMD_RE.match((getattr(event, "raw_text", "") or "").strip())
     if not match:
         return False
@@ -399,7 +367,7 @@ async def handle_skill_command(event: Any, db: Any = None) -> bool:
     if cmd == "skills":
         skills = await list_skills(db)
         if not skills:
-            await event.reply("🧠 Hali skill o'rganilmagan.")
+            await event.reply("🧠 Hali skill oʻrganilmagan.")
             return True
         icons = {"pending": "⏳", "active": "✅", "rejected": "❌"}
         lines = [f"{icons.get(s['status'], '•')} #{s['id']} {s['name']}" for s in skills[-30:]]
@@ -418,22 +386,13 @@ async def handle_skill_command(event: Any, db: Any = None) -> bool:
     return True
 
 
-async def skill_learner_loop(client: Any, db: Any = None) -> None:
-    """Davriy qazib olish va yangi qoralamalarni Owner'ga yuborish."""
-    if not is_enabled():
-        logger.info("[SKILL_LEARNER] O'chirilgan (ENABLE_SKILL_LEARNER=0)")
-        return
-    await asyncio.sleep(120)
-    while True:
-        try:
-            new_ids = await mine_skills(db)
-            conn = await _conn(db) if new_ids else None
-            for skill_id in new_ids:
-                skill = await _get_skill(conn, skill_id)
-                if skill and client is not None:
-                    await client.send_message("me", format_skill_card(skill))
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.error("[SKILL_LEARNER] Loop xatosi: %s", exc, exc_info=True)
-        await asyncio.sleep(MINE_INTERVAL_SECONDS)
+async def skill_learner_loop(
+    client: Any,
+    db: Any = None,
+    bot_runtime: Any = None,
+    owner_id: Optional[int] = None,
+) -> None:
+    """Davriy qazib olish va yangi qoralamalarni Ownerʼga yuborish."""
+    from src.services.core.skill_learner_bot import run_skill_learner_loop
+
+    await run_skill_learner_loop(client=client, db=db, bot_runtime=bot_runtime, owner_id=owner_id)

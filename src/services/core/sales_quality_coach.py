@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from src.services.utils.db_rows import fetch_rows
 from src.services.core.sales_playbook import SCORE_RED, rubric_prompt_uz
+from src.services.core.sales_quality_filters import exclude_non_sales as _exclude_non_sales
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,7 @@ class SalesQualityCoach:
 
     def build_daily_report(self, rows: List[Any], day_iso: str) -> Optional[str]:
         """Kunlik sifat hisoboti matni. Ma'lumot bo'lmasa None."""
+        rows = _exclude_non_sales(rows)
         if not rows:
             return None
 
@@ -212,7 +214,7 @@ class SalesQualityCoach:
         qamrab oladi. LLM yo'q bo'lsa, deterministik zaiflik ro'yxati bilan
         qaytadi — hech qachon jim qolmaydi.
         """
-        rows = await self.fetch_day_analyses(day_iso)
+        rows = _exclude_non_sales(await self.fetch_day_analyses(day_iso))
         if not rows:
             return None
 

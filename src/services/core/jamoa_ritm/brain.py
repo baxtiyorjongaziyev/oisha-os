@@ -71,9 +71,18 @@ class HamrohBrain:
         self._tz = tz
 
     async def _ask(self, prompt: str, *, max_tokens: int, temperature: float) -> str:
+        system = HAMROH_SYSTEM
+        try:
+            from src.services.core.adaptive_learning import get_adaptive_prompt_context
+
+            learned = await get_adaptive_prompt_context(max_chars=350)
+            if learned:
+                system = f"{system}\n\n{learned}"
+        except Exception:
+            logger.debug("[HAMROH] Adaptive context skipped", exc_info=True)
         try:
             text = await self._generate(
-                prompt, system=HAMROH_SYSTEM, max_tokens=max_tokens, temperature=temperature
+                prompt, system=system, max_tokens=max_tokens, temperature=temperature
             )
         except Exception as exc:
             logger.error("[HAMROH] AI javob bermadi: %s", exc)

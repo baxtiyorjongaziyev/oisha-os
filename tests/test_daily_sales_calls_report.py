@@ -160,3 +160,12 @@ def test_rop_feedback_below_50_calls():
     assert "Sifatli suhbat (≥3 daq): <b>0 ta</b>" in text
     assert "Kecha birorta ham 3+ daqiqalik suhbat bo'lmadi" in text
     assert "kamida 50 ta ko'targan va 3+ daqiqa gaplashilgan" in text
+
+
+def test_send_telegram_retries_on_502():
+    bad = MagicMock(status_code=502, text="Bad Gateway")
+    ok = MagicMock(status_code=200, text="ok")
+    with patch.object(rpt.requests, "post", side_effect=[bad, ok]) as post, \
+         patch.object(rpt.time, "sleep"):
+        rpt.send_telegram("tok", "-1001", "hi", "115")
+    assert post.call_count == 2
