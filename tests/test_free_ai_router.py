@@ -242,3 +242,59 @@ async def test_audio_falls_back_from_groq_to_cloudflare():
     assert result is not None
     assert result.provider == "cloudflare"
     assert result.text == "cloudflare audio"
+
+
+@pytest.mark.asyncio
+async def test_gemini_25_flash_disables_thinking_via_reasoning_effort():
+    client = SimpleNamespace(
+        request=AsyncMock(
+            return_value=_response(
+                200,
+                {"choices": [{"message": {"content": "Tayyor javob."}}], "usage": {}},
+            )
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(GEMINI_API_KEY="gk", FREE_AI_GEMINI_MODEL="gemini-2.5-flash"),
+        client,
+    )
+
+    result = await router.generate_text("salom", max_tokens=300)
+
+    assert result.provider == "gemini"
+    assert result.text == "Tayyor javob."
+    sent_json = client.request.call_args.kwargs["json"]
+    assert sent_json["reasoning_effort"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_cerebras_gpt_oss_uses_low_reasoning_and_empty_content_falls_back():
+    client = SimpleNamespace(
+        request=AsyncMock(
+            side_effect=[
+                _response(
+                    200,
+                    {"choices": [{"message": {"content": None, "reasoning": "hidden"}}], "usage": {}},
+                ),
+                _response(
+                    200,
+                    {"choices": [{"message": {"content": "<think>secret</think>Salom!"}}], "usage": {}},
+                ),
+            ]
+        )
+    )
+    router = FreeAIProviderRouter(
+        _settings(
+            CEREBRAS_API_KEY="ck",
+            CEREBRAS_MODEL="gpt-oss-120b",
+            OPENROUTER_API_KEY="ok",
+            OPENROUTER_TEXT_MODEL="llama",
+        ),
+        client,
+    )
+
+    result = await router.generate_text("salom")
+
+    assert client.request.call_args_list[0].kwargs["json"]["reasoning_effort"] == "low"
+    assert result.provider == "openrouter"
+    assert result.text == "Salom!"

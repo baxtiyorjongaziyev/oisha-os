@@ -6,9 +6,11 @@ AI ishlamasa ``None`` qaytadi va chaqiruvchi qolip matnga qaytadi.
 """
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, Optional
 
@@ -18,6 +20,34 @@ Generate = Callable[..., Awaitable[str]]
 
 CONTEXT_FILE = "data/checkin_context.json"
 MAX_CHARS = 700
+_TERMINAL_CHARS = frozenset(".!?…")
+_CLOSING_WRAPPERS = frozenset("\"'»”’)")
+_LEAK_MARKERS = (
+    "developer prompt",
+    "system prompt",
+    "prefix context",
+    "uzbek latin",
+    "last_checkin",
+    "compose_system",
+    "chain of thought",
+    "dial in the last",
+    "in the last hour",
+    "activity is low",
+    "no dials",
+    "instruction says",
+    "prompt says",
+)
+_ENGLISH_META_WORDS = frozenset({
+    "the", "is", "are", "was", "but", "wait", "only", "last", "hour",
+    "low", "script", "context", "prefix", "prompt", "developer",
+    "emoji", "should", "must", "dial", "dials", "latin",
+})
+_UZBEK_WORDS = frozenset({
+    "salom", "xayrli", "tong", "kun", "soat", "mijoz", "raqam", "bilan",
+    "uchun", "qanday", "yaxshi", "qoldi", "bering", "yozing", "rahmat",
+    "javob", "gaplash", "terdingiz", "bugun", "hozir", "qadam", "taklif",
+    "ishlayapsiz", "yopish", "muloqot", "suhbat", "kelishdingiz",
+})
 
 COMPOSE_SYSTEM = """Sen Oisha'san — Jon Branding sotuv bo'limining samimiy, do'stona hamkasbisan.
 Onlayn ishlayotgan sotuv menejeriga soatlik qisqa xabar yozasan. Maqsad: nazorat qilish emas,
@@ -86,6 +116,53 @@ def _describe_activity(activity: Optional[Dict[str, Any]]) -> str:
     return text
 
 
+def _is_emoji_char(ch: str) -> bool:
+    return ord(ch) >= 0x2600 or ch in {"\ufe0f", "\u200d"}
+
+
+def _ends_cleanly(text: str) -> bool:
+    stripped = text.rstrip()
+    if not stripped:
+        return False
+    if _is_emoji_char(stripped[-1]):
+        return True
+    inner = stripped.rstrip("".join(_CLOSING_WRAPPERS))
+    return bool(inner and (inner[-1] in _TERMINAL_CHARS or _is_emoji_char(inner[-1])))
+
+
+def _looks_like_reasoning_leak(text: str) -> bool:
+    lowered = text.lower()
+    if "<think>" in lowered or "</think>" in lowered:
+        return True
+    if re.search(r"(?:^|\n)\s*\*\s+", text):
+        return True
+    if any(marker in lowered for marker in _LEAK_MARKERS):
+        return True
+    ascii_words = [w.lower() for w in re.findall(r"[A-Za-z]+", text)]
+    eng_hits = sum(1 for w in ascii_words if w in _ENGLISH_META_WORDS)
+    uz_hits = sum(1 for w in ascii_words if w in _UZBEK_WORDS)
+    has_uz_diacritics = any(ch in text for ch in "ʻʼöğçşÖĞÇŞ") or any(
+        tok in lowered for tok in ("o'", "g'")
+    )
+    return eng_hits >= 3 and uz_hits == 0 and not has_uz_diacritics
+
+
+def _is_valid_checkin_text(text: str) -> bool:
+    if len(text) < 20 or len(text) > MAX_CHARS:
+        return False
+    if _looks_like_reasoning_leak(text):
+        return False
+    return _ends_cleanly(text)
+
+
+def _sanitize_previous_checkin(raw: Any, seller_name: str) -> str:
+    cleaned = html.unescape(re.sub(r"<[^>]+>", "", str(raw or ""))).strip()
+    if seller_name:
+        pattern = rf"^{re.escape(seller_name)}(?:\s*\([^)]*\))?\s*,\s*"
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned if _is_valid_checkin_text(cleaned) else ""
+
+
 async def compose_checkin(
     seller_name: str,
     now: datetime,
@@ -100,18 +177,20 @@ async def compose_checkin(
         f"Bugun allaqachon salomlashganmiz: {'ha' if same_day else 'yo`q'}.",
         _describe_activity(activity),
     ]
-    if same_day and ctx.get("last_checkin"):
-        prompt_parts.append(f"Sening oldingi xabaring:\n{ctx['last_checkin']}")
+    prev_checkin = _sanitize_previous_checkin(ctx.get("last_checkin"), seller_name) if same_day else ""
+    if prev_checkin:
+        prompt_parts.append(f"Sening oldingi xabaring:\n{prev_checkin}")
     if same_day and ctx.get("last_reply"):
         prompt_parts.append(f"Menejerning oxirgi javobi:\n{ctx['last_reply']}")
     try:
         text = await generate(
-            "\n\n".join(prompt_parts), system=COMPOSE_SYSTEM, max_tokens=300, temperature=0.8
+            "\n\n".join(prompt_parts), system=COMPOSE_SYSTEM, max_tokens=600, temperature=0.8
         )
     except Exception:
         logger.warning("[CHECKIN] AI matn yozmadi, qolipga qaytiladi.", exc_info=True)
         return None
     text = (text or "").strip().strip('"')
-    if len(text) < 20 or len(text) > MAX_CHARS:
+    if not _is_valid_checkin_text(text):
+        logger.warning("[CHECKIN] AI chiqishi notoʻliq yoki xizmat matni chiqdi, qolipga qaytiladi.")
         return None
     return text

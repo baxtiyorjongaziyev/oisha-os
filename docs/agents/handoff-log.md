@@ -2826,3 +2826,18 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Hisob (taxmin, oʻlchanmagan):** ready PR push ~7 → ~5 job-daqiqa, draft PR push ~7 → 0.
 - **Tekshiruv dalillari:** YAML parse OK; `SKIP_LIVE=1 pytest -q` → 3895 passed, 14 skipped; `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza. **GitHub'da ishga tushirib tekshirilmagan** — kvota tugagani uchun Actions ishlamayapti.
 - **Qolgan ish/Bloker:** `jonbranding-web` reposi bu sessiya doirasida emas — u ham kamaytirilmasa umumiy kvota baribir yetmasligi mumkin. Branch protection required checklari (`Import-time crash guard`, `gitleaks`) draftda "skipped" boʻladi; ready qilinganda ishlaydi.
+
+
+## 2026-11-16 — Antigravity — Soatlik check-inlarda Gemini thinking sizib chiqishi va kesilishini tuzatish (`fix/checkin-thinking-leak`)
+- **Sabab:** Rayxon (`@RayxonJonbranding`) va Mumtozmaxal topiclariga soatlik check-in oʻrniga `Uzbek Latin script.\n * 0`, `prefix context, but wait - developer prompt says "F`, `is low (only 1 dial in the last hour,` kabi inglizcha thinking parchalari va `Kun oxirlab qoldi, ch`, `Xayrli tong! Kuningiz unumli` kabi kesilgan xabarlar tushgan. `src/settings.py` da `FREE_AI_GEMINI_MODEL="gemini-2.5-flash"` thinking yoqilgan holda ishlaydi; `free_ai_router.py` OpenAI-mos endpointga `reasoning_effort` yubormagani uchun `checkin_composer.py` dagi `max_tokens=300` ni thinking yeb tugatgan, `last_checkin` esa `Rayxon (@...), ` prefiksi bilan qayta uzatilgan.
+- **Bajarilgan ish:**
+  1. `src/services/utils/free_ai_router.py` (`<= 400` qator): Gemini 2.5 non-Pro uchun `reasoning_effort="none"` (Gemini 3 `minimal`, Gemini 4/2.5 Pro va Cerebras `gpt-oss` uchun `low`), `<think>...</think>` tozalash va boʻsh `content` da keyingi provayderga fallback.
+  2. `src/services/utils/gemini_failover/providers.py`: `msg.get("reasoning")` ni javob sifatida qaytarish olib tashlandi; `gpt-oss` uchun `reasoning_effort="low"`.
+  3. `src/services/core/checkin_composer.py`: `max_tokens` `300` → `600`; `_is_valid_checkin_text` orqali kesilgan/inglizcha/thinking chiqishlarni rad etish (qolip matnga xavfsiz qaytish) va `_sanitize_previous_checkin` orqali eski prefiksli/zaharlangan `last_checkin` kontekstini tozalash.
+  4. Testlar: `tests/test_free_ai_router.py`, `tests/test_checkin_composer.py`, `tests/test_gemini_fallback.py` ga barcha real namuna ssenariylari boʻyicha unit testlar qoʻshildi.
+- **Oʻzgargan fayllar:** `src/services/utils/free_ai_router.py`, `src/services/utils/gemini_failover/providers.py`, `src/services/core/checkin_composer.py`, `tests/test_free_ai_router.py`, `tests/test_checkin_composer.py`, `tests/test_gemini_fallback.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:**
+  - Fokuslangan AI/check-in testlari (15 fayl): `SKIP_LIVE=1 python -m pytest ...` → **197 passed** (30.78s).
+  - Toʻliq suite: `SKIP_LIVE=1 python -m pytest -q --tb=short` → **3893 passed, 18 skipped**, 10 ta avvaldan mavjud Windows/lokal env testlari (`test_amocrm_sync`, `test_amocrm_token_fallback`, `test_drive_oauth_onboarding`, `test_incoming_call_card`, `test_sync_agents_deploy_safety`) oʻzgarishlarga aloqasiz sababdan yiqildi.
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 ... src/` → toza; `bandit -r src/ -ll` → exit 0; `verify_standards.py` → `<= 400` qator standarti OK; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** PR merge qilinib Contabo VPS ga deploy qilinganda jonli check-in chiqishi tasdiqlanishi kerak (GitHub Free Actions kvota limiti sabab hosted PR checklar ishlamasligi mumkin).

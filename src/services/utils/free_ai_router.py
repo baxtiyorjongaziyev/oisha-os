@@ -5,6 +5,7 @@ from src.context import app_ctx
 
 import base64
 import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
@@ -34,6 +35,29 @@ def _text(value: Any) -> str:
     if callable(getter):
         value = getter()
     return str(value or "").strip()
+
+
+def _reasoning_effort_for(provider: str, model: str) -> Optional[str]:
+    """Keep reasoning overhead off/low for short text calls on thinking models."""
+    model_lower = str(model or "").lower()
+    if provider == "gemini":
+        if "gemini-2.5-" in model_lower and "pro" not in model_lower:
+            return "none"
+        if "gemini-3" in model_lower:
+            return "minimal"
+        if "gemini-4" in model_lower or "gemini-2.5-pro" in model_lower:
+            return "low"
+    if provider == "cerebras" and "gpt-oss" in model_lower:
+        return "low"
+    return None
+
+
+def _clean_openai_content(raw: Any) -> str:
+    """Strip inline <think> blocks and reject unclosed thinking traces."""
+    text = re.sub(r"<think>.*?</think>", "", str(raw or ""), flags=re.DOTALL).strip()
+    if "<think>" in text:
+        return ""
+    return text
 
 
 # OpenAI-compatible chat-completion providers offering free / trial tiers
@@ -235,18 +259,20 @@ class FreeAIProviderRouter:
         model = getattr(self.settings, spec["model"])
         messages = [{"role": "system", "content": system}] if system else []
         messages.append({"role": "user", "content": prompt})
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        effort = _reasoning_effort_for(provider, model)
+        if effort is not None:
+            body["reasoning_effort"] = effort
         response = await self._request(
             "POST",
             spec["url"],
-            headers={
-                "Authorization": f"Bearer {_text(getattr(self.settings, spec['key']))}"
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-            },
+            headers={"Authorization": f"Bearer {_text(getattr(self.settings, spec['key']))}"},
+            json=body,
         )
         payload = response.json()
         data = payload if isinstance(payload, dict) else {}
@@ -257,26 +283,19 @@ class FreeAIProviderRouter:
             raise ValueError(f"{provider}: no choices in response ({detail or 'unexpected format'})")
         message = choices[0].get("message") if isinstance(choices[0], dict) else None
         content = (message or {}).get("content") if isinstance(message, dict) else None
+        cleaned = _clean_openai_content(content)
+        if not cleaned:
+            raise ValueError(f"{provider}: empty content in response")
         usage = data.get("usage") or {}
         return ProviderResult(
-            str(content or "").strip(),
-            provider,
-            model,
-            int(usage.get("prompt_tokens") or 0),
-            int(usage.get("completion_tokens") or 0),
+            cleaned, provider, model,
+            int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0),
         )
 
     _GROQ_EXTENSIONS = {
-        "audio/mpeg": "mp3",
-        "audio/mp3": "mp3",
-        "audio/mp4": "m4a",
-        "audio/x-m4a": "m4a",
-        "audio/ogg": "ogg",
-        "audio/opus": "opus",
-        "audio/wav": "wav",
-        "audio/x-wav": "wav",
-        "audio/flac": "flac",
-        "audio/webm": "webm",
+        "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a",
+        "audio/ogg": "ogg", "audio/opus": "opus", "audio/wav": "wav", "audio/x-wav": "wav",
+        "audio/flac": "flac", "audio/webm": "webm",
     }
 
     async def _groq_whisper(self, audio_bytes: bytes, mime_type: str) -> ProviderResult:

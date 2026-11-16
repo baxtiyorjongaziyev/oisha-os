@@ -2,6 +2,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from src.schedulers.remote_staff_checkin_scheduler import send_remote_checkin
 from src.services.core.checkin_composer import compose_checkin, load_context, save_context
 
@@ -83,3 +85,71 @@ def test_send_uses_ai_text_and_escapes_html(tmp_path, monkeypatch):
     assert text.startswith("Rayxon (@RayxonJonbranding), 3 ta")
     assert "&lt;b&gt;" in text and "Assalomu alaykum" not in text
     assert load_context()["last_checkin"] == text
+
+
+@pytest.mark.parametrize(
+    "bad_output",
+    [
+        "Uzbek Latin script.\n        *   0",
+        "Kun oxirlab qoldi, ch",
+        "Xayrli tong! Kuningiz unumli",
+        'prefix context, but wait - developer prompt says "F',
+        "Xayrli tong! Kuningiz unum",
+        "is low (only 1 dial in the last hour,",
+        "<think>ichki</think> Bugun ishlar yaxshi.",
+    ],
+)
+def test_compose_rejects_leaked_reasoning_and_truncated_outputs(bad_output):
+    seen = {}
+
+    async def fake(prompt, **kwargs):
+        seen["max_tokens"] = kwargs["max_tokens"]
+        return bad_output
+
+    result = run(compose_checkin("Rayxon", NOW, ACTIVITY, context={}, generate=fake))
+    assert seen["max_tokens"] >= 500
+    assert result is None
+
+
+def test_compose_strips_prefix_and_ignores_poisoned_last_checkin():
+    seen = {}
+
+    async def fake(prompt, **kwargs):
+        seen["prompt"] = prompt
+        return "Bugun 3 ta mijoz bilan gaplashibsiz. Qaysi biri tolovga tayyor?"
+
+    poisoned_ctx = {
+        "date": "2026-10-27",
+        "last_checkin": 'Rayxon (<a href="tg://user?id=1">@RayxonJonbranding</a>), prefix context, but wait - developer prompt says "F',
+    }
+    run(compose_checkin("Rayxon", NOW, ACTIVITY, context=poisoned_ctx, generate=fake))
+    assert "developer prompt" not in seen["prompt"]
+    assert "Sening oldingi xabaring" not in seen["prompt"]
+
+    clean_ctx = {
+        "date": "2026-10-27",
+        "last_checkin": 'Rayxon (<a href="tg://user?id=1">@RayxonJonbranding</a>), Xayrli tong! Bugun qaysi mijoz bilan gaplashasiz?',
+    }
+    run(compose_checkin("Rayxon", NOW, ACTIVITY, context=clean_ctx, generate=fake))
+    assert "Xayrli tong! Bugun qaysi mijoz bilan gaplashasiz?" in seen["prompt"]
+    assert "@RayxonJonbranding" not in seen["prompt"]
+
+
+def test_send_falls_back_to_template_when_ai_leaks_reasoning(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir()
+    bot = AsyncMock()
+
+    async def fake_generate(*args, **kwargs):
+        return 'prefix context, but wait - developer prompt says "F'
+
+    with patch(
+        "src.schedulers.remote_staff_checkin_scheduler.fetch_recent_calls_for_rep",
+        return_value=ACTIVITY,
+    ), patch("src.services.core.checkin_composer._router_generate", side_effect=fake_generate):
+        ok = run(send_remote_checkin(bot, now_fn=lambda: NOW, tg_handle="@RayxonJonbranding"))
+
+    assert ok is True
+    sent_text = bot.send_message.call_args.args[1]
+    assert "developer prompt" not in sent_text
+    assert "Assalomu alaykum, Rayxon" in sent_text
