@@ -98,3 +98,23 @@ def test_non_numeric_sender_id_is_stable_across_processes():
         for seed in ("1", "2")
     }
     assert len(outs) == 1
+
+
+def test_v1_without_user_does_not_share_identity_between_requests():
+    orch = _FakeOrchestrator()
+    body = {"messages": [{"role": "user", "content": "hi"}]}
+    with _fake_patch(orch):
+        c = _client()
+        assert c.post("/v1/chat/completions", json=body).status_code == 200
+        assert c.post("/v1/chat/completions", json=body).status_code == 200
+    assert orch.calls[0][1] != orch.calls[1][1]
+
+
+def test_v1_with_user_keeps_stable_identity():
+    orch = _FakeOrchestrator()
+    body = {"user": "u1", "messages": [{"role": "user", "content": "hi"}]}
+    with _fake_patch(orch):
+        c = _client()
+        c.post("/v1/chat/completions", json=body)
+        c.post("/v1/chat/completions", json=body)
+    assert orch.calls[0][1] == orch.calls[1][1]

@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import os
+import uuid
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Request
@@ -145,7 +146,9 @@ async def v1_chat_completions(request: Request):
         if not last_msg:
             return JSONResponse(status_code=400, content={"error": "Last message content is empty"})
 
-        user_id = str(data.get("user") or "openai_compat_user")
+        # Without "user" each request gets its own id (stateless): a shared id
+        # would mix chat history between unrelated callers.
+        user_id = str(data.get("user") or f"openai_anon_{uuid.uuid4().hex}")
         session = str(data.get("model") or "oisha-enterprise")
 
         from src.openclaw_bridge import handle_openclaw_message
