@@ -59,3 +59,13 @@ def test_permission_error_on_form_list_keeps_fallback_forms(monkeypatch):
     assert alert.call_count == 0
     polled = [c.args[0] for c in get.call_args_list if c.args[0].endswith("/leads")]
     assert len(polled) >= 1
+
+
+def test_missing_token_alerts_instead_of_silent_skip(monkeypatch):
+    import asyncio
+
+    alerts = []
+    monkeypatch.setattr(sched, "_get_page_token", lambda: "")
+    monkeypatch.setattr(sched, "_alert_token_invalid", alerts.append)
+    assert asyncio.run(sched.poll_leadgen_forms_once()) == 0
+    assert len(alerts) == 1 and "sozlanmagan" in str(alerts[0])
