@@ -75,12 +75,54 @@ class BaseRepository:
         conn = await self._get_conn()
         await conn.executemany(sql, params_list)
 
+    @staticmethod
+    def _is_safe_identifier(name: str) -> bool:
+        return (
+            bool(name)
+            and all(ch.isascii() and (ch.isalnum() or ch == "_") for ch in name)
+            and not name[0].isdigit()
+        )
+
+    async def _get_table_column_types(self, table_name: str) -> dict[str, str]:
+        """Get mapping of column names to SQLite declared types (Turso-safe)."""
+        if not self._is_safe_identifier(table_name):
+            raise ValueError(f"Invalid SQLite identifier: {table_name!r}")
+        conn = await self._get_conn()
+        rows: list = []
+        from_pragma_stmt = False
+        try:
+            cursor = await conn.execute(
+                "SELECT name, type FROM pragma_table_info(?)",
+                (table_name,),
+            )
+            rows = list(await cursor.fetchall())
+        except Exception:
+            rows = []
+        if not rows:
+            try:
+                cursor = await conn.execute(f"PRAGMA table_info({table_name})")
+                rows = list(await cursor.fetchall())
+                from_pragma_stmt = True
+            except Exception:
+                rows = []
+        result: dict[str, str] = {}
+        for row in rows:
+            if hasattr(row, "keys"):
+                name = str(row["name"])
+                col_type = str(row["type"] or "")
+            elif from_pragma_stmt:
+                name = str(row[1])
+                col_type = str(row[2] or "")
+            else:
+                name = str(row[0])
+                col_type = str((row[1] if len(row) > 1 else "") or "")
+            if name:
+                result[name] = col_type
+        return result
+
     async def _get_table_columns(self, table_name: str) -> set[str]:
         """Get column names for a table."""
-        conn = await self._get_conn()
-        cursor = await conn.execute(f"PRAGMA table_info({table_name})")
-        rows = await cursor.fetchall()
-        return {row[1] for row in rows}
+        return set(await self._get_table_column_types(table_name))
 
     async def _add_column_if_missing(self, table: str, column: str, col_type: str) -> None:
         """Add a column if it doesn't exist."""

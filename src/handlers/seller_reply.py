@@ -106,20 +106,31 @@ async def _matches_checkin_reply(
 
 async def _handle_checkin_reply(message: Any) -> None:
     from src.schedulers.remote_staff_checkin_scheduler import rep_storage
+    from src.services.core.adaptive_learning import is_owner_user, record_owner_feedback_rule
     from src.services.core.checkin_composer import save_context
     from src.services.core.sales_coach_reply import coach_reply
     from src.time_utils import get_local_now
 
     try:
         now = get_local_now()
-        name = getattr(message.from_user, "first_name", None) or "doʻstim"
+        user = getattr(message, "from_user", None)
+        name = getattr(user, "first_name", None) or "doʻstim"
         reply_text = _text_of(message)
         reply_to_text = _text_of(message.reply_to_message)
-        rep = _resolve_rep(message, reply_to_text)
-        rep_key = str(rep.get("key") or "rayxon") if rep else "rayxon"
-        _, _, context_file = rep_storage(rep_key)
-        save_context({"date": now.strftime("%Y-%m-%d"), "last_reply": reply_text}, path=context_file)
-        answer = await coach_reply(name, reply_text, reply_to_text)
+        is_owner = is_owner_user(user)
+        if is_owner:
+            await record_owner_feedback_rule(
+                reply_text,
+                user_id=getattr(user, "id", None),
+                speaker=name,
+                chat_id=getattr(getattr(message, "chat", None), "id", None),
+            )
+        else:
+            rep = _resolve_rep(message, reply_to_text)
+            rep_key = str(rep.get("key") or "rayxon") if rep else "rayxon"
+            _, _, context_file = rep_storage(rep_key)
+            save_context({"date": now.strftime("%Y-%m-%d"), "last_reply": reply_text}, path=context_file)
+        answer = await coach_reply(name, reply_text, reply_to_text, is_owner=is_owner)
         await message.reply(answer, parse_mode=None)
     except Exception:
         logger.error("[SELLER-REPLY] Javob berishda xato.", exc_info=True)

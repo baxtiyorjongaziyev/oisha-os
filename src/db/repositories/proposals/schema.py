@@ -12,13 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 async def rename_away_incompatible_legacy_table(repo: Any, conn: Any) -> None:
-    existing_columns = await repo._get_table_columns("improvement_proposals")
+    if hasattr(repo, "_get_table_column_types"):
+        existing_types = await repo._get_table_column_types("improvement_proposals")
+        existing_columns = set(existing_types)
+    else:
+        existing_types = {}
+        existing_columns = await repo._get_table_columns("improvement_proposals")
     if not existing_columns:
         return
-    # Legacy markers alone decide: earlier inits ALTER-added the new columns
-    # (category, title, ...) onto the INTEGER-PK legacy table, so "category"
-    # being present does not mean the schema is current.
-    if not _LEGACY_AGENT_TABLE_MARKERS.issubset(existing_columns):
+    # Legacy markers or INTEGER PK decide: earlier inits ALTER-added the new
+    # columns (category, title, ...) onto the INTEGER-PK legacy table, so
+    # "category" being present does not mean the schema is current.
+    id_type = (existing_types.get("id") or "").upper()
+    is_legacy = _LEGACY_AGENT_TABLE_MARKERS.issubset(existing_columns) or id_type.startswith("INT")
+    if not is_legacy:
         return
     for suffix in range(10):
         legacy_name = "agent_improvement_proposals_legacy" + (
@@ -40,6 +47,75 @@ async def rename_away_incompatible_legacy_table(repo: Any, conn: Any) -> None:
     )
     await repo._execute(
         f"ALTER TABLE improvement_proposals RENAME TO {legacy_name}"
+    )
+    for index_name in (
+        "idx_proposals_status",
+        "idx_proposals_severity",
+        "idx_proposals_fingerprint",
+    ):
+        await repo._execute(f"DROP INDEX IF EXISTS {index_name}")
+    if hasattr(conn, "commit"):
+        await conn.commit()
+
+
+async def _ensure_proposal_columns(repo: Any) -> None:
+    existing_columns = await repo._get_table_columns("improvement_proposals")
+    for column, column_type in (
+        ("fingerprint", "TEXT"),
+        ("category", "TEXT"),
+        ("severity", "TEXT"),
+        ("title", "TEXT"),
+        ("problem", "TEXT"),
+        ("proposed_solution", "TEXT"),
+        ("affected_files", "TEXT"),
+        ("estimated_effort", "TEXT"),
+        ("suggested_agent", "TEXT"),
+        ("evidence", "TEXT"),
+        ("status", "TEXT DEFAULT 'proposed'"),
+        ("created_at", "TEXT"),
+        ("first_seen_at", "TEXT"),
+        ("last_seen_at", "TEXT"),
+        ("occurrence_count", "INTEGER DEFAULT 1"),
+        ("deferred_until", "TEXT"),
+        ("resolved_at", "TEXT"),
+        ("resolved_by", "TEXT"),
+        ("rejection_reason", "TEXT"),
+    ):
+        if column in existing_columns:
+            continue
+        await repo._add_column_if_missing(
+            "improvement_proposals", column, column_type
+        )
+
+
+async def _ensure_proposal_indexes_and_backfill(conn: Any) -> None:
+    await conn.execute(
+        """
+        UPDATE improvement_proposals
+        SET category = COALESCE(category, 'unknown'),
+            severity = COALESCE(severity, 'medium'),
+            title = COALESCE(title, 'Untitled proposal'),
+            status = COALESCE(status, 'proposed')
+        WHERE category IS NULL
+           OR severity IS NULL
+           OR title IS NULL
+           OR status IS NULL
+        """
+    )
+    for stmt in (
+        "CREATE INDEX IF NOT EXISTS idx_proposals_status ON improvement_proposals (status)",
+        "CREATE INDEX IF NOT EXISTS idx_proposals_severity ON improvement_proposals (severity)",
+        "CREATE INDEX IF NOT EXISTS idx_proposals_fingerprint ON improvement_proposals (fingerprint)",
+        "CREATE INDEX IF NOT EXISTS idx_proposal_events_proposal ON improvement_proposal_events (proposal_id, created_at)",
+    ):
+        await conn.execute(stmt)
+    await conn.execute(
+        """
+        UPDATE improvement_proposals
+        SET first_seen_at = COALESCE(first_seen_at, created_at),
+            last_seen_at = COALESCE(last_seen_at, created_at),
+            occurrence_count = COALESCE(occurrence_count, 1)
+        """
     )
 
 
@@ -85,72 +161,7 @@ async def init_proposal_tables(repo: Any) -> None:
         )
         """
     )
-
-    existing_columns = await repo._get_table_columns("improvement_proposals")
-    for column, column_type in (
-        ("fingerprint", "TEXT"),
-        ("category", "TEXT"),
-        ("severity", "TEXT"),
-        ("title", "TEXT"),
-        ("problem", "TEXT"),
-        ("proposed_solution", "TEXT"),
-        ("affected_files", "TEXT"),
-        ("estimated_effort", "TEXT"),
-        ("suggested_agent", "TEXT"),
-        ("evidence", "TEXT"),
-        ("status", "TEXT DEFAULT 'proposed'"),
-        ("created_at", "TEXT"),
-        ("first_seen_at", "TEXT"),
-        ("last_seen_at", "TEXT"),
-        ("occurrence_count", "INTEGER DEFAULT 1"),
-        ("deferred_until", "TEXT"),
-        ("resolved_at", "TEXT"),
-        ("resolved_by", "TEXT"),
-        ("rejection_reason", "TEXT"),
-    ):
-        if column in existing_columns:
-            continue
-        await repo._add_column_if_missing(
-            "improvement_proposals", column, column_type
-        )
-
-    await conn.execute(
-        """
-        UPDATE improvement_proposals
-        SET category = COALESCE(category, 'unknown'),
-            severity = COALESCE(severity, 'medium'),
-            title = COALESCE(title, 'Untitled proposal'),
-            status = COALESCE(status, 'proposed')
-        WHERE category IS NULL
-           OR severity IS NULL
-           OR title IS NULL
-           OR status IS NULL
-        """
-    )
-
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_proposals_status "
-        "ON improvement_proposals (status)"
-    )
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_proposals_severity "
-        "ON improvement_proposals (severity)"
-    )
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_proposals_fingerprint "
-        "ON improvement_proposals (fingerprint)"
-    )
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_proposal_events_proposal "
-        "ON improvement_proposal_events (proposal_id, created_at)"
-    )
-    await conn.execute(
-        """
-        UPDATE improvement_proposals
-        SET first_seen_at = COALESCE(first_seen_at, created_at),
-            last_seen_at = COALESCE(last_seen_at, created_at),
-            occurrence_count = COALESCE(occurrence_count, 1)
-        """
-    )
+    await _ensure_proposal_columns(repo)
+    await _ensure_proposal_indexes_and_backfill(conn)
     await conn.commit()
     logger.info("[DB] improvement proposal tables initialized")
