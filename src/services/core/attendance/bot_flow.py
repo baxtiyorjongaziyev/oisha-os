@@ -78,19 +78,24 @@ async def today_text(db, day: date | None = None) -> str:
     by_emp: dict[str, dict] = {}
     for e in board["events"]:
         by_emp.setdefault(e["employee_name"], {})[e["kind"]] = e
-    names = [str(r["name"]) for r in await db.execute(
-        "SELECT name FROM employees WHERE is_active = 1 ORDER BY name", [])]
+    roster = await db.execute(
+        "SELECT name, telegram_id FROM employees WHERE is_active = 1 ORDER BY name", [])
     lines = [f"📋 <b>Davomat — {day.isoformat()}</b>"]
-    for name in names:
+    for r in roster:
+        name = str(r["name"])
         ev = by_emp.get(name, {})
         cin, cout = ev.get("check_in"), ev.get("check_out")
         if cin is None:
-            lines.append(f"▫️ {html.escape(name)} — kelmagan")
+            # Telegram hisobi hali bogʻlanmagan xodim "kelmagan" emas: bogʻlash kutilmoqda yoki ulanmagan.
+            if r["telegram_id"] is None:
+                lines.append(f"▫️ {html.escape(name)} — ulanish kutilmoqda")
+            else:
+                lines.append(f"▫️ {html.escape(name)} — kelmagan")
             continue
         late = f", {cin['minutes_late']} daq kech" if cin["minutes_late"] else ""
         out = f", ketdi {cout['local_time']}" if cout else ", hali ishda"
         lines.append(f"{'⏰' if cin['minutes_late'] else '✅'} {html.escape(name)} — keldi {cin['local_time']}{late}{out}")
-    if not names:
+    if not roster:
         lines.append("Hali hech kim ulanmagan. Xodimlar botga /ulanish Ism Familiya yozsin.")
     return "\n".join(lines)
 

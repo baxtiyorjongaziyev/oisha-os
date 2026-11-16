@@ -46,6 +46,20 @@ def _bot2bot_allowed(from_id: str, chat_id: str) -> bool:
     return True
 
 
+def _resolve_bridge_db():
+    try:
+        from src.api.routes.state import api_state
+
+        if getattr(api_state, "db_instance", None) is not None:
+            return api_state.db_instance
+        ctrl = getattr(api_state, "msg_controller", None)
+        if ctrl is not None and getattr(ctrl, "db", None) is not None:
+            return ctrl.db
+    except Exception:
+        logger.debug("[OpenClaw] db resolve skipped", exc_info=True)
+    return None
+
+
 @router.post("/webhook/openclaw")
 async def openclaw_webhook(request: Request):
     try:
@@ -64,16 +78,29 @@ async def openclaw_webhook(request: Request):
             return JSONResponse(status_code=403, content={"error": "Invalid signature"})
 
         data = json.loads(body)
-        message = data.get("message", "")
-        user_id = data.get("user_id", "openclaw_user")
+        if not isinstance(data, dict):
+            return JSONResponse(status_code=400, content={"error": "Invalid payload"})
+
+        text = str(data.get("text") or data.get("message") or "").strip()
+        if not text:
+            return JSONResponse(status_code=400, content={"error": "Message text is required"})
+
+        sender_id = str(data.get("sender_id") or data.get("user_id") or "openclaw_user")
+        sender = str(data.get("sender") or data.get("user_id") or sender_id)
+        channel = str(data.get("channel") or "telegram")
+        session = str(data.get("session") or data.get("conversation_id") or "oisha-main")
+        metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
 
         from src.openclaw_bridge import handle_openclaw_message
+
         reply = await handle_openclaw_message(
-            text=str(message),
-            sender=str(user_id),
-            sender_id=str(user_id),
-            channel=str(data.get("channel") or "webchat"),
-            session=str(data.get("session") or ""),
+            text=text,
+            sender=sender,
+            sender_id=sender_id,
+            channel=channel,
+            session=session,
+            db=_resolve_bridge_db(),
+            metadata=metadata,
         )
 
         return {"reply": reply, "status": "ok"}
@@ -113,14 +140,23 @@ async def v1_chat_completions(request: Request):
         if not messages:
             return JSONResponse(status_code=400, content={"error": "No messages provided"})
 
-        last_msg = messages[-1].get("content", "")
+        last_entry = messages[-1] if isinstance(messages[-1], dict) else {}
+        last_msg = str(last_entry.get("content") or "").strip()
+        if not last_msg:
+            return JSONResponse(status_code=400, content={"error": "Last message content is empty"})
+
+        user_id = str(data.get("user") or "openai_compat_user")
+        session = str(data.get("model") or "oisha-enterprise")
 
         from src.openclaw_bridge import handle_openclaw_message
+
         reply = await handle_openclaw_message(
-            text=str(last_msg),
-            sender="openai_gateway",
-            sender_id="openai_gateway",
+            text=last_msg,
+            sender=user_id,
+            sender_id=user_id,
             channel="webchat",
+            session=session,
+            db=_resolve_bridge_db(),
         )
 
         return {

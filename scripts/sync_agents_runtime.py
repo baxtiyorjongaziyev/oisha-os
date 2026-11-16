@@ -168,7 +168,7 @@ def sync_hermes_agent(hermes_dir: pathlib.Path | None = None) -> None:
     if soul_src.is_file():
         soul_dst = hermes_home / "SOUL.md"
         shutil.copy2(soul_src, soul_dst)
-        logger.info("[Hermes] Oisha SOUL.md koʻchirildi: %s", soul_dst)
+        logger.info("[Hermes] Amina SOUL.md koʻchirildi: %s", soul_dst)
         if os.name != "nt":
             subprocess.run(["chown", "hermes:hermes", str(soul_dst)], check=False)
 
@@ -295,7 +295,7 @@ def restart_openclaw_gateway() -> None:
 
 
 def main() -> None:
-    logger.info("=== Agentlar (Mr.Jon va Oisha) modellar va personalar sinxronizatsiyasi boshlandi ===")
+    logger.info("=== Agentlar (Oisha, Amina va Mr.Jon) modellar va personalar sinxronizatsiyasi boshlandi ===")
     sync_all_openclaw_installations()
     sync_hermes_agent()
     restart_openclaw_gateway()
