@@ -3,7 +3,9 @@ import os
 import sys
 
 # VPS Credentials
-HOST = os.environ.get('SSH_HOST', '109.199.100.137')
+HOST = os.environ.get('SSH_HOST', '').strip()
+if not HOST:
+    raise SystemExit("SSH_HOST env talab qilinadi (sobiq Contabo 109.199.100.137 oʻchirilgan)")
 USER = os.environ.get('SSH_USER', 'root')
 PASSWORD = os.environ.get('SSH_PASSWORD', '')
 REMOTE_DIR = "/root/telegram_bot"
