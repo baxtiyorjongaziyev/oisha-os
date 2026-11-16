@@ -1,6 +1,6 @@
 """Lid biriktirishni yoqishdan oldingi tekshiruv. FAQAT O'QISH.
 
-Contabo'da (prod DB) ishga tushiriladi: GitHub Actions "Server read-only report"
+Hetzner prod serverda (prod DB) ishga tushiriladi: GitHub Actions "Server read-only report"
 workflow'ida `report=lead_assignment_check`.
 
 Ko'rsatadi: sotuvchilar `employees` jadvalida bormi va faolmi, oxirgi 7 kunda

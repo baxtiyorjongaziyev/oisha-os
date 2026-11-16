@@ -34,7 +34,7 @@ _MANAGE = require_permissions(Permission.ATTENDANCE_MANAGE)
 
 # ---- infra ----
 class _RateLimiter:
-    """Jarayon ichidagi sliding window. Bitta Contabo jarayoni uchun yetarli."""
+    """Jarayon ichidagi sliding window. Bitta prod server jarayoni uchun yetarli."""
 
     def __init__(self, limit: int, window_s: float):
         self.limit, self.window_s = limit, window_s

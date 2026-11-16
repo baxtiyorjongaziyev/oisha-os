@@ -16,11 +16,11 @@ Option A — **personal Drive 5 TB via OAuth**:
 2. On a trusted personal computer, run:
    `python scripts/authorize_gdrive_oauth.py --client-secrets CLIENT.json --output gdrive_oauth_token.json`
 3. Authorize the intended Drive owner and verify the email.
-4. Securely copy the resulting token JSON to the Contabo server with owner-only
+4. Securely copy the resulting token JSON to the Hetzner prod server (`2.29.198.0`) with owner-only
    permissions (mode 0600). Never commit OAuth secrets, credentials or tokens.
 5. Add to server `.env`:
    `GDRIVE_AUTH_MODE=oauth`
-   `GDRIVE_OAUTH_TOKEN_FILE=/home/ubuntu/oisha-os/data/gdrive_oauth_token.json`
+   `GDRIVE_OAUTH_TOKEN_FILE=<OISHA_DIR>/data/gdrive_oauth_token.json` (verify exact app dir on Hetzner)
    `GDRIVE_OFFLOAD_FOLDER_ID=<existing-folder-id>`
    5 TB user storage needs to be checked against the API `storageQuota.limit`.
    New Google OAuth test-mode applications may issue short-lived grants.
@@ -76,7 +76,7 @@ notes; confirm amoCRM Files API coverage and CRM quota decrease in a dedicated
 test before bulk offload. Deleting a CRM note might not reduce quota if the
 backing file is retained by the vendor; verify vendor behavior first.
 
-## 3. Scheduling (opt-in on existing Contabo server)
+## 3. Scheduling (opt-in on Hetzner prod server)
 
 Two systemd unit/timer pairs have been added, but not installed/enabled:
 - `oisha-crm-drive-poll.timer`: every 5 minutes, latest 100 deals, stage files

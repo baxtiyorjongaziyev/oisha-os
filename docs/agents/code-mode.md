@@ -56,6 +56,6 @@ Agar operatsiya ketma-ket 3+ bosqichdan iborat boʻlsa:
 
 ## 4. Xavfsizlik
 
-- Lokal userbot sessiyasi Contabo VPSʼga tegishli (`ALLOW_LOCAL_RUN=0`).
+- Lokal userbot sessiyasi Hetzner prod VPSʼga tegishli (2.29.198.0; `ALLOW_LOCAL_RUN=0`).
 - `.env` yoki sirlarni kod orqali ekranga chiqarish qatʼiyan taqiqlanadi.
 - Skriptlar `AGENTS.md` dagi xavfsizlik chegaralari va `.claude/hooks/guard.py` qoidalariga toʻliq mos boʻlishi shart.

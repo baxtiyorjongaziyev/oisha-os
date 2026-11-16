@@ -1,7 +1,9 @@
 """Server DB ni tekshirish va is_lead_forwarded ni reset qilish skripti."""
 import paramiko
 
-hostname = os.environ.get('SSH_HOST', '109.199.100.137')
+hostname = os.environ.get('SSH_HOST', '').strip()
+if not hostname:
+    raise SystemExit("SSH_HOST env talab qilinadi (sobiq Contabo 109.199.100.137 oʻchirilgan)")
 username = os.environ.get('SSH_USER', 'root')
 password = os.environ.get('SSH_PASSWORD', '')
 

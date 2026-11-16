@@ -7,7 +7,9 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-hostname = os.environ.get('SSH_HOST', '109.199.100.137')
+hostname = os.environ.get('SSH_HOST', '').strip()
+if not hostname:
+    raise SystemExit("SSH_HOST env talab qilinadi (sobiq Contabo 109.199.100.137 oʻchirilgan)")
 username = os.environ.get('SSH_USER', 'root')
 password = os.environ.get('SSH_PASSWORD', '')
 

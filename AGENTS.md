@@ -59,7 +59,7 @@
 
 ## Xavfli zonalar (hook bilan bloklangan — `.claude/hooks/guard.py`)
 
-- ⚠️ **Userbot sessiyasi Contabo VPS'ga tegishli (109.199.100.137).** (Eski Oracle VM to'xtatildi). Lokal `src/main.py` / userbot ishga tushirish →
+- ⚠️ **Userbot sessiyasi Hetzner VPS'ga tegishli (2.29.198.0).** (Contabo 109.199.100.137 va Oracle to'xtatildi). Lokal `src/main.py` / userbot ishga tushirish →
   prod sessiya `AuthKeyDuplicatedError` bilan o'ladi. `ALLOW_LOCAL_RUN=0`.
 - `.env`, session fayllar, sirlarni o'qish/yozish taqiqlanadi.
 - `git push --force`, `main` ga push, `git reset --hard`, `rm -rf` — bloklangan.
