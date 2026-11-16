@@ -1,6 +1,6 @@
 [Unit]
-Description=Oisha-OS self-healing watchdog (restarts oisha-os.service on failed /healthz)
-After=oisha-os.service
+Description=Oisha-OS self-healing watchdog (restarts oisha on failed /healthz; revives openclaw/hermes)
+After=oisha.service
 Wants=network-online.target
 
 [Service]
@@ -13,7 +13,11 @@ User=root
 # alohida state katalogida ishlaydi; skript esa deploy qilingan koddan olinadi.
 StateDirectory=oisha-watchdog
 WorkingDirectory=/var/lib/oisha-watchdog
-Environment=OISHA_SYSTEMD_SERVICE=oisha-os.service
+# Hetzner'da asosiy servis nomi `oisha` (oisha-os emas).
+Environment=OISHA_SYSTEMD_SERVICE=oisha
+Environment=OISHA_WATCHED_SERVICES=openclaw-gateway,hermes-gateway
+# BOT_TOKEN / OWNER_ID — Telegram ogohlantirish uchun (bo'lmasa xabar yuborilmaydi).
+EnvironmentFile=-/home/deploy/oisha-os/.env
 Environment=PYTHONUNBUFFERED=1
 # Legacy /root watchdog.service bilan bir xil bardoshlilik (yuklangan VPS'da
 # vaqtinchalik sekin healthz'da keraksiz restart bo'lmasin).
@@ -21,7 +25,7 @@ Environment=OISHA_HEALTH_URL=http://127.0.0.1:8080/healthz/
 Environment=OISHA_STARTUP_GRACE_SECONDS=300
 Environment=OISHA_HEALTH_TIMEOUT=30
 Environment=OISHA_FAILURE_THRESHOLD=8
-ExecStart=/home/ubuntu/oisha-os/venv/bin/python -u /home/ubuntu/oisha-os/src/services/watchdog.py
+ExecStart=/home/deploy/oisha-os/venv/bin/python -u /home/deploy/oisha-os/src/services/watchdog.py
 Restart=always
 RestartSec=15
 
