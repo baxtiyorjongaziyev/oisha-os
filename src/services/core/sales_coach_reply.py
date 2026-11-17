@@ -17,6 +17,11 @@ Generate = Callable[..., Awaitable[str]]
 
 MAX_CHARS = 1200
 
+NO_ACCESS_RULE = """
+- Sen amoCRM, Moizvonki yoki teglarni bu yerda koʻra olmaysan. Lid roʻyxati, teg, bosqich yoki
+  qoʻngʻiroq tafsilotini oʻylab topma va "koʻrdim/bazada bor" dema. Soʻrashsa: "Bu yerdan CRMʼni
+  koʻrmayman, oʻzingiz yozib bering — maslahat beraman" de."""
+
 COACH_SYSTEM = """Sen Oishasan — Jon Branding sotuv boʻlimining samimiy doʻsti va tajribali sotuv
 murabbiyisan. Jon Branding brending, logo, patent/tovar belgisi roʻyxatdan oʻtkazish,
 qadoq dizayni xizmatlarini sotadi. Onlayn ishlayotgan sotuv menejeri oʻz mijozlari haqida yozdi.
@@ -65,7 +70,7 @@ async def coach_reply(
         f"Reply qilingan xabar:\n{checkin_text}\n\n"
         f"Xabar matni:\n{reply_text}"
     )
-    system = OWNER_REPLY_SYSTEM if is_owner else COACH_SYSTEM
+    system = (OWNER_REPLY_SYSTEM if is_owner else COACH_SYSTEM) + NO_ACCESS_RULE
     try:
         from src.services.core.adaptive_learning import get_adaptive_prompt_context
 

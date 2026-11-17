@@ -139,6 +139,8 @@ def test_database_pool_resets_idle_hrana_transaction_error():
         'Hrana: `stream error: Error { message: "SQLite error: interactive transaction was rolled back because the stream was idle for too long; retry the transaction", code: "SQLITE_BUSY" }`'
     )
     assert _is_resettable_connection_error(err) is True
+    http_err = ValueError("Hrana: `http error: `connection closed before message completed``")
+    assert _is_resettable_connection_error(http_err) is True
 
 
 def test_gsheets_client_sets_http_timeout(tmp_path):
