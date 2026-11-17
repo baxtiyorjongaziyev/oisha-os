@@ -1,4 +1,4 @@
-# Agent Handoff Log
+﻿# Agent Handoff Log
 
 > AGENTS.md dan ko'chirildi (2026-09-29). Yangi yozuvlar shu faylning OXIRIGA qo'shiladi.
 > Format: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker. Sirlar yozilmaydi.
