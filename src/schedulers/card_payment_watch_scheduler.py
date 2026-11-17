@@ -63,6 +63,31 @@ def _post(text: str, topic_id: Optional[int]) -> bool:
         return False
 
 
+_ALERTED: dict = {}
+
+
+async def alert_revoked_sessions(managers: List[Any], post: Any = None) -> List[str]:
+    """Warn owner topic (118) once per status change when a session is revoked/invalid."""
+    from src.services.core.card_watch.scanner import SESSION_STATUS
+
+    post = post or _post
+    alerted: List[str] = []
+    for mgr in managers:
+        status = SESSION_STATUS.get(mgr.key)
+        if status not in {"revoked", "invalid"}:
+            _ALERTED.pop(mgr.key, None)
+            continue
+        if _ALERTED.get(mgr.key) == status:
+            continue
+        text = (f"⚠️ Karta kuzatuvi: <b>{mgr.name}</b> sessiyasi "
+                f"{'bekor qilingan' if status == 'revoked' else 'yaroqsiz'} — qayta ulash kerak.\n"
+                f"Serverda: <code>python scripts/card_watch_login.py --manager {mgr.key}</code>")
+        if await asyncio.to_thread(post, text, config.OWNER_TOPIC_ID):
+            _ALERTED[mgr.key] = status
+            alerted.append(mgr.key)
+    return alerted
+
+
 async def collect_sends(owner_client: Any = None) -> List[CardSend]:
     from src.services.core.card_watch.scanner import scan_client, scan_manager
     from src.settings import settings
@@ -75,6 +100,7 @@ async def collect_sends(owner_client: Any = None) -> List[CardSend]:
     api_hash = str(getattr(settings, "API_HASH", "") or "")
     for mgr in managers:
         sends.extend(await scan_manager(mgr, api_id, api_hash, cards, lookback))
+    await alert_revoked_sessions(managers)
     if owner_client is not None and os.getenv("CARD_WATCH_OWNER_GROUPS", "1") == "1":
         since = datetime.now(timezone.utc) - timedelta(days=lookback)
         usernames = {m.username.lower(): m.key for m in managers if m.username}
