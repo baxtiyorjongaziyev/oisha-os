@@ -2967,3 +2967,12 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Oʻzgargan fayllar:** yuqoridagilar + `tests/test_daily_priority.py`, `tests/test_bootstrap_aiogram_bot_head.py`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest tests/test_daily_priority.py tests/test_bootstrap_aiogram_bot_head.py -q` → 24 passed; tegishli (`seller_reply or checkin or bot_head or scheduler`) → 182 passed; `check_uzbek_text.py` → yangi fayllar toza.
 - **Qolgan ish/Bloker:** (a) Prod (Hetzner) ga hali deploy qilinmagan — `/home/deploy/oisha-os` git emas, Claude sessiyasidan scp ruxsati rad etildi; egasi qoʻlda nusxalaydi. (b) amoCRM bosqich filtri prodda jonli tekshirilmagan. (c) Aʼzolar `@jonairobot` ga `/start` bosmagan boʻlsa shaxsiy xabar yetmaydi. (d) Uch sotuvchi bitta amoCRM foydalanuvchisida — bitimlar navbat bilan boʻlinadi. (e) GitHub Actions billing sababli PR checklari ishlamayapti.
+
+## 2026-11-17 — Claude — Uch bot shaxsi, anatomiyasi va atom yadrosi (PR #1083, #1084)
+- **Sabab:** Egasi Oisha, Mr.Jon va Amina har biri alohida shaxs boʻlishini, alohida bosh/qoʻl/oyoq va oʻz yadrosiga ega boʻlishini soʻradi; guruhda ism yoki @username bilan chaqirilganda javob berishi kerak.
+- **Bajarilgan ish:**
+  1. #1083 (merged): `deploy/hermes/SOUL.md` endi Amina (avval xato bilan "Oisha" edi); `deploy/openclaw/workspace/SOUL.md` Mr.Jon rol, vakolat, taqiq, chaqiruv qoidalari; `docs/agents/bot-personas.md` rol nizomi.
+  2. #1084: bot-personas.md ga anatomiya (bosh/qoʻl/oyoq, Drive papkalari) va atom modeli (Owner Obsidian = manba, har bot yadrosi `90-AI/Bots/<bot>/Yadro.md`).
+- **Oʻzgargan fayllar:** `deploy/hermes/SOUL.md`, `deploy/openclaw/workspace/SOUL.md`, `docs/agents/bot-personas.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** faqat hujjat/prompt; `check_uzbek_text` guard commitda toza. Serverda `sync_agents_runtime.py` ishga tushdi, lekin `/home/deploy/oisha-os` git emas — eski SOUL fayllar koʻchirildi.
+- **Qolgan ish/Bloker:** (a) yangi SOUL fayllarni Hetzner ga scp qilish (Claude sessiyasida ruxsat rad etildi); (b) Hermes/OpenClaw gateway mention sozlamasi tekshirilmagan; (c) API kalitlar alohidaligi tekshirilmagan; (d) Drive papkalari va service account'lar yoʻq; (e) vault'da `Yadro.md` notalari Owner tasdigʻini kutmoqda; (f) sync skriptini har bot uchun boʻlish.
