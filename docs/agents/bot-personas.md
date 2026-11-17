@@ -94,3 +94,34 @@ Umumiy qoida: **ma'lumot va yozish amallari faqat Oishada.** Boshqalar Oisha API
 | To'lov keldi | Oisha | tabrik guruhga |
 | Mijoz shikoyati | Mr.Jon | darhol Owner + Oisha log |
 | Xodim kayfiyati past | Amina | faqat Ownerga DM |
+
+---
+
+## Anatomiya: har birida alohida bosh, qo'l, oyoq
+
+Maqsad: bitta bot yiqilsa, qolgan ikkitasi ishlayveradi. Hech biri boshqasining "a'zosi"dan foydalanmaydi — faqat API orqali so'raydi.
+
+| | **Oisha** | **Mr.Jon** | **Amina** |
+|---|---|---|---|
+| **Bosh — fikrlash** | Gemini 2.5-flash + free_ai_router | OpenClaw model (alohida provider) | Hermes, gemini-2.5-flash |
+| **Bosh — API kalit** | o'z `GEMINI_API_KEY` | o'z kaliti | o'z kaliti |
+| **Bosh — xotira** | Turso DB (leads, tasks, finance) | OpenClaw workspace + suhbat xotirasi | `/home/hermes/.hermes` (sessiyalar, skill'lar) |
+| **Bosh — bilim** | CRM, moliya, sotuv qoidalari | brending falsafasi, keys, portfolio, narx diapazoni | SOP, onboarding, jamoa qoidalari |
+| **Qo'llar — asboblar** | AmoCRM yozish, Hisobchi, Instagram, Sheets, Telegram userbot | Calendar, Contacts, `oisha-crm` (faqat lid yaratish) | Oisha API (faqat o'qish), brain/Obsidian (taklif) |
+| **Qo'llar — Telegram** | userbot + admin bot | `@jon_clawbot` | o'z boti |
+| **Oyoqlar — runtime** | `oisha.service` (user `deploy`) | `openclaw-gateway.service` | `hermes-gateway.service` (user `hermes`) |
+| **Oyoqlar — kanal** | ichki guruhlar, menejerlar DM | WhatsApp, Telegram, Slack, Discord (tashqi) | ichki guruh, xodimlar DM |
+| **Oyoqlar — Drive papkasi** | `Jon AI/Oisha/` — hisobotlar, DB zaxira, qo'ng'iroqlar | `Jon AI/Mr.Jon/` — portfolio, keys, taqdimotlar | `Jon AI/Amina/` — SOP, onboarding, retro arxivi |
+| **Oyoqlar — log** | `journalctl -u oisha` | `journalctl -u openclaw-gateway` | `journalctl -u hermes-gateway` |
+
+### Qoidalar
+1. **Alohida kalit:** har bot o'z API kaliti va o'z Google service account'i bilan. Bittasining limiti tugasa, boshqasi to'xtamaydi.
+2. **Alohida xotira:** botlar bir-birining DB/papkasiga yozmaydi. Data almashinuvi faqat Oisha API orqali.
+3. **Alohida Drive papka:** service account faqat o'z papkasiga yozadi; boshqalarnikiga faqat o'qish (kerak bo'lsa).
+4. **Alohida restart:** bitta servisni qayta ishga tushirish qolganlariga tegmaydi.
+5. **Umumiy faqat:** server (Hetzner) va Owner. Server yiqilsa — Drive'dagi kunlik zaxiradan tiklanadi.
+
+### Hozirgi holat va bo'shliqlar (tekshirilishi kerak)
+- API kalitlar alohida-alohidami — serverda tekshirilmagan.
+- Drive papkalari va service account'lar hali yaratilmagan.
+- `sync_agents_runtime.py` uchala botni bitta skript bilan qayta ishga tushiradi — alohida restart qoidasiga zid; bo'linishi kerak.
