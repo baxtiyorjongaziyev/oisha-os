@@ -45,7 +45,7 @@ def resolve(people: list[Person], incoming: Person) -> Optional[Person]:
 
 
 def absorb(target: Person, incoming: Person) -> None:
-    """Böʻsh maydonlarni töʻldiradi, kohortlarni birlashtiradi; töʻliqni almashtirmaydi."""
+    """Bösh maydonlarni töldiradi, kohortlarni birlashtiradi; töliqni almashtirmaydi."""
     for f in SYNC_FIELDS:
         if not getattr(target, f) and getattr(incoming, f):
             setattr(target, f, getattr(incoming, f))
