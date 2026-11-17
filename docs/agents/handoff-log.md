@@ -2977,6 +2977,10 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv dalillari:** faqat hujjat/prompt; `check_uzbek_text` guard commitda toza. Serverda `sync_agents_runtime.py` ishga tushdi, lekin `/home/deploy/oisha-os` git emas — eski SOUL fayllar koʻchirildi.
 - **Qolgan ish/Bloker:** (a) yangi SOUL fayllarni Hetzner ga scp qilish (Claude sessiyasida ruxsat rad etildi); (b) Hermes/OpenClaw gateway mention sozlamasi tekshirilmagan; (c) API kalitlar alohidaligi tekshirilmagan; (d) Drive papkalari va service account'lar yoʻq; (e) vault'da `Yadro.md` notalari Owner tasdigʻini kutmoqda; (f) sync skriptini har bot uchun boʻlish.
 
+## 2026-11-17 — Claude (card watch)
+- **Bajarilgan ish:** "karta yuborildi → toʻlov kuzatuvchisi": `src/services/core/card_watch/` (config, detector, matcher, scanner, service), `src/schedulers/card_payment_watch_scheduler.py` (soatlik, `CARD_WATCH_ENABLED=1` boʻlmasa oʻchiq), `bootstrap/orchestration/schedulers.py` da roʻyxatdan oʻtkazildi; `scripts/card_watch_login.py` (menejer bir martalik login, sessiya faqat `/etc/oisha/card_watch.env` 0600); `docs/operations/card-watch.md`.
+- **Tekshiruv dalillari:** `tests/test_card_watch.py` 12 passed; bandit (yangi fayllar) toza; uzbek guard toza.
+- **Qolgan ish/Bloker:** serverda menejerlar login qilishi, systemd drop-in, `CARD_WATCH_ENABLED=1`; Airtable nom moslashuvi real maʼlumotda tekshirilmagan.
 ## 2026-11-17 — Claude — Community Contact Sync PR-1
 - Ish: `src/services/core/community_sync/` (models, cohorts, merge, store, collector, adapters google/amocrm/telegram, approval, runner, wiring); `gcontacts.py` ga `create_person`/`update_person` (qöshuvchi)/`add_to_group`, `list_all_contacts(raise_on_error)`; intro parserga kirill aliaslari.
 - Spec/plan: `docs/superpowers/specs/2026-11-17-community-contact-sync-design.md`, `docs/superpowers/plans/2026-11-17-community-contact-sync.md`.
