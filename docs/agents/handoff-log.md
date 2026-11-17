@@ -2976,3 +2976,10 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Oʻzgargan fayllar:** `deploy/hermes/SOUL.md`, `deploy/openclaw/workspace/SOUL.md`, `docs/agents/bot-personas.md`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:** faqat hujjat/prompt; `check_uzbek_text` guard commitda toza. Serverda `sync_agents_runtime.py` ishga tushdi, lekin `/home/deploy/oisha-os` git emas — eski SOUL fayllar koʻchirildi.
 - **Qolgan ish/Bloker:** (a) yangi SOUL fayllarni Hetzner ga scp qilish (Claude sessiyasida ruxsat rad etildi); (b) Hermes/OpenClaw gateway mention sozlamasi tekshirilmagan; (c) API kalitlar alohidaligi tekshirilmagan; (d) Drive papkalari va service account'lar yoʻq; (e) vault'da `Yadro.md` notalari Owner tasdigʻini kutmoqda; (f) sync skriptini har bot uchun boʻlish.
+
+## 2026-11-17 — Claude — Community Contact Sync PR-1
+- Ish: `src/services/core/community_sync/` (models, cohorts, merge, store, collector, adapters google/amocrm/telegram, approval, runner, wiring); `gcontacts.py` ga `create_person`/`update_person` (qöshuvchi)/`add_to_group`, `list_all_contacts(raise_on_error)`; intro parserga kirill aliaslari.
+- Spec/plan: `docs/superpowers/specs/2026-11-17-community-contact-sync-design.md`, `docs/superpowers/plans/2026-11-17-community-contact-sync.md`.
+- Tekshiruv: community_sync testlari 61 passed (lokal, mock); bandit community_sync toza.
+- Ochiq (Coordinator): `boot.py` ga ulash — `scheduler.add_job(scheduled_job, "cron", hour=10, args=[app_ctx])` va `register_callbacks(app_ctx.bot_client, app_ctx)`. Env: `COMMUNITY_SYNC_ENABLED=1`, `COMMUNITY_SYNC_DRY_RUN=1` (birinchi haftada), `COMMUNITY_SYNC_GCONTACTS_CREDS` (Hetzner'dagi Google token yöli — tekshirilmagan).
+- Ochiq: PR-2 (Airtable tölaganlar, Obsidian, GitHub); deferred minorlar: collector yangilanishlari faqat böʻsh maydonni töldiradi, FloodWait global emas, drip mavjud Telegram nomini hisobga olmaydi.
