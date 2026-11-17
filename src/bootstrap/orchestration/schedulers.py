@@ -41,6 +41,8 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     asyncio.create_task(chat_manager_extract_loop(), name="chat_manager_extract_loop")
     from src.schedulers.attendance_summary_scheduler import attendance_summary_loop
     asyncio.create_task(attendance_summary_loop(), name="attendance_summary_loop")
+    from src.schedulers.lunch_return_scheduler import lunch_return_loop
+    asyncio.create_task(lunch_return_loop(), name="lunch_return_loop")
     from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
     asyncio.create_task(
         instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
