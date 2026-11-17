@@ -45,6 +45,8 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     asyncio.create_task(lunch_return_loop(), name="lunch_return_loop")
     from src.schedulers.card_payment_watch_scheduler import card_payment_watch_loop
     asyncio.create_task(card_payment_watch_loop(bot_runtime), name="card_payment_watch_loop")
+    from src.schedulers.sales_copilot_scheduler import sales_copilot_loop
+    asyncio.create_task(sales_copilot_loop(bot_runtime), name="sales_copilot_loop")
     from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
     asyncio.create_task(
         instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
