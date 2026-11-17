@@ -23,6 +23,23 @@ def is_checkin_text(text: str) -> bool:
     return lowered.startswith("assalomu alaykum") and any(m in lowered for m in CHECKIN_MARKERS)
 
 
+def is_nudge_text(text: str) -> bool:
+    """Oishaʼning soatlik nudgeʼi: 'shu xabarga reply' iborasi yoki rep ismi bilan boshlanishi."""
+    lowered = (text or "").lower()
+    if "xabarga reply" in lowered:
+        return True
+    try:
+        from src.schedulers.remote_staff_checkin_scheduler import get_reps
+
+        return any(
+            lowered.lstrip().startswith(f"{str(rep.get('name') or '').lower()},")
+            for rep in get_reps()
+            if rep.get("name")
+        )
+    except Exception:
+        return False
+
+
 def _default_group_id() -> Optional[int]:
     from src.schedulers.remote_staff_checkin_scheduler import get_target_destination
 
@@ -87,6 +104,10 @@ async def _matches_checkin_reply(
         mentions_replier = bool(username) and f"@{username}".lower() in reply_text.lower()
         if mentions_replier or is_checkin_text(reply_text):
             return True
+        # Soatlik nudge har doim "shu xabarga reply qilib" deb tugaydi yoki rep ismi bilan boshlanadi:
+        # Owner ham, menejer ham shunga reply qilsa, thread/username mos kelmasa ham ushlaymiz.
+        if is_nudge_text(reply_text):
+            return True
         thread_id = getattr(message, "message_thread_id", None) or getattr(
             reply, "message_thread_id", None
         )
@@ -127,9 +148,10 @@ async def _handle_checkin_reply(message: Any) -> None:
             )
         else:
             rep = _resolve_rep(message, reply_to_text)
-            rep_key = str(rep.get("key") or "rayxon") if rep else "rayxon"
-            _, _, context_file = rep_storage(rep_key)
-            save_context({"date": now.strftime("%Y-%m-%d"), "last_reply": reply_text}, path=context_file)
+            # Rep aniqlanmasa saqlamaymiz: begona gap menejer "oxirgi javobi" boʻlib qolmasin.
+            if rep:
+                _, _, context_file = rep_storage(str(rep.get("key") or "rayxon"))
+                save_context({"date": now.strftime("%Y-%m-%d"), "last_reply": reply_text}, path=context_file)
         answer = await coach_reply(name, reply_text, reply_to_text, is_owner=is_owner)
         await message.reply(answer, parse_mode=None)
     except Exception:
