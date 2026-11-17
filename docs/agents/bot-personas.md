@@ -125,3 +125,49 @@ Maqsad: bitta bot yiqilsa, qolgan ikkitasi ishlayveradi. Hech biri boshqasining 
 - API kalitlar alohida-alohidami — serverda tekshirilmagan.
 - Drive papkalari va service account'lar hali yaratilmagan.
 - `sync_agents_runtime.py` uchala botni bitta skript bilan qayta ishga tushiradi — alohida restart qoidasiga zid; bo'linishi kerak.
+
+---
+
+## Atom modeli: har botning o'z yadrosi
+
+Owner'ning Obsidian ikkinchi miyasi — **quyosh**: barcha haqiqatning manbai. Har bot — alohida **atom**.
+
+```
+            ☀ Owner Obsidian (ikkinchi miya)
+           /            |             \
+     ⚛ Oisha        ⚛ Mr.Jon        ⚛ Amina
+   [yadro]          [yadro]          [yadro]
+   elektronlar      elektronlar      elektronlar
+```
+
+### Yadro (nucleus) — o'zgarmas, faqat Owner o'zgartiradi
+Botning "kim ekanligi". Yo'qolsa — bot boshqa odamga aylanadi.
+- **Kimlik:** ism, xarakter, ovoz, kimga hisobot beradi.
+- **Qadriyatlar:** 3 ta asosiy tamoyil.
+- **Qizil chiziqlar:** taqiqlar (narx va'dasi, CRM o'chirish, shaxsiy ma'lumot...).
+- **Vakolat chegarasi:** nimaga qo'li yetadi, nimaga yo'q.
+- **Hamkasblar xaritasi:** kim nimaga javob beradi.
+
+Joyi:
+| Bot | Vault'da (manba) | Serverda (nusxa) |
+|---|---|---|
+| Oisha | `90-AI/Bots/Oisha/Yadro.md` | prompt'lar (`src/`) |
+| Mr.Jon | `90-AI/Bots/Mr.Jon/Yadro.md` | `deploy/openclaw/workspace/SOUL.md` |
+| Amina | `90-AI/Bots/Amina/Yadro.md` | `deploy/hermes/SOUL.md` |
+
+### Elektronlar — o'zgaruvchan, bot o'zi o'rganadi
+- Suhbat xotirasi, kim nima va'da qildi.
+- Yangi faktlar, takrorlangan savollar, skill'lar.
+- Joyi: botning o'z xotirasi + `90-AI/Bots/<bot>/Organganlarim.md`.
+
+### Qoidalar
+1. **Yadro faqat Owner tasdig'i bilan o'zgaradi** (`brain_memory_proposal` → Owner "ha").
+2. **Elektron yadroga aylanishi mumkin:** bot haftalik hisobotda taklif qiladi → Owner tasdiqlaydi → yadroga ko'chadi.
+3. **Quyoshdan o'qish:** har bot Owner vault'idan o'z sohasiga tegishli qismini **o'qiydi**. Yozish — faqat `00-Inbox/` ga taklif.
+4. **Yadrolar to'qnashmaydi:** bir bot boshqasining yadrosini o'qimaydi va o'zgartirmaydi; faqat hamkasblar xaritasini biladi.
+5. **Bir yo'nalishli sinxron:** vault `Yadro.md` → server SOUL/prompt. Teskari yo'q.
+
+### Qilinadigan ishlar
+- [ ] Vault'da `90-AI/Bots/{Oisha,Mr.Jon,Amina}/Yadro.md` yaratish (Owner tasdig'i bilan).
+- [ ] `Organganlarim.md` papkalarini ochish.
+- [ ] Sync skripti: `Yadro.md` → SOUL.md (bot alohida-alohida).
