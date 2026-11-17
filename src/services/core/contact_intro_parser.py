@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 _FIELD_ALIASES = {
-    "first_name": {"ism", "ismi", "name"},
-    "last_name": {"familiya", "familya", "family name", "surname"},
+    "first_name": {"ism", "ismi", "isim", "name", "исм", "исми", "имя", "исим"},
+    "last_name": {"familiya", "familya", "family name", "surname", "фамилия", "фамилияси", "фамиля"},
     "birthday": {
         "tug'ilgan kun",
         "tugilgan kun",
@@ -13,7 +13,7 @@ _FIELD_ALIASES = {
         "birthday",
     },
     "birthplace": {"tug'ilgan joy", "tugilgan joy", "tug'ilgan joyi", "tugilgan joyi"},
-    "brand": {"brend", "brand", "kompaniya", "company"},
+    "brand": {"brend", "brand", "kompaniya", "company", "компания", "бренд", "компанияси"},
     "activity": {
         "faoliyat turi",
         "faoliyati",
@@ -21,11 +21,15 @@ _FIELD_ALIASES = {
         "yo'nalish",
         "yonalish",
         "activity",
+        "фаолият",
+        "фаолият тури",
+        "соҳа",
+        "соха",
     },
-    "region": {"faoliyat hududi", "hudud", "shahar", "region", "city"},
+    "region": {"faoliyat hududi", "hudud", "shahar", "region", "city", "ҳудуд", "худуд", "шаҳар", "шахар", "город"},
     "position": {"lavozim", "position", "role"},
-    "phone": {"tel", "telefon", "raqam", "phone", "mobile"},
-    "telegram": {"telegram", "tg"},
+    "phone": {"tel", "telefon", "raqam", "phone", "mobile", "телефон", "тел", "рақам", "ракам"},
+    "telegram": {"telegram", "tg", "телеграм"},
     "instagram": {"instagram", "insta"},
 }
 

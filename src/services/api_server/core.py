@@ -151,6 +151,7 @@ from src.api.routes.telephony import router as telephony_router
 from src.api.routes.twenty_calls import router as twenty_calls_router
 from src.api.routes.twenty_moizvonki import router as twenty_moizvonki_router
 from src.api.routes.oisha_crm_routes import router as oisha_crm_router
+from src.api.routes.task_registry_routes import router as task_registry_router
 
 app.include_router(health_router)
 app.include_router(telegram_router)
@@ -192,6 +193,7 @@ app.include_router(crm_call_router)
 app.include_router(crm_enterprise_router)
 app.include_router(twenty_moizvonki_router)
 app.include_router(oisha_crm_router)
+app.include_router(task_registry_router)
 app.include_router(metasell_dashboard_router)
 app.include_router(metasell_dashboard_router, prefix="/api/dashboard")
 app.include_router(metasell_dashboard_router, prefix="/api/cockpit")
