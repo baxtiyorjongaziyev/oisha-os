@@ -13,6 +13,14 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _full_digits(value: str) -> str:
+    """Toʻliq raqam; 9 xonali mahalliy UZ raqamga 998 qöshiladi."""
+    d = "".join(ch for ch in value or "" if ch.isdigit())
+    if d.startswith("00"):
+        d = d[2:]
+    return "998" + d if len(d) == 9 else d
+
+
 class GoogleContactsSync:
     def __init__(self, credentials_path="service_account.json"):
         self.credentials_path = credentials_path
@@ -284,8 +292,8 @@ class GoogleContactsSync:
                 name.update(givenName=first_name, familyName=last_name)
                 body["names"], fields = [name], ["names"]
             existing = cur.get("phoneNumbers") or []
-            have = {"".join(ch for ch in x.get("value", "") if ch.isdigit())[-9:] for x in existing}
-            new = [p for p in phones or [] if "".join(ch for ch in p if ch.isdigit())[-9:] not in have]
+            have = {_full_digits(x.get("value", "")) for x in existing}
+            new = [p for p in phones or [] if _full_digits(p) not in have]
             if new:
                 keep = [{"value": x["value"], "type": x.get("type", "mobile")} for x in existing]
                 body["phoneNumbers"] = keep + [{"value": p, "type": "mobile"} for p in new]

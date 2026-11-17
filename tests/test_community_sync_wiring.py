@@ -13,3 +13,10 @@ def test_build_deps_defaults_safe(monkeypatch):
     d = wiring.build_deps(NS(client=object(), bot_client=None))
     assert d.enabled is False and d.dry_run is True
     assert (d.folder_id, d.tg_daily_limit, d.bulk_threshold) == (13, 120, 20)
+
+
+def test_cfg_reads_environment(monkeypatch):
+    monkeypatch.setenv("COMMUNITY_SYNC_ENABLED", "true")
+    monkeypatch.setenv("COMMUNITY_SYNC_TG_DAILY_LIMIT", "50")
+    assert wiring._cfg("COMMUNITY_SYNC_ENABLED", False) is True
+    assert wiring._cfg("COMMUNITY_SYNC_TG_DAILY_LIMIT", 120) == 50

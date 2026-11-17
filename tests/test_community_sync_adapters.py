@@ -36,7 +36,8 @@ async def test_google_create_uses_label_and_suffix():
     people = {"tg:1": ali()}
     await a.read_all(people)
     res = await a.apply([Change("google", "tg:1", "first_name", "Ali")], people)
-    g.create_person.assert_called_once_with("Ali", "Valiyev TN7 Gr", ["+998901112233"], ["TEZ NATIJA 7"])
+    g.create_person.assert_called_once_with("Ali", "Valiyev TN7 Gr", ["+998901112233"], [])
+    g.add_to_group.assert_called_once_with("people/c9", "TEZ NATIJA 7")
     assert res["ok"] == 1 and people["tg:1"].ext["google"] == "people/c9"
 
 
@@ -69,6 +70,8 @@ async def test_floodwait_defers():
         due_tg=AsyncMock(return_value=[{"key": "tg:1", "username": "ali", "phone": ""},
                                        {"key": "tg:2", "username": "b", "phone": ""}]),
         mark_tg=AsyncMock(),
+        get_state=AsyncMock(return_value=None),
+        set_state=AsyncMock(),
     )
     err = FloodWaitError(request=None, capture=3600)
     client = AsyncMock(side_effect=err)
@@ -84,8 +87,9 @@ async def test_floodwait_defers():
 async def test_amocrm_create_and_skip_empty(monkeypatch):
     patch = MagicMock(return_value=NS(status_code=200))
     monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.patch", patch)
-    amo = MagicMock()
-    amo.get_contact_by_phone.return_value = None
+    monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.get",
+                        MagicMock(return_value=NS(status_code=204)))
+    amo = MagicMock(base_url="https://x")
     amo.create_contact.return_value = 55
     a = AmoAdapter(amo)
     people = {"tg:1": ali(), "tg:2": ali(key="tg:2", first_name="", last_name="", phone="")}
@@ -105,8 +109,9 @@ def _amo_contact(phones, tags=(), name="Ali Valiyev TN7 Gr"):
 async def test_amocrm_patch_appends_phone_and_keeps_tags(monkeypatch):
     patch = MagicMock(return_value=NS(status_code=200))
     monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.patch", patch)
+    monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.get", MagicMock(
+        return_value=NS(status_code=200, json=lambda: _amo_contact(["+998907778899"], tags=["VIP"]))))
     amo = MagicMock(base_url="https://x")
-    amo.get_contact_details.return_value = _amo_contact(["+998907778899"], tags=["VIP"])
     a = AmoAdapter(amo)
     people = {"tg:1": ali(ext={"amocrm": "7"})}
     await a.read_all(people)
@@ -118,16 +123,19 @@ async def test_amocrm_patch_appends_phone_and_keeps_tags(monkeypatch):
     assert "name" not in body
 
 
-async def test_amocrm_rejects_unverified_phone_match():
-    amo = MagicMock()
-    amo.get_contact_by_phone.return_value = _amo_contact(["+998900000000"])
+async def test_amocrm_rejects_unverified_phone_match(monkeypatch):
+    body = {"_embedded": {"contacts": [_amo_contact(["+998900000000"])]}}
+    monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.get",
+                        MagicMock(return_value=NS(status_code=200, json=lambda: body)))
+    amo = MagicMock(base_url="https://x")
     people = {"tg:1": ali()}
     assert await AmoAdapter(amo).read_all(people) == {} and "amocrm" not in people["tg:1"].ext
 
 
-async def test_amocrm_read_failure_blocks_create():
-    amo = MagicMock()
-    amo.get_contact_by_phone.side_effect = RuntimeError("500")
+async def test_amocrm_read_failure_blocks_create(monkeypatch):
+    monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.get",
+                        MagicMock(return_value=NS(status_code=500)))
+    amo = MagicMock(base_url="https://x")
     a = AmoAdapter(amo)
     people = {"tg:1": ali()}
     await a.read_all(people)
@@ -151,3 +159,50 @@ async def test_google_locked_name_reported_as_canonical():
     }]
     rows = await GoogleAdapter(g).read_all({"tg:1": ali(first_name="Alisher")})
     assert rows["tg:1"]["first_name"] == "Alisher"
+
+
+async def test_amocrm_linked_lookup_error_blocks_patch(monkeypatch):
+    patch = MagicMock()
+    monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.get",
+                        MagicMock(return_value=NS(status_code=502)))
+    monkeypatch.setattr("src.services.core.community_sync.adapters.amocrm.requests.patch", patch)
+    a = AmoAdapter(MagicMock(base_url="https://x"))
+    people = {"tg:1": ali(ext={"amocrm": "7"})}
+    await a.read_all(people)
+    await a.apply([Change("amocrm", "tg:1", "phone", "+998901112233")], people)
+    patch.assert_not_called()
+
+
+async def test_telegram_locked_name_not_enqueued():
+    users = [NS(id=1, first_name="Ali", last_name="Valiyev TN4 Gr", phone=None)]
+    client = AsyncMock(return_value=NS(users=users))
+    store = MagicMock(enqueue_tg=AsyncMock())
+    a = TelegramAdapter(client=client, store=store)
+    people = {"tg:1": ali()}
+    rows = await a.read_all(people)
+    assert rows["tg:1"]["first_name"] == "Ali"
+    await a.apply([Change("telegram", "tg:1", "phone", "+998901112233")], people)
+    store.enqueue_tg.assert_not_awaited()
+
+
+async def test_daily_limit_shared_across_runs():
+    import sqlite3  # noqa: F401
+    from src.services.core.community_sync.store import SyncStore
+    from tests.test_community_sync_store import fake_exec
+    store = SyncStore(execute=fake_exec())
+    await store.ensure_schema()
+    for i in range(3):
+        await store.enqueue_tg(f"tg:{i}", f"u{i}", "")
+    client = AsyncMock()
+    client.get_input_entity = AsyncMock(return_value=NS())
+    people = {f"tg:{i}": ali(key=f"tg:{i}", tg_id=i) for i in range(3)}
+    now = datetime(2026, 11, 17, 10)
+    first = await drip(store, client, people, 1, now)
+    second = await drip(store, client, people, 1, now)
+    assert (first["ok"], second["ok"]) == (1, 0)
+
+
+def test_gcontacts_full_phone_compare():
+    from src.services.core.gcontacts import _full_digits
+    assert _full_digits("+12025550123") != _full_digits("+442025550123")
+    assert _full_digits("90 111 22 33") == _full_digits("+998901112233")

@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timedelta
 
-from ..models import Person, display_name
+from ..models import Person, display_name, name_locked
 from .base import NAME_PHONE, keys_of, result, split_name
 
 logger = logging.getLogger(__name__)
@@ -23,11 +23,18 @@ class TelegramAdapter:
         res = await self.client(functions.contacts.GetContactsRequest(hash=0))
         by_id = {u.id: u for u in getattr(res, "users", [])}
         rows = {}
+        self.locked = set()
         for key, p in people.items():
             u = by_id.get(p.tg_id)
             if not u:
                 continue
-            first, last = split_name(f"{u.first_name or ''} {u.last_name or ''}")
+            full = f"{u.first_name or ''} {u.last_name or ''}".strip()
+            if name_locked(p, full):
+                # Boshqa kohort suffiksli Telegram nomi himoyalangan: öqilmaydi, yozilmaydi
+                self.locked.add(key)
+                rows[key] = {f: getattr(p, f) for f in NAME_PHONE}
+                continue
+            first, last = split_name(full)
             phone = getattr(u, "phone", None)
             rows[key] = {
                 "first_name": first,
@@ -41,7 +48,7 @@ class TelegramAdapter:
         res = result()
         for key in keys_of(changes):
             p = people.get(key)
-            if not p or not (p.tg_id or p.username or p.phone):
+            if not p or not (p.tg_id or p.username or p.phone) or key in getattr(self, "locked", ()):
                 continue
             await self.store.enqueue_tg(key, p.username, p.phone)
             res["deferred"] += 1
@@ -69,7 +76,10 @@ async def drip(store, client, people: dict[str, Person], limit: int, now: dateti
     from telethon.errors import FloodWaitError
 
     res = result()
-    due = await store.due_tg(limit, now)
+    day_key = f"tg_used:{now.date().isoformat()}"
+    used = int(await store.get_state(day_key) or 0)
+    # Kunlik limit bir kundagi barcha ishga tushirishlar uchun umumiy
+    due = await store.due_tg(max(0, limit - used), now) if limit > used else []
     for i, row in enumerate(due):
         p = people.get(row["key"])
         if not p:
@@ -90,4 +100,5 @@ async def drip(store, client, people: dict[str, Person], limit: int, now: dateti
             continue
         await store.mark_tg(row["key"], "done")
         res["ok"] += 1
+        await store.set_state(day_key, str(used + res["ok"]))
     return res

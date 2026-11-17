@@ -7,6 +7,7 @@ boot.py (Coordinator fayli) ga ulash:
 """
 
 import logging
+import os
 
 from src.settings import settings
 
@@ -22,7 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 def _cfg(name: str, default):
-    return getattr(settings, name, default)
+    """Avval settings, keyin muhit özgaruvchisi (AppSettings bu maydonlarni eʼlon qilmaydi)."""
+    if hasattr(settings, name):
+        return getattr(settings, name)
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    if isinstance(default, bool):
+        return raw.strip().lower() in ("1", "true", "yes", "on")
+    if isinstance(default, int):
+        return int(raw)
+    return raw
 
 
 def _owner_id() -> int:

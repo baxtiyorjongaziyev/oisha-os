@@ -163,3 +163,15 @@ async def test_quiet_hours_reached_mid_run():
     d.clock = lambda: next(times, datetime(2026, 11, 17, 23, 5))
     res = await run_once(d)
     assert res["status"] == "quiet_hours" and g.applied == []
+
+
+async def test_open_conflict_keeps_snapshot_baseline():
+    g, a = FakeAdapter("google"), FakeAdapter("amocrm")
+    d = await deps(n=1, adapters=[g, a])
+    await run_once(d, now=NOON)
+    g.rows["tg:0"]["first_name"] = "B"
+    a.rows["tg:0"]["first_name"] = "C"
+    for _ in range(3):  # owner javob bermadi
+        res = await run_once(d, now=NOON)
+    assert res["conflicts"] == 1
+    assert g.rows["tg:0"]["first_name"] == "B" and a.rows["tg:0"]["first_name"] == "C"

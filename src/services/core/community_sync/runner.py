@@ -97,7 +97,7 @@ async def _snapshot(d: Deps, a, key: str, values: dict, p: Person) -> None:
     await d.store.save_snapshot(a.name, key, snap)
 
 
-async def _apply_one(d: Deps, a, canon, changes, rows, snaps) -> None:
+async def _apply_one(d: Deps, a, canon, changes, rows, snaps, blocked=frozenset()) -> None:
     mine = [c for c in changes if c.system == a.name]
     res = await a.apply(mine, canon) if mine else {"keys": [], "written": {}}
     written = res.get("written", {})
@@ -107,8 +107,8 @@ async def _apply_one(d: Deps, a, canon, changes, rows, snaps) -> None:
             await _snapshot(d, a, key, values, canon[key])
     changed = {c.key for c in mine}
     for key, row in rows.items():
-        if key in changed or key not in canon:
-            continue
+        if key in changed or key not in canon or key in blocked:
+            continue  # ochiq konflikt: baza snapshot surilmaydi
         # Özgarishsiz kalit: tizimda turgan qiymat snapshot boʻladi
         prev = snaps.get(a.name, {}).get(key, {})
         values = {f: row.get(f, "") for f in a.fields}
@@ -116,24 +116,25 @@ async def _apply_one(d: Deps, a, canon, changes, rows, snaps) -> None:
             await _snapshot(d, a, key, values, canon[key])
 
 
-async def _apply(d: Deps, canon, changes, reads, snaps, errors) -> bool:
+async def _apply(d: Deps, canon, changes, reads, snaps, errors, blocked=frozenset()) -> bool:
     for a in d.adapters:
         if a.name not in reads:
             continue
         if is_quiet_hours(d.clock()):
             return False
         try:
-            await _apply_one(d, a, canon, changes, reads[a.name], snaps)
+            await _apply_one(d, a, canon, changes, reads[a.name], snaps, blocked)
         except Exception as exc:
             logger.error("[COMMUNITY_SYNC] %s apply: %s", a.name, exc)
             errors.append(a.name)
     return True
 
 
-async def _persist(d: Deps, canon) -> None:
+async def _persist(d: Deps, canon, blocked=frozenset()) -> None:
     for key, p in canon.items():
         await d.store.upsert_person(p)
-        await d.store.save_snapshot(CANON, key, p.fields())
+        if key not in blocked:
+            await d.store.save_snapshot(CANON, key, p.fields())
     await d.store.clear_resolved()
 
 
@@ -179,9 +180,10 @@ async def run_once(d: Deps, *, dry_run: Optional[bool] = None, now: Optional[dat
     if max(summary.values(), default=0) > d.bulk_threshold and not await is_approved(d.store, d.clock()):
         await d.notify(f"Community sync: katta yozuv {summary}. Tasdiqlaysizmi?", buttons=approval_buttons())
         return dict(out, status="awaiting_approval")
-    if not await _apply(d, canon, changes, reads, snaps, errors):
+    blocked = frozenset(c.key for c in conflicts)
+    if not await _apply(d, canon, changes, reads, snaps, errors, blocked):
         return dict(out, status="quiet_hours")
-    await _persist(d, canon)
+    await _persist(d, canon, blocked)
     if d.drip and not is_quiet_hours(d.clock()):
         out["telegram_drip"] = await d.drip(d.store, canon, d.tg_daily_limit, d.clock())
     await d.notify(f"Community sync: {len(canon)} kishi, yozildi {summary}, xato {errors or 'yöq'}")

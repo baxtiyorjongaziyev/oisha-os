@@ -38,15 +38,39 @@ class AmoAdapter:
         self._contacts: dict[str, dict] = {}
         self.failed_reads: set[str] = set()
 
+    def _get(self, path: str, params=None) -> requests.Response:
+        self.amo._load_token()
+        return requests.get(
+            f"{self.amo.base_url}/api/v4/{path}",
+            headers=self.amo._get_headers(), params=params, timeout=30,
+        )
+
+    def _by_id(self, cid: str) -> dict:
+        r = self._get(f"contacts/{int(cid)}", {"with": "leads"})
+        if r.status_code != 200:
+            raise RuntimeError(f"amocrm contact {cid}: HTTP {r.status_code}")
+        return r.json()
+
+    def _by_phone(self, phone: str):
+        """204 = aniq yöq; boshqa xato = öqish xatosi (yozuv bloklanadi)."""
+        r = self._get("contacts", {"query": phone.lstrip("+")})
+        if r.status_code == 204:
+            return None
+        if r.status_code != 200:
+            raise RuntimeError(f"amocrm search: HTTP {r.status_code}")
+        for c in (r.json().get("_embedded") or {}).get("contacts") or []:
+            # Qidiruv substring böyicha: telefon aniq mos kelmasa, begona kontakt olinmaydi
+            if phone in _phones_of(c):
+                return c
+        return None
+
     async def _find(self, p: Person):
         cid = p.ext.get("amocrm")
         if cid:
-            return await asyncio.to_thread(self.amo.get_contact_details, int(cid))
+            return await asyncio.to_thread(self._by_id, cid)
         if not p.phone:
             return None
-        c = await asyncio.to_thread(self.amo.get_contact_by_phone, p.phone)
-        # Qidiruv substring boʻyicha: telefon aniq mos kelmasa, begona kontakt olinmaydi
-        return c if c and p.phone in _phones_of(c) else None
+        return await asyncio.to_thread(self._by_phone, p.phone)
 
     async def read_all(self, people: dict[str, Person]) -> dict[str, dict[str, str]]:
         rows = {}

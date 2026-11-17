@@ -59,13 +59,13 @@ class GoogleAdapter:
         phones = [p.phone] if p.phone else []
         first, last = self._name_parts(p, self._display.get(p.key, ""))
         if not resource:
-            new = await asyncio.to_thread(
-                self.g.create_person, first, last, phones, labels_for(p)
-            )
-            if new:
-                p.ext["google"] = new
-            return bool(new)
-        ok = await asyncio.to_thread(self.g.update_person, resource, first, last, phones)
+            resource = await asyncio.to_thread(self.g.create_person, first, last, phones, [])
+            if not resource:
+                return False
+            p.ext["google"] = resource
+            ok = True
+        else:
+            ok = await asyncio.to_thread(self.g.update_person, resource, first, last, phones)
         for label in labels_for(p):
             ok = await asyncio.to_thread(self.g.add_to_group, resource, label) and ok
         return bool(ok)
