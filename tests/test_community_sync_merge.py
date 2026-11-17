@@ -87,3 +87,11 @@ def test_plan_respects_system_fields():
     reads = {"amocrm": {"k": {"first_name": "A"}}}
     changes, _ = plan(canon, {}, reads, {"amocrm": ("first_name",)})
     assert changes == []
+
+
+def test_first_sight_canon_wins():
+    canon = {"k": P("k", first_name="Ali")}
+    reads = {"google": {"k": {"first_name": "Alisher aka"}}}
+    changes, conflicts = plan(canon, {}, reads)
+    assert canon["k"].first_name == "Ali" and not conflicts
+    assert changes == [Change("google", "k", "first_name", "Ali")]

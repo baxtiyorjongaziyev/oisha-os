@@ -77,7 +77,9 @@ def _field_plan(key, f, person, snapshots, reads, fields_by_system):
     for system, rows in reads.items():
         if key in rows and f in fields_by_system.get(system, SYNC_FIELDS):
             current[system] = rows[key].get(f, "") or ""
-            base[system] = snapshots.get(system, {}).get(key, {}).get(f, "")
+            snap = snapshots.get(system, {}).get(key)
+            # Snapshot yöq = birinchi uchrashuv: mavjud qiymat özgarish emas
+            base[system] = snap.get(f, "") if snap is not None else current[system]
     return merge_field(base, current)
 
 

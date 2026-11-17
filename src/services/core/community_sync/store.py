@@ -21,6 +21,7 @@ _SCHEMA = (
     "CREATE TABLE IF NOT EXISTS community_conflicts ("
     "key TEXT NOT NULL, field TEXT NOT NULL, vals TEXT NOT NULL, "
     "status TEXT NOT NULL, value TEXT, PRIMARY KEY (key, field))",
+    "CREATE TABLE IF NOT EXISTS community_state (k TEXT PRIMARY KEY, v TEXT)",
 )
 
 
@@ -125,4 +126,15 @@ class SyncStore:
     async def clear_resolved(self) -> None:
         await self._exec(
             "UPDATE community_conflicts SET status='applied' WHERE status='resolved'", []
+        )
+
+    async def get_state(self, k: str) -> Optional[str]:
+        rows = await self._exec("SELECT v FROM community_state WHERE k=?", [k])
+        return rows[0]["v"] if rows else None
+
+    async def set_state(self, k: str, v: str) -> None:
+        await self._exec(
+            "INSERT INTO community_state (k, v) VALUES (?, ?) "
+            "ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+            [k, v],
         )

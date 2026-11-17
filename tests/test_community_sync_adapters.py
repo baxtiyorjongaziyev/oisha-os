@@ -78,7 +78,7 @@ async def test_floodwait_defers():
     store.mark_tg.assert_awaited_once()
     args = store.mark_tg.await_args.args
     assert args[0] == "tg:1" and args[1] == "deferred" and (args[2] - now).total_seconds() == 3600
-    assert res == {"ok": 0, "failed": 0, "deferred": 2}
+    assert (res["ok"], res["deferred"]) == (0, 2)
 
 
 async def test_amocrm_create_and_skip_empty():

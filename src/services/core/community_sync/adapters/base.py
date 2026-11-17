@@ -31,4 +31,4 @@ def keys_of(changes) -> list[str]:
 
 
 def result() -> dict:
-    return {"ok": 0, "failed": 0, "deferred": 0}
+    return {"ok": 0, "failed": 0, "deferred": 0, "keys": []}

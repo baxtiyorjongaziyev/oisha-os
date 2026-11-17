@@ -90,7 +90,11 @@ class AmoAdapter:
             if not (p.phone or p.ext.get("amocrm")):
                 continue
             try:
-                res["ok" if await self._one(p) else "failed"] += 1
+                if await self._one(p):
+                    res["ok"] += 1
+                    res["keys"].append(key)
+                else:
+                    res["failed"] += 1
             except Exception as exc:
                 logger.error("[COMMUNITY_SYNC] amocrm %s: %s", key, exc)
                 res["failed"] += 1

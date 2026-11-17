@@ -61,3 +61,10 @@ async def test_conflicts(store):
     await store.resolve_conflict("k", "first_name", "B")
     assert await store.open_conflicts() == []
     assert await store.resolved_values() == {"k": {"first_name": "B"}}
+
+
+async def test_state(store):
+    assert await store.get_state("x") is None
+    await store.set_state("x", "1")
+    await store.set_state("x", "2")
+    assert await store.get_state("x") == "2"

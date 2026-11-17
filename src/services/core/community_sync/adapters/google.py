@@ -69,7 +69,11 @@ class GoogleAdapter:
             if not p or not (p.first_name or p.phone):
                 continue
             try:
-                res["ok" if await self._one(p) else "failed"] += 1
+                if await self._one(p):
+                    res["ok"] += 1
+                    res["keys"].append(key)
+                else:
+                    res["failed"] += 1
             except Exception as exc:
                 logger.error("[COMMUNITY_SYNC] google %s: %s", key, exc)
                 res["failed"] += 1
