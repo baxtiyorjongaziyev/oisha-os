@@ -124,7 +124,7 @@ Maqsad: bitta bot yiqilsa, qolgan ikkitasi ishlayveradi. Hech biri boshqasining 
 ### Hozirgi holat va bo'shliqlar (tekshirilishi kerak)
 - API kalitlar alohida-alohidami — serverda tekshirilmagan.
 - Drive papkalari va service account'lar hali yaratilmagan.
-- `sync_agents_runtime.py` uchala botni bitta skript bilan qayta ishga tushiradi — alohida restart qoidasiga zid; bo'linishi kerak.
+- `sync_agents_runtime.py` Mr.Jon (OpenClaw) va Amina (Hermes) gateway'larini bitta skript bilan qayta ishga tushiradi (`oisha.service` ga tegmaydi) — alohida restart qoidasiga zid; bo'linishi kerak.
 
 ---
 
