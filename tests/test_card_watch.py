@@ -169,3 +169,22 @@ def test_unknown_sender_goes_to_owner_topic(tmp_path):
 
     asyncio.run(run_cycle([_send(key="owner")], [], sender, now=NOW, state_path=str(tmp_path / "s.json")))
     assert topics == [118]
+
+
+def test_common_amount_is_ambiguous_without_name():
+    """Real-data regression (2026-11-17): several 880 000 incomes must not pay an unnamed send."""
+    sent = datetime(2026, 9, 23, 10, tzinfo=timezone.utc)
+    s = CardSend("shahnoza", 777, "Muhammad Aziz", "Muhammad Aziz", 1, sent, 880_000.0, CARDS[0])
+    incomes = income_rows([
+        _income("2026-09-26", 880_000, name="Kirim - Hydrogenium expert tekshiruv"),
+        _income("2026-09-28", 880_000, name="Kirim - Mixone ekspert tekshiruv"),
+        {"fields": {"Turi": "Kirim", "Sana": "2026-10-02", "Summa": 7_640_000,
+                    "Tranzaksiya": "Kirim - Mustabro patentlash", "Izoh": "Mijoz: Muhammad aka"}},
+    ])
+    assert not is_paid(s, incomes)
+    assert is_paid(s, incomes[:1])  # single 880k in window -> paid
+
+
+def test_income_outside_window_ignored():
+    s = _send(days_ago=60)
+    assert not is_paid(s, income_rows([_income("2026-11-16", 1_900_000)]))

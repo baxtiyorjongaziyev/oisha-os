@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from src.services.core.card_watch.detector import CardSend
 
 AMOUNT_TOLERANCE = 0.02
+MATCH_WINDOW_DAYS = 30
 _STOP = {"jon", "branding", "mchj", "ooo", "llc", "group", "va", "and"}
 _TEXT_FIELDS = ("Tranzaksiya", "Izoh", "Mijoz", "Kontragent", "Loyiha nomi", "Brend")
 
@@ -61,19 +62,31 @@ def income_rows(records: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+def _amount_ok(expected: Optional[float], actual: Optional[float]) -> bool:
+    return bool(expected and actual and abs(actual - expected) <= expected * AMOUNT_TOLERANCE)
+
+
 def is_paid(send: CardSend, incomes: Iterable[Dict[str, Any]]) -> bool:
-    """True when an income on/after the send date matches by name or by amount."""
+    """Income within [sent-1d, sent+MATCH_WINDOW_DAYS] that matches the send.
+
+    Rules (checked on real data, 2026-11-17):
+    * name match counts only when amounts do not contradict (person names like
+      "Muhammad" are common, so a 7.64M income must not pay an 880k card send);
+    * amount-only match counts only when exactly one income with that amount is
+      in the window (880 000 is a common price, several rows => ambiguous).
+    """
     since = send.sent_at.date() - timedelta(days=1)
+    until = send.sent_at.date() + timedelta(days=MATCH_WINDOW_DAYS)
     names = _norm_tokens(f"{send.client_name} {send.chat_title}")
+    amount_hits = 0
     for f in incomes:
         d = _record_date(f)
-        if d is None or d < since:
+        if d is None or not since <= d <= until:
             continue
         amount = _record_amount(f)
-        amount_ok = bool(
-            send.amount and amount and abs(amount - send.amount) <= send.amount * AMOUNT_TOLERANCE
-        )
-        name_ok = bool(names & _norm_tokens(_record_text(f)))
-        if name_ok or amount_ok:
+        amount_ok = _amount_ok(send.amount, amount)
+        contradicts = bool(send.amount and amount) and not amount_ok
+        if names & _norm_tokens(_record_text(f)) and not contradicts:
             return True
-    return False
+        amount_hits += amount_ok
+    return amount_hits == 1
