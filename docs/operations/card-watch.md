@@ -10,10 +10,16 @@ Har soatda (quiet hours 23:00–07:00 va yakshanbadan tashqari):
 3. Airtable `Tranzaksiyalar` (`app8xoyx1XCumYFXV` / `tblrqxqIzyrvg7XpQ`) kirimlari bilan
    solishtiradi: mijoz/brend nomi yoki summa (±2%), sana ≥ karta yuborilgan kun − 1.
 4. `CARD_WATCH_GRACE_DAYS` (standart 2) kun ichida kirim boʻlmasa, sotuv guruhida
-   (`-1003854308552`) menejer topicʼiga bir marta eslatma yuboradi. Topicʼi yoʻq
-   menejer (Hasanboy) va aniqlanmagan yuboruvchi → Owner DM.
+   (`-1003854308552`) menejer topicʼiga bir marta eslatma yuboradi.
+5. Har kuni `CARD_WATCH_REPORT_HOUR` (standart 18) dan keyin har menejerga oʻz topicʼida
+   alohida hisobot: karta yuborilgan / toʻlagan / kutilmoqda roʻyxati.
 
-Holat: `data/card_watch_state.json` (yuborilgan eslatmalar, toʻlangan deb belgilanganlar).
+Topiclar: Rayxona 2976, Mumtozmaxal 120, Shahnoza 122, Hasanboy 17141, Baxtiyorjon (egasi) 118 —
+yuboruvchisi aniqlanmagan guruh xabarlari shu yerga.
+
+Holat: `data/card_watch_state.json` — har yozuvda `manager` maydoni (menejer boʻyicha ajratilgan
+kuzatuv roʻyxati), `paid`, `reminded_at`, mijoz, summa. Airtable `Tranzaksiyalar` ga yozilmaydi va
+view yaratilmaydi; kerak boʻlsa `Sotuvchi` maydoni boʻyicha har menejerga view qoʻlda ochiladi.
 
 ## Sozlamalar (env)
 
@@ -22,6 +28,7 @@ Holat: `data/card_watch_state.json` (yuborilgan eslatmalar, toʻlangan deb belgi
 | `CARD_WATCH_ENABLED` | `0` | `1` boʻlsa loop ishlaydi |
 | `CARD_WATCH_CARDS` | ikki kompaniya kartasi | vergul bilan |
 | `CARD_WATCH_GRACE_DAYS` | `2` | eslatmagacha kun |
+| `CARD_WATCH_REPORT_HOUR` | `18` | kunlik hisobot soati (Toshkent) |
 | `CARD_WATCH_LOOKBACK_DAYS` | `14` | Telegram tarixida qancha orqaga qarash |
 | `CARD_WATCH_OWNER_GROUPS` | `1` | egasi guruhlarini skan qilish |
 | `CARD_WATCH_MANAGERS` | 4 menejer | JSON: `[{"key","name","username","topic_id"}]` |

@@ -89,6 +89,8 @@ def overdue_sends(
     cutoff = now - timedelta(days=grace_days)
     for s in sends:
         entry = state.setdefault(s.uid, {"sent_at": s.sent_at.isoformat()})
+        entry.update(manager=s.manager_key, client=s.client_name or s.chat_title,
+                     amount=s.amount, card=s.card[-4:])
         if entry.get("paid") or entry.get("reminded_at"):
             continue
         if is_paid(s, incomes):
@@ -125,11 +127,48 @@ async def run_cycle(
     reminded = 0
     for key, items in by_manager.items():
         mgr = managers.get(key)
-        name = mgr.name if mgr else "Owner"
-        topic = mgr.topic_id if mgr else None
+        name = mgr.name if mgr else "Baxtiyorjon"
+        topic = mgr.topic_id if mgr else config.OWNER_TOPIC_ID
         if await send_message(format_reminder(name, items, grace), topic):
             for s in items:
                 state[s.uid]["reminded_at"] = now.isoformat()
             reminded += len(items)
     save_state(state, state_path)
     return {"sends": len(unique), "due": len(due), "reminded": reminded}
+
+
+def manager_entries(state: Dict[str, Dict[str, Any]], manager_key: str) -> List[Dict[str, Any]]:
+    return [e for k, e in state.items() if not k.startswith("_") and e.get("manager") == manager_key]
+
+
+def format_report(manager_name: str, entries: List[Dict[str, Any]]) -> str:
+    """Per-manager summary: sent / paid / waiting (reminded ones marked)."""
+    paid = [e for e in entries if e.get("paid")]
+    waiting = [e for e in entries if not e.get("paid")]
+    lines = [
+        f"📊 <b>{html.escape(manager_name)}</b> — karta kuzatuvi",
+        f"Karta yuborilgan: {len(entries)} | Toʻlagan: {len(paid)} | Kutilmoqda: {len(waiting)}",
+    ]
+    for e in sorted(waiting, key=lambda x: x.get("sent_at", "")):
+        mark = " ⏰" if e.get("reminded_at") else ""
+        client = html.escape(str(e.get("client") or "?"))
+        lines.append(f"• {client} — {_fmt_amount(e.get('amount'))}, {str(e.get('sent_at', ''))[:10]}{mark}")
+    return "\n".join(lines)
+
+
+async def send_daily_reports(send_message: Sender, today: str, state_path: str = STATE_FILE) -> int:
+    """Once per day each manager gets own report in own topic (owner -> 118)."""
+    state = load_state(state_path)
+    meta = state.setdefault("_meta", {})
+    if meta.get("report_date") == today:
+        return 0
+    targets = [(m.key, m.name, m.topic_id) for m in config.load_managers()]
+    targets.append((OWNER_KEY, "Baxtiyorjon", config.OWNER_TOPIC_ID))
+    sent = 0
+    for key, name, topic in targets:
+        entries = manager_entries(state, key)
+        if entries and await send_message(format_report(name, entries), topic):
+            sent += 1
+    meta["report_date"] = today
+    save_state(state, state_path)
+    return sent

@@ -21,6 +21,7 @@ from src.time_utils import get_local_now, is_quiet_hours, is_sunday
 logger = logging.getLogger("CardWatch")
 
 INTERVAL_SECONDS = 60 * 60
+REPORT_HOUR = int(os.getenv("CARD_WATCH_REPORT_HOUR", "18"))
 
 
 async def _policy_allows(db: Any) -> bool:
@@ -86,19 +87,27 @@ async def collect_sends(owner_client: Any = None) -> List[CardSend]:
 
 
 async def run_once(owner_client: Any = None, db: Any = None) -> dict:
-    from src.services.core.card_watch.service import fetch_income_records, run_cycle
+    from src.services.core.card_watch.service import (
+        fetch_income_records,
+        run_cycle,
+        send_daily_reports,
+    )
 
     if not await _policy_allows(db):
         return {"skipped": "policy"}
     sends = await collect_sends(owner_client)
-    if not sends:
-        return {"sends": 0, "due": 0, "reminded": 0}
-    incomes = await asyncio.to_thread(fetch_income_records, config.lookback_days() + 7)
+    incomes = []
+    if sends:
+        incomes = await asyncio.to_thread(fetch_income_records, config.lookback_days() + 7)
 
     async def _send(text: str, topic: Optional[int]) -> bool:
         return await asyncio.to_thread(_post, text, topic)
 
-    return await run_cycle(sends, incomes, _send)
+    result = await run_cycle(sends, incomes, _send)
+    now = get_local_now()
+    if now.hour >= REPORT_HOUR:
+        result["reports"] = await send_daily_reports(_send, now.date().isoformat())
+    return result
 
 
 async def card_payment_watch_loop(bot_runtime: Any = None) -> None:

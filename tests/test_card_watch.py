@@ -11,7 +11,7 @@ from src.services.core.card_watch import config
 from src.services.core.card_watch.detector import CardSend, extract_amount, find_card
 from src.services.core.card_watch.matcher import income_rows, is_paid
 from src.services.core.card_watch.scanner import scan_client, scan_manager
-from src.services.core.card_watch.service import run_cycle
+from src.services.core.card_watch.service import load_state, run_cycle, send_daily_reports
 
 CARDS = ["5614681918811393", "5614681919485106"]
 NOW = datetime(2026, 11, 17, 10, 0, tzinfo=timezone.utc)
@@ -137,4 +137,35 @@ def test_config_defaults_and_overrides(monkeypatch):
     monkeypatch.setenv("CARD_WATCH_CARDS", "1111 2222 3333 4444")
     assert config.load_cards() == ["1111222233334444"]
     topics = {m.key: m.topic_id for m in config.load_managers()}
-    assert topics == {"shahnoza": 122, "rayxona": 2976, "mumtozmaxal": 120, "hasanboy": None}
+    assert topics == {"shahnoza": 122, "rayxona": 2976, "mumtozmaxal": 120, "hasanboy": 17141}
+
+
+def test_daily_report_per_manager(tmp_path):
+    state = str(tmp_path / "s.json")
+    out = []
+
+    async def sender(text, topic):
+        out.append((topic, text))
+        return True
+
+    incomes = [_income("2026-11-16", 1_900_000)]
+    sends = [_send(mid=1), _send(mid=2, amount=5_000_000, key="shahnoza")]
+    asyncio.run(run_cycle(sends, incomes, sender, now=NOW, state_path=state))
+    st = load_state(state)
+    assert {e["manager"] for k, e in st.items() if not k.startswith("_")} == {"rayxona", "shahnoza"}
+    out.clear()
+    assert asyncio.run(send_daily_reports(sender, "2026-11-17", state)) == 2
+    assert asyncio.run(send_daily_reports(sender, "2026-11-17", state)) == 0
+    reports = dict(out)
+    assert "Toʻlagan: 1" in reports[2976] and "Kutilmoqda: 1" in reports[122]
+
+
+def test_unknown_sender_goes_to_owner_topic(tmp_path):
+    topics = []
+
+    async def sender(text, topic):
+        topics.append(topic)
+        return True
+
+    asyncio.run(run_cycle([_send(key="owner")], [], sender, now=NOW, state_path=str(tmp_path / "s.json")))
+    assert topics == [118]

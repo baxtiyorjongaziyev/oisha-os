@@ -15,6 +15,7 @@ DEFAULT_CARDS = ("5614681918811393", "5614681919485106")
 SALES_GROUP_ID = -1003854308552
 AIRTABLE_BASE = "app8xoyx1XCumYFXV"
 AIRTABLE_TABLE = "tblrqxqIzyrvg7XpQ"
+OWNER_TOPIC_ID = 118  # Baxtiyorjon (former "Ziyoda leads")
 GROUP_TITLE_MARKER = "| jon branding"
 
 
@@ -35,7 +36,7 @@ DEFAULT_MANAGERS = (
     ("shahnoza", "Shahnoza", "jonbranding_assistant", 122),
     ("rayxona", "Rayxona", "RayxonJonbranding", 2976),
     ("mumtozmaxal", "Mumtozmaxal", "MumtozmaxalJonbranding", 120),
-    ("hasanboy", "Hasanboy", "hasan_yahyo", None),
+    ("hasanboy", "Hasanboy", "hasan_yahyo", 17141),
 )
 
 
