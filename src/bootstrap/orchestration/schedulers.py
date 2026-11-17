@@ -41,6 +41,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     asyncio.create_task(chat_manager_extract_loop(), name="chat_manager_extract_loop")
     from src.schedulers.attendance_summary_scheduler import attendance_summary_loop
     asyncio.create_task(attendance_summary_loop(), name="attendance_summary_loop")
+    from src.schedulers.lunch_return_scheduler import lunch_return_loop
+    asyncio.create_task(lunch_return_loop(), name="lunch_return_loop")
+    from src.schedulers.card_payment_watch_scheduler import card_payment_watch_loop
+    asyncio.create_task(card_payment_watch_loop(bot_runtime), name="card_payment_watch_loop")
+    from src.schedulers.sales_copilot_scheduler import sales_copilot_loop
+    asyncio.create_task(sales_copilot_loop(bot_runtime), name="sales_copilot_loop")
     from src.schedulers.instagram_weekly_reporter import instagram_weekly_report_loop
     asyncio.create_task(
         instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
@@ -162,13 +168,12 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     except ImportError as exc:
         logger.warning("[JAMOA-RITM] scheduler unavailable: %s", exc)
 
+    # Soatlik guruh check-in oʻchirilgan; oʻrniga kunlik "eng muhim ish" kun tartibi.
     try:
-        from src.schedulers.remote_staff_checkin_scheduler import (
-            remote_staff_checkin_loop,
-        )
-        asyncio.create_task(remote_staff_checkin_loop(bot_runtime), name="remote_staff_checkin_loop")
+        from src.schedulers.daily_priority_checkin import daily_priority_checkin_loop
+        asyncio.create_task(daily_priority_checkin_loop(bot_runtime), name="daily_priority_checkin_loop")
     except ImportError as exc:
-        logger.warning("[REMOTE CHECKIN] scheduler unavailable: %s", exc)
+        logger.warning("[DAILY] scheduler unavailable: %s", exc)
     try:
         from src.schedulers.cockpit_autopilot_scheduler import (
             start_cockpit_autopilot_scheduler,

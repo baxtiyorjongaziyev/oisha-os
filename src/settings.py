@@ -245,6 +245,7 @@ class AppSettings(BaseSettings):
     PROJECTS_TOPIC_ID: Optional[int] = None
     TOPIC_CRM_ID: Optional[int] = None
     TOPIC_REPORTS_ID: Optional[int] = None
+    TOPIC_TRAINING_ID: Optional[int] = None  # Oʻquv boʻlimi topic (konversiya tavsiyalari)
     TOPIC_TASKS_ID: Optional[int] = None
     TOPIC_MEETINGS_ID: Optional[int] = None
     TOPIC_SELLER_1_LEADS_ID: Optional[int] = None
@@ -252,6 +253,7 @@ class AppSettings(BaseSettings):
     TOPIC_FOLLOWUP_ID: Optional[int] = None
     TOPIC_GENERAL_ID: Optional[int] = None
     TOPIC_KIRIM_ID: Optional[int] = None
+    SALES_WON_CHECK_DELAY_SECONDS: int = 1800
     STAGNATION_TOPIC_ID: Optional[int] = None
     WOW_SERVICE_TOPIC_ID: Optional[int] = None
     GDRIVE_OFFLOAD_FOLDER_ID: Optional[str] = None

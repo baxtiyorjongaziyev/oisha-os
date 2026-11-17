@@ -18,8 +18,8 @@ concurrency:
 
 jobs:
   audit:
-    name: Read-only TN revenue audit on Contabo
-    # Production deploy bilan bir xil self-hosted runner (Contabo)
+    name: Read-only TN revenue audit on prod runner
+    # Production deploy bilan bir xil self-hosted runner (Hetzner prod; "oracle" label tarixiy)
     runs-on: [self-hosted, oracle]
     timeout-minutes: 20
     steps:

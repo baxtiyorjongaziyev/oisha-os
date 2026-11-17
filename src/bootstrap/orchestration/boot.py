@@ -217,7 +217,15 @@ async def boot_application():
     asyncio.create_task(_brain_evolution_loop(), name="oisha_brain_evolution")
 
     from src.services.core.skill_learner import skill_learner_loop
-    asyncio.create_task(skill_learner_loop(client), name="oisha_skill_learner")
+    asyncio.create_task(
+        skill_learner_loop(
+            client,
+            db=db,
+            bot_runtime=bot_runtime,
+            owner_id=getattr(getattr(admin_bot, "self_improvement", None), "owner_id", None),
+        ),
+        name="oisha_skill_learner",
+    )
 
     # 9. Graceful Shutdown Watcher
     _shutdown_event = asyncio.Event()

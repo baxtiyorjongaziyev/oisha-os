@@ -5,6 +5,7 @@ Delegates to modular subpackage in src.services.personas.
 from src.services.personas import (
     AGENCY_PERSONAS,
     CREATIVE_PERSONAS,
+    GROWTH_PERSONAS,
     MARKETING_PERSONAS,
     OPERATIONS_PERSONAS,
     SALES_PERSONAS,
@@ -16,4 +17,5 @@ __all__ = [
     "MARKETING_PERSONAS",
     "OPERATIONS_PERSONAS",
     "CREATIVE_PERSONAS",
+    "GROWTH_PERSONAS",
 ]

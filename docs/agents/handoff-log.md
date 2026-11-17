@@ -1,4 +1,4 @@
-# Agent Handoff Log
+﻿# Agent Handoff Log
 
 > AGENTS.md dan ko'chirildi (2026-09-29). Yangi yozuvlar shu faylning OXIRIGA qo'shiladi.
 > Format: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker. Sirlar yozilmaydi.
@@ -2851,3 +2851,203 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   2. `scripts/amocrm_surgical_cleanup_execute.py` skripti oʻchirildi (qayta ishlab ketish xavfi yoʻq).
   3. `amocrm_hygiene.py` va `crm_discipline_scheduler.py` da avtomatik arxivlash qatʼiyan oʻchirildi (`auto_archive=False`, xavfsiz ostonasi 480 ga koʻtarildi). Fon tekshiruvi bitimlarni oʻzboshimchalik bilan yopmaydi, faqat vazifalarni nazorat qiladi va limit oshganda xabarnoma chiqaradi.
   4. Meta CAPI tekshirildi: `STATUS_LOST (143)` CAPI triggerlariga ulanmagan (`STATUS_EVENT_MAP` faqat 142 ni oladi), shuning uchun Meta CAPI da hech qanday notoʻgʻri konversiya yuborilmagan.
+
+## 2026-11-10 — Claude — Agentlik uchun 4 ta yangi mutaxassis agent (naming, trademark, packaging, reels_script)
+- **Vazifa:** Owner soʻrovi ("Yangi agentlar yozish"): Jon Branding jarayonlaridagi boʻshliqlar uchun yangi agentlar.
+- **Bajarilgan ish:**
+  1. `src/agents/specialist_base.py`: `SpecialistAgent` — umumiy `process_task`; kontekst `system_prompt` ni oʻzgartirmasdan oxirgi user xabariga qoʻshiladi.
+  2. `naming_agent.py`, `trademark_agent.py`, `packaging_agent.py`, `reels_script_agent.py`: prompt suffiks + `CONTEXT_FIELDS`. Promptlarda "tekshirilmagan" / "oʻylab topmang" guardraillari (AGENTS.md #10).
+  3. `orchestrator.py`: `AGENT_IDS` yagona roʻyxat (ikki dublikat oʻrniga), Gemini router promptiga 4 agent, keyword fallback.
+  4. `message_controller.py`: 4 agent roʻyxatdan oʻtkazildi.
+- **Oʻzgargan fayllar:** `src/agents/{specialist_base,naming_agent,trademark_agent,packaging_agent,reels_script_agent,orchestrator}.py`, `src/controllers/message_controller.py`, `tests/test_brand_studio_agents.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3870 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** Production'da jonli LLM javobi tekshirilmagan (faqat unit test, AI mock). `AGENTS.md` Locks'ga yozilmadi (Coordinator fayli). Mavjud agentlar `SpecialistAgent` ga koʻchirilmadi (refactor scope'dan tashqari).
+
+
+## 2026-11-10 — Claude — agency-agents reposidan 8 ta persona qoʻshildi
+- **Vazifa:** Owner `msitarzewski/agency-agents` havolasini berdi. Mavjud 35 persona shu repodan qisqartirilgan; yetishmayotgan, agentlikka kerakli 8 tasi qoʻshildi.
+- **Bajarilgan ish:**
+  1. `src/services/personas/agency_agents_extra.py`: `GROWTH_PERSONAS` — `paid-media-paid-social-strategist`, `paid-media-creative-strategist`, `paid-media-tracking-specialist`, `sales-offer-lead-gen-strategist`, `marketing-carousel-growth-engine`, `marketing-email-strategist`, `design-image-prompt-engineer`, `project-management-studio-producer`. Manba: upstream commit `8ae6164`, MIT (fayl docstringida).
+  2. `personas/__init__.py`, `core/agency_personas.py`: `GROWTH_PERSONAS` qoʻshildi va re-export qilindi.
+  3. `agents/persona_router.py`: 8 ta yangi pattern, umumiy "taklif"/"reklama" patternlaridan oldin.
+- **Oʻzgargan fayllar:** yuqoridagilar + `tests/test_agency_agents_personas.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` → 3892 passed, 14 skipped (Python 3.11 venv); `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** Persona matnlari upstream fayllarning qoʻlda qisqartirilgan varianti (soʻzma-soʻz nusxa emas). Jonli LLM javobi tekshirilmagan. PR #1050 da GitHub-hosted CI joblari ishga tushmayapti (hisob darajasidagi sabab, PR izohida).
+
+
+## 2026-11-11 — Claude — GitHub Actions sarfini kamaytirish (bepul kvota tugagan)
+- **Sabab:** Owner hisobida (GitHub Free) Actions bepul kvotasi 2026-11-10 da tugadi ($12.00/$12.00, owner skrinshoti); hosted joblar "job was not started ... spending limit" annotatsiyasi bilan boshlanmayapti. Shu oyda sarf: `oisha-os` $7.99, `jonbranding-web` $5.32 (owner skrinshoti). Asosiy manba — har PR pushda 5 workflow, har job kamida 1 daqiqa hisoblanadi.
+- **Bajarilgan ish:**
+  1. Draft PR'larda `changes`, `pull-request-tests`, `Import-time crash guard`, `gitleaks` oʻtkazib yuboriladi; `ready_for_review` hodisasi qoʻshildi.
+  2. Oʻzbekcha matn PR-diff tekshiruvi `Import-time crash guard` jobiga koʻchirildi; `uzbek-text-guard.yml` endi faqat `main` push va qoʻlda.
+  3. `labeler.yml`: `synchronize` olib tashlandi (faqat PR ochilganda / ready boʻlganda).
+  4. `tests/test_runner_workflow_contract.py`: uchta yangi shartnoma testi; `.claude/skills/steward/SKILL.md` ga draft qoidasi.
+- **Hisob (taxmin, oʻlchanmagan):** ready PR push ~7 → ~5 job-daqiqa, draft PR push ~7 → 0.
+- **Tekshiruv dalillari:** YAML parse OK; `SKIP_LIVE=1 pytest -q` → 3895 passed, 14 skipped; `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py --staged` → toza. **GitHub'da ishga tushirib tekshirilmagan** — kvota tugagani uchun Actions ishlamayapti.
+- **Qolgan ish/Bloker:** `jonbranding-web` reposi bu sessiya doirasida emas — u ham kamaytirilmasa umumiy kvota baribir yetmasligi mumkin. Branch protection required checklari (`Import-time crash guard`, `gitleaks`) draftda "skipped" boʻladi; ready qilinganda ishlaydi.
+
+
+## 2026-11-16 — Antigravity — Oisha oʻz-oʻzini tahlil qilish, skill oʻrganish va owner feedback sikli
+- **Vazifa:** Oisha AIʼning Tursoʼdagi buzilgan kunlik oʻz-oʻzini tashxis (`improvement_proposals` `SQLITE_MISMATCH`), Aiogram delivery, `SelfLearningEngine` / `OishaBrain` / `skill_learner` uzilishlari va guruhdagi owner tuzatishlaridan oʻrganish hamda shaxsni adashtirmaslik siklini tuzatish.
+- **Bajarilgan ish:**
+  1. `src/db/repositories/base.py`, `src/db/repositories/proposals/schema.py`: `PRAGMA table_info(...)` Tursoʼda `[]` qaytarganligi sababli `SELECT name, type FROM pragma_table_info(?)` ga oʻtkazildi (dict/tuple mos); `INTEGER PK` eski `improvement_proposals` jadvali nomlanib koʻchirilib, eski indekslar tushirilib qayta quriladi (`init_proposal_tables` `<= 60` qatorga ajratildi).
+  2. `src/services/core/telegram/bot_runtime.py`, `src/services/core/self_improvement.py`, `src/services/core/admin_bot/handlers_callbacks.py`: `AiogramBotRuntime` `link_preview=False` / `silent=True` / `parse_mode="md"`|`html` ni normallashtiradi; `SelfImprovementService` `BotRuntimePort` tugma va preview kontraktidan foydalanadi; `_handle_improvement_callback` Aiogramʼda `html.escape` fallback bilan kartani tahrirlaydi.
+  3. `src/services/core/evolution_scheduler.py`: kunlik diagnostika, sintez, haftalik evolyutsiya va metrika bosqichlari `_run_step`/`_run_once` orqali izolyatsiya qilindi.
+  4. `src/services/core/self_learning.py`, `src/services/core/self_evolution.py`, `src/services/core/agent_brain.py`: `SelfLearningEngine` va `OishaBrain` no-blocking `FreeAIProviderRouter` zaxirasiga ega qilindi, `learning_journal`/`strategy_rules` dublikatdan tozalandi, Turso `dict` qatorlari va `commit()` tuzatildi, `OishaBrain._diagnose` `.format()` `{` KeyError xatosi tuzatildi va `_notify_owner` HTMLʼga oʻtkazildi.
+  5. `src/services/core/adaptive_learning.py`, `src/services/core/skill_learner_bot.py`, `src/services/core/skill_learner.py`: `lastrowid` yoʻq boʻlganda DBʼdan qayta oʻqish, `bot_runtime` + inline tugmalar bilan skill tasdiqlash (`/skills`, `/skill_ok`, `/skill_no`, `skill:*`), baholangan qoʻngʻiroqlardan (`crm_tasks.py`) va ownerʼning uslub/jarayon tuzatishlaridan darhol dars/strategiya yozish (`record_owner_feedback_rule`), hamda 5 daqiqalik kesh bilan `checkin_composer`, `sales_coach_reply`, `jamoa_ritm/brain.py` ga uzatish ulandi.
+  6. `src/handlers/seller_reply.py`, `src/services/core/sales_coach_reply.py`, `src/services/core/jamoa_ritm/texts.py`: check-in javobida Ownerʼni (`is_owner_user`) sotuvchining `last_reply` qismiga yozmaslik, xushomadsiz qisqa `is_owner=True` javob rejimi va `COACH_SYSTEM`/`HAMROH_SYSTEM` qisqa insoniy uslub qoidalari qoʻshildi.
+- **Oʻzgargan/yangi fayllar:** yuqoridagi modullar + `src/bootstrap/orchestration/boot.py`, `src/services/core/admin_bot/handlers_commands.py`, `tests/test_self_improvement_loop.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest` (16 ta test fayli) → 158 passed, 0 failed; `verify_standards.py` (18 ta oʻzgargan/yangi fayl) → SUCCESS (`<= 400` qator, funksiyalar `<= 60`); `bandit -r src/ -ll` → 0 muammo.
+- **Qolgan ish/Bloker:** Live serverdagi (`team_pulse` / `team_companion` hali PRʼga kirmagan) topic-xabarchilariga ham shu owner-ajratish va feedback tuzatishi alohida deployda uygʻunlashtiriladi.
+
+## 2026-11-11 — Claude — Qoʻlda production deploy yoʻli (Actions kvotasiga bogʻliq emas)
+- **Sabab:** PR #1050 merge qilindi (`4ff1d5e`), lekin deploy ishlamadi: hosted `Import-time crash guard` kvota tugagani uchun boshlanmadi, `deploy` esa unga bogʻliq. Qayta ishga tushirish ham xuddi shunday yiqildi (annotatsiya: "job was not started ... spending limit"). Owner 2-variantni tanladi.
+- **Bajarilgan ish:** `.github/workflows/oracle-deploy.yml` — `workflow_dispatch` ga `confirm` inputi; yangi `manual-guard` job (self-hosted, faqat `main`, `confirm == DEPLOY_PRODUCTION`, faqat `compileall`); `deploy` endi push da `import-guard`, qoʻlda esa `manual-guard` oʻtganda ishlaydi; hosted `import-guard` qoʻlda ishga tushirishda oʻtkazib yuboriladi. `tests/test_runner_workflow_contract.py` ga 2 ta shartnoma testi.
+- **Cheklov:** qoʻlda yoʻldagi tekshiruv hosted variantdan sust — dependency oʻrnatilmaydi, `tests/test_syntax_guard.py` yurgizilmaydi. Push orqali deploy oʻzgarmagan.
+- **Tekshiruv dalillari:** PR tavsifida.
+## 2026-11-15 — Antigravity — Hetzner migratsiyasi tekshiruvi (DNS, Nginx/TLS, Meta/Gemini) va hujjatlarni yangilash
+- **Vazifa:**
+  1. `oisha.jonbranding.uz` va `crm.jonbranding.uz` DNS holatini (`2.29.198.0` ga oʻtgan-oʻtmaganini) tekshirish.
+  2. Hetzner (`2.29.198.0`) da Nginx + TLS sozlash (DNS oʻtgan boʻlsa).
+  3. Instagram (`META_*`) va 3 ta alohida Gemini kaliti holatini ulash/tekshirish.
+  4. `AGENTS.md` va loyiha hujjatlaridagi eski Contabo (`109.199.100.137`) / Oracle eslatmalarini yangilash.
+- **Tekshiruv natijalari va blockerlar:**
+  1. **DNS (blocker — koʻchirilmagan):** `Resolve-DnsName` (lokal, `1.1.1.1`, `8.8.8.8`) → `oisha.jonbranding.uz` va `crm.jonbranding.uz` hali `109.199.100.137` (`TTL 300`, Cloudflare NS `karl.ns.cloudflare.com`, `katja.ns.cloudflare.com`) ga qaraydi. `https://oisha.jonbranding.uz/` va `crm.jonbranding.uz` sertifikat xatosi (`SEC_E_WRONG_PRINCIPAL`) hamda begona `<title>Waffly | Admin Panel</title>` sahifasini qaytardi.
+  2. **Hetzner Nginx/TLS (blocker):** `http://2.29.198.0/` → `200 OK` (`nginx/1.24.0 (Ubuntu)`, standart 615 bayt sahifa), `Host: oisha.jonbranding.uz /readyz/` → `404 Not Found`, `:8080/readyz/` → tashqi timeout. DNS hali oʻtmagani va agent muhitida Hetzner SSH kaliti/ruxsati (`Permission denied`) yoʻqligi sabab Nginx vhost va Certbot SSL oʻrnatilmadi. Shuningdek, `deploy/nginx-oisha.conf` `/api/` va `/` ga `auth_basic "Oisha Admin"` qoʻygani hamda `/webhook/*`, `/capi`, `/sotuv`, `/payme` yoʻllarini proxy qilmagani aniqlandi — Hetzner Nginx'da webhook yoʻllari uchun `auth_basic off` va toʻgʻri proxy kerak boʻladi (`src/api/security.py` `_PUBLIC_PATHS` da mavjud).
+  3. **Instagram (`META_*`) va Gemini kalitlari (blocker):** kodda talab qilinadigan nomlar tekshirildi (`src/services/core/instagram/config_guard.py`, `src/settings.py`: `META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`; OpenClaw `scripts/sync_agents_runtime.py`: `GEMINI_API_KEY` env; Hermes `deploy/hermes/`). Egadan kalitlar olinmagani, Hetzner'ga SSH kirish yoʻqligi va `.env`/sirlar taqiqi sababli serverda sozlanmadi.
+- **Oʻzgargan fayllar (`.worktrees/docs-hetzner-migration`, branch `docs/hetzner-migration-sync`):**
+  - Hujjatlar: `AGENTS.md` (120 qator ≤ 150), `CLAUDE.md`, `docs/agents/state-and-history.md` (dublikat tozalandi + Hetzner status qoʻshildi), `docs/agents/golden-principles.md`, `docs/agents/code-mode.md`, `docs/operations/telethon-session-ownership.md`, `.env.example`, `docs/google-calendar-setup.md`, `docs/crm-drive-safe-automation.md`, `docs/gdrive-personal-consent.md`, `deploy/OISHA_WEB_DEPLOY.md`, `docs/agents/handoff-log.md`.
+  - Xavfsizlik/skript/workflow: `109.199.100.137` hardcoded fallback/host `.github/workflows/userbot-vps.yml`, `deploy/{deploy_and_verify,deploy_creds,deploy_final_fix,deploy_to_vps_root,deploy_v5_agentic}.py`, `scripts/debug/{analyze_last_chat,check_db,check_remote_status}.py`, `src/scripts/oauth_server.py` dan olib tashlandi; `.github/workflows/{claude,hunter-limit-report,tn-revenue-audit}.yml`, `scripts/hunter_limit_report.py`, `scripts/lead_assignment_check.py`, `scripts/prod/tn_revenue_audit.py`, `src/api/routes/attendance_routes.py`, `src/schedulers/cockpit_autopilot_scheduler.py` yangilandi.
+- **Tekshiruv dalillari:**
+  - `check_uzbek_text.py --staged` → toza (`14 fayl`; yakuniy stage bilan qayta tekshiriladi).
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 ... src/` → `All checks passed!`.
+  - `bandit -r src/ -ll` → `No issues identified` (`135663` qator).
+  - Workflow YAML parse (`yaml.safe_load`) → `YAML OK`.
+  - `SKIP_LIVE=1 pytest -q --tb=short` (Windows `.venv` Python 3.12.15) → `3889 passed, 3 failed, 17 skipped` (3 ta yiqilish Windows muhitidagi oldindan mavjud POSIX testlar: `test_drive_oauth_onboarding.py::test_credentials_saved_privately_and_atomically` [NTFS `0o666` vs `0o600`] va `test_sync_agents_deploy_safety.py` [2 ta test — `scripts/sync_agents_runtime.py:136` da `os.name != "nt"` guard]). Focused workflow/deploy/security/telephony shartnoma testlari → `75 passed, 4 skipped`.
+- **Qolgan ish/Bloker:**
+  - Owner Cloudflare'da `oisha.jonbranding.uz` va `crm.jonbranding.uz` A yozuvlarini `2.29.198.0` ga oʻzgartirishi kerak.
+  - Shundan keyin SSH bilan Hetzner'da Nginx (webhooklarga `auth_basic off` bilan) + Certbot SSL va 4 ta `META_*` + 3 ta alohida `GEMINI_API_KEY` ulanadi.
+  - Ushbu branch (`docs/hetzner-migration-sync`) `origin/main` ga PR orqali birlashtirilishi kerak (`main` ga toʻgʻridan push qilinmadi).
+## 2026-11-16 — Antigravity — Soatlik check-inlarda Gemini thinking sizib chiqishi va kesilishini tuzatish (`fix/checkin-thinking-leak`)
+- **Sabab:** Rayxon (`@RayxonJonbranding`) va Mumtozmaxal topiclariga soatlik check-in oʻrniga `Uzbek Latin script.\n * 0`, `prefix context, but wait - developer prompt says "F`, `is low (only 1 dial in the last hour,` kabi inglizcha thinking parchalari va `Kun oxirlab qoldi, ch`, `Xayrli tong! Kuningiz unumli` kabi kesilgan xabarlar tushgan. `src/settings.py` da `FREE_AI_GEMINI_MODEL="gemini-2.5-flash"` thinking yoqilgan holda ishlaydi; `free_ai_router.py` OpenAI-mos endpointga `reasoning_effort` yubormagani uchun `checkin_composer.py` dagi `max_tokens=300` ni thinking yeb tugatgan, `last_checkin` esa `Rayxon (@...), ` prefiksi bilan qayta uzatilgan.
+- **Bajarilgan ish:**
+  1. `src/services/utils/free_ai_router.py` (`<= 400` qator): Gemini 2.5 non-Pro uchun `reasoning_effort="none"` (Gemini 3 `minimal`, Gemini 4/2.5 Pro va Cerebras `gpt-oss` uchun `low`), `<think>...</think>` tozalash va boʻsh `content` da keyingi provayderga fallback.
+  2. `src/services/utils/gemini_failover/providers.py`: `msg.get("reasoning")` ni javob sifatida qaytarish olib tashlandi; `gpt-oss` uchun `reasoning_effort="low"`.
+  3. `src/services/core/checkin_composer.py`: `max_tokens` `300` → `600`, `temperature` `0.8` → `0.6`, `COMPOSE_SYSTEM` dan shablon ism (`Shaxboz aka`) olib tashlandi; `_is_valid_checkin_text` orqali kesilgan/inglizcha/thinking chiqishlar, takrorlanish halqalari (`Javob: Yo`q.` x3, `8 8 8 8...`), `(blame)` kabi izohlar va prompt-echo (`Shaxsiy gaplarim:`, `Menejer:`) rad etilib qolip matnga xavfsiz qaytadi; `_sanitize_previous_checkin` eski prefiksli/zaharlangan `last_checkin` kontekstini tozalaydi.
+  4. Testlar: `tests/test_free_ai_router.py`, `tests/test_checkin_composer.py`, `tests/test_gemini_fallback.py` ga barcha real namuna ssenariylari boʻyicha unit testlar qoʻshildi.
+- **Oʻzgargan fayllar:** `src/services/utils/free_ai_router.py`, `src/services/utils/gemini_failover/providers.py`, `src/services/core/checkin_composer.py`, `tests/test_free_ai_router.py`, `tests/test_checkin_composer.py`, `tests/test_gemini_fallback.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:**
+  - Fokuslangan AI/check-in testlari (15 fayl): `SKIP_LIVE=1 python -m pytest ...` → **197 passed** (30.78s).
+  - Toʻliq suite: `SKIP_LIVE=1 python -m pytest -q --tb=short` → **3893 passed, 18 skipped**, 10 ta avvaldan mavjud Windows/lokal env testlari (`test_amocrm_sync`, `test_amocrm_token_fallback`, `test_drive_oauth_onboarding`, `test_incoming_call_card`, `test_sync_agents_deploy_safety`) oʻzgarishlarga aloqasiz sababdan yiqildi.
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 ... src/` → toza; `bandit -r src/ -ll` → exit 0; `verify_standards.py` → `<= 400` qator standarti OK; `check_uzbek_text.py --staged` → toza.
+- **Qolgan ish/Bloker:** PR merge qilinib Contabo VPS ga deploy qilinganda jonli check-in chiqishi tasdiqlanishi kerak (GitHub Free Actions kvota limiti sabab hosted PR checklar ishlamasligi mumkin).
+
+## 2026-11-16 — Antigravity — PR #1061 toʻldirish + SalesCoach & SellerReply tuzatishi va Hetzner jonli deploy
+- **Sabab:** 12:00 check-in va 12:03 Shahnoza javobida (`gemini-3.5-flash` prod `.env` da) `max_tokens=300/600` ni thinking yeb tugatib, `finish_reason="length"` bilan xabarlar kesilib qoldi (`system prompt: "Faqat xabar matnini`, `Go'shakni ko'tarishmagani kay}`, `Shahnoza, barakalla! Bir soat ichida ham uchrashuv o'tkazib,`). Bundan tashqari `seller_reply.py` barcha sotuvchilar javobini Rayxonning `data/checkin_context.json` fayliga yozib yuborgan va `@username`siz topic check-in javoblarini ushlamagan.
+- **Bajarilgan ish:**
+  1. `src/services/utils/free_ai_router.py`: `ProviderResult.finish_reason` qoʻshildi; `gemini-3*`/`2.5*` non-lite uchun `reasoning_effort="none"` (HTTP 400 boʻlsa avtomatik `reasoning_effort`siz qayta urinish), `gemini-4`/`pro`/`gpt-oss` uchun `low`; `_parse_openai_result` umumlashtirildi.
+  2. `src/services/core/checkin_composer.py`: `router_generate_complete` (`finish_reason == "length"` ni rad etadi) va umumiy `is_valid_reply` chiqarildi; `max_tokens=500`, `Go'shakni ... kay}` / `}` / unbalanced `"` / `(` himoyasi va dublikat ism prefiksini tozalash qoʻshildi.
+  3. `src/services/core/sales_coach_reply.py`: `router_generate_complete` va `is_valid_reply` ga ulandi, `max_tokens` `600` → `900`.
+  4. `src/handlers/seller_reply.py`: `_resolve_rep` va `_matches_rep_greeting` orqali topic (120/122/2976) boʻyicha `@username`siz AI check-in javoblarini ham ushlash va `last_reply` ni har sotuvchining oʻz `checkin_context_<key>.json` fayliga saqlash.
+  5. Testlar va Hetzner (`2.29.198.0`) deploy: zaharlangan `checkin_context.json` va `checkin_context_mumtozmaxal.json` tozalandi, Shahnozaning `last_reply` oʻz fayliga koʻchirildi, `oisha.service` restart qilindi va jonli Gemini 3.5 Flash sinovida Mumtozmaxal, Rayxon va Shahnoza uchun toʻliq oʻzbekcha javoblar tasdiqlandi.
+- **Oʻzgargan fayllar:** `src/services/utils/free_ai_router.py`, `src/services/core/checkin_composer.py`, `src/services/core/sales_coach_reply.py`, `src/handlers/seller_reply.py`, `src/services/utils/gemini_failover/providers.py`, `tests/test_free_ai_router.py`, `tests/test_checkin_composer.py`, `tests/test_sales_coach_reply.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `verify_standards.py` -> SUCCESS (`<= 400` lines); `ruff` -> All checks passed; `bandit -r src/ -ll` -> exit 0; `check_uzbek_text.py` -> toza; pytest -> all passed; Hetzner `/healthz` & `/readyz` -> HTTP 200.
+- **Qolgan ish/Bloker:** 13:00 check-in xabarini Telegram guruhda kuzatish; GitHub Free Actions kvota limiti sabab hosted PR checklar ishlamasa PR #1061 merge boʻyicha owner qarori.
+## 2026-11-16 — Antigravity — Owner Telegram username `@baxtiyorgaziyev` ga yangilandi (`fix/owner-telegram-handle`)
+- **Sabab:** Owner (`Baxtiyorjon Gaziyev`) Telegram username'i `@baxtiyorjong_gaziyev` emas, `@baxtiyorgaziyev` (`https://t.me/baxtiyorgaziyev`) ekanini bildirdi.
+- **Bajarilgan ish:**
+  1. `SECURITY.md`, `src/services/core/escalation_agent.py`, `src/services/reporter/plans.py`, `scripts/debug/weekly_report_sample.py` dagi xato `@baxtiyorjong_gaziyev` havolalari `@baxtiyorgaziyev` ga almashtirildi (`plans.py:266` dagi ASCII apostrof ham `oʻz` ga toʻgʻrilandi).
+  2. `src/services/core/safe_responder.py` (`team_whitelist`) ga `@baxtiyorgaziyev` qoʻshildi (eski `@baxtiyorjongaziyev` bilan birga), `src/services/core/crm/seller_auth_support.py` dagi `baxtiyorjon` yozuvi `@baxtiyorgaziyev` ga yangilandi.
+  3. Obsidian vault: `10-Projects/JonBranding.md` ga qoʻshildi (`brain_append`), `90-AI/Context.md` uchun `brain_memory_proposal` va `brain_log` yozildi.
+- **Oʻzgargan fayllar:** `SECURITY.md`, `scripts/debug/weekly_report_sample.py`, `src/services/core/escalation_agent.py`, `src/services/reporter/plans.py`, `src/services/core/safe_responder.py`, `src/services/core/crm/seller_auth_support.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 python -m pytest tests/test_seller_pin_hardening.py tests/test_userbot_private_policy.py tests/test_crm_weekly_report.py -q` → **30 passed** (`18.85s`); `check_uzbek_text.py --staged` → toza; `ruff` → toza; `bandit -r src/ -ll` → exit 0.
+- **Qolgan ish/Bloker:** PR merge qilinib deploy boʻlishi kerak. (`plans.py` dagi ikki eski funksiya — `generate_plan_fact_report` 98L, `generate_weekly_report_uz` 95L — oldindan 60 qatordan uzun, bu PR scope'idan tashqari.)
+## 2026-11-16 — Antigravity — Cockpit LiveDataBridge fallback ("Jasur Tursunov") bartaraf etildi
+- **Sabab:** Telegram guruhiga ketgan `🚨 [SLA BUZILIShI OGOHLANTIRISHI] — Jasur Tursunov (telegram), mgr_1, 69 daqiqa` xabari `LiveDataBridge._get_fallback_interactions()` dagi hardcoded demo yozuvdan kelayotgan edi (`src.api.state` import xatosi + `dialer_call_logs`/`dialer_leads`/`meta_ad_spend`/`lead_attribution` ustun nomlari real DB sxemasiga mos kelmagani uchun barcha soʻrovlar yiqilib fallbackga tushgan).
+- **Bajarilgan ish:**
+  1. `src/services/command_center/live_db_bridge.py` + `src/services/command_center/live_db_parsers.py`: Barcha soxta demo fallbacklar (`Jasur Tursunov`, `Artel Korporativ Shartnoma`, `Instagram Reels Masterclass`) olib tashlandi (boʻsh DB holatida `[]` qaytadi); `src.api.routes.state` importi tuzatildi; real SQLite/Turso jadvallariga (`dialer_leads`, `call_events`, `crm_chat_threads` + `crm_chat_messages`, `meta_ad_spend`, `lead_attribution`, `crm_tasks`, `crm_deal_losses`) moslandi va `"Synthetic Test"` qatorlari filtrlandi.
+  2. `src/services/command_center/autonomous_engine.py` + `src/schedulers/cockpit_autopilot_scheduler.py`: 24 soatlik `max_age_minutes` oynasi, `data/cockpit_autopilot_state.json` disk deduplikatsiyasi (qayta ishga tushganda takroriy alert yubormaslik), yakshanba kuni cheklovi, `seller_map` da raqamli Telegram ID tekshiruvi (`mgr_1` ga yubormaslik) va `USD` valyutali sarf uchun UZS anomaliya guardi qoʻshildi.
+  3. `src/api/routes/metasell_dashboard.py` + `src/api/templates/metasell_dashboard.html`: Hardcoded `"Aziz Karimov"`, `"Dilnoza Rahimova"`, `"Artel Korporativ"`/`"Crafers Logistika"` va statik placeholderlar real DB agregatsiyasiga almashtirildi.
+  4. Testlar yangilandi (`tests/test_live_db_bridge.py`, `tests/test_cockpit_full_features.py`, `tests/test_autonomous_cockpit_engine.py`, `tests/test_cockpit_autopilot_scheduler.py`).
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 python -m pytest tests/test_live_db_bridge.py tests/test_autonomous_cockpit_engine.py tests/test_cockpit_autopilot_scheduler.py tests/test_cockpit_full_features.py -q` → 25 passed; `ruff check` → All checks passed; `bandit -r src/ -ll` → exit 0; `check_uzbek_text.py` → toza. Toʻliq suite (`SKIP_LIVE=1 pytest -q`): 3886 passed, 18 skipped, 10 failed (Windows `0o600` ruxsati va lokal muhitga bogʻliq mavjud testlar: `test_amocrm_sync.py`, `test_amocrm_token_fallback.py`, `test_drive_oauth_onboarding.py`, `test_incoming_call_card.py`, `test_sync_agents_deploy_safety.py`).
+- **Qolgan ish/Bloker:** Contabo prod serveriga deploy qilingandan keyin `main` ga merge va live tekshiruv kerak.
+
+
+## 2026-11-16 — Claude — Leadgen holat hisoboti: Meta oʻqilmaganda yashil koʻrsatmaydi (PR #1064)
+- **Sabab:** 16.11 09:00 hisoboti "Meta API javob bermadi" deb turib "🟢 24/7 FAOL" va "100% yetkazildi" koʻrsatdi. Prod (Hetzner) `/home/deploy/oisha-os/.env` da `META_*` / `INSTAGRAM_*` kalit nomlari umuman yoʻq (faqat nomlar tekshirildi) — poller boʻsh token bilan jim `return 0` qilgan, log ham alert ham boʻlmagan.
+- **Bajarilgan ish:**
+  1. `src/schedulers/leadgen_status_reporter.py`: Meta tekshiruvi `None` qaytarsa holat "🔴 META TEKSHIRILMADI", footer raqamlar tasdiqlanmaganini aytadi; Meta lidi AmoCRMga yetmagan boʻlsa ham qizil.
+  2. `src/schedulers/meta_leadgen_scheduler.py`: token boʻsh boʻlsa mavjud rate-limited admin alert (6 soatda bir) yuboriladi.
+  3. Testlar: `tests/test_leadgen_status_reporter.py` (+3), `tests/test_meta_leadgen_token_alert.py` (+1).
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest -q` (Windows, lokal) → 3895 passed, 18 skipped, 5 failed; 5 ta xato bu PR fayllariga tegmaydi (`test_drive_oauth_onboarding` fayl ruxsati 438≠384, `test_runner_workflow_contract` cp1252 UnicodeDecodeError ×2, `test_sync_agents_deploy_safety` ×2) — `main` da alohida tekshirilmagan. `bandit -r src/ -ll` → exit 0. Uzbek-text commit guard oʻtdi.
+- **Qolgan ish/Bloker:** (a) Egasi Hetzner `.env` ga `META_PAGE_ACCESS_TOKEN` va CAPI kalitlarini qoʻyib `oisha` ni restart qilishi kerak — busiz lidlar olinmaydi. (b) GitHub Actions joblari boshlanmayapti: "recent account payments have failed or your spending limit needs to be increased" — PR checklari shu sababli qizil. (c) Prod deliveries bazasida `test_in_flight_*` qatorlari bor, watchdog har daqiqada WARNING yozadi — tegilmagan.
+
+
+## 2026-11-16 — Antigravity — Production xatolari (BackgroundMonitor, C360, GContacts, Hourly Telegram retry, Watchdog, SalesCoach cooldown, /readyz concurrency, GSheets & Aiogram parse_mode)
+- **Sabab:** Hetzner (`jon-ai-prod-01`) loglarida aniqlangan xatolar va `/readyz` 5s timeout muammosi:
+  1. `Customer360Collector._enrich_from_amocrm`: `AmoCRMSync.get_lead` `async def` boʻlgani uchun `asyncio.to_thread` coroutine qaytarib `'coroutine' object has no attribute 'get'` bergan.
+  2. `scripts/daily_sales_calls_report.py:send_telegram`: Telegram `502 Bad Gateway` da retry qilmay `oisha-sales-hourly.service` ni yiqitgan (391L ga keltirildi).
+  3. `src/services/core/gcontacts.py`: `data/service_account.json` va `data/token.json` yoʻllarini tekshirmagan (`Avtorizatsiya fayli topilmadi`), hamda GCP `982617914297` da People API oʻchiq edi.
+  4. `src/services/core/instagram/leadgen_watchdog.py`: `test_*` sintetik qatorlarni hamda `destination missing` loglarini har 60 soniyada takror chiqargan.
+  5. `src/services/core/salescoach_sync.py`: `localhost:4000` oʻchiq boʻlganda har chaqiruvda `ConnectError` yozgan (`_CONNECT_COOLDOWN_SEC = 600.0` qoʻshildi).
+  6. Hetzner'da `lead_operating_system.py` va `bg_monitor/monitor.py` ning `origin/main` dagi datetime normallashtirish tuzatishi deploy qilinmagani sabab `BackgroundMonitor` har daqiqa yiqilgan.
+  7. `src/api/routes/health.py`: `/readyz` DB + userbot + AmoCRM tekshiruvlarini ketma-ket (`~4.43s`) bajarib 5s timeoutga urilgan -> `asyncio.gather()` bilan parallel va AmoCRM 4.0s limitli qilindi.
+  8. `src/services/core/finance/gsheets/client.py`: `object.__new__(Spreadsheet)` / `Worksheet(...)` da `gspread.` prefiksi yoʻq edi (`NameError: name 'Spreadsheet' is not defined`), `set_timeout(15)` va `_cache_lock` qoʻshildi.
+  9. `src/bootstrap/orchestration/core_services.py`: `hisobchi_gs_store.init()` bot startini ~109–207s bloklamasligi uchun fon warmup (`_warm_hisobchi_cache`) ga oʻtkazildi.
+  10. `src/database_pool.py`: stale Turso Hrana `"interactive transaction was rolled back"` / `"stream was idle"` xatolarida avtomatik qayta ulanish qoʻshildi.
+  11. `src/services/core/telegram/bot_runtime.py` va `aiogram_telethon_compat.py`: `"md"` qiymati Aiogramda `unsupported parse_mode` bergan (`normalize_aiogram_parse_mode` orqali `"Markdown"` ga oʻgirildi).
+- **Bajarilgan ish:** Barcha tuzatishlar PR #1066 (`fix/prod-stability-six-fixes`) ga kiritildi, GCP `982617914297` (`JonBranding`) da People API brauzer orqali yoqildi va Hetzner serverga deploy qilindi.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 python -m pytest tests/test_prod_stability_fixes.py tests/test_connection_pool.py tests/test_production_readiness.py tests/test_meta_config_guard.py tests/test_readyz_degraded_mode.py tests/test_bot_runtime.py tests/test_amobot_daily_report.py tests/test_gsheets_scopes_import.py tests/test_hisobchi_gsheets_private_imports.py tests/test_customer_360.py tests/test_daily_sales_calls_report.py tests/test_leadgen_watchdog.py tests/test_leadgen_capi_recovery.py tests/test_salescoach_sync_conversation.py -q --tb=short` → **109 passed**; `ruff check` → **All checks passed**; `check_uzbek_text.py --staged` → **toza**; `bandit -r src/ -ll -q` → **exit 0**. Hetznerda `PEOPLE_API_OK`, `oisha-sales-hourly.service` `14:05:03 UTC` da `Result=success`.
+- **Qolgan ish/Bloker:** Meta Developers (Tab 2) owner logini kerak (`META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN` `.env` da yoʻq; `/readyz` shu sababli `degraded`). GitHub Actions Free kvota limiti sabab hosted PR checklar qizil (PR #1066 merge owner qaroriga koʻra).
+- **2026-11-16 — Claude Code — Kunlik sotuv sifati: owner reytingdan chiqarildi, tavsiyalar Oʻquv topicga:**
+  - **Bajarilgan ish:** (1) Admin/owner/founder (Baxtiyorjon) kunlik sifat hisoboti va konversiya tavsiyalaridan chiqarib tashlandi (`NON_SALES_NAME_KEYS`). (2) `TOPIC_TRAINING_ID` sozlamasi qoʻshildi; konversiya tavsiyalari shu topicga ketadi, sozlanmagan boʻlsa `TOPIC_REPORTS_ID` ga qaytadi. (3) Filtr yordamchilari 400-qator chegarasi uchun alohida modulga ajratildi.
+  - **Oʻzgargan fayllar:** `src/services/core/sales_quality_coach.py`, `src/services/core/sales_quality_filters.py`, `src/schedulers/bg_monitor/jobs_analytics.py`, `src/settings.py`, `tests/test_sales_quality_coach.py`, `tests/test_coach_scheduling.py`, `docs/agents/handoff-log.md`.
+  - **Tekshiruv dalili:** `SKIP_LIVE=1 pytest tests/test_sales_quality_coach.py tests/test_coach_scheduling.py` — oʻtdi; Uzbek-text guard toza.
+  - **Qolgan ish:** `.env` ga `TOPIC_TRAINING_ID` qiymatini yozish (Oʻquv topic ID). `ideal_script` va haftalik zaiflik tahlili hali ham owner qoʻngʻiroqlarini oʻz ichiga oladi.
+
+## 2026-11-16 — Antigravity — Bot va API uzilishlari (OpenClaw, Inline Search, Sales Congrats, Sync Runtime)
+- **Sabab:** 3-bot (Oisha/Amina/Mr.Jon) arxitektura tahlilida 4 ta uzilish aniqlandi:
+  1. `POST /webhook/openclaw`, `/v1/chat/completions` va `guest_message` `openclaw_bridge.handle_openclaw_message` ning eskirgan signaturasiga urilib `TypeError` va notoʻgʻri `AgentManager(db=db)` chaqirigʻida yiqilar edi.
+  2. Aiogram `inline_search.py` va Telethon `handlers_search.py` `InlineQuery` handerlari `is_admin` tekshiruvisiz barcha Telegram userlarga `users` jadvali / `perform_global_lookup` maʼlumotlarini ochib qoʻygan edi.
+  3. `sales_payment_congrats.py` dagi Amina/Mr.Jon persona shablonlari, `typing...` ritmi va `userbot` fallback `origin/main` dagi `schedule_won_check`, `_topic_id` va `ConnectionError` reconnect bilan birlashtirildi.
+  4. `scripts/sync_agents_runtime.py` loglarida Hermes SOUL.md nomi Amina ga moslandi; `tests/test_sync_agents_deploy_safety.py` Windows da ham ishlashi uchun `os.name="posix"` monkeypatch qoʻshildi.
+- **Oʻzgargan fayllar:** `src/openclaw_bridge.py`, `src/api/routes/openclaw_gateway.py`, `src/services/core/dispatcher/inline_search.py`, `src/services/core/admin_bot/handlers_search.py`, `src/handlers/sales_payment_congrats.py`, `scripts/sync_agents_runtime.py`, `tests/test_openclaw_gateway_bridge.py`, `tests/test_dispatcher_inline_search.py`, `tests/test_sales_payment_congrats.py`, `tests/test_sync_agents_deploy_safety.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `check_uzbek_text.py --base origin/main` → toza; `ruff check` → All checks passed; `bandit -r src/ -ll -q` → exit 0; `python -m compileall -q src/ scripts/` → exit 0; maqsadli 11 test fayli (`test_syntax_guard`, `test_sales_won_check`, `test_sales_payment_congrats`, `test_openclaw_gateway_bridge`, `test_dispatcher_inline_search` va b.) → 1200 passed; toʻliq `SKIP_LIVE=1 python -m pytest -q --tb=short` → 3979 passed, 18 skipped, 8 failed (barchasi pre-existing Windows `.env`/`AMOCRM_*` va `0o600` POSIX ruxsat testlari, bu PR ga aloqasiz).
+- **Qolgan ish/Bloker:** PR merge va Hetzner (`jon-ai-prod-01`) ga deploy.
+
+## 2026-11-16 — Claude — Kunlik "pul keltiradigan eng muhim ish" boshqaruvchisi (PR #1069)
+- **Sabab:** Egasi har kuni jamoa aʼzolariga eng muhim pul ishini aniqlab, odamdek soʻrab, nazorat qilishni soʻradi. Aʼzolar (egasi tasdiqlagan): Shahnoza `@jonbranding_assistant`, Rayxona `@RayxonJonbranding`, Mumtozmaxal `@MumtozmaxalJonbranding` (sotuv), Dilbar `@jonbranding_finansist` (moliya). Oisha boti `@jonairobot`.
+- **Bajarilgan ish:**
+  1. `src/services/core/daily_priority/` — jamoa, holat (`data/daily_priority_state.json`, 7 kun), amoCRM yigʻuvchi (sahifalab; sotuv: Kelishuv/Yopish, Shartnoma; moliya: Avans va Yakuniy 50% toʻlov kutilmoqda), matn tuzuvchi (free-AI router + zaxira matn), javob tasnifi, kun tartibi mantiqi.
+  2. `src/schedulers/daily_priority_checkin.py` — Du–Shan 09:30 taklif, 11:30 eslatma, 15:00 kunduzgi soʻrov, 18:30 egasiga xulosa; `DAILY_PRIORITY_ENABLED=0` jadval va handlerni oʻchiradi.
+  3. `src/handlers/daily_priority_reply.py` — faqat shaxsiy chat, roʻyxatdagi aʼzo, bugun savol ketgan boʻlsa; `/` buyruqlari oʻtkazib yuboriladi.
+  4. `bot_head.py` / `schedulers.py` — handler va jadval ulandi; soatlik guruh check-in (`remote_staff_checkin_loop`) endi ishga tushirilmaydi.
+  5. Review tuzatishlari: holat eski nusxa bilan ustidan yozilmaydi (`state.update_entry`), "qildim" kabi oraliq harakat "bajarildi" hisoblanmaydi, buyruqlar va oʻchirish kaliti handlerda hisobga olinadi, amoCRM sahifalab oʻqiladi.
+- **Oʻzgargan fayllar:** yuqoridagilar + `tests/test_daily_priority.py`, `tests/test_bootstrap_aiogram_bot_head.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `SKIP_LIVE=1 pytest tests/test_daily_priority.py tests/test_bootstrap_aiogram_bot_head.py -q` → 24 passed; tegishli (`seller_reply or checkin or bot_head or scheduler`) → 182 passed; `check_uzbek_text.py` → yangi fayllar toza.
+- **Qolgan ish/Bloker:** (a) Prod (Hetzner) ga hali deploy qilinmagan — `/home/deploy/oisha-os` git emas, Claude sessiyasidan scp ruxsati rad etildi; egasi qoʻlda nusxalaydi. (b) amoCRM bosqich filtri prodda jonli tekshirilmagan. (c) Aʼzolar `@jonairobot` ga `/start` bosmagan boʻlsa shaxsiy xabar yetmaydi. (d) Uch sotuvchi bitta amoCRM foydalanuvchisida — bitimlar navbat bilan boʻlinadi. (e) GitHub Actions billing sababli PR checklari ishlamayapti.
+
+## 2026-11-17 — Claude — Uch bot shaxsi, anatomiyasi va atom yadrosi (PR #1083, #1084)
+- **Sabab:** Egasi Oisha, Mr.Jon va Amina har biri alohida shaxs boʻlishini, alohida bosh/qoʻl/oyoq va oʻz yadrosiga ega boʻlishini soʻradi; guruhda ism yoki @username bilan chaqirilganda javob berishi kerak.
+- **Bajarilgan ish:**
+  1. #1083 (merged): `deploy/hermes/SOUL.md` endi Amina (avval xato bilan "Oisha" edi); `deploy/openclaw/workspace/SOUL.md` Mr.Jon rol, vakolat, taqiq, chaqiruv qoidalari; `docs/agents/bot-personas.md` rol nizomi.
+  2. #1084: bot-personas.md ga anatomiya (bosh/qoʻl/oyoq, Drive papkalari) va atom modeli (Owner Obsidian = manba, har bot yadrosi `90-AI/Bots/<bot>/Yadro.md`).
+- **Oʻzgargan fayllar:** `deploy/hermes/SOUL.md`, `deploy/openclaw/workspace/SOUL.md`, `docs/agents/bot-personas.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** faqat hujjat/prompt; `check_uzbek_text` guard commitda toza. Serverda `sync_agents_runtime.py` ishga tushdi, lekin `/home/deploy/oisha-os` git emas — eski SOUL fayllar koʻchirildi.
+- **Qolgan ish/Bloker:** (a) yangi SOUL fayllarni Hetzner ga scp qilish (Claude sessiyasida ruxsat rad etildi); (b) Hermes/OpenClaw gateway mention sozlamasi tekshirilmagan; (c) API kalitlar alohidaligi tekshirilmagan; (d) Drive papkalari va service account'lar yoʻq; (e) vault'da `Yadro.md` notalari Owner tasdigʻini kutmoqda; (f) sync skriptini har bot uchun boʻlish.
+
+## 2026-11-17 — Claude (card watch)
+- **Bajarilgan ish:** "karta yuborildi → toʻlov kuzatuvchisi": `src/services/core/card_watch/` (config, detector, matcher, scanner, service), `src/schedulers/card_payment_watch_scheduler.py` (soatlik, `CARD_WATCH_ENABLED=1` boʻlmasa oʻchiq), `bootstrap/orchestration/schedulers.py` da roʻyxatdan oʻtkazildi; `scripts/card_watch_login.py` (menejer bir martalik login, sessiya faqat `/etc/oisha/card_watch.env` 0600); `docs/operations/card-watch.md`.
+- **Tekshiruv dalillari:** `tests/test_card_watch.py` 12 passed; bandit (yangi fayllar) toza; uzbek guard toza.
+- **Qolgan ish/Bloker:** serverda menejerlar login qilishi, systemd drop-in, `CARD_WATCH_ENABLED=1`; Airtable nom moslashuvi real maʼlumotda tekshirilmagan.
+## 2026-11-17 — Claude — Community Contact Sync PR-1
+- Ish: `src/services/core/community_sync/` (models, cohorts, merge, store, collector, adapters google/amocrm/telegram, approval, runner, wiring); `gcontacts.py` ga `create_person`/`update_person` (qöshuvchi)/`add_to_group`, `list_all_contacts(raise_on_error)`; intro parserga kirill aliaslari.
+- Spec/plan: `docs/superpowers/specs/2026-11-17-community-contact-sync-design.md`, `docs/superpowers/plans/2026-11-17-community-contact-sync.md`.
+- Tekshiruv: community_sync testlari 61 passed (lokal, mock); bandit community_sync toza.
+- Ochiq (Coordinator): `boot.py` ga ulash — `scheduler.add_job(scheduled_job, "cron", hour=10, args=[app_ctx])` va `register_callbacks(app_ctx.bot_client, app_ctx)`. Env: `COMMUNITY_SYNC_ENABLED=1`, `COMMUNITY_SYNC_DRY_RUN=1` (birinchi haftada), `COMMUNITY_SYNC_GCONTACTS_CREDS` (Hetzner'dagi Google token yöli — tekshirilmagan).
+- Ochiq: PR-2 (Airtable tölaganlar, Obsidian, GitHub); deferred minorlar: collector yangilanishlari faqat böʻsh maydonni töldiradi, FloodWait global emas, drip mavjud Telegram nomini hisobga olmaydi.
+
+## 2026-11-17 — Claude (sales copilot)
+- **Bajarilgan ish:** card_watch ustiga "salomdan toʻlovgacha" kopilot: `src/services/core/sales_copilot/` (transcript, signals, stage, rules, context, report, service), `src/schedulers/sales_copilot_scheduler.py` (`SALES_COPILOT_ENABLED=1` boʻlmasa oʻchiq; 5 daqiqalik yengil javob tekshiruvi, soatlik toʻliq sikl, `SALES_COPILOT_REPORT_HOUR` (18) da kunlik hisobot), `bootstrap/orchestration/schedulers.py` da roʻyxatdan oʻtgan. Bosqichlar: greeting, discovery, offer, objection, card_sent, paid, ghost (iqtibos + ishonch). `paid` faqat Airtable (`card_watch.matcher.is_paid`), LLM emas. Qoidalar: javob >5 daq, narx +6 soat, karta +12 soat, follow-up ≤2. Holat: `data/sales_copilot_state.json`. Faqat Shahnoza (122), Mumtozmaxal (120), Rayxona (2976); egasi voronkasi 118; Hasanboy (`hasan_yahyo`, `jonbranding_pm`) "staff" — reytingda yoʻq. Qoralamalar faqat topicʼga, mijozga hech qachon.
+- **Tekshiruv dalillari:** `tests/test_sales_copilot_pipeline.py` 30 passed; toʻliq `SKIP_LIVE=1 pytest` — 8 ta xato asos branchda ham bor (bootstrap_aiogram, drive_oauth, pytest_shutdown, route_error_visibility, runner_workflow); bandit (yangi fayllar) toza; uzbek guard toza. Dry-run (egasi telegram-mcp, faqat oʻqish, hech narsa yuborilmadi): Mustabro → paid (airtable, 7 640 000 kirim 02.10), Doctor fresh → discovery + "reply" ogohlantirish (mijoz fayl yuborgan, javob yoʻq).
+- **Qolgan ish/Bloker:** (a) real chatlarda xabarlarning koʻpi ovoz/rasm — matnsiz; bosqich aniqligi uchun ovozni transkripsiya qilish kerak (hozir "[ovozli xabar]" belgisi). (b) Sotuvdan keyingi (ish jarayonidagi) mijozlar voronkada "discovery" boʻlib koʻrinadi — Airtable kirimi boʻlgan mijozlarni ajratish kerak. (c) Lokal LLM kaliti yoʻq edi — dry-run rules fallbackda; prodda router bilan tekshirish. (d) Menejer sessiyalari (card_watch login) prodda hali yoʻq.

@@ -42,7 +42,8 @@ class SafeResponder:
             1774538344630,  # Baxtiyor aka (Owner)
             "@E_Oydinn",  # Oydin opa
             "@Oydin_JonBranding",  # Oydin opa (alt)
-            "@baxtiyorjongaziyev",  # Baxtiyor aka (username)
+            "@baxtiyorgaziyev",  # Baxtiyor aka (username)
+            "@baxtiyorjongaziyev",  # Baxtiyor aka (eski username)
             "@YahyoNamer",  # Hasan aka (Yahyo Namer)
             "@JonBranding_PM",  # Inomjon aka (JonBranding PM)
         ]

@@ -6,6 +6,8 @@ Uchta alohida xarakter va texnologiya asosida:
 3. Mr.Jon AI: OpenClaw Founder Digital Twin (Master Closer, biznes gʻalabasi va motivatsiya)
 
 Har bir agent Telegramda tabiiy insondek ("typing..." effekti va oraliq bilan) harakatlanadi.
+Amina va Mr.Jon Bot API orqali AMINA_BOT_TOKEN / MRJON_BOT_TOKEN bilan yuboradi;
+token yoʻq boʻlsa oʻsha bot oʻtkazib yuboriladi, qolganlari ishlayveradi.
 """
 from __future__ import annotations
 
@@ -19,13 +21,19 @@ import httpx
 import structlog
 
 from src.context import app_ctx
-from src.settings import settings
 from src.time_utils import is_quiet_hours
+
+try:
+    from src.handlers.sales_won_check import schedule_won_check
+except ImportError:
+    schedule_won_check = None  # type: ignore[assignment]
 
 logger = structlog.get_logger()
 
 _FIELD_RE = re.compile(r"^[^\w]*(?P<label>[^:\n]+?)\s*:\s*(?P<value>.*?)\s*$")
 _CARD_MARKER_RE = re.compile(r"to.?lov tasdiqlash")
+_SEND_GAP_SECONDS = 2.0
+_TYPING_DURATION_SECONDS = 1.5
 _SEND_TIMEOUT_SECONDS = 15.0
 
 OISHA_TEMPLATES = (
@@ -99,22 +107,24 @@ def _warm_seller_name(name: str) -> str:
         return "Hasanboy"
     if "baxtiyor" in lowered:
         return "Baxtiyor aka"
-    if clean and clean.endswith("a") and not clean.endswith("xon"):
-        return f"{clean}xon"
-    return clean or "Aziz jamoadoshim"
+    if "jonibek" in lowered:
+        return "Jonibek aka"
+    if clean and not name.startswith("@"):
+        return f"{clean}jon"
+    return name
 
 
 def build_oisha_message(seller: str, card: Dict[str, Optional[str]]) -> str:
-    """Oisha-OS Surgical COO uslubidagi operatsion eʼtirof va temp bildirishnomasi."""
+    """Oisha-OS Surgical COO uslubidagi rasmiy-operatsion tabrik."""
     project = f"{card['project']}: " if card.get("project") else ""
     return random.choice(OISHA_TEMPLATES).format(seller=seller, project=project, amount=card["amount"])
 
 
 def build_amina_message(seller: str, card: Dict[str, Optional[str]]) -> str:
-    """Hermes Sales Coach uslubidagi samimiy, mehrli va ruhiy quvvat tabrigi."""
+    """Hermes Empathetic Coach uslubidagi iliq va qadriyatga yoʻgʻrilgan tabrik."""
     project = f"{card['project']}: " if card.get("project") else ""
-    warm_name = _warm_seller_name(seller)
-    return random.choice(AMINA_TEMPLATES).format(seller_warm=warm_name, project=project, amount=card["amount"])
+    seller_warm = _warm_seller_name(card.get("seller") or seller)
+    return random.choice(AMINA_TEMPLATES).format(seller_warm=seller_warm, project=project, amount=card["amount"])
 
 
 def build_mrjon_message(seller: str, card: Dict[str, Optional[str]]) -> str:
@@ -124,83 +134,112 @@ def build_mrjon_message(seller: str, card: Dict[str, Optional[str]]) -> str:
 
 
 async def _send_as_oisha(chat_id: int, reply_to: int, text: str) -> None:
-    """Oisha nomidan xabar yuborish: bot_client, ishlamasa userbot fallback."""
-    if app_ctx.bot_client:
+    """Oisha nomidan xabar yuborish: bot_client (ConnectionError da reconnect), soʻng userbot fallback."""
+    bot_client = getattr(app_ctx, "bot_client", None)
+    if bot_client:
         try:
-            await app_ctx.bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+            await bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
             return
+        except ConnectionError:
+            try:
+                await bot_client.connect()
+                await bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+                return
+            except Exception as reconnect_exc:
+                logger.warning(
+                    f"[SALES_CONGRATS] bot_client reconnect muvaffaqiyatsiz ({type(reconnect_exc).__name__}), userbot fallback..."
+                )
         except Exception as exc:
             logger.warning(
                 f"[SALES_CONGRATS] bot_client orqali yuborilmadi ({type(exc).__name__}), userbot fallback qoʻllanmoqda..."
             )
-    if app_ctx.client:
-        await app_ctx.client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+    user_client = getattr(app_ctx, "client", None)
+    if user_client:
+        await user_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
     else:
         raise RuntimeError("Neither bot_client nor userbot client available")
 
 
-async def _send_via_bot_api(token: str, chat_id: int, reply_to: int, text: str) -> None:
+def _topic_id(message: Any) -> Optional[int]:
+    """Forum topic ID; General yoki oddiy guruhda None."""
+    reply = getattr(message, "reply_to", None)
+    if not reply or not getattr(reply, "forum_topic", False):
+        return None
+    return getattr(reply, "reply_to_top_id", None) or getattr(reply, "reply_to_msg_id", None)
+
+
+async def _send_via_bot_api(
+    token: str, chat_id: int, reply_to: int, text: str, thread_id: Optional[int] = None
+) -> None:
+    payload: Dict[str, Any] = {
+        "chat_id": chat_id,
+        "text": text,
+        "reply_to_message_id": reply_to,
+        "allow_sending_without_reply": True,
+    }
+    if thread_id:
+        payload["message_thread_id"] = thread_id
     async with httpx.AsyncClient(timeout=_SEND_TIMEOUT_SECONDS) as http:
         response = await http.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "reply_to_message_id": reply_to,
-                "allow_sending_without_reply": True,
-            },
+            json=payload,
         )
     if response.status_code != 200:
         raise RuntimeError(f"Bot API HTTP {response.status_code}")
 
 
-async def _send_typing_via_bot_api(token: str, chat_id: int) -> None:
+async def _send_typing_via_bot_api(
+    token: str, chat_id: int, thread_id: Optional[int] = None
+) -> None:
     """Telegramda xuddi inson yozayotgandek 'typing...' holatini koʻrsatadi."""
+    payload: Dict[str, Any] = {"chat_id": chat_id, "action": "typing"}
+    if thread_id:
+        payload["message_thread_id"] = thread_id
     try:
         async with httpx.AsyncClient(timeout=5.0) as http:
             await http.post(
                 f"https://api.telegram.org/bot{token}/sendChatAction",
-                json={"chat_id": chat_id, "action": "typing"},
+                json=payload,
             )
     except Exception:
         pass
 
 
-async def _congratulate(chat_id: int, reply_to: int, seller: str, card: Dict[str, Optional[str]]) -> None:
-    """Har bir bot oʻz texnologiyasi, xarakteri va insoniy ritmi bilan javob beradi."""
-    senders = [
-        ("oisha", "Oisha-OS Surgical COO", None, build_oisha_message(seller, card), 1.2),
-    ]
-
-    amina_token = (os.getenv("AMINA_BOT_TOKEN") or "").strip()
-    if amina_token:
-        senders.append(("amina", "Hermes Sales Coach", amina_token, build_amina_message(seller, card), 2.5))
-    else:
-        logger.warning("[SALES_CONGRATS] AMINA_BOT_TOKEN sozlanmagan; Amina oʻtkazib yuborildi.")
-
-    mrjon_token = (os.getenv("MRJON_BOT_TOKEN") or "").strip()
-    if mrjon_token:
-        senders.append(("mrjon", "OpenClaw Master Closer", mrjon_token, build_mrjon_message(seller, card), 3.0))
-    else:
-        logger.warning("[SALES_CONGRATS] MRJON_BOT_TOKEN sozlanmagan; Mr.Jon oʻtkazib yuborildi.")
+async def _congratulate(
+    chat_id: int,
+    reply_to: int,
+    seller: str,
+    card: Dict[str, Optional[str]],
+    thread_id: Optional[int] = None,
+) -> None:
+    """Har bir bot mustaqil: bittasining xatosi qolganlarini toʻxtatmaydi."""
+    senders = [("oisha", "Oisha-OS Surgical COO", None, build_oisha_message(seller, card), _SEND_GAP_SECONDS)]
+    for name, role, env_key, builder, delay in (
+        ("amina", "Hermes Sales Coach", "AMINA_BOT_TOKEN", build_amina_message, 2.5),
+        ("mrjon", "OpenClaw Master Closer", "MRJON_BOT_TOKEN", build_mrjon_message, 3.0),
+    ):
+        token = (os.getenv(env_key) or "").strip()
+        if token:
+            senders.append((name, role, token, builder(seller, card), delay))
+        else:
+            logger.warning(f"[SALES_CONGRATS] {env_key} sozlanmagan; {name} oʻtkazib yuborildi.")
 
     sent_count = 0
     for index, (name, role, token, text, delay) in enumerate(senders):
-        if index:
-            # Haqiqiy inson kabi oʻqish va yozish oraligʻi
+        if index and _SEND_GAP_SECONDS > 0:
             await asyncio.sleep(delay)
             if token:
-                await _send_typing_via_bot_api(token, chat_id)
-                await asyncio.sleep(1.5)
-
+                await _send_typing_via_bot_api(token, chat_id, thread_id)
+                await asyncio.sleep(_TYPING_DURATION_SECONDS)
         try:
             if token:
-                await _send_via_bot_api(token, chat_id, reply_to, text)
+                await _send_via_bot_api(token, chat_id, reply_to, text, thread_id)
             else:
                 await _send_as_oisha(chat_id, reply_to, text)
             sent_count += 1
             logger.info(f"[SALES_CONGRATS] {name} ({role}) tabrik yubordi: chat={chat_id} msg={reply_to}")
         except Exception as exc:
+            # Faqat turi va matni tokensiz xato: httpx xatosi URL (token) ni ochishi mumkin.
             detail = str(exc) if isinstance(exc, RuntimeError) else ""
             logger.error(f"[SALES_CONGRATS] {name} yubora olmadi: {type(exc).__name__} {detail}")
 
@@ -217,13 +256,11 @@ async def sales_payment_congrats_handler(event: Any) -> None:
     if not card:
         return
 
-    chat_id, message_id = int(event.chat_id), int(event.id)
     sender = await event.get_sender()
     if getattr(sender, "bot", False):
-        logger.debug(f"[SALES_CONGRATS] Bot xabari eʼtiborsiz qoldirildi: msg={message_id}")
         return
     if is_quiet_hours():
-        logger.info(f"[SALES_CONGRATS] Quiet hours; tabrik yuborilmadi msg={message_id}")
+        logger.info(f"[SALES_CONGRATS] Quiet hours; tabrik yuborilmadi msg={event.id}")
         return
 
     db = app_ctx.msg_controller.db if app_ctx.msg_controller else None
@@ -231,9 +268,9 @@ async def sales_payment_congrats_handler(event: Any) -> None:
         logger.warning("[SALES_CONGRATS] DB unavailable; dublikatdan himoya yoʻq, oʻtkazib yuborildi.")
         return
 
+    chat_id, message_id = int(event.chat_id), int(event.id)
     state_key = f"sales_payment_congrats:{chat_id}:{message_id}"
     if await db.get_state(state_key):
-        logger.info(f"[SALES_CONGRATS] Karta allaqachon tabriklangan, oʻtkazib yuborildi: msg={message_id}")
         return
     await db.set_state(state_key, "sent")
 
@@ -242,4 +279,10 @@ async def sales_payment_congrats_handler(event: Any) -> None:
         f"[SALES_CONGRATS] Toʻlov kartasi aniqlandi: msg={message_id} chat={chat_id} "
         f"sotuvchi={seller} summa={card.get('amount')} loyiha={card.get('project')}"
     )
-    await _congratulate(chat_id, message_id, seller, card)
+    await _congratulate(chat_id, message_id, seller, card, _topic_id(event.message))
+    # Tabrikdan keyin: bitim amoCRM da Won ga oʻtkazilganini tekshiradi.
+    if schedule_won_check is not None:
+        schedule_won_check(
+            _send_as_oisha, chat_id, message_id, seller,
+            sender_id=getattr(sender, "id", None), card_seller=card.get("seller"), db=db,
+        )

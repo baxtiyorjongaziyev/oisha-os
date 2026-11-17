@@ -1,8 +1,8 @@
 name: Server read-only report
 
-# Faqat qo'lda ishga tushadi. Contabo'dagi self-hosted runner'da prod .env bilan
-# faqat o'qiydigan hisobot skriptini ishga tushiradi. Hech narsa yozmaydi,
-# servisni qayta ishga tushirmaydi.
+# Faqat qo'lda ishga tushadi. Prod serverdagi (Hetzner; runner label "oracle" tarixiy)
+# self-hosted runner'da prod .env bilan faqat o'qiydigan hisobot skriptini ishga
+# tushiradi. Hech narsa yozmaydi, servisni qayta ishga tushirmaydi.
 on:
   workflow_dispatch:
     inputs:

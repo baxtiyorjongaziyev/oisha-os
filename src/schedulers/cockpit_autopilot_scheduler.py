@@ -24,6 +24,8 @@ from src.time_utils import get_local_now, is_quiet_hours, is_sunday
 
 logger = logging.getLogger("CockpitAutopilot")
 
+_DEFAULT_STATE_PATH = "data/cockpit_autopilot_state.json"
+
 
 def parse_seller_map(raw_map: str) -> dict[str, str]:
     """Parse 'mgr_1:123456,mgr_2:654321' into a string key-value dictionary."""
@@ -54,9 +56,9 @@ class CockpitAutopilotScheduler:
     ) -> None:
         """Initialize autopilot scheduler with bot runtime and autonomous engine."""
         self.bot = _as_bot_runtime(bot_runtime)
-        self.engine = engine or AutonomousCockpitEngine()
-        self.last_pulse_date: str | None = None
-        self.last_wrapup_date: str | None = None
+        self.engine = engine or AutonomousCockpitEngine(state_path=_DEFAULT_STATE_PATH)
+        self.last_pulse_date: str | None = getattr(self.engine, "last_pulse_date", None)
+        self.last_wrapup_date: str | None = getattr(self.engine, "last_wrapup_date", None)
         self.seller_map = parse_seller_map(os.getenv("SELLER_TELEGRAM_MAP", ""))
 
     async def send_alert(self, alert: AutonomousAlert) -> bool:
@@ -80,7 +82,12 @@ class CockpitAutopilotScheduler:
             logger.info("[AUTOPILOT] Alert %s sent to %s", alert.alert_type, alert.recipient_chat_id)
             return True
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[AUTOPILOT] Failed to send %s alert to %s: %s", alert.alert_type, alert.recipient_chat_id, exc)
+            logger.warning(
+                "[AUTOPILOT] Failed to send %s alert to %s: %s",
+                alert.alert_type,
+                alert.recipient_chat_id,
+                exc,
+            )
             return False
 
     async def execute_speed_to_lead_cycle(
@@ -89,11 +96,12 @@ class CockpitAutopilotScheduler:
         force: bool = False,
     ) -> int:
         """Run single speed to lead check cycle and dispatch generated alerts."""
-        if not force and is_quiet_hours(now):
+        if not force and (is_quiet_hours(now) or is_sunday(now)):
             return 0
 
         escalation_chat = getattr(settings, "TEAM_GROUP_ID", None) or getattr(settings, "ROP_CEO_CHAT_ID", None)
         alerts = await self.engine.scan_speed_to_lead_alerts(
+            now=now,
             seller_map=self.seller_map,
             escalation_chat_id=str(escalation_chat) if escalation_chat else None,
         )
@@ -145,6 +153,10 @@ class CockpitAutopilotScheduler:
                 await self.send_alert(alert)
 
             self.last_pulse_date = today
+            if hasattr(self.engine, "last_pulse_date"):
+                self.engine.last_pulse_date = today
+            if hasattr(self.engine, "save_state"):
+                self.engine.save_state()
             logger.info("[AUTOPILOT] Morning pulse completed for %s", today)
             return True
 
@@ -170,27 +182,27 @@ class CockpitAutopilotScheduler:
                 await self.send_alert(alert)
 
             self.last_wrapup_date = today
+            if hasattr(self.engine, "last_wrapup_date"):
+                self.engine.last_wrapup_date = today
+            if hasattr(self.engine, "save_state"):
+                self.engine.save_state()
             logger.info("[AUTOPILOT] Evening wrapup completed for %s", today)
             return True
 
         return False
 
     async def run_autopilot_loop(self) -> None:
-        """Master background loop running 24/7 on Contabo VPS."""
+        """Master background loop running 24/7 on Hetzner prod VPS."""
         logger.info("[AUTOPILOT] Cockpit Autopilot 24/7 background loop started.")
-        await asyncio.sleep(10)  # Initial stabilization delay
+        await asyncio.sleep(10)
 
         tick_counter = 0
         while True:
             try:
-                # 1. Every 2 minutes (120s): Speed to Lead SLA check
                 await self.execute_speed_to_lead_cycle()
-
-                # 2. Check scheduled time slots
                 await self.execute_morning_pulse_if_due()
                 await self.execute_evening_wrapup_if_due()
 
-                # 3. Every ~2 hours (60 ticks of 120s): Ad spend anomaly check
                 tick_counter += 1
                 if tick_counter >= 60:
                     await self.execute_ad_anomaly_cycle()

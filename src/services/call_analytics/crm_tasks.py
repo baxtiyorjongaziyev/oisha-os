@@ -50,6 +50,29 @@ class CallCrmTasksMixin:
             return ""
         return str(name or "").strip()
 
+    async def _insert_call_analysis_row(self, row_values: tuple[Any, ...]) -> None:
+        conn = await self.db.get_connection()
+        await _maybe_await(
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO call_analyses
+                    (call_id, lead_id, category, summary, client_mood,
+                     next_steps, transcript, audio_url, caller_phone,
+                     task_id, task_created_at, analyzed_at, created_at, source,
+                     manager_id, manager_name, duration_seconds, overall_score,
+                     scores, strengths, weaknesses, objections, outcome,
+                     converted, client_interest_level,
+                     breakdown_at, breakdown_reason,
+                     longest_pause_seconds, pauses)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?)
+                """,
+                row_values,
+            )
+        )
+        await _maybe_await(conn.commit())
+
     async def _log_call_analysis(
         self,
         call_id: str,
@@ -67,90 +90,40 @@ class CallCrmTasksMixin:
         manager_id: Optional[int] = None,
         manager_name: str = "",
     ) -> None:
-        """Tahlilni bazaga yozadi — BALLAR bilan birga.
-
-        Ilgari bu yerga faqat matnli ustunlar tushardi; rubrik ballari
-        AmoCRM notasida qolib ketardi va `sales_quality_coach` bo'sh
-        ma'lumot ustida ishlardi. Endi murabbiylik qatlami o'qiydigan
-        barcha ustunlar saqlanadi.
-        """
+        """Tahlilni bazaga yozadi — BALLAR va oʻrganish darsi bilan birga."""
         if not self.db:
             return
-
         await ensure_call_analysis_schema(self.db)
-
         analysis = analysis or {}
         rubrik = analysis.get("rubrik_baholar") or {}
         outcome = normalise_outcome(analysis.get("natija"))
         overall_score = int(analysis.get("sifat_bahosi") or 0)
-
+        now = datetime.now(timezone.utc).isoformat()
         def _dump(value: Any) -> str:
             try:
                 return json.dumps(value or [], ensure_ascii=False)
             except (TypeError, ValueError):
                 return "[]"
 
+        row_values = (
+            call_id, lead_id, category, summary, client_mood, next_steps, transcript,
+            audio_url, caller_phone, task_id, now if task_id else None, now, now,
+            "amocrm", int(manager_id) if manager_id else None, manager_name,
+            max(int(duration_seconds or 0), 0), overall_score,
+            _dump(rubrik) if rubrik else "{}", _dump(analysis.get("kuchli_tomonlar")),
+            _dump(analysis.get("zaif_tomonlar")), _dump(analysis.get("etirozlar")),
+            outcome, 1 if outcome_converted(outcome) else 0,
+            int(analysis.get("lead_bahosi") or 0), analysis.get("uzilish_vaqti"),
+            str(analysis.get("uzilish_sababi") or ""),
+            float(analysis.get("eng_uzun_pauza") or 0.0), _dump(analysis.get("pauzalar")),
+        )
         try:
-            conn = await self.db.get_connection()
-            now = datetime.now(timezone.utc).isoformat()
-            task_created_at = now if task_id else None
-            await _maybe_await(
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO call_analyses
-                        (call_id, lead_id, category, summary, client_mood,
-                         next_steps, transcript, audio_url, caller_phone,
-                         task_id, task_created_at, analyzed_at, created_at, source,
-                         manager_id, manager_name, duration_seconds, overall_score,
-                         scores, strengths, weaknesses, objections, outcome,
-                         converted, client_interest_level,
-                         breakdown_at, breakdown_reason,
-                         longest_pause_seconds, pauses)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                            ?, ?, ?, ?)
-                    """,
-                    (
-                        call_id,
-                        lead_id,
-                        category,
-                        summary,
-                        client_mood,
-                        next_steps,
-                        transcript,
-                        audio_url,
-                        caller_phone,
-                        task_id,
-                        task_created_at,
-                        now,
-                        now,
-                        "amocrm",
-                        int(manager_id) if manager_id else None,
-                        manager_name,
-                        max(int(duration_seconds or 0), 0),
-                        overall_score,
-                        _dump(rubrik) if rubrik else "{}",
-                        _dump(analysis.get("kuchli_tomonlar")),
-                        _dump(analysis.get("zaif_tomonlar")),
-                        _dump(analysis.get("etirozlar")),
-                        outcome,
-                        1 if outcome_converted(outcome) else 0,
-                        int(analysis.get("lead_bahosi") or 0),
-                        analysis.get("uzilish_vaqti"),
-                        str(analysis.get("uzilish_sababi") or ""),
-                        float(analysis.get("eng_uzun_pauza") or 0.0),
-                        _dump(analysis.get("pauzalar")),
-                    ),
-                )
-            )
-            await _maybe_await(conn.commit())
-            logger.info(
-                "[CALL] DB log saved: lead_id=%s call_id=%s ball=%s natija=%s menejer=%s",
-                lead_id,
-                call_id,
-                overall_score,
-                outcome,
-                manager_name or "?",
+            await self._insert_call_analysis_row(row_values)
+            logger.info("[CALL] DB log saved: lead_id=%s call_id=%s ball=%s natija=%s menejer=%s",
+                        lead_id, call_id, overall_score, outcome, manager_name or "?")
+            from src.services.core.adaptive_learning import record_call_lesson_if_notable
+            await record_call_lesson_if_notable(
+                analysis, duration_seconds=duration_seconds, summary=summary, manager_name=manager_name, db=self.db
             )
         except Exception as exc:
             logger.error("[CALL] DB log failed for %s: %s", call_id, exc)

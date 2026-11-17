@@ -124,6 +124,56 @@ class EvolutionScheduler:
         strategies = await self.learning.get_active_strategies()
         return self.learning.build_learning_context(lessons, strategies)
 
+    async def _run_step(self, step_name: str, action: Any) -> tuple[bool, Any]:
+        """Isolate each periodic evolution task so one failure never starves others."""
+        try:
+            return True, await action()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("[EVOLVE] %s xatosi: %s", step_name, exc, exc_info=True)
+            return False, None
+
+    async def _run_once(
+        self,
+        now: datetime,
+        last_synthesis: Optional[datetime],
+        last_metrics: Optional[datetime],
+    ) -> tuple[Optional[datetime], Optional[datetime]]:
+        if last_synthesis is None or (now - last_synthesis) > timedelta(hours=6):
+            ok, _ = await self._run_step("synthesis", self._do_synthesis)
+            if ok or last_synthesis is None:
+                last_synthesis = now
+
+        # Daily read-only diagnosis. Persistent scheduled_jobs state in
+        # SelfImprovementService prevents duplicates after restarts.
+        if now.hour == 10:
+            await self._run_step("daily_diagnosis", self.improvement.run_diagnosis)
+
+        # Weekly AI suggestion is now proposal-only. Code/PR mutation is
+        # blocked until the owner explicitly accepts the proposal.
+        if now.weekday() == 6 and now.hour == 3:
+            run_date = now.strftime("%Y-%m-%d")
+            ok_check, already_run = await self._run_step(
+                "weekly_evolution_check",
+                lambda: self.db.is_job_run("oisha_weekly_evolution", run_date),
+            )
+            if ok_check and not already_run:
+                ok_ev, completed = await self._run_step(
+                    "weekly_evolution", self._do_evolution
+                )
+                if ok_ev and completed:
+                    await self._run_step(
+                        "weekly_evolution_mark",
+                        lambda: self.db.mark_job_run("oisha_weekly_evolution", run_date),
+                    )
+
+        if last_metrics is None or (now - last_metrics) > timedelta(hours=1):
+            await self._run_step("metrics_snapshot", self._record_metrics_snapshot)
+            last_metrics = now
+
+        return last_synthesis, last_metrics
+
     async def _run_loop(self):
         """Main scheduler loop."""
         last_synthesis: Optional[datetime] = None
@@ -132,35 +182,10 @@ class EvolutionScheduler:
         while self._running:
             try:
                 now = get_local_now()
-
-                if last_synthesis is None or (now - last_synthesis) > timedelta(
-                    hours=6
-                ):
-                    await self._do_synthesis()
-                    last_synthesis = now
-
-                # Daily read-only diagnosis. Persistent scheduled_jobs state in
-                # SelfImprovementService prevents duplicates after restarts.
-                if now.hour == 10:
-                    await self.improvement.run_diagnosis()
-
-                # Weekly AI suggestion is now proposal-only. Code/PR mutation is
-                # blocked until the owner explicitly accepts the proposal.
-                if now.weekday() == 6 and now.hour == 3:
-                    run_date = now.strftime("%Y-%m-%d")
-                    if not await self.db.is_job_run("oisha_weekly_evolution", run_date):
-                        completed = await self._do_evolution()
-                        if completed:
-                            await self.db.mark_job_run(
-                                "oisha_weekly_evolution", run_date
-                            )
-
-                if last_metrics is None or (now - last_metrics) > timedelta(hours=1):
-                    await self._record_metrics_snapshot()
-                    last_metrics = now
-
+                last_synthesis, last_metrics = await self._run_once(
+                    now, last_synthesis, last_metrics
+                )
                 await asyncio.sleep(300)
-
             except asyncio.CancelledError:
                 break
             except Exception as exc:

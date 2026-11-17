@@ -169,3 +169,23 @@ async def test_messages_are_filtered_and_bounded():
 
     assert len(fake.last_json["messages"]) == 1
     assert len(fake.last_json["messages"][0]["text"]) == 4000
+
+
+@pytest.mark.asyncio
+async def test_connect_error_sets_cooldown():
+    sync = SalesCoachSync()
+    sync.enabled = True
+    calls = 0
+
+    class FailingClient:
+        is_closed = False
+
+        async def post(self, *_a, **_k):
+            nonlocal calls
+            calls += 1
+            raise httpx.ConnectError("All connection attempts failed")
+
+    sync._client = FailingClient()
+    assert await sync.upload_voice(b"123") is None
+    assert await sync.upload_voice(b"456") is None
+    assert calls == 1

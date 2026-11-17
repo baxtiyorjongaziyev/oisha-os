@@ -22,6 +22,11 @@ def _is_resettable_connection_error(exc: BaseException) -> bool:
         "stream not found",
         "hrana: stream not found",
         "hrana: connection",
+        "interactive transaction was rolled back",
+        "stream was idle",
+        "retry the transaction",
+        "connection closed before message completed",
+        "http error:",
     )
     return any(marker in message for marker in markers)
 

@@ -208,7 +208,7 @@ class PlansMixin:
                 "<code>2) Bugun yopiladigan bitim</code>",
                 "<code>3) Kerakli yordam</code>\n",
                 "⏰ <b>DEADLINE:</b> Kechki hisobotdan oldin (20:00)",
-                "👑 <b>@baxtiyorjong_gaziyev nazorat qilmoqda</b>",
+                "👑 <b>@baxtiyorgaziyev nazorat qilmoqda</b>",
             ]
         )
 
@@ -263,7 +263,7 @@ class PlansMixin:
                 '\n💡 <i>"Katta natijalar kichik, lekin muntazam harakatlardan boshlanadi."</i>'
             )
             report.append(
-                "\n@baxtiyorjong_gaziyev, jamoa bugun o'z ustida ishlashga shay!"
+                "\n@baxtiyorgaziyev, jamoa bugun oʻz ustida ishlashga shay!"
             )
 
         except Exception as e:
@@ -366,7 +366,7 @@ class PlansMixin:
                 f"_⚠️ {active_deals} ta aktiv bitim ichida yopilgan yo'q - menejerlar nazoratini kuchaytiring._"
             )
 
-        report.append("\n📊 *Davom ettirish uchun @baxtiyorjong_gaziyev nazoratida* 👑")
+        report.append("\n📊 *Davom ettirish uchun @baxtiyorgaziyev nazoratida* 👑")
 
         return "\n".join(report)
 

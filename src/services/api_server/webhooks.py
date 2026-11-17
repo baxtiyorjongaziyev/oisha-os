@@ -127,6 +127,12 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
         )
         return {"ok": True, "handled": True, "update_type": "business_message", "sent": bool(sent)}
 
+    if update_type in ("widget_query", "shared_widget_query"):
+        from src.services.core.telegram.widgets.runtime import get_widget_router
+
+        result = await get_widget_router().handle_update(update)
+        return {"ok": True, "update_type": update_type, **result}
+
     return {"handled": False, "reason": f"unhandled_update_type:{update_type}"}
 
 

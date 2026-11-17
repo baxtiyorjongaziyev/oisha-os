@@ -16,9 +16,9 @@ qilinmaguncha na prod userbot, na bironta workflow ishlaydi.
 
 | Nima | Session | Egasi |
 |---|---|---|
-| Prod userbot | `USERBOT_SESSION_STRING` | Oracle VM, `oisha-os.service` (yagona) |
-| Telegram MCP gateway | `TELEGRAM_MCP_SESSION_STRING` | Oracle VM, alohida kalit |
-| One-off skriptlar | `TELEGRAM_ONEOFF_SESSION_STRING` | Oracle VM, alohida kalit |
+| Prod userbot | `USERBOT_SESSION_STRING` | Hetzner prod VPS (`2.29.198.0`), `oisha.service` (yagona) |
+| Telegram MCP gateway | `TELEGRAM_MCP_SESSION_STRING` | Hetzner prod VPS (`2.29.198.0`), alohida kalit |
+| One-off skriptlar | `TELEGRAM_ONEOFF_SESSION_STRING` | Hetzner prod VPS (`2.29.198.0`), alohida kalit |
 
 Bitta Telegram akkaunt bir nechta sessiyaga ega bo'lishi mumkin — har biri
 alohida auth key. Shuning uchun to'g'ri yechim "navbat bilan ishlatish" emas,
@@ -36,9 +36,8 @@ Xuddi shu sabab ilgari VPS ↔ Oracle to'qnashuvida ham bo'lgan; shu bois
 
 ## Hozirgi qoidalar
 
-1. **Prod kaliti Oracle VM dan chiqmaydi.** Telethon kerak bo'lgan har qanday
-   workflow VM da bajariladi — `appleboy/ssh-action` yoki
-   `runs-on: [self-hosted, oracle]`.
+1. **Prod kaliti Hetzner prod VPS dan chiqmaydi (`2.29.198.0`).** Telethon kerak bo'lgan har qanday
+   workflow prod serverda bajariladi (GitHub runner ko'chirilishi va aniq SSH yo'li tekshirilmagan).
 2. **Session tekshiruvi yangi ulanish ochmaydi.** `verify-session.yml` endi VM
    dagi `http://127.0.0.1:8080/readyz/` javobidagi `checks.userbot` ni o'qiydi —
    ya'ni ayni ishlab turgan client holatini.
@@ -56,31 +55,31 @@ Xuddi shu sabab ilgari VPS ↔ Oracle to'qnashuvida ham bo'lgan; shu bois
      traceback o'rniga tiklash yo'riqnomasi egasiga Telegram orqali yuboriladi.
 4. **`USERBOT_SESSION_OWNER_HOST` (ixtiyoriy, lekin tavsiya etiladi).**
    Qo'yilsa, prod kaliti faqat shu hostname da ochiladi; boshqa hostda
-   `SessionConflictError` beriladi. Oracle VM da o'rnating:
+   `SessionConflictError` beriladi. Hetzner prod serverda (`2.29.198.0`) o'rnating:
    `USERBOT_SESSION_OWNER_HOST=<vm-hostname>` (`hostname` buyrug'i chiqargan
    nom). Bu yagona tekshiruv bo'lib, prod kaliti muhitda ko'rinmagan holatda
    ham ishlaydi — "atalgan env prod bilan bir xilmi" taqqoslashi esa faqat
    ikkala qiymat ham shu hostda ko'ringandagina aniqlay oladi.
 
 `ALLOW_SHARED_USERBOT_SESSION=1` guard'ni o'chiradi — faqat
-`sudo systemctl stop oisha-os` qilingandan keyin ishlating.
+`sudo systemctl stop oisha.service` qilingandan keyin ishlating.
 
 ## Kalit kuyganda tiklash
 
 ```bash
-# 1. Prod kalitini ushlab turgan hamma jarayonni to'xtatish
-sudo systemctl stop oisha-os
+# 1. Prod kalitini ushlab turgan hamma jarayonni to'xtatish (Hetzner'da: oisha.service)
+sudo systemctl stop oisha.service
 
 # 2. Yangi session
-#    GitHub: Actions → "Userbot Auth (Oracle VM)" (oracle-userbot-auth.yml)
-#    yoki VM da: ./venv/bin/python scripts/prod/auth_userbot_on_oracle.py
+#    Prod serverda auth script orqali yangi session yarating (masalan:
+#    <OISHA_DIR>/.venv/bin/python scripts/prod/auth_userbot_on_oracle.py — nom tarixiy)
 
 # 3. Yangi stringni ikkala joyga yozish
-#    - GitHub secret: USERBOT_SESSION_STRING
-#    - Oracle .env:   /home/ubuntu/oisha-os/.env
+#    - GitHub secret (ishlatilsa): USERBOT_SESSION_STRING
+#    - Hetzner .env:               <OISHA_DIR>/.env
 
 # 4. Servisni qaytarish va tekshirish
-sudo systemctl start oisha-os
+sudo systemctl start oisha.service
 curl -s http://127.0.0.1:8080/readyz/ | python3 -m json.tool
 ```
 

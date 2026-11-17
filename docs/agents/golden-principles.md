@@ -24,7 +24,7 @@ Qoida muhim bo'lsa → hook yoki test bilan majburlanadi (so'z — iltimos, hook
 
 ## Xavfsizlik
 
-10. Lokal userbot / Telethon sessiya ochilmaydi (Oracle egasi).
+10. Lokal userbot / Telethon sessiya ochilmaydi (Hetzner prod egasi: 2.29.198.0).
 11. Quiet-hours (23:00–07:00 Toshkent) va approval gate'lar chetlab o'tilmaydi.
 12. Sirlar kodga, logga, handoff'ga, commitga yozilmaydi.
 
