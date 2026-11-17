@@ -13,6 +13,14 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _full_digits(value: str) -> str:
+    """Toʻliq raqam; 9 xonali mahalliy UZ raqamga 998 qöshiladi."""
+    d = "".join(ch for ch in value or "" if ch.isdigit())
+    if d.startswith("00"):
+        d = d[2:]
+    return "998" + d if len(d) == 9 else d
+
+
 class GoogleContactsSync:
     def __init__(self, credentials_path="service_account.json"):
         self.credentials_path = credentials_path
@@ -155,7 +163,7 @@ class GoogleContactsSync:
             logger.error(f"[GCONTACTS ERROR] Kontakt yaratishda xato: {e}")
             return False
 
-    def list_all_contacts(self) -> list[dict]:
+    def list_all_contacts(self, raise_on_error: bool = False) -> list[dict]:
         """Fetch all contacts from Google Contacts using People API."""
         if not self.service:
             logger.error("[GCONTACTS] Service ulanmagan.")
@@ -214,6 +222,8 @@ class GoogleContactsSync:
             return contacts_list
         except Exception as e:
             logger.error(f"[GCONTACTS ERROR] list_all_contacts failed: {e}")
+            if raise_on_error:
+                raise
             return []
 
     def update_contact_note(self, resource_name: str, new_note: str) -> bool:
@@ -244,6 +254,74 @@ class GoogleContactsSync:
             return True
         except Exception as e:
             logger.error(f"[GCONTACTS ERROR] Update note failed for {resource_name}: {e}")
+            return False
+
+    def create_person(self, first_name, last_name="", phones=None, labels=None):
+        """Kontakt yaratadi va resourceName qaytaradi (label yoʻq boʻlsa ochiladi)."""
+        if not self.service:
+            return None
+        body = {
+            "names": [{"givenName": first_name, "familyName": last_name}],
+            "phoneNumbers": [{"value": p, "type": "mobile"} for p in (phones or [])],
+        }
+        try:
+            res = self.service.people().createContact(body=body).execute()
+        except Exception as e:
+            logger.error(f"[GCONTACTS ERROR] create_person: {e}")
+            return None
+        resource = res.get("resourceName")
+        for label in labels or []:
+            self.add_to_group(resource, label)
+        return resource
+
+    def update_person(self, resource_name, first_name, last_name="", phones=None) -> bool:
+        """Ismni yangilaydi, telefonni QÖSHADI (mavjudlari öchirilmaydi)."""
+        if not self.service:
+            return False
+        try:
+            cur = (
+                self.service.people()
+                .get(resourceName=resource_name, personFields="names,phoneNumbers")
+                .execute()
+            )
+            body, fields = {"etag": cur.get("etag")}, []
+            name = dict((cur.get("names") or [{}])[0])
+            if (name.get("givenName", ""), name.get("familyName", "")) != (first_name, last_name):
+                for k in ("displayName", "displayNameLastFirst", "unstructuredName", "metadata"):
+                    name.pop(k, None)
+                name.update(givenName=first_name, familyName=last_name)
+                body["names"], fields = [name], ["names"]
+            existing = cur.get("phoneNumbers") or []
+            have = {_full_digits(x.get("value", "")) for x in existing}
+            new = [p for p in phones or [] if _full_digits(p) not in have]
+            if new:
+                keep = [{"value": x["value"], "type": x.get("type", "mobile")} for x in existing]
+                body["phoneNumbers"] = keep + [{"value": p, "type": "mobile"} for p in new]
+                fields.append("phoneNumbers")
+            if not fields:
+                return True
+            self.service.people().updateContact(
+                resourceName=resource_name, updatePersonFields=",".join(fields), body=body
+            ).execute()
+            return True
+        except Exception as e:
+            logger.error(f"[GCONTACTS ERROR] update_person {resource_name}: {e}")
+            return False
+
+    def add_to_group(self, resource_name, group_name, create_if_missing=True) -> bool:
+        """Kontaktni labelga qöshadi."""
+        if not self.service or not resource_name:
+            return False
+        group = self.get_or_create_group(group_name, create_if_missing=create_if_missing)
+        if not group:
+            return False
+        try:
+            self.service.contactGroups().members().modify(
+                resourceName=group, body={"resourceNamesToAdd": [resource_name]}
+            ).execute()
+            return True
+        except Exception as e:
+            logger.error(f"[GCONTACTS ERROR] add_to_group {group_name}: {e}")
             return False
 
 
