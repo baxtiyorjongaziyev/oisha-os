@@ -32,11 +32,12 @@ class Manager:
         return f"CARD_WATCH_SESSION_{self.key.upper()}"
 
 
+# Sales managers only. Hasanboy is a patent expert (not sales): his personal account is
+# not logged in or monitored; his client groups are covered via the owner account.
 DEFAULT_MANAGERS = (
     ("shahnoza", "Shahnoza", "jonbranding_assistant", 122),
     ("rayxona", "Rayxona", "RayxonJonbranding", 2976),
     ("mumtozmaxal", "Mumtozmaxal", "MumtozmaxalJonbranding", 120),
-    ("hasanboy", "Hasanboy", "hasan_yahyo", 17141),
 )
 
 

@@ -148,13 +148,13 @@ def test_plaintext_or_foreign_session_rejected(monkeypatch):
 
 def test_vault_roundtrip_and_binding():
     key = vault.new_key()
-    token = vault.encrypt("hasanboy", "abc", key)
+    token = vault.encrypt("mumtozmaxal", "abc", key)
     assert token.startswith("enc:") and "abc" not in token
-    assert vault.decrypt("hasanboy", token, key) == "abc"
+    assert vault.decrypt("mumtozmaxal", token, key) == "abc"
     with pytest.raises(vault.SessionVaultError):
         vault.decrypt("rayxona", token, key)
     with pytest.raises(vault.SessionVaultError):
-        vault.decrypt("hasanboy", token, vault.new_key())
+        vault.decrypt("mumtozmaxal", token, vault.new_key())
 
 
 def test_revoked_session_alerts_owner_topic_once():
@@ -193,7 +193,7 @@ def test_config_defaults_and_overrides(monkeypatch):
     monkeypatch.setenv("CARD_WATCH_CARDS", "1111 2222 3333 4444")
     assert config.load_cards() == ["1111222233334444"]
     topics = {m.key: m.topic_id for m in config.load_managers()}
-    assert topics == {"shahnoza": 122, "rayxona": 2976, "mumtozmaxal": 120, "hasanboy": 17141}
+    assert topics == {"shahnoza": 122, "rayxona": 2976, "mumtozmaxal": 120}
 
 
 def test_daily_report_per_manager(tmp_path):
