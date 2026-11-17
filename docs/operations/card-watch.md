@@ -14,7 +14,11 @@ Har soatda (quiet hours 23:00–07:00 va yakshanbadan tashqari):
 5. Har kuni `CARD_WATCH_REPORT_HOUR` (standart 18) dan keyin har menejerga oʻz topicʼida
    alohida hisobot: karta yuborilgan / toʻlagan / kutilmoqda roʻyxati.
 
-Topiclar: Rayxona 2976, Mumtozmaxal 120, Shahnoza 122, Hasanboy 17141, Baxtiyorjon (egasi) 118 —
+Sotuvchilar faqat Shahnoza, Mumtozmaxal va Rayxona. Hasanboy — patent eksperti, sotuvchi emas:
+uning akkaunti login qilinmaydi va kuzatilmaydi; u qatnashgan "X | Jon Branding" guruhlari egasining
+akkaunti orqali kuzatiladi. Topic 17141 ishlatilmaydi.
+
+Topiclar: Rayxona 2976, Mumtozmaxal 120, Shahnoza 122, Baxtiyorjon (egasi) 118 —
 yuboruvchisi aniqlanmagan guruh xabarlari shu yerga.
 
 Holat: `data/card_watch_state.json` — har yozuvda `manager` maydoni (menejer boʻyicha ajratilgan
@@ -31,11 +35,11 @@ view yaratilmaydi; kerak boʻlsa `Sotuvchi` maydoni boʻyicha har menejerga view
 | `CARD_WATCH_REPORT_HOUR` | `18` | kunlik hisobot soati (Toshkent) |
 | `CARD_WATCH_LOOKBACK_DAYS` | `14` | Telegram tarixida qancha orqaga qarash |
 | `CARD_WATCH_OWNER_GROUPS` | `1` | egasi guruhlarini skan qilish |
-| `CARD_WATCH_MANAGERS` | 4 menejer | JSON: `[{"key","name","username","topic_id"}]` |
+| `CARD_WATCH_MANAGERS` | 3 sotuvchi | JSON: `[{"key","name","username","topic_id"}]` |
 | `CARD_WATCH_SESSION_<KEY>` | — | menejer sessiyasi, **shifrlangan** (`enc:...`), faqat serverda |
 | `CARD_WATCH_SESSION_KEY` | — | Fernet kalit, alohida faylda (`/etc/oisha/card_watch_key.env`) |
 
-Sessiya kalitlari: `CARD_WATCH_SESSION_SHAHNOZA`, `_RAYXONA`, `_MUMTOZMAXAL`, `_HASANBOY`.
+Sessiya kalitlari: `CARD_WATCH_SESSION_SHAHNOZA`, `_RAYXONA`, `_MUMTOZMAXAL`.
 Har sessiya menejer nomiga bogʻlab shifrlanadi: boshqa menejer qatoriga koʻchirilsa yoki shifrsiz
 boʻlsa, prod `USERBOT_SESSION_STRING` / `TELEGRAM_MCP_SESSION_STRING` bilan bir xil boʻlsa — rad etiladi.
 Sessiya bekor qilinsa (menejer qurilmani uzsa), egasining topicʼiga (118) "qayta ulash kerak" ogohlantirishi boradi.
