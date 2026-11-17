@@ -9,6 +9,7 @@ Jonli lokatsiya yubormaydigan xodim holati nomaʼlum — u roʼyxatga tushmaydi.
 """
 from __future__ import annotations
 
+import html
 import os
 from dataclasses import dataclass
 from datetime import datetime, time
@@ -50,8 +51,10 @@ def late_returners(rows: Iterable[dict], now_ts: int, end_ts: int, grace_min: in
         since = r.get("outside_since")
         if int(r.get("inside") or 0) or not since:
             continue
-        if int(since) > end_ts + grace_min * 60:
+        if int(since) > end_ts:
             continue  # obeddan keyin chiqqan — bu obed kechikishi emas
+        if int(since) < end_ts - 14 * 3600:
+            continue  # kechagi holat (bugun lokatsiya kelmagan)
         stale = now_ts - int(r.get("last_seen") or 0) > STALE_AFTER_MIN * 60
         out.append(LateReturner(int(r["employee_id"]), str(r["name"]), (now_ts - end_ts) // 60, stale))
     return sorted(out, key=lambda x: x.name)
@@ -61,7 +64,7 @@ def format_alert(items: list[LateReturner]) -> str:
     lines = ["🍽️ Obed 14:00 da tugagan, hali ofisga qaytmaganlar:"]
     for it in items:
         tail = " (lokatsiya eski)" if it.stale else ""
-        lines.append(f"• {it.name} — {it.minutes_over} daq kechikish{tail}")
+        lines.append(f"• {html.escape(it.name)} — {it.minutes_over} daq kechikish{tail}")
     return "\n".join(lines)
 
 

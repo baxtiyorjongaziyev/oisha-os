@@ -30,13 +30,12 @@ async def lunch_return_loop() -> None:
             if now.date() not in alerted:
                 alerted = {now.date(): set()}
             seen = alerted[now.date()]
-            if now.hour < CHECK_UNTIL_HOUR:  # faqat bugun kelganlar tekshiriladi
+            if lunch_watch.LUNCH_END.hour <= now.hour < CHECK_UNTIL_HOUR:
                 items = await lunch_watch.find_late_returners(db_pool, now)
                 fresh = [it for it in items if it.employee_id not in seen]
-                if fresh:
-                    if await asyncio.to_thread(_send, lunch_watch.format_alert(fresh)):
-                        logger.info("[LUNCH] alert: %s", [it.name for it in fresh])
-                    seen.update(it.employee_id for it in fresh)
+                if fresh and await asyncio.to_thread(_send, lunch_watch.format_alert(fresh)):
+                    logger.info("[LUNCH] alert: %s", [it.name for it in fresh])
+                    seen.update(it.employee_id for it in fresh)  # faqat yuborilganda
         except Exception as e:
             logger.error("[LUNCH] Error: %s", e)
         await asyncio.sleep(60)

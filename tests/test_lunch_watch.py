@@ -36,6 +36,21 @@ def test_flags_outside_since_lunch():
     assert [(x.name, x.minutes_over, x.stale) for x in out] == [("Rayxona", 60, False)]
 
 
+def test_left_after_lunch_end_not_flagged():
+    rows = [_row(1, "Rayxona", 0, _ts(14, 5), _ts(14, 20))]
+    assert lw.late_returners(rows, _ts(14, 20), END, 10) == []
+
+
+def test_yesterday_state_ignored():
+    rows = [_row(1, "Rayxona", 0, _ts(13, 0) - 86400, _ts(13, 0) - 86400)]
+    assert lw.late_returners(rows, _ts(15, 0), END, 10) == []
+
+
+def test_name_html_escaped():
+    out = lw.format_alert([lw.LateReturner(1, "Ali <dizayner>", 5, False)])
+    assert "&lt;dizayner&gt;" in out
+
+
 def test_stale_location_marked():
     rows = [_row(1, "Rayxona", 0, _ts(13, 0), _ts(13, 5))]
     out = lw.late_returners(rows, _ts(15, 0), END, 10)
