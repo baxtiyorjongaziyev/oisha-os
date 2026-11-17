@@ -140,3 +140,25 @@ def test_seller_reply_catches_topic_ai_checkin_and_routes_context_per_rep(tmp_pa
 
     assert load_context("data/checkin_context_shahnoza.json").get("last_reply") == "1 ta uchrashuv o'tkazdim!"
     assert load_context("data/checkin_context.json") == {}
+
+
+def test_is_nudge_text_detects_rep_greeting_and_reply_phrase():
+    from src.handlers.seller_reply import is_nudge_text
+
+    assert is_nudge_text("Shahnoza, bugun qanday? Shu xabarga reply qilib yozing.")
+    assert is_nudge_text("Shahnoza, kun boshlandi")
+    assert not is_nudge_text("Bugungi reja: 5 ta lid")
+
+
+def test_coach_systems_forbid_claiming_crm_access():
+    from src.services.core.sales_coach_reply import NO_ACCESS_RULE
+
+    captured = {}
+
+    async def fake(prompt, **kwargs):
+        captured["system"] = kwargs["system"]
+        return "Tushundim, qisqa va odamdek yozaman. Davom etamiz."
+
+    for owner in (True, False):
+        run(coach_reply("Baxtiyorjon", "salom", "Shahnoza, nima gap?", generate=fake, is_owner=owner))
+        assert NO_ACCESS_RULE in captured["system"]
