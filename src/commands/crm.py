@@ -331,3 +331,35 @@ async def cmd_leadgen_routing(event, **ctx):
             f"• `/leadgen_routing utc` — Faqat UTC'ga yo'naltirish"
         )
 
+
+
+@register_command("/tolovga_yaqin")
+async def cmd_tolovga_yaqin(event, **ctx):
+    """/tolovga_yaqin [teg] [son] — tegli lidlardan toʼlovga eng yaqinlarini ajratadi."""
+    msg_controller = ctx["msg_controller"]
+    get_surgical_integration = ctx["get_surgical_integration"]
+    parts = event.message.text.strip().split()[1:]
+    limit_val = 10
+    if parts and parts[-1].isdigit():
+        limit_val = max(1, min(int(parts.pop()), 30))
+    tag = " ".join(parts) or "Shahnoza"
+
+    try:
+        amocrm_client = None
+        if msg_controller and getattr(msg_controller, "crm", None):
+            amocrm_client = getattr(msg_controller.crm, "amocrm", None)
+        if not amocrm_client:
+            amocrm_client = get_surgical_integration().amocrm
+
+        from src.services.core.crm.tag_payment_ranker import (
+            fetch_tagged_open_leads,
+            format_ranking,
+            rank_leads_by_payment_proximity,
+        )
+
+        leads = await fetch_tagged_open_leads(amocrm_client, tag)
+        ranked = rank_leads_by_payment_proximity(leads, tag, limit=limit_val)
+        await event.respond(format_ranking(tag, ranked))
+    except Exception as e:
+        logger.error(f"[COMMAND] /tolovga_yaqin error: {e}", exc_info=True)
+        await event.respond(f"❌ **Xato:** {str(e)}")
