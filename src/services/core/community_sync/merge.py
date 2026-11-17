@@ -69,13 +69,13 @@ def merge_field(
     return None, changed
 
 
-def _field_plan(key, f, person, snapshots, reads):
+def _field_plan(key, f, person, snapshots, reads, fields_by_system):
     canon_val = getattr(person, f) or ""
     canon_snap = snapshots.get(CANON, {}).get(key)
     base = {CANON: canon_snap.get(f, "") if canon_snap is not None else canon_val}
     current = {CANON: canon_val}
     for system, rows in reads.items():
-        if key in rows:
+        if key in rows and f in fields_by_system.get(system, SYNC_FIELDS):
             current[system] = rows[key].get(f, "") or ""
             base[system] = snapshots.get(system, {}).get(key, {}).get(f, "")
     return merge_field(base, current)
@@ -85,13 +85,15 @@ def plan(
     canonical: dict[str, Person],
     snapshots: dict[str, dict[str, dict[str, str]]],
     reads: dict[str, dict[str, dict[str, str]]],
+    fields_by_system: Optional[dict[str, tuple[str, ...]]] = None,
 ) -> tuple[list[Change], list[Conflict]]:
     """Kanonikni joyida yangilaydi, tizimlarga yozish rejasini qaytaradi."""
     changes: list[Change] = []
     conflicts: list[Conflict] = []
+    fbs = fields_by_system or {}
     for key, person in canonical.items():
         for f in SYNC_FIELDS:
-            value, clash = _field_plan(key, f, person, snapshots, reads)
+            value, clash = _field_plan(key, f, person, snapshots, reads, fbs)
             if clash:
                 conflicts.append(Conflict(key, f, clash))
                 continue
@@ -101,6 +103,8 @@ def plan(
             if not target:
                 continue
             for system, rows in reads.items():
+                if f not in fbs.get(system, SYNC_FIELDS):
+                    continue
                 if rows.get(key, {}).get(f, "") != target:
                     changes.append(Change(system, key, f, target))
     return changes, conflicts

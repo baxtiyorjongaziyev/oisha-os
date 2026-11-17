@@ -80,3 +80,10 @@ def test_plan_idempotent():
     snaps = {"google": {"k": {"first_name": "A"}}}
     reads = {"google": {"k": {"first_name": "A"}}}
     assert plan(canon, snaps, reads) == ([], [])
+
+
+def test_plan_respects_system_fields():
+    canon = {"k": P("k", first_name="A", company="Nur")}
+    reads = {"amocrm": {"k": {"first_name": "A"}}}
+    changes, _ = plan(canon, {}, reads, {"amocrm": ("first_name",)})
+    assert changes == []
