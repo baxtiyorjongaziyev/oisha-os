@@ -126,3 +126,40 @@ async def test_bad_callback_ignored(data):
     await d.store.add_conflict(Conflict("tg:0", "first_name", {"google": "B"}))
     assert await handle_callback(data, d.store, now=NOON) is False
     assert APPROVE_KEY
+
+
+async def test_conflict_blocks_whole_key_write():
+    g, a = FakeAdapter("google"), FakeAdapter("amocrm")
+    d = await deps(n=1, adapters=[g, a])
+    await run_once(d, now=NOON)
+    g.rows["tg:0"]["last_name"] = "X"
+    a.rows["tg:0"]["last_name"] = "Y"
+    g.rows["tg:0"]["first_name"] = "Changed"
+    g.applied.clear(); a.applied.clear()
+    await run_once(d, now=NOON)
+    assert g.applied == [] and a.applied == []
+
+
+class FlakyAdapter(FakeAdapter):
+    async def apply(self, changes, people):
+        if not getattr(self, "ok_now", False):
+            return {"ok": 0, "failed": 1, "deferred": 0, "keys": [], "written": {}}
+        return await super().apply(changes, people)
+
+
+async def test_failed_cohort_write_retried():
+    g = FlakyAdapter("google")
+    d = await deps(n=1, adapters=[g])
+    await run_once(d, now=NOON)
+    g.ok_now = True
+    await run_once(d, now=NOON)
+    assert any(c.field == "cohorts" for c in g.applied)
+
+
+async def test_quiet_hours_reached_mid_run():
+    g = FakeAdapter("google")
+    d = await deps(adapters=[g])
+    times = iter([NOON, datetime(2026, 11, 17, 23, 5)])
+    d.clock = lambda: next(times, datetime(2026, 11, 17, 23, 5))
+    res = await run_once(d)
+    assert res["status"] == "quiet_hours" and g.applied == []

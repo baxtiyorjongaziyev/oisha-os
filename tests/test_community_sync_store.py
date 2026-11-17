@@ -48,10 +48,11 @@ async def test_due_tg_respects_wait_and_limit(store):
         await store.enqueue_tg(f"k{i}", f"u{i}", "")
     await store.mark_tg("k0", "deferred", now + timedelta(hours=1))
     await store.mark_tg("k1", "done")
-    await store.enqueue_tg("k1", "u1", "")  # qayta navbatga qöshilmaydi
     due = await store.due_tg(10, now)
     assert [d["key"] for d in due] == ["k2"]
     assert len(await store.due_tg(10, now + timedelta(hours=2))) == 2
+    await store.enqueue_tg("k1", "u1new", "")  # yangi özgarish: qayta navbatga
+    assert "k1" in [d["key"] for d in await store.due_tg(10, now)]
     assert len(await store.due_tg(1, now + timedelta(hours=2))) == 1
 
 

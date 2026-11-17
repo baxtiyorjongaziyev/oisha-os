@@ -76,8 +76,11 @@ class SyncStore:
 
     async def enqueue_tg(self, key: str, username: str, phone: str) -> None:
         await self._exec(
-            "INSERT OR IGNORE INTO community_tg_queue "
-            "(key, username, phone, status, added_at) VALUES (?, ?, ?, 'pending', ?)",
+            "INSERT INTO community_tg_queue "
+            "(key, username, phone, status, added_at) VALUES (?, ?, ?, 'pending', ?) "
+            "ON CONFLICT(key) DO UPDATE SET username=excluded.username, "
+            "phone=excluded.phone, status=CASE WHEN community_tg_queue.status "
+            "IN ('done', 'failed') THEN 'pending' ELSE community_tg_queue.status END",
             [key, username, phone, _now()],
         )
 

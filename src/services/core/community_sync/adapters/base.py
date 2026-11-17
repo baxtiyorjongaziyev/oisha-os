@@ -2,14 +2,9 @@
 
 import re
 
-from src.services.core.contact_intro_parser import normalize_phone
+from ..models import strip_suffix
 
 NAME_PHONE = ("first_name", "last_name", "phone")
-_SUFFIX_RE = re.compile(r"\s*\b(?:TN|3K)\d+ Gr\s*$")
-
-
-def strip_suffix(name: str) -> str:
-    return _SUFFIX_RE.sub("", name or "").strip()
 
 
 def split_name(full: str) -> tuple[str, str]:
@@ -18,8 +13,13 @@ def split_name(full: str) -> tuple[str, str]:
 
 
 def norm_phone(value: str) -> str:
-    p = normalize_phone(value or "")
-    return p if p.startswith("+998") and len(p) == 13 else ""
+    """E.164 shakli: faqat raqamlar; 9 xonali UZ raqamga 998 qöshiladi."""
+    digits = re.sub(r"\D", "", value or "")
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if len(digits) == 9:
+        digits = "998" + digits
+    return "+" + digits if len(digits) >= 10 else ""
 
 
 def keys_of(changes) -> list[str]:
@@ -31,4 +31,5 @@ def keys_of(changes) -> list[str]:
 
 
 def result() -> dict:
-    return {"ok": 0, "failed": 0, "deferred": 0, "keys": []}
+    """keys: muvaffaqiyatli kalitlar; written: kalit -> haqiqatda yozilgan maydonlar."""
+    return {"ok": 0, "failed": 0, "deferred": 0, "keys": [], "written": {}}

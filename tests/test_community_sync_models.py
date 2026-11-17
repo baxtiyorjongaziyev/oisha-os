@@ -41,3 +41,17 @@ def test_sector_only_no_suffix():
 
 def test_labels():
     assert labels_for(person(cohorts={"TN7", "3K7"})) == ["3K7", "TEZ NATIJA 7"]
+
+
+def test_same_suffix_not_locked_no_double_suffix():
+    from src.services.core.community_sync.models import name_locked
+    p = person(last="Valiyev TN4 Gr", cohorts={"TN4"})
+    assert display_name(p) == "Ali Valiyev TN4 Gr"
+    assert not name_locked(p, "Ali Valiyev TN4 Gr")
+    assert name_locked(person(cohorts={"TN7"}), "Ali Valiyev TN4 Gr")
+
+
+def test_foreign_phone_kept():
+    from src.services.core.community_sync.adapters.base import norm_phone
+    assert norm_phone("+7 916 123 45 67") == "+79161234567"
+    assert norm_phone("90 111 22 33") == "+998901112233"

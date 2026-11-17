@@ -9,7 +9,7 @@ from src.services.core.contact_intro_parser import parse_contact_intro
 
 from .cohorts import cohort_for_group
 from .merge import absorb, resolve
-from .models import Person
+from .models import Person, strip_suffix
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,8 @@ def _from_member(m, cohort_code: str) -> Person:
         key=f"tg:{m.id}",
         tg_id=m.id,
         username=getattr(m, "username", None) or "",
-        first_name=getattr(m, "first_name", None) or "",
-        last_name=getattr(m, "last_name", None) or "",
+        first_name=strip_suffix(getattr(m, "first_name", None) or ""),
+        last_name=strip_suffix(getattr(m, "last_name", None) or ""),
         phone=("+" + m.phone) if getattr(m, "phone", None) else "",
         cohorts={cohort_code},
     )

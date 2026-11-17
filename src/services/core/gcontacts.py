@@ -155,7 +155,7 @@ class GoogleContactsSync:
             logger.error(f"[GCONTACTS ERROR] Kontakt yaratishda xato: {e}")
             return False
 
-    def list_all_contacts(self) -> list[dict]:
+    def list_all_contacts(self, raise_on_error: bool = False) -> list[dict]:
         """Fetch all contacts from Google Contacts using People API."""
         if not self.service:
             logger.error("[GCONTACTS] Service ulanmagan.")
@@ -214,6 +214,8 @@ class GoogleContactsSync:
             return contacts_list
         except Exception as e:
             logger.error(f"[GCONTACTS ERROR] list_all_contacts failed: {e}")
+            if raise_on_error:
+                raise
             return []
 
     def update_contact_note(self, resource_name: str, new_note: str) -> bool:
@@ -265,25 +267,33 @@ class GoogleContactsSync:
         return resource
 
     def update_person(self, resource_name, first_name, last_name="", phones=None) -> bool:
-        """Ism va telefonni yangilaydi (etag bilan)."""
+        """Ismni yangilaydi, telefonni QÖSHADI (mavjudlari öchirilmaydi)."""
         if not self.service:
             return False
         try:
-            current = (
+            cur = (
                 self.service.people()
                 .get(resourceName=resource_name, personFields="names,phoneNumbers")
                 .execute()
             )
-            body = {
-                "etag": current.get("etag"),
-                "names": [{"givenName": first_name, "familyName": last_name}],
-            }
-            fields = "names"
-            if phones:
-                body["phoneNumbers"] = [{"value": p, "type": "mobile"} for p in phones]
-                fields = "names,phoneNumbers"
+            body, fields = {"etag": cur.get("etag")}, []
+            name = dict((cur.get("names") or [{}])[0])
+            if (name.get("givenName", ""), name.get("familyName", "")) != (first_name, last_name):
+                for k in ("displayName", "displayNameLastFirst", "unstructuredName", "metadata"):
+                    name.pop(k, None)
+                name.update(givenName=first_name, familyName=last_name)
+                body["names"], fields = [name], ["names"]
+            existing = cur.get("phoneNumbers") or []
+            have = {"".join(ch for ch in x.get("value", "") if ch.isdigit())[-9:] for x in existing}
+            new = [p for p in phones or [] if "".join(ch for ch in p if ch.isdigit())[-9:] not in have]
+            if new:
+                keep = [{"value": x["value"], "type": x.get("type", "mobile")} for x in existing]
+                body["phoneNumbers"] = keep + [{"value": p, "type": "mobile"} for p in new]
+                fields.append("phoneNumbers")
+            if not fields:
+                return True
             self.service.people().updateContact(
-                resourceName=resource_name, updatePersonFields=fields, body=body
+                resourceName=resource_name, updatePersonFields=",".join(fields), body=body
             ).execute()
             return True
         except Exception as e:
