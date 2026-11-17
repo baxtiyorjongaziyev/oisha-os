@@ -10,7 +10,8 @@ import pytest
 from src.services.core.card_watch import config
 from src.services.core.card_watch.detector import CardSend, extract_amount, find_card
 from src.services.core.card_watch.matcher import income_rows, is_paid
-from src.services.core.card_watch.scanner import scan_client, scan_manager
+from src.services.core.card_watch import vault
+from src.services.core.card_watch.scanner import SESSION_STATUS, scan_client, scan_manager
 from src.services.core.card_watch.service import load_state, run_cycle, send_daily_reports
 
 CARDS = ["5614681918811393", "5614681919485106"]
@@ -124,11 +125,66 @@ def test_scan_client_manager_and_owner_modes():
 
 
 def test_manager_session_must_differ_from_prod(monkeypatch):
+    key = vault.new_key()
+    monkeypatch.setenv(vault.KEY_ENV, key)
     monkeypatch.setenv("USERBOT_SESSION_STRING", "prod-secret")
-    monkeypatch.setenv("CARD_WATCH_SESSION_RAYXONA", "prod-secret")
+    monkeypatch.setenv("CARD_WATCH_SESSION_RAYXONA", vault.encrypt("rayxona", "prod-secret", key))
     mgr = next(m for m in config.load_managers() if m.key == "rayxona")
     assert "prod-secret" not in repr(mgr)
     assert asyncio.run(scan_manager(mgr, 1, "h", CARDS, 7)) == []
+    assert SESSION_STATUS["rayxona"] == "invalid"
+
+
+def test_plaintext_or_foreign_session_rejected(monkeypatch):
+    key = vault.new_key()
+    monkeypatch.setenv(vault.KEY_ENV, key)
+    monkeypatch.setenv("CARD_WATCH_SESSION_SHAHNOZA", "plain-session")
+    monkeypatch.setenv("CARD_WATCH_SESSION_RAYXONA", vault.encrypt("shahnoza", "s1", key))
+    for m in config.load_managers():
+        if m.key in {"shahnoza", "rayxona"}:
+            assert asyncio.run(scan_manager(m, 1, "h", CARDS, 7)) == []
+            assert SESSION_STATUS[m.key] == "invalid"
+
+
+def test_vault_roundtrip_and_binding():
+    key = vault.new_key()
+    token = vault.encrypt("hasanboy", "abc", key)
+    assert token.startswith("enc:") and "abc" not in token
+    assert vault.decrypt("hasanboy", token, key) == "abc"
+    with pytest.raises(vault.SessionVaultError):
+        vault.decrypt("rayxona", token, key)
+    with pytest.raises(vault.SessionVaultError):
+        vault.decrypt("hasanboy", token, vault.new_key())
+
+
+def test_revoked_session_alerts_owner_topic_once():
+    from src.schedulers import card_payment_watch_scheduler as sched
+
+    sched._ALERTED.clear()
+    posts = []
+    mgrs = config.load_managers()
+    SESSION_STATUS.clear()
+    SESSION_STATUS.update({"shahnoza": "revoked", "rayxona": "ok"})
+    post = lambda text, topic: posts.append((topic, text)) or True  # noqa: E731
+    assert asyncio.run(sched.alert_revoked_sessions(mgrs, post)) == ["shahnoza"]
+    assert asyncio.run(sched.alert_revoked_sessions(mgrs, post)) == []
+    assert posts[0][0] == 118 and "qayta ulash" in posts[0][1] and "Shahnoza" in posts[0][1]
+
+
+def test_login_env_writer_refuses_repo_and_keeps_others(tmp_path):
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("cwl", Path("scripts/card_watch_login.py"))
+    cwl = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cwl)
+    with pytest.raises(SystemExit):
+        cwl.upsert_env(Path("data/x.env"), {"A": "1"})
+    f = tmp_path / "w.env"
+    cwl.upsert_env(f, {"A": "1", "B": "2"})
+    cwl.upsert_env(f, {"A": "3"})
+    assert cwl.read_env(f) == {"B": "2", "A": "3"}
+    cwl.show_qr("tg://login?token=test", None)
 
 
 def test_config_defaults_and_overrides(monkeypatch):

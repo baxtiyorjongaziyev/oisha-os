@@ -19,6 +19,14 @@ logger = logging.getLogger("CardWatch")
 
 MAX_DIALOGS = 300
 MAX_MESSAGES_PER_CHAT = 200
+DEVICE_MODEL = "Oisha Sales Monitor"
+# Telethon errors meaning the manager (or Telegram) terminated this device session.
+REVOKED_ERRORS = {
+    "AuthKeyUnregisteredError", "SessionRevokedError", "SessionExpiredError",
+    "UserDeactivatedError", "UserDeactivatedBanError", "AuthKeyDuplicatedError",
+}
+# Last known per-manager session status: ok / missing / invalid / revoked / error.
+SESSION_STATUS: Dict[str, str] = {}
 
 
 def forbidden_sessions() -> set[str]:
@@ -111,9 +119,18 @@ async def scan_manager(
 ) -> List[CardSend]:
     """Open the manager's dedicated session, scan, disconnect. Never raises."""
     if manager.session is None:
+        SESSION_STATUS[manager.key] = "missing"
         return []
-    secret = manager.session.get_secret_value()
+    from src.services.core.card_watch.vault import SessionVaultError, decrypt
+
+    try:
+        secret = decrypt(manager.key, manager.session.get_secret_value())
+    except SessionVaultError as exc:
+        SESSION_STATUS[manager.key] = "invalid"
+        logger.error("[CARD_WATCH] %s session rejected: %s", manager.key, exc)
+        return []
     if secret in forbidden_sessions():
+        SESSION_STATUS[manager.key] = "invalid"
         logger.error("[CARD_WATCH] %s session equals a prod session; skipped", manager.key)
         return []
     try:
@@ -121,16 +138,23 @@ async def scan_manager(
         from telethon.sessions import StringSession
     except ImportError:
         return []
-    client: Optional[Any] = TelegramClient(StringSession(secret), api_id, api_hash)
+    client: Optional[Any] = TelegramClient(
+        StringSession(secret), api_id, api_hash, device_model=DEVICE_MODEL
+    )
     since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     try:
         await client.connect()
         if not await client.is_user_authorized():
+            SESSION_STATUS[manager.key] = "revoked"
             logger.warning("[CARD_WATCH] %s session not authorized; re-login needed", manager.key)
             return []
-        return await scan_client(client, manager.key, cards, since)
+        found = await scan_client(client, manager.key, cards, since)
+        SESSION_STATUS[manager.key] = "ok"
+        return found
     except Exception as exc:  # network/auth errors must not kill the loop
-        logger.error("[CARD_WATCH] scan %s failed: %s", manager.key, type(exc).__name__)
+        name = type(exc).__name__
+        SESSION_STATUS[manager.key] = "revoked" if name in REVOKED_ERRORS else "error"
+        logger.error("[CARD_WATCH] scan %s failed: %s", manager.key, name)
         return []
     finally:
         try:
