@@ -311,13 +311,23 @@ def test_polling_keeps_widget_updates_in_allowed_list():
 
 def test_aiogram_update_keeps_widget_query_in_dump():
     from aiogram.types import Update
+    from pydantic import ValidationError
 
     # Yangi aiogram widget_query ni toʻliq tiplaydi; haqiqiy Telegram update dagi
     # majburiy maydonlar bilan tekshiramiz (eski versiya ham ularni qabul qiladi).
     raw = widget_update("ping:x")
     raw["widget_query"]["from"].update({"is_bot": False, "first_name": "Test"})
-    raw["widget_query"].update({"chat_instance": "ci-1", "type": "widget"})
-    upd = Update.model_validate(raw)
+    raw["widget_query"]["chat_instance"] = "ci-1"
+    # aiogram 3.32+: ``type`` — WidgetQueryType obyekti; eski versiyalarda oddiy satr.
+    upd, last_err = None, None
+    for kind in ({"type": "data"}, "data"):
+        raw["widget_query"]["type"] = kind
+        try:
+            upd = Update.model_validate(raw)
+            break
+        except ValidationError as e:
+            last_err = e
+    assert upd is not None, last_err
     assert "widget_query" in upd.model_dump(exclude_none=True)
 
 
