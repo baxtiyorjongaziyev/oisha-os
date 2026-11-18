@@ -3,7 +3,7 @@
 /connect          — holat va ulanish sahifasiga tugma
 /connect off      — uzish (tasdiq tugmasi bilan)
 
-QR va chat tanlash faqat veb sahifada: bot kod, parol yoki sessiya so'ramaydi.
+QR va chat tanlash faqat veb sahifada: bot kod, parol yoki sessiya soʻramaydi.
 """
 from __future__ import annotations
 
