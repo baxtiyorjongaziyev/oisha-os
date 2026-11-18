@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -32,7 +31,7 @@ class Fake:
         if cmd[:3] == ["gh", "pr", "list"]:
             return json.dumps(self.prs)
         if cmd[:2] == ["git", "cherry-pick"] and cmd[2] != "--abort" and self.fail_pick:
-            raise subprocess.CalledProcessError(1, cmd)
+            raise fp.subprocess.CalledProcessError(1, cmd)
         if cmd[:3] == ["gh", "pr", "create"]:
             return "https://github.com/o/r/pull/9\n"
         return ""
