@@ -79,14 +79,24 @@ async def process_voice(
                 if admin_bot:
                     await admin_bot.notify_lead(admin_note)
 
-                # Save to Second Brain (00-Inbox/ & 50-Daily/)
+                # Save to Second Brain (00-Inbox/ & 50-Daily/ + 70-Odamlar/)
                 try:
                     from src.services.core.second_brain_sync import save_voice_note
+                    from src.services.core.vault_entity_sync import log_interaction_to_vault
                     asyncio.create_task(
                         save_voice_note(
                             text=transcript,
                             sender_name=sender_name,
                             sender_id=getattr(event, "sender_id", None),
+                        )
+                    )
+                    asyncio.create_task(
+                        asyncio.to_thread(
+                            log_interaction_to_vault,
+                            person_name=sender_name,
+                            actor="Telegram Voice",
+                            channel="Telegram",
+                            summary=transcript[:240],
                         )
                     )
                 except Exception as sb_err:
