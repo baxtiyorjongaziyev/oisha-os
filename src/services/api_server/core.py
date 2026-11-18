@@ -115,6 +115,7 @@ from src.api.routes.amocrm_integration import router as amocrm_router
 from src.api.routes.attendance_routes import pages_router as attendance_pages_router
 from src.api.routes.tg_connect_routes import pages_router as tg_connect_pages_router
 from src.api.routes.tg_connect_routes import router as tg_connect_router
+from src.api.routes.tg_connect_mcp import router as tg_connect_mcp_router
 from src.api.routes.attendance_routes import router as attendance_router
 from src.api.routes.attendance_setup_routes import router as attendance_setup_router
 from src.api.routes.business_commands import router as business_commands_router
@@ -188,6 +189,7 @@ app.include_router(telephony_router)
 app.include_router(attendance_router)
 app.include_router(attendance_pages_router)
 app.include_router(attendance_setup_router)
+app.include_router(tg_connect_mcp_router)
 app.include_router(tg_connect_router)
 app.include_router(tg_connect_pages_router)
 app.include_router(crm_dialer_router)

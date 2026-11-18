@@ -96,6 +96,20 @@
     </div>
 
     <details class="card p-5">
+      <summary class="font-semibold cursor-pointer">ChatGPT / Claude ga ulash</summary>
+      <p class="text-sm text-slate-400 mt-3">Shaxsiy havola yarating. U orqali ChatGPT yoki Claude faqat siz tanlagan chatlarni <b>oʻqiy oladi</b> — xabar yubora olmaydi. Havolani hech kimga bermang: yangisini yaratish eskisini darhol bekor qiladi.</p>
+      <button id="btn-token" class="mt-3 text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl">Havola yaratish</button>
+      <div id="token-box" class="hidden mt-4 space-y-3 text-sm">
+        <p class="text-amber-300">Bu havola faqat hozir koʻrsatiladi. Nusxa oling.</p>
+        <code id="mcp-url" class="block break-all text-xs bg-slate-900 p-3 rounded-xl select-all"></code>
+        <ol class="list-decimal list-inside text-slate-300 space-y-1">
+          <li><b>Claude:</b> Settings → Connectors → Add custom connector → havolani qoʻying.</li>
+          <li><b>ChatGPT:</b> Settings → Apps &amp; Connectors → Advanced → Developer mode → Create → havolani qoʻying, autentifikatsiya: None.</li>
+        </ol>
+      </div>
+    </details>
+
+    <details class="card p-5">
       <summary class="font-semibold cursor-pointer">Jurnal</summary>
       <ul id="audit" class="mt-3 space-y-2 text-sm text-slate-300"></ul>
     </details>

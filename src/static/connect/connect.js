@@ -13,7 +13,9 @@ const ERRORS = {
 };
 const ACTIONS = {
   connected: "Ulandi", revoked: "Uzildi", chats_updated: "Chatlar tanlovi oʻzgardi",
-  mcp_token_issued: "ChatGPT/Claude kaliti yaratildi",
+  mcp_token_issued: "ChatGPT/Claude havolasi yaratildi",
+  mcp_list_chats: "AI chatlar roʻyxatini oldi", mcp_read_chat: "AI chatni oʻqidi",
+  mcp_search_chat: "AI chatda qidirdi",
 };
 let qrObj = null, poll = null, chats = [];
 
@@ -91,7 +93,8 @@ async function loadConnected(st) {
   const ul = $("audit"); ul.textContent = "";
   audit.forEach((e) => {
     const li = document.createElement("li");
-    li.textContent = fmt(e.at) + " — " + (ACTIONS[e.action] || e.action);
+    li.textContent = fmt(e.at) + " — " + (ACTIONS[e.action] || e.action)
+      + (e.detail && e.detail.chat ? ": " + e.detail.chat : "");
     ul.append(li);
   });
 }
@@ -122,6 +125,12 @@ $("btn-save").onclick = async () => {
   const ids = chats.filter((c) => c.allowed).map((c) => c.id);
   await api("/chats", { method: "PUT", body: JSON.stringify({ chat_ids: ids }) });
   load();
+};
+$("btn-token").onclick = async () => {
+  if (!confirm("Yangi havola yaratilsa, eski havola ishlamay qoladi. Davom etasizmi?")) return;
+  const r = await api("/mcp-token", { method: "POST" });
+  $("mcp-url").textContent = location.origin + "/api/connect/mcp/" + r.token;
+  $("token-box").classList.remove("hidden");
 };
 $("btn-revoke").onclick = async () => {
   if (!confirm("Oisha Connect uziladi va sessiya Telegramda ham yopiladi. Davom etasizmi?")) return;

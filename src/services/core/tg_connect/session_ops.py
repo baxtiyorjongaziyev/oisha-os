@@ -70,3 +70,26 @@ async def revoke(db, telegram_id: int, actor: str, ip: str | None = None,
     await store.audit(db, telegram_id, "revoked", actor, {"telegram_logout": remote_ok}, ip)
     # False boʻlsa menejer Telegram -> Devices dan "Oisha Connect"ni qoʻlda yopishi kerak.
     return {"telegram_logout": remote_ok}
+
+
+def _msg(m: Any) -> dict:
+    sender = getattr(m, "sender", None)
+    name = (getattr(sender, "first_name", None) or getattr(sender, "title", None)
+            or getattr(sender, "username", None) or "")
+    return {"id": int(m.id), "date": m.date.isoformat() if getattr(m, "date", None) else None,
+            "from": "me" if getattr(m, "out", False) else name,
+            "text": (getattr(m, "message", None) or "")[:4000]}
+
+
+async def read_messages(session: str, chat_id: int, limit: int = 30, query: str | None = None,
+                        factory: SessionClientFactory = default_session_client) -> list[dict]:
+    """Bitta chatdan oxirgi xabarlar (yoki ``query`` boʻyicha qidiruv). Faqat oʻqish."""
+    client = factory(session)
+    await client.connect()
+    try:
+        out = []
+        async for m in client.iter_messages(int(chat_id), limit=max(1, min(int(limit), 100)), search=query):
+            out.append(_msg(m))
+        return out
+    finally:
+        await client.disconnect()

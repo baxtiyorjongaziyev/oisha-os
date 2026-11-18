@@ -86,6 +86,9 @@ _PUBLIC_PATHS = frozenset(
         "/api/attendance/app/common.js",
         "/api/attendance/app/employee.js",
         "/api/attendance/app/admin.js",
+        # Oisha Connect sahifasi statik; maʼlumot /api/connect/* da principal bilan himoyalangan.
+        "/api/connect/app",
+        "/api/connect/app/connect.js",
         # Ofis monitori: kiosk kaliti yoki sessiya route ichida tekshiriladi (fail-closed).
         "/api/attendance/kiosk/qr",
         # Payme Merchant API endpoints (authenticated via Basic Auth in handler)
@@ -260,6 +263,9 @@ def is_protected_path(path: str) -> bool:
     if normalized.startswith("/api/dashboard/"):
         return False
     if normalized.startswith("/api/cockpit/"):
+        return False
+    # Oisha Connect MCP: route ichida shaxsiy oc_ kalit (hash) bilan autentifikatsiya.
+    if normalized == "/api/connect/mcp" or normalized.startswith("/api/connect/mcp/"):
         return False
     if "/telephony/webhook" in normalized:
         return False
