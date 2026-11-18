@@ -57,6 +57,16 @@ def get_git_state() -> Tuple[str, str]:
         return "unknown", "unknown"
 
 
+def git_head() -> str:
+    """HEAD commit the loop started from; falls back to the symbolic ref."""
+    try:
+        return subprocess.check_output(  # nosec B603 B607
+            ["git", "rev-parse", "HEAD"], cwd=str(ROOT), text=True
+        ).strip()
+    except Exception:
+        return "HEAD"
+
+
 def assert_safe_environment() -> bool:
     """Refuses to run the loop on main/master; forces offline test env."""
     os.environ["SKIP_LIVE"] = "1"
@@ -210,7 +220,7 @@ def run_autonomous_loop(config: LoopConfig) -> int:
     print("=" * 65)
 
     stalls = 0
-    base_head = get_git_state()[0]
+    base_head = git_head()
     for iteration in range(1, config.max_iterations + 1):
         print(f"\n--- [Iteration {iteration}/{config.max_iterations}] Running Audit ---")
         code, _ = execute_audit(config.test_target)
