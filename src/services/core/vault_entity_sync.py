@@ -209,3 +209,36 @@ def log_interaction_to_vault(
 
     _write_note(person_path, fm, body)
     return person_path
+
+
+def sync_group_member_to_vault(
+    chat_title: str,
+    sender_name: str,
+    phone: Optional[str] = None,
+    telegram: Optional[str] = None,
+    message_text: Optional[str] = None,
+    vault_path: Optional[Path] = None,
+) -> Optional[Path]:
+    """Auto-import a Telegram group member (e.g. TEZ-NATIJA-7) into `70-Odamlar/`."""
+    tag = re.sub(r"\s+", "-", chat_title.strip().upper())
+    tag = re.sub(r"[^A-Z0-9_-]", "", tag)
+    tags = [tag] if tag else []
+    person_path = sync_person_to_vault(
+        name=sender_name,
+        phone=phone,
+        telegram=telegram,
+        tags=tags,
+        source=f"Telegram ({chat_title})",
+        vault_path=vault_path,
+    )
+    if person_path and message_text and len(message_text.strip()) > 10:
+        log_interaction_to_vault(
+            person_name=sender_name,
+            actor=sender_name,
+            channel=f"Telegram ({chat_title})",
+            summary=message_text.strip()[:240],
+            phone=phone,
+            telegram=telegram,
+            vault_path=vault_path,
+        )
+    return person_path
