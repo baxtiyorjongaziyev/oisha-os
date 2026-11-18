@@ -257,4 +257,4 @@ def test_refresh_never_reverts_saved_selection(db):
     run(store.set_allowed(db, TG, [1]))
     run(store.set_allowed(db, TG, []))  # menejer opt-out qildi
     run(store.replace_chats(db, TG, [{"id": 1, "title": "A2", "kind": "private"}]))
-    assert run(store.chats(db, TG)) == [{"id": 1, "title": "A2", "kind": "private", "allowed": False}]
+    assert run(store.chats(db, TG)) == [{"id": 1, "title": "A2", "kind": "private", "allowed": False, "autonomous": False}]
