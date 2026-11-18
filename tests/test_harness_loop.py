@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -24,6 +25,20 @@ def load_loop():
 class HarnessLoopTests(unittest.TestCase):
     def setUp(self):
         self.loop = load_loop()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        patcher = patch.object(self.loop, "FEEDBACK_FILE", Path(tmp.name) / "feedback.md")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_last_iteration_does_not_run_unverified_agent(self):
+        code, audits, agents = self.run_loop([(1, "")], [], max_iterations=1)
+        self.assertEqual((code, audits, agents), (1, 1, 0))
+
+    def test_windows_split_strips_grouping_quotes(self):
+        with patch.object(self.loop.os, "name", "nt"):
+            args = self.loop.split_agent_cmd('"C:\\Program Files\\a.exe" -p "fix it"')
+        self.assertEqual(args, ["C:\\Program Files\\a.exe", "-p", "fix it"])
 
     def run_loop(self, audits, states, agent_cmd="fix", safe=True, **kw):
         config = self.loop.LoopConfig(agent_cmd=agent_cmd, **kw)

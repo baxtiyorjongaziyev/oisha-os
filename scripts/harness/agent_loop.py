@@ -84,17 +84,53 @@ def run_agent_step(config: LoopConfig) -> int:
     print(f"🤖 Agent step: {config.agent_cmd}")
     env = os.environ.copy()
     env["HARNESS_FEEDBACK_FILE"] = str(FEEDBACK_FILE)
+    is_windows = os.name == "nt"
+    group_kwargs = (
+        {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        if is_windows
+        else {"start_new_session": True}
+    )
+    proc = subprocess.Popen(  # nosec B603 - operator-supplied command, no shell
+        split_agent_cmd(config.agent_cmd),
+        cwd=str(ROOT),
+        env=env,
+        **group_kwargs,
+    )
     try:
-        res = subprocess.run(  # nosec B603 - command is supplied by the operator
-            shlex.split(config.agent_cmd, posix=os.name != "nt"),
-            cwd=str(ROOT),
-            env=env,
-            timeout=config.agent_timeout,
-        )
+        return proc.wait(timeout=config.agent_timeout)
     except subprocess.TimeoutExpired:
-        print(f"⏱️ Agent step timed out after {config.agent_timeout}s.")
+        print(f"⏱️ Agent step timed out after {config.agent_timeout}s; killing process tree.")
+        kill_process_tree(proc)
         return 124
-    return res.returncode
+
+
+def split_agent_cmd(cmd: str) -> list[str]:
+    """Splits --agent-cmd; on Windows strips grouping quotes like CommandLineToArgvW."""
+    if os.name != "nt":
+        return shlex.split(cmd)
+    return [
+        token[1:-1] if len(token) >= 2 and token[0] == token[-1] == '"' else token
+        for token in shlex.split(cmd, posix=False)
+    ]
+
+
+def kill_process_tree(proc: subprocess.Popen) -> None:
+    """Kills the agent and every child it spawned."""
+    if os.name == "nt":
+        subprocess.run(  # nosec B603 B607 - fixed system tool, numeric pid
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        import signal
+
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    proc.wait()
 
 
 def execute_audit(target: Optional[str] = None) -> Tuple[int, str]:
@@ -190,6 +226,8 @@ def run_autonomous_loop(config: LoopConfig) -> int:
         if not config.agent_cmd:
             print("No --agent-cmd given: fix the failures, then re-run.")
             return 1
+        if iteration == config.max_iterations:
+            break  # no audit slot left to verify another agent fix
 
         before = get_git_state()
         agent_code = run_agent_step(config)
