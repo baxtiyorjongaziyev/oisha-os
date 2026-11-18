@@ -1,10 +1,11 @@
 // Oisha Connect — maʼlumot DOM ga faqat textContent orqali yoziladi.
 /* global QRCode */
-const API_PATHS = new Set(["/status", "/qr/start", "/qr/status", "/qr/password", "/qr/cancel", "/chats",
-  "/chats/refresh", "/revoke", "/audit", "/mcp-token"]);
+// Faqat oʻz API mizga soʻrov: yoʻl → oldindan tuzilgan toʻliq URL.
+const API_URLS = new Map(["/status", "/qr/start", "/qr/status", "/qr/password", "/qr/cancel", "/chats",
+  "/chats/refresh", "/revoke", "/audit", "/mcp-token"].map((p) => [p, "/api/connect" + p]));
 const $ = (id) => document.getElementById(id);
 const SECTIONS = ["loading", "login", "intro", "qr-step", "pw-step", "connected"];
-const ERRORS = {
+const ERRORS = new Map(Object.entries({
   not_an_employee: "Telegram hisobingiz xodimlar roʻyxatiga bogʻlanmagan. Rahbaringizga murojaat qiling.",
   connect_not_configured: "Tizim hali sozlanmagan. Administratorga xabar bering.",
   already_connected: "Akkaunt allaqachon ulangan.",
@@ -13,26 +14,26 @@ const ERRORS = {
   failed: "Ulanishda xato. Qaytadan urinib koʻring.",
   bad_password: "Parol notoʻgʻri.",
   rate_limited: "Juda koʻp urinish. Birozdan keyin qayta urinib koʻring.",
-};
-const ACTIONS = {
+}));
+const ACTIONS = new Map(Object.entries({
   connected: "Ulandi", revoked: "Uzildi", chats_updated: "Chatlar tanlovi oʻzgardi",
   mcp_token_issued: "ChatGPT/Claude havolasi yaratildi",
   mcp_list_chats: "AI chatlar roʻyxatini oldi", mcp_read_chat: "AI chatni oʻqidi",
   mcp_search_chat: "AI chatda qidirdi",
-};
+}));
 let qrObj = null, poll = null, chats = [];
 
 function show(id) { SECTIONS.forEach((s) => $(s).classList.toggle("hidden", s !== id)); }
 function err(code) {
   const box = $("error");
-  const known = code && Object.prototype.hasOwnProperty.call(ERRORS, code);
-  box.textContent = code ? (known ? ERRORS[code] : "Xato: " + String(code)) : "";
+  box.textContent = code ? (ERRORS.get(code) || "Xato: " + String(code)) : "";
   box.classList.toggle("hidden", !code);
 }
 
 async function api(path, opts = {}) {
-  if (!API_PATHS.has(path)) throw new Error("unknown_api_path");  // faqat oʻz API miz
-  const res = await fetch("/api/connect" + path, {
+  const url = API_URLS.get(path);
+  if (!url) throw new Error("unknown_api_path");
+  const res = await fetch(url, {
     credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts,
   });
   if (res.status === 401) { show("login"); throw new Error("unauthorized"); }
@@ -98,7 +99,7 @@ async function loadConnected(st) {
   const ul = $("audit"); ul.textContent = "";
   audit.forEach((e) => {
     const li = document.createElement("li");
-    li.textContent = fmt(e.at) + " — " + (ACTIONS[e.action] || e.action)
+    li.textContent = fmt(e.at) + " — " + (ACTIONS.get(e.action) || e.action)
       + (e.detail && e.detail.chat ? ": " + e.detail.chat : "");
     ul.append(li);
   });
