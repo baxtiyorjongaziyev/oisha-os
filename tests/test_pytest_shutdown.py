@@ -8,7 +8,7 @@ import pytest
 @pytest.mark.parametrize('target,expected', [
     ('tests/test_amocrm_retry.py', '7 passed'),
     ('tests/test_call_analyzer.py', '27 passed'),
-    ('tests/test_customer_360.py', '4 passed'),
+    ('tests/test_customer_360.py', '5 passed'),
 ])
 def test_unit_suite_exits_without_leaking_sqlite_worker(target, expected):
     env = dict(os.environ, SKIP_LIVE='1', ALLOW_LOCAL_RUN='0',
