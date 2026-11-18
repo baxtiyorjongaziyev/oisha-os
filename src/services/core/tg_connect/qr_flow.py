@@ -87,9 +87,18 @@ async def _run(att: Attempt, on_done: OnDone) -> None:
     except Exception as exc:  # noqa: BLE001 - holat sahifaga qaytariladi
         if _password_needed(exc):
             att.state = "password_required"
+            asyncio.get_running_loop().create_task(_expire_later(att))
             return
         logger.warning("tg_connect qr flow failed: %s", type(exc).__name__)
         att.state = "failed"
+        await _safe(att.client.disconnect())
+
+
+async def _expire_later(att: Attempt) -> None:
+    """2FA bosqichida tashlab ketilgan urinishni muddat tugagach yopadi (hech kim soʻramasa ham)."""
+    await asyncio.sleep(max(0.0, ATTEMPT_TTL_S - (time.monotonic() - att.started)))
+    if att.state == "password_required":
+        att.state = "expired"
         await _safe(att.client.disconnect())
 
 
@@ -119,6 +128,8 @@ def get(telegram_id: int) -> Optional[Attempt]:
     att = _attempts.get(telegram_id)
     if att and att.state in ("waiting", "password_required") and time.monotonic() - att.started > ATTEMPT_TTL_S:
         att.state = "expired"
+        # 2FA da tashlab ketilgan urinish: Telegram ulanishini ham yopamiz.
+        asyncio.get_running_loop().create_task(cancel_attempt(att))
     return att
 
 

@@ -14,7 +14,7 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_URL = "https://oisha.jonbranding.uz/connect"
+DEFAULT_URL = "https://oisha.jonbranding.uz/api/connect/app"
 CB_REVOKE, CB_CANCEL = "tgc:revoke", "tgc:cancel"
 
 GUARANTEES = (

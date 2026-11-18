@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 from src.services.core.tg_connect import store
 
-DIALOG_LIMIT = 300
+DIALOG_LIMIT = 1000
 SessionClientFactory = Callable[[str], Any]
 
 
@@ -53,12 +53,19 @@ async def revoke(db, telegram_id: int, actor: str, ip: str | None = None,
         return False
     remote_ok = False
     if acc.get("session_enc"):
+        client = None
         try:
             client = factory(store.decrypt_session(telegram_id, acc["session_enc"]))
             await client.connect()
             remote_ok = bool(await client.log_out())
         except Exception:  # noqa: BLE001 - quyida jurnalda koʻrinadi
             remote_ok = False
+        finally:
+            if client is not None and not remote_ok:
+                try:
+                    await client.disconnect()
+                except Exception:  # noqa: BLE001
+                    pass
     await store.mark_revoked(db, telegram_id)
     await store.audit(db, telegram_id, "revoked", actor, {"telegram_logout": remote_ok}, ip)
     return True

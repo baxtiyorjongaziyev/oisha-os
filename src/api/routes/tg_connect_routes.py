@@ -87,7 +87,7 @@ class PasswordBody(BaseModel):
 
 
 class ChatsBody(BaseModel):
-    chat_ids: list[int] = Field(default_factory=list, max_length=300)
+    chat_ids: list[int] = Field(default_factory=list, max_length=1000)
 
 
 @router.get("/status")
@@ -198,6 +198,8 @@ async def mcp_token(request: Request, principal: Principal = _SELF):
 
 
 # ---- sahifa ----
+# Nginx faqat /api/ ni FastAPI ga yuboradi, shuning uchun sahifa ham /api/ ostida.
+APP_PATH = "/api/connect/app"
 pages_router = APIRouter(tags=["tg-connect-pages"])
 _STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                        "static", "connect")
@@ -213,5 +215,5 @@ def _page(name: str):
     return serve
 
 
-for _path, _file in {"/connect": "index.html", "/connect/connect.js": "connect.js"}.items():
+for _path, _file in {APP_PATH: "index.html", f"{APP_PATH}/connect.js": "connect.js"}.items():
     pages_router.add_api_route(_path, _page(_file), methods=["GET"], include_in_schema=False)

@@ -197,3 +197,52 @@ def test_api_requires_employee_and_never_returns_session(monkeypatch, db):
 def test_api_rejects_non_telegram_principal(monkeypatch, db):
     p = Principal(subject="api-key-1", role=Role.ADMIN, auth_type="api_key")
     assert _app(monkeypatch, db, p).get("/api/connect/status").status_code == 403
+
+
+def test_revoke_disconnects_client_when_logout_fails(db):
+    run(store.save_connected(db, TG, 5, None, "S"))
+
+    class Failing(FakeClient):
+        disconnected = False
+
+        async def log_out(self):
+            raise ConnectionError("down")
+
+        async def disconnect(self):
+            Failing.disconnected = True
+
+    client = Failing(TG)
+    assert run(session_ops.revoke(db, TG, str(TG), factory=lambda s: client)) is True
+    assert Failing.disconnected
+    assert run(store.audit_log(db, TG))[0]["detail"] == {"telegram_logout": False}
+
+
+def test_abandoned_2fa_attempt_is_closed_after_ttl(monkeypatch):
+    monkeypatch.setattr(qr_flow, "ATTEMPT_TTL_S", 0.05)
+
+    class Tracking(FakeClient):
+        async def disconnect(self):
+            self.closed = True
+
+    async def scenario():
+        client = Tracking(TG, SessionPasswordNeededError())
+
+        async def on_done(tg, result):
+            pass
+
+        att = await qr_flow.start(TG, on_done, factory=lambda: client)
+        await att.task
+        await asyncio.sleep(0.2)
+        return att, client
+
+    att, client = run(scenario())
+    assert att.state == "expired" and getattr(client, "closed", False)
+
+
+def test_connect_page_is_served_under_api_prefix():
+    from src.api.routes import tg_connect_routes as routes
+    from src.services.api_server.oauth import _safe_login_next
+
+    paths = {r.path for r in routes.pages_router.routes}
+    assert paths == {"/api/connect/app", "/api/connect/app/connect.js"}
+    assert _safe_login_next("/api/connect/app") == "/api/connect/app"
