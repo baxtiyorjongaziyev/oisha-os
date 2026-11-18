@@ -312,15 +312,35 @@ def test_polling_keeps_widget_updates_in_allowed_list():
 def test_aiogram_update_keeps_widget_query_in_dump():
     from aiogram.types import Update
 
+    from types import SimpleNamespace
+
+    from src.services.core.telegram.aiogram_head import AiogramBotHead
+
     payload = widget_update("ping:x")
-    # aiogram>=3.32 WidgetQuery modelini talab qiladi: to'liq Telegram payload.
+    # aiogram>=3.32 WidgetQuery modelini talab qiladi: toʻliq Telegram payload.
     payload["widget_query"].update(chat_instance="ci", type={"type": "data"})
     payload["widget_query"]["from"].update(is_bot=False, first_name="T")
     upd = Update.model_validate(payload)
-    # Middleware by_alias bilan dump qiladi: "from" (from_user emas) saqlanadi.
-    dumped = upd.model_dump(exclude_none=True, by_alias=True)
-    assert "widget_query" in dumped
-    query = parse_widget_update(dumped)
+
+    middlewares = []
+    dispatcher = SimpleNamespace(
+        update=SimpleNamespace(
+            outer_middleware=SimpleNamespace(register=middlewares.append)
+        )
+    )
+    received = []
+
+    async def raw_handler(raw):
+        received.append(raw)
+        return "raw"
+
+    async def next_handler(event, data):
+        return "next"
+
+    AiogramBotHead(bot=object(), dispatcher=dispatcher, raw_update_handler=raw_handler)
+    assert run(middlewares[0](next_handler, upd, {})) == "raw"
+    # Middleware Telegram kalitlarini saqlaydi: "from" (from_user emas).
+    query = parse_widget_update(received[0])
     assert query is not None and query.user_id == 100
 
 
