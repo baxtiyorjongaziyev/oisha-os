@@ -312,8 +312,16 @@ def test_polling_keeps_widget_updates_in_allowed_list():
 def test_aiogram_update_keeps_widget_query_in_dump():
     from aiogram.types import Update
 
-    upd = Update.model_validate(widget_update("ping:x"))
-    assert "widget_query" in upd.model_dump(exclude_none=True)
+    payload = widget_update("ping:x")
+    # aiogram>=3.32 WidgetQuery modelini talab qiladi: to'liq Telegram payload.
+    payload["widget_query"].update(chat_instance="ci", type={"type": "data"})
+    payload["widget_query"]["from"].update(is_bot=False, first_name="T")
+    upd = Update.model_validate(payload)
+    # Middleware by_alias bilan dump qiladi: "from" (from_user emas) saqlanadi.
+    dumped = upd.model_dump(exclude_none=True, by_alias=True)
+    assert "widget_query" in dumped
+    query = parse_widget_update(dumped)
+    assert query is not None and query.user_id == 100
 
 
 def test_process_telegram_ai_update_routes_widget_query(monkeypatch):

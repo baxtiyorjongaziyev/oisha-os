@@ -47,7 +47,7 @@ class AiogramBotHead:
 
         async def _raw_update_middleware(handler, event, data):
             try:
-                payload = event.model_dump(exclude_none=True)
+                payload = event.model_dump(exclude_none=True, by_alias=True)
                 if raw_update_handler is not None and any(
                     key in payload for key in AiogramBotHead._RAW_PASSTHROUGH_KEYS
                 ):
