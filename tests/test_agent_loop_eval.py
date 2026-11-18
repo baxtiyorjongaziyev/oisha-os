@@ -7,7 +7,7 @@ a new failure mode; no live services are touched.
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import pytest
 

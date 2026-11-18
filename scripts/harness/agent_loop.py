@@ -46,7 +46,7 @@ def get_git_state() -> Tuple[str, str]:
             ["git", "rev-parse", "HEAD"], cwd=str(ROOT), text=True, errors="replace"
         ).strip()
         digest = hashlib.sha256()
-        digest.update(subprocess.check_output(["git", "diff", "HEAD"], cwd=str(ROOT)))
+        digest.update(subprocess.check_output(["git", "diff", "HEAD"], cwd=str(ROOT)))  # nosec B603 B607
         for path in current_changed_files():
             file_path = ROOT / path
             if file_path.is_file():
@@ -90,6 +90,7 @@ def run_agent_step(config: LoopConfig) -> int:
         if is_windows
         else {"start_new_session": True}
     )
+    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
     proc = subprocess.Popen(  # nosec B603 - operator-supplied command, no shell
         split_agent_cmd(config.agent_cmd),
         cwd=str(ROOT),
@@ -171,10 +172,10 @@ def format_handoff_entry(agent_name: str, task_summary: str, files_changed: list
     )
 
 
-def record_successful_handoff(task_summary: str, agent_name: str) -> None:
-    """Appends verified handoff evidence; skipped when nothing changed."""
+def record_successful_handoff(task_summary: str, agent_name: str, base_head: str = "HEAD") -> None:
+    """Appends verified handoff evidence; skipped when nothing changed since base_head."""
     try:
-        diff_files = current_changed_files()
+        diff_files = current_changed_files(base_head)
     except Exception:
         diff_files = []
     diff_files = [f for f in diff_files if f != HANDOFF_FILE.relative_to(ROOT).as_posix()]
@@ -188,12 +189,12 @@ def record_successful_handoff(task_summary: str, agent_name: str) -> None:
         print(f"📝 Handoff recorded in {HANDOFF_FILE.relative_to(ROOT)}")
 
 
-def current_changed_files() -> list[str]:
-    """Collect staged, unstaged and untracked paths without previous commits."""
+def current_changed_files(base: str = "HEAD") -> list[str]:
+    """Paths changed since base: commits made after it, worktree edits, untracked files."""
     paths = set()
-    for args in (["diff", "--name-only", "-z", "HEAD"],
+    for args in (["diff", "--name-only", "-z", base],
                  ["ls-files", "--others", "--exclude-standard", "-z"]):
-        output = subprocess.check_output(["git", *args], cwd=ROOT)
+        output = subprocess.check_output(["git", *args], cwd=ROOT)  # nosec B603 B607
         paths.update(os.fsdecode(path) for path in output.split(b"\0") if path)
     return sorted(paths)
 
@@ -209,6 +210,7 @@ def run_autonomous_loop(config: LoopConfig) -> int:
     print("=" * 65)
 
     stalls = 0
+    base_head = get_git_state()[0]
     for iteration in range(1, config.max_iterations + 1):
         print(f"\n--- [Iteration {iteration}/{config.max_iterations}] Running Audit ---")
         code, _ = execute_audit(config.test_target)
@@ -216,7 +218,7 @@ def run_autonomous_loop(config: LoopConfig) -> int:
             print("\n🎉 [HARNESS GREEN] All verification gates passed!")
             if FEEDBACK_FILE.exists():
                 FEEDBACK_FILE.unlink()
-            record_successful_handoff("Autonomous Harness Verification & Healing Loop", config.agent_name)
+            record_successful_handoff("Autonomous Harness Verification & Healing Loop", config.agent_name, base_head)
             return 0
 
         print(f"❌ [HARNESS RED] Iteration {iteration} failed.")
