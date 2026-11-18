@@ -1,0 +1,45 @@
+name: Follow-up PR for commits pushed after merge
+
+# PR #1099 dagi holat: PR merge boʻlgandan keyin branchga push qilingan commit
+# main ga tushmay qoldi. Bu workflow shunday commitlarni topib, avtomatik yangi PR ochadi.
+on:
+  push:
+    branches-ignore: [main, "followup/**", "dependabot/**"]
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: followup-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  followup:
+    if: github.event_name == 'push' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+          # GITHUB_TOKEN bilan ochilgan PR CI ni ishga tushirmaydi; AUTOMATION_PAT boʻlsa u ishlatiladi.
+          token: ${{ secrets.AUTOMATION_PAT || github.token }}
+
+      - name: Wait for merge state to settle
+        if: github.event_name == 'push'
+        run: sleep 20
+
+      - name: Open follow-up PR if needed
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMATION_PAT || github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          git config user.name "oisha-followup-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags origin main
+          python scripts/followup_pr.py "$BRANCH"
