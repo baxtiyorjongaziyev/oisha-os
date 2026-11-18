@@ -88,6 +88,11 @@ class PasswordBody(BaseModel):
 
 class ChatsBody(BaseModel):
     chat_ids: list[int] = Field(default_factory=list, max_length=1000)
+    autonomous_ids: list[int] = Field(default_factory=list, max_length=1000)
+
+
+class SettingsBody(BaseModel):
+    all_chats: bool
 
 
 @router.get("/status")
@@ -101,6 +106,7 @@ async def status(principal: Principal = _SELF):
         "connected_at": acc["connected_at"] if acc else None,
         "username": acc["tg_username"] if acc else None,
         "allowed_chats": allowed,
+        "all_chats": bool(acc and acc["status"] == "connected" and await store.all_chats(db, tg)),
         "device_name": qr_flow.DEVICE_MODEL,
         "attempt": qr_flow.public_view(qr_flow.get(tg)),
     }
@@ -161,8 +167,21 @@ async def put_chats(body: ChatsBody, request: Request, principal: Principal = _S
     db = await _ready_db()
     tg, _ = await _me(db, principal)
     count = await store.set_allowed(db, tg, body.chat_ids)
-    await store.audit(db, tg, "chats_updated", str(tg), {"allowed": count}, _ip(request))
-    return {"allowed": count}
+    auto = await store.set_autonomous(db, tg, body.autonomous_ids)
+    await store.audit(db, tg, "chats_updated", str(tg), {"allowed": count, "autonomous": auto}, _ip(request))
+    return {"allowed": count, "autonomous": auto}
+
+
+@router.put("/settings")
+async def put_settings(body: SettingsBody, request: Request, principal: Principal = _SELF):
+    db = await _ready_db()
+    tg, _ = await _me(db, principal)
+    acc = await store.account(db, tg)
+    if not acc or acc["status"] != "connected":
+        raise HTTPException(status_code=409, detail="not_connected")
+    await store.set_all_chats(db, tg, body.all_chats)
+    await store.audit(db, tg, "all_chats_on" if body.all_chats else "all_chats_off", str(tg), None, _ip(request))
+    return {"all_chats": body.all_chats}
 
 
 @router.post("/revoke")
