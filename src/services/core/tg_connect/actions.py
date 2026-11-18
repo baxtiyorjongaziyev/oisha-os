@@ -9,7 +9,9 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Awaitable, Callable, Optional
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from typing import Awaitable, Callable, Optional
 
 from src.services.core.tg_connect import store, write_ops
 
@@ -32,6 +34,12 @@ DDL = (
 )
 
 Notify = Callable[[int, int, str], Awaitable[bool]]
+
+
+def quiet_hours(now: Optional[datetime] = None) -> bool:
+    """``agent_policy`` qoidasi: 23:00–07:00 Toshkent — avtomatik yozish yoʻq."""
+    t = (now or datetime.now(ZoneInfo("Asia/Tashkent"))).astimezone(ZoneInfo("Asia/Tashkent"))
+    return t.hour >= 23 or t.hour < 7
 
 
 async def init_tables(db) -> None:
@@ -94,6 +102,8 @@ async def _run(db, tg: int, action_id: int, kind: str, payload: dict, executor) 
 async def submit(db, tg: int, kind: str, payload: dict, *, autonomous: bool, titles: dict[int, str],
                  source: str = "mcp", notify: Optional[Notify] = None,
                  executor=write_ops.execute) -> dict:
+    if autonomous and quiet_hours():
+        autonomous = False  # tunda ⚡ chat ham menejer tasdigʻisiz yozmaydi
     now = int(time.time())
     rows = await db.execute(
         "INSERT INTO tg_connect_actions (telegram_id, kind, payload, state, source, created_at)"

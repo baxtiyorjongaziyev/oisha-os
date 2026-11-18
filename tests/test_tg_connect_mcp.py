@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -138,7 +140,10 @@ def test_reject_never_executes(db):  # noqa: F811
     assert spy.executed == []
 
 
-def test_autonomous_chat_executes_immediately(db):  # noqa: F811
+def test_autonomous_chat_executes_immediately(db, monkeypatch):  # noqa: F811
+    from src.services.core.tg_connect import actions
+
+    monkeypatch.setattr(actions, "quiet_hours", lambda: False)
     _setup(db)
     run(store.set_autonomous(db, TG, [1]))
     spy = Spy()
@@ -171,3 +176,78 @@ def test_send_file_requires_https(db):  # noqa: F811
     spy = Spy()
     err, data = wcall(db, spy, "send_file", {"chat_id": 1, "file_url": "http://x/a.pdf"})
     assert err and "https" in data["error"]
+
+
+def test_quiet_hours_force_approval_even_in_autonomous_chat(db, monkeypatch):  # noqa: F811
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from src.services.core.tg_connect import actions
+
+    tz = ZoneInfo("Asia/Tashkent")
+    assert actions.quiet_hours(datetime(2026, 11, 19, 23, 30, tzinfo=tz))
+    assert actions.quiet_hours(datetime(2026, 11, 19, 6, 59, tzinfo=tz))
+    assert not actions.quiet_hours(datetime(2026, 11, 19, 7, 0, tzinfo=tz))
+    monkeypatch.setattr(actions, "quiet_hours", lambda: True)
+    _setup(db)
+    run(store.set_autonomous(db, TG, [1]))
+    spy = Spy()
+    data = wcall(db, spy, "send_message", {"chat_id": 1, "text": "tun"})[1]
+    assert data["state"] == "pending_approval" and spy.executed == []
+
+
+class FakeTg:
+    def __init__(self, found):
+        self.found, self.deleted, self.resolved = found, None, []
+
+    async def connect(self):
+        pass
+
+    async def disconnect(self):
+        pass
+
+    async def iter_dialogs(self, limit=None):
+        for _ in ():
+            yield _
+
+    async def get_input_entity(self, cid):
+        self.resolved.append(cid)
+
+    async def get_messages(self, chat, ids=None):
+        return [type("M", (), {"id": i})() if i in self.found else None for i in ids]
+
+    async def delete_messages(self, chat, ids):
+        self.deleted = ids
+        return []
+
+    async def forward_messages(self, to, ids, from_peer=None):
+        return [type("M", (), {"id": 900})(), None]
+
+
+def test_delete_rejects_ids_from_other_chats():
+    from src.services.core.tg_connect import write_ops
+
+    tg = FakeTg(found={5})
+    p = write_ops.validate("delete_messages", {"chat_id": 1, "message_ids": [5, 6]})
+    with pytest.raises(write_ops.WriteError):
+        run(write_ops.execute("S", "delete_messages", p, factory=lambda s: tg))
+    assert tg.deleted is None and tg.resolved == [1]
+
+
+def test_partial_forward_reports_sent_and_skipped():
+    from src.services.core.tg_connect import write_ops
+
+    tg = FakeTg(found=set())
+    p = write_ops.validate("forward_messages", {"from_chat_id": 1, "to_chat_id": 2, "message_ids": [3, 4]})
+    res = run(write_ops.execute("S", "forward_messages", p, factory=lambda s: tg))
+    assert res == {"message_ids": [900], "skipped": 1} and tg.resolved == [1, 2]
+
+
+def test_approval_text_shows_full_message():
+    from src.services.core.tg_connect import write_ops
+
+    long = "x" * 3400
+    p = write_ops.validate("send_message", {"chat_id": 1, "text": long})
+    assert long in write_ops.describe("send_message", p, {})
+    with pytest.raises(write_ops.WriteError):
+        write_ops.validate("send_message", {"chat_id": 1, "text": "y" * 3501})

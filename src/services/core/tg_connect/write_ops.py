@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from src.services.core.tg_connect.session_ops import SessionClientFactory, default_session_client
 
-MAX_TEXT = 4096
+MAX_TEXT = 3500  # tasdiq xabarida matn toʻliq koʻrinishi uchun (Telegram limiti 4096)
 MAX_IDS = 100
 KINDS = ("send_message", "forward_messages", "edit_message", "delete_messages", "send_file")
 
@@ -66,7 +66,7 @@ def validate(kind: str, args: dict) -> dict:
     elif kind == "send_file":
         caption = args.get("caption")
         p = {"chat_id": _int(args.get("chat_id"), "chat_id"), "file_url": _url(args.get("file_url")),
-             "caption": _text(caption) if caption else "", "voice": bool(args.get("as_voice"))}
+             "caption": _text(caption) if caption else ""}
     else:
         raise WriteError(f"unknown action: {kind}")
     return p
@@ -81,15 +81,15 @@ def describe(kind: str, p: dict, titles: dict[int, str]) -> str:
     chat = titles.get(p["chat_id"], str(p["chat_id"]))
     if kind == "send_message":
         head = f"✉️ Xabar yuborish → {chat}" + (" (javob)" if p.get("reply_to") else "")
-        return f"{head}\n\n{p['text'][:1500]}"
+        return f"{head}\n\n{p['text']}"
     if kind == "forward_messages":
         src = titles.get(p["from_chat_id"], str(p["from_chat_id"]))
         return f"↪️ Forward: {src} → {chat}, {len(p['message_ids'])} ta xabar"
     if kind == "edit_message":
-        return f"✏️ Xabarni tahrirlash ({chat}, #{p['message_id']})\n\n{p['text'][:1500]}"
+        return f"✏️ Xabarni tahrirlash ({chat}, #{p['message_id']})\n\n{p['text']}"
     if kind == "delete_messages":
         return f"🗑 Xabarlarni oʻchirish ({chat}): {len(p['message_ids'])} ta"
-    return f"📎 Fayl yuborish → {chat}\n{p['file_url']}" + (f"\n\n{p['caption'][:500]}" if p["caption"] else "")
+    return f"📎 Fayl yuborish → {chat}\n{p['file_url']}" + (f"\n\n{p['caption']}" if p["caption"] else "")
 
 
 async def execute(session: str, kind: str, p: dict,
@@ -97,9 +97,20 @@ async def execute(session: str, kind: str, p: dict,
     client = factory(session)
     await client.connect()
     try:
+        await _resolve(client, chats_of(kind, p))
         return await _run(client, kind, p)
     finally:
         await client.disconnect()
+
+
+async def _resolve(client: Any, chat_ids: list[int]) -> None:
+    """Supergroup/kanal/kontakt boʻlmagan userlar uchun access_hash kerak: dialoglar cache ni toʻldiradi."""
+    from src.services.core.tg_connect.session_ops import DIALOG_LIMIT
+
+    async for _ in client.iter_dialogs(limit=DIALOG_LIMIT):
+        pass
+    for cid in chat_ids:
+        await client.get_input_entity(cid)  # topilmasa ValueError — amal bajarilmaydi
 
 
 async def _run(client: Any, kind: str, p: dict) -> dict:
@@ -108,14 +119,19 @@ async def _run(client: Any, kind: str, p: dict) -> dict:
         return {"message_id": int(m.id)}
     if kind == "forward_messages":
         ms = await client.forward_messages(p["chat_id"], p["message_ids"], from_peer=p["from_chat_id"])
-        return {"message_ids": [int(m.id) for m in (ms if isinstance(ms, list) else [ms])]}
+        sent = [m for m in (ms if isinstance(ms, list) else [ms]) if m is not None]
+        return {"message_ids": [int(m.id) for m in sent], "skipped": len(p["message_ids"]) - len(sent)}
     if kind == "edit_message":
         m = await client.edit_message(p["chat_id"], p["message_id"], p["text"])
         return {"message_id": int(m.id)}
     if kind == "delete_messages":
-        res = await client.delete_messages(p["chat_id"], p["message_ids"])
+        found = await client.get_messages(p["chat_id"], ids=p["message_ids"])
+        own = [int(m.id) for m in (found or []) if m is not None]
+        if len(own) != len(p["message_ids"]):
+            raise WriteError("some message_ids do not belong to this chat")
+        res = await client.delete_messages(p["chat_id"], own)
         return {"deleted": sum(int(getattr(r, "pts_count", 0)) for r in (res or []))}
-    m = await client.send_file(p["chat_id"], p["file_url"], caption=p["caption"] or None, voice_note=p["voice"])
+    m = await client.send_file(p["chat_id"], p["file_url"], caption=p["caption"] or None)
     return {"message_id": int(m.id)}
 
 

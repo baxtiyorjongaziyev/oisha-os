@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -88,7 +89,8 @@ class PasswordBody(BaseModel):
 
 class ChatsBody(BaseModel):
     chat_ids: list[int] = Field(default_factory=list, max_length=1000)
-    autonomous_ids: list[int] = Field(default_factory=list, max_length=1000)
+    # None — ⚡ tanlovi oʻzgarmaydi (eski mijozlar faqat chat_ids yuboradi)
+    autonomous_ids: Optional[list[int]] = Field(default=None, max_length=1000)
 
 
 class SettingsBody(BaseModel):
@@ -167,7 +169,8 @@ async def put_chats(body: ChatsBody, request: Request, principal: Principal = _S
     db = await _ready_db()
     tg, _ = await _me(db, principal)
     count = await store.set_allowed(db, tg, body.chat_ids)
-    auto = await store.set_autonomous(db, tg, body.autonomous_ids)
+    auto = (await store.set_autonomous(db, tg, body.autonomous_ids)
+            if body.autonomous_ids is not None else None)
     await store.audit(db, tg, "chats_updated", str(tg), {"allowed": count, "autonomous": auto}, _ip(request))
     return {"allowed": count, "autonomous": auto}
 
