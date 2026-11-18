@@ -312,7 +312,12 @@ def test_polling_keeps_widget_updates_in_allowed_list():
 def test_aiogram_update_keeps_widget_query_in_dump():
     from aiogram.types import Update
 
-    upd = Update.model_validate(widget_update("ping:x"))
+    # Yangi aiogram widget_query ni toʻliq tiplaydi; haqiqiy Telegram update dagi
+    # majburiy maydonlar bilan tekshiramiz (eski versiya ham ularni qabul qiladi).
+    raw = widget_update("ping:x")
+    raw["widget_query"]["from"].update({"is_bot": False, "first_name": "Test"})
+    raw["widget_query"].update({"chat_instance": "ci-1", "type": "widget"})
+    upd = Update.model_validate(raw)
     assert "widget_query" in upd.model_dump(exclude_none=True)
 
 

@@ -16,16 +16,21 @@ _spec.loader.exec_module(fp)
 
 
 class Fake:
-    def __init__(self, prs, revs="", fail_pick=False):
+    def __init__(self, prs, revs="", fail_pick=False, cherry="", merges="", followups=()):
         self.prs, self.revs, self.fail_pick, self.calls = prs, revs, fail_pick, []
+        self.cherry, self.merges, self.followups = cherry, merges, list(followups)
 
     def __call__(self, cmd):
         self.calls.append(cmd)
+        if cmd[:2] == ["git", "rev-list"]:
+            assert "headsha..HEAD" in cmd and "^origin/main" in cmd
+            return self.merges if "--merges" in cmd else self.revs
+        if cmd[:2] == ["git", "cherry"]:
+            return self.cherry
+        if cmd[:3] == ["gh", "pr", "list"] and "--search" in cmd:
+            return json.dumps(self.followups)
         if cmd[:3] == ["gh", "pr", "list"]:
             return json.dumps(self.prs)
-        if cmd[:2] == ["git", "rev-list"]:
-            assert cmd[-1] == "headsha..HEAD"
-            return self.revs
         if cmd[:2] == ["git", "cherry-pick"] and cmd[2] != "--abort" and self.fail_pick:
             raise subprocess.CalledProcessError(1, cmd)
         if cmd[:3] == ["gh", "pr", "create"]:
@@ -75,3 +80,26 @@ def test_workflow_triggers_and_permissions():
     assert wf["permissions"] == {"contents": "write", "pull-requests": "write"}
     steps = wf["jobs"]["followup"]["steps"]
     assert any("followup_pr.py" in (s.get("run") or "") for s in steps)
+
+
+def test_already_recovered_and_synced_commits_are_not_replayed():
+    run = Fake(MERGED, revs="aaa111\nccc333\n", cherry="- aaa111\n+ ccc333\n")
+    p = fp.plan("feat/x", run)
+    assert p.action == "open_pr" and p.commits == ("ccc333",)
+
+
+def test_open_followup_blocks_overlapping_pr():
+    p = fp.plan("feat/x", Fake(MERGED, revs="ccc333\n", followups=[{"number": 5}]))
+    assert p.action == "skip" and "#5" in p.reason
+
+
+def test_merge_commits_need_manual_recovery():
+    p = fp.plan("feat/x", Fake(MERGED, revs="ccc333\n", merges="mmm999\n"))
+    assert p.action == "manual"
+
+
+def test_run_refuses_non_git_commands():
+    import pytest
+
+    with pytest.raises(ValueError):
+        fp._run(["rm", "-rf", "/"])

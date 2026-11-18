@@ -25,23 +25,40 @@ from typing import Callable, Optional
 Run = Callable[[list[str]], str]
 
 
+_ALLOWED = frozenset({"git", "gh"})
+
+
 def _run(cmd: list[str]) -> str:
-    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout  # nosec B603
+    if not cmd or cmd[0] not in _ALLOWED:
+        raise ValueError("only git/gh commands are allowed")
+    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout  # nosec B603 # nosemgrep
 
 
 @dataclass
 class Plan:
-    action: str  # skip | open_pr | conflict
+    action: str  # skip | open_pr | manual
     reason: str
     merged_pr: Optional[int] = None
     commits: tuple[str, ...] = ()
     new_branch: str = ""
 
 
-def pending_commits(run: Run, merged_head: str) -> list[str]:
-    """Merge qilingan head dan keyin branchga qoʻshilgan commitlar (eskidan yangiga)."""
-    out = run(["git", "rev-list", "--reverse", "--no-merges", f"{merged_head}..HEAD"])
+def merges_after(run: Run, merged_head: str) -> list[str]:
+    out = run(["git", "rev-list", "--merges", f"{merged_head}..HEAD", "^origin/main"])
     return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def pending_commits(run: Run, merged_head: str) -> list[str]:
+    """Merge qilingan head dan keyingi, ``main`` da hali yoʻq commitlar (eskidan yangiga).
+
+    ``^origin/main`` — branchga sinxronlangan main commitlari chiqarib tashlanadi;
+    ``git cherry`` dagi ``-`` — oldingi follow-up orqali allaqachon tiklangan patchlar.
+    """
+    out = run(["git", "rev-list", "--reverse", "--no-merges", f"{merged_head}..HEAD", "^origin/main"])
+    candidates = [line.strip() for line in out.splitlines() if line.strip()]
+    applied = {line[2:].strip() for line in run(["git", "cherry", "origin/main", "HEAD"]).splitlines()
+               if line.startswith("- ")}
+    return [c for c in candidates if c not in applied]
 
 
 def plan(branch: str, run: Run = _run) -> Plan:
@@ -51,12 +68,18 @@ def plan(branch: str, run: Run = _run) -> Plan:
                           "--json", "number,state,mergedAt,headRefOid", "--limit", "20"]) or "[]")
     if any(p["state"] == "OPEN" for p in prs):
         return Plan("skip", "branch already has an open PR")
+    followups = json.loads(run(["gh", "pr", "list", "--state", "open", "--search", f"head:followup/{branch}-",
+                                "--json", "number"]) or "[]")
+    if followups:
+        return Plan("skip", f"follow-up PR #{followups[0]['number']} is still open")
     merged = sorted((p for p in prs if p["state"] == "MERGED"), key=lambda p: p["mergedAt"] or "")
     if not merged:
         return Plan("skip", "branch has no merged PR")
     last = merged[-1]
     if not last.get("headRefOid"):
         return Plan("skip", "merged PR has no head sha", last["number"])
+    if merges_after(run, last["headRefOid"]):
+        return Plan("manual", "merge commits after the merged head: recover by hand", last["number"])
     commits = pending_commits(run, last["headRefOid"])
     if not commits:
         return Plan("skip", "everything on the branch is already in main", last["number"])
@@ -99,6 +122,10 @@ def main(argv: list[str]) -> int:
     print(f"[followup] {p.action}: {p.reason}")
     if p.action == "open_pr" and not dry:
         print(f"[followup] {execute(p, branch)}")
+    elif p.action == "manual" and not dry:
+        _run(["gh", "pr", "comment", str(p.merged_pr), "--body",
+              f"⚠️ `{branch}` ga merge dan keyin merge-commit lar tushdi; avtomatik koʻchirish xavfli. "
+              "Qoʻlda `main` dan yangi branch ochib PR qiling."])
     return 0
 
 

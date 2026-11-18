@@ -42,4 +42,7 @@ jobs:
           git config user.name "oisha-followup-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch --no-tags origin main
-          python scripts/followup_pr.py "$BRANCH"
+          # Helper main dan olinadi: eski branchlarda bu fayl hali yoʻq boʻlishi mumkin.
+          git show origin/main:scripts/followup_pr.py > "$RUNNER_TEMP/followup_pr.py" 2>/dev/null \
+            || cp scripts/followup_pr.py "$RUNNER_TEMP/followup_pr.py"
+          python "$RUNNER_TEMP/followup_pr.py" "$BRANCH"

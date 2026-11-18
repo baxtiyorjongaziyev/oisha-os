@@ -40,8 +40,8 @@ bandit -r src/ -ll
 ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/
 python scripts/check_uzbek_text.py --base origin/main
 ```
-- **Gate:** yangi xato yoʻq. `main` da allaqachon qizil testlar boʻlsa — ularni nomma-nom yozing
-  va alohida PR da tuzating; oʻz PR ingizga aralashtirmang.
+- **Gate:** hammasi yashil (`AGENTS.md` 3-qoida). `main` dan meros qizil test boʻlsa — avval uni
+  alohida PR da tuzating (yoki shu PR da, sababini PR body da yozib); qizil holatda PR ochilmaydi.
 
 ### 5. PR
 - `.github/pull_request_template.md` boʻyicha; "Tekshiruv" da faqat haqiqatan bajarilganini belgilang.
@@ -55,7 +55,7 @@ python scripts/check_uzbek_text.py --base origin/main
   gh pr view --json state -q .state   # MERGED yoki CLOSED bo'lsa — PUSH QILMANG
   ```
   `MERGED` boʻlsa: `git switch -c feat/<nom>-followup origin/main && git cherry-pick <sha>` va yangi PR.
-- **Gate:** barcha check yashil (yoki qizillari `main` dan ekani isbotlangan), ochiq thread yoʻq.
+- **Gate:** barcha check yashil, ochiq thread yoʻq.
 
 ### 7. Merge
 - Faqat **oxirgi commit** CI dan oʻtgan boʻlsa: `gh pr view --json headRefOid,statusCheckRollup`.
