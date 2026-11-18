@@ -137,7 +137,7 @@ _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
 })
 
 
-_ATTENDANCE_PAGES = frozenset({"/api/attendance/app", "/api/attendance/app/admin"})
+_ATTENDANCE_PAGES = frozenset({"/api/attendance/app", "/api/attendance/app/admin", "/api/connect/app"})
 
 
 def _safe_redirect_target(target: Optional[str]) -> str:

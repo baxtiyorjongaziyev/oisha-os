@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <title>Oisha Connect</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:'Inter',sans-serif;background:radial-gradient(1200px 600px at 50% -10%,#16233d 0%,#0b1220 60%);}
+    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px}
+    #qr img,#qr canvas{border-radius:12px}
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen">
+<main class="max-w-md mx-auto px-4 pt-8 pb-16">
+  <header class="flex items-center gap-3 mb-6">
+    <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center font-bold text-white">O</div>
+    <div>
+      <p class="text-xs text-slate-400">Jon Branding · Oisha OS</p>
+      <h1 class="text-lg font-semibold">Oisha Connect</h1>
+    </div>
+    <span class="ml-auto text-[11px] px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300">🔒 Ichki tizim</span>
+  </header>
+
+  <p id="loading" class="text-slate-400">Yuklanmoqda…</p>
+  <p id="error" class="hidden mb-4 rounded-xl bg-rose-500/15 text-rose-200 px-4 py-3 text-sm"></p>
+
+  <section id="login" class="hidden card p-6 text-center">
+    <p class="mb-5 text-slate-300">Davom etish uchun Telegram orqali kiring.</p>
+    <a href="/api/auth/telegram/login?next=/api/connect/app" class="inline-block bg-sky-500 hover:bg-sky-400 text-white font-semibold px-6 py-3 rounded-xl">Telegram bilan kirish</a>
+  </section>
+
+  <!-- 1. Ishonch va rozilik -->
+  <section id="intro" class="hidden space-y-4">
+    <div class="card p-5">
+      <h2 class="font-semibold mb-1">Telegram chatlaringizni Oishaga ulang</h2>
+      <p class="text-sm text-slate-400">Oisha mijozlar bilan yozishmalarni tahlil qiladi, javobsiz qolganlarni eslatadi va javob loyihasini tayyorlaydi.</p>
+    </div>
+    <div class="card p-5 text-sm">
+      <p class="font-semibold text-emerald-300 mb-2">✓ Kafolatlar</p>
+      <ul class="space-y-2 text-slate-300">
+        <li>• Kod, SMS yoki parolni hech qayerga yozmaysiz — faqat QR skanerlaysiz.</li>
+        <li>• Oisha faqat <b>siz tanlagan</b> chatlarni koʻradi. Qolganlari yopiq.</li>
+        <li>• Oisha sizning nomingizdan <b>oʻzi xabar yubormaydi</b>. Har bir yuborishni siz tasdiqlaysiz.</li>
+        <li>• Sessiya shifrlangan holda faqat kompaniya serverida saqlanadi.</li>
+        <li>• Oisha nima qilganini “Jurnal”da oʻzingiz koʻrasiz.</li>
+        <li>• Bir tugma bilan uzasiz. Telegram → Settings → Devices boʻlimida ham “Oisha Connect” koʻrinadi.</li>
+      </ul>
+    </div>
+    <label class="flex items-start gap-3 text-sm text-slate-300 card p-4 cursor-pointer">
+      <input id="consent" type="checkbox" class="mt-1 w-4 h-4 accent-sky-500">
+      <span>Tanlagan chatlarim Oisha tomonidan ish maqsadida oʻqilishiga roziman. Istalgan vaqtda uzishim mumkinligini bilaman.</span>
+    </label>
+    <button id="btn-start" disabled class="w-full bg-sky-500 disabled:opacity-40 hover:bg-sky-400 text-white font-semibold py-3.5 rounded-xl">QR kodni koʻrsatish</button>
+  </section>
+
+  <!-- 2. QR -->
+  <section id="qr-step" class="hidden card p-6 text-center">
+    <h2 class="font-semibold mb-1">Telefoningizda skanerlang</h2>
+    <p class="text-sm text-slate-400 mb-5">Telegram → Settings → Devices → <b>Link Desktop Device</b></p>
+    <div class="inline-block bg-white p-3 rounded-2xl"><div id="qr" class="w-[220px] h-[220px]"></div></div>
+    <p class="text-xs text-slate-500 mt-4">Kod har 25 soniyada yangilanadi. 5 daqiqa amal qiladi.</p>
+    <a id="qr-link" class="hidden mt-4 inline-block text-sky-300 text-sm underline">Shu telefonda Telegramni ochish</a>
+    <button id="btn-cancel" class="block w-full mt-5 text-slate-400 text-sm">Bekor qilish</button>
+  </section>
+
+  <!-- 3. 2FA -->
+  <section id="pw-step" class="hidden card p-6">
+    <h2 class="font-semibold mb-1">Ikki bosqichli parol</h2>
+    <p class="text-sm text-slate-400 mb-4">Akkauntingizda Telegram 2FA paroli yoqilgan. Parol faqat ulanish uchun bir marta ishlatiladi, saqlanmaydi.</p>
+    <input id="pw" type="password" autocomplete="current-password" class="w-full rounded-xl bg-slate-900 border border-slate-700 px-4 py-3 mb-4" placeholder="Telegram 2FA paroli">
+    <button id="btn-pw" class="w-full bg-sky-500 hover:bg-sky-400 text-white font-semibold py-3 rounded-xl">Tasdiqlash</button>
+  </section>
+
+  <!-- 4. Ulangan -->
+  <section id="connected" class="hidden space-y-4">
+    <div class="card p-5 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">✓</div>
+      <div>
+        <p class="font-semibold">Ulangan</p>
+        <p id="conn-meta" class="text-xs text-slate-400"></p>
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <div class="flex items-center mb-3">
+        <h2 class="font-semibold">Oisha koʻradigan chatlar</h2>
+        <button id="btn-refresh" class="ml-auto text-xs text-sky-300">Yangilash</button>
+      </div>
+      <input id="chat-filter" class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-sm mb-3" placeholder="Qidirish…">
+      <div id="chat-list" class="max-h-80 overflow-y-auto space-y-1 pr-1"></div>
+      <button id="btn-save" class="w-full mt-4 bg-sky-500 hover:bg-sky-400 text-white font-semibold py-3 rounded-xl">Saqlash</button>
+    </div>
+
+    <details class="card p-5">
+      <summary class="font-semibold cursor-pointer">ChatGPT / Claude ga ulash</summary>
+      <p class="text-sm text-slate-400 mt-3">Shaxsiy havola yarating. U orqali ChatGPT yoki Claude faqat siz tanlagan chatlarni <b>oʻqiy oladi</b> — xabar yubora olmaydi. Havolani hech kimga bermang: yangisini yaratish eskisini darhol bekor qiladi.</p>
+      <button id="btn-token" class="mt-3 text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl">Havola yaratish</button>
+      <div id="token-box" class="hidden mt-4 space-y-3 text-sm">
+        <p class="text-amber-300">Bu havola faqat hozir koʻrsatiladi. Nusxa oling.</p>
+        <code id="mcp-url" class="block break-all text-xs bg-slate-900 p-3 rounded-xl select-all"></code>
+        <ol class="list-decimal list-inside text-slate-300 space-y-1">
+          <li><b>Claude:</b> Settings → Connectors → Add custom connector → havolani qoʻying.</li>
+          <li><b>ChatGPT:</b> Settings → Apps &amp; Connectors → Advanced → Developer mode → Create → havolani qoʻying, autentifikatsiya: None.</li>
+        </ol>
+      </div>
+    </details>
+
+    <details class="card p-5">
+      <summary class="font-semibold cursor-pointer">Jurnal</summary>
+      <ul id="audit" class="mt-3 space-y-2 text-sm text-slate-300"></ul>
+    </details>
+
+    <button id="btn-revoke" class="w-full border border-rose-500/50 text-rose-300 hover:bg-rose-500/10 font-semibold py-3 rounded-xl">Uzish</button>
+  </section>
+</main>
+<script src="/api/connect/app/connect.js"></script>
+</body>
+</html>
