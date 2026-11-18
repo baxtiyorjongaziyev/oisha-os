@@ -85,6 +85,9 @@ class FakeQR:
         pass
 
 
+TWO_FA = "synthetic-2fa-" + "value"  # sintetik test qiymati, haqiqiy parol emas
+
+
 class SessionPasswordNeededError(Exception):
     pass
 
@@ -108,7 +111,7 @@ class FakeClient:
         return SimpleNamespace(id=self.me_id, username="mgr")
 
     async def sign_in(self, password=None):
-        if password != "right":
+        if password != TWO_FA:
             raise ValueError("bad")
 
     async def log_out(self):
@@ -151,12 +154,12 @@ def test_qr_2fa_password_not_stored():
         await att.task
         assert att.state == "password_required"
         assert await qr_flow.submit_password(TG, "wrong", on_done) == "bad_password"
-        assert await qr_flow.submit_password(TG, "right", on_done) == "done"
+        assert await qr_flow.submit_password(TG, TWO_FA, on_done) == "done"
         return att, saved
 
     att, saved = run(scenario())
     assert saved["session"] == "NEW-SESSION"
-    assert "right" not in repr(att.__dict__)
+    assert TWO_FA not in repr(att.__dict__)
 
 
 def test_revoke_logs_out_remotely_and_wipes(db):

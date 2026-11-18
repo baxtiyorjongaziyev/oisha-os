@@ -1,10 +1,12 @@
 """Saqlangan menejer sessiyasi bilan amallar: dialoglar roʻyxati va uzish."""
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from src.services.core.tg_connect import store
 
+logger = logging.getLogger(__name__)
 DIALOG_LIMIT = 1000
 SessionClientFactory = Callable[[str], Any]
 
@@ -64,8 +66,8 @@ async def revoke(db, telegram_id: int, actor: str, ip: str | None = None,
             if client is not None and not remote_ok:
                 try:
                     await client.disconnect()
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as exc:  # noqa: BLE001 - uzish baribir davom etadi
+                    logger.debug("tg_connect revoke disconnect failed: %s", type(exc).__name__)
     await store.mark_revoked(db, telegram_id)
     await store.audit(db, telegram_id, "revoked", actor, {"telegram_logout": remote_ok}, ip)
     # False boʻlsa menejer Telegram -> Devices dan "Oisha Connect"ni qoʻlda yopishi kerak.

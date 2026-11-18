@@ -105,8 +105,8 @@ async def _expire_later(att: Attempt) -> None:
 async def _safe(coro) -> None:
     try:
         await coro
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001 - tozalash xatosi asosiy oqimni buzmasin
+        logger.debug("tg_connect cleanup ignored: %s", type(exc).__name__)
 
 
 async def start(telegram_id: int, on_done: OnDone,

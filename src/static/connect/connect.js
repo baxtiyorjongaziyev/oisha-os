@@ -1,4 +1,7 @@
 // Oisha Connect — maʼlumot DOM ga faqat textContent orqali yoziladi.
+/* global QRCode */
+const API_PATHS = new Set(["/status", "/qr/start", "/qr/status", "/qr/password", "/qr/cancel", "/chats",
+  "/chats/refresh", "/revoke", "/audit", "/mcp-token"]);
 const $ = (id) => document.getElementById(id);
 const SECTIONS = ["loading", "login", "intro", "qr-step", "pw-step", "connected"];
 const ERRORS = {
@@ -22,11 +25,13 @@ let qrObj = null, poll = null, chats = [];
 function show(id) { SECTIONS.forEach((s) => $(s).classList.toggle("hidden", s !== id)); }
 function err(code) {
   const box = $("error");
-  box.textContent = code ? (ERRORS[code] || "Xato: " + code) : "";
+  const known = code && Object.prototype.hasOwnProperty.call(ERRORS, code);
+  box.textContent = code ? (known ? ERRORS[code] : "Xato: " + String(code)) : "";
   box.classList.toggle("hidden", !code);
 }
 
 async function api(path, opts = {}) {
+  if (!API_PATHS.has(path)) throw new Error("unknown_api_path");  // faqat oʻz API miz
   const res = await fetch("/api/connect" + path, {
     credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts,
   });

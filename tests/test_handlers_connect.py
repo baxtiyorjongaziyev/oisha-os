@@ -77,7 +77,7 @@ def test_off_asks_confirmation_then_revokes(employee, monkeypatch):
 
     calls = []
 
-    async def fake_revoke(db, tg, actor, ip=None, factory=None):
+    async def fake_revoke(_db, tg, actor, ip=None, factory=None):
         calls.append((tg, actor))
         return {"telegram_logout": True}
 
