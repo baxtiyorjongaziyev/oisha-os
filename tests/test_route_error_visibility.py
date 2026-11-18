@@ -23,6 +23,9 @@ def client(monkeypatch):
     # Bu yerda ataylab "hech narsa ulanmagan" holatni tekshiramiz.
     monkeypatch.setattr(api_state, "db_instance", None, raising=False)
     monkeypatch.setattr(api_state, "amocrm_instance", None, raising=False)
+    from src.context import app_ctx
+
+    monkeypatch.setattr(app_ctx, "db", None, raising=False)
     app = FastAPI()
     app.include_router(ai_router)
     app.include_router(erp_router)

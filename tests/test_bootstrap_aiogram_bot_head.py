@@ -144,6 +144,10 @@ def patched(monkeypatch):
             (msg_controller, owner_id)
         ),
     )
+    monkeypatch.setattr(
+        "src.bootstrap.orchestration.bot_head.register_team_dm_handlers",
+        lambda dp, *, msg_controller, is_admin: None,
+    )
     return SimpleNamespace(
         built=built,
         hisobchi_calls=hisobchi_calls,
