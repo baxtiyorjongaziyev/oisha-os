@@ -79,7 +79,7 @@ def test_off_asks_confirmation_then_revokes(employee, monkeypatch):
 
     async def fake_revoke(db, tg, actor, ip=None, factory=None):
         calls.append((tg, actor))
-        return True
+        return {"telegram_logout": True}
 
     monkeypatch.setattr(session_ops, "revoke", fake_revoke)
     msg = Msg("")

@@ -162,11 +162,11 @@ def test_qr_2fa_password_not_stored():
 def test_revoke_logs_out_remotely_and_wipes(db):
     run(store.save_connected(db, TG, 5, None, "S"))
     client = FakeClient(TG)
-    assert run(session_ops.revoke(db, TG, str(TG), factory=lambda s: client)) is True
+    assert run(session_ops.revoke(db, TG, str(TG), factory=lambda s: client)) == {"telegram_logout": True}
     assert client.logged_out
     assert run(store.account(db, TG))["status"] == "revoked"
     assert run(store.audit_log(db, TG))[0]["action"] == "revoked"
-    assert run(session_ops.revoke(db, TG, str(TG), factory=lambda s: client)) is False
+    assert run(session_ops.revoke(db, TG, str(TG), factory=lambda s: client)) is None
 
 
 def _app(monkeypatch, db, principal):
@@ -212,7 +212,7 @@ def test_revoke_disconnects_client_when_logout_fails(db):
             Failing.disconnected = True
 
     client = Failing(TG)
-    assert run(session_ops.revoke(db, TG, str(TG), factory=lambda s: client)) is True
+    assert run(session_ops.revoke(db, TG, str(TG), factory=lambda s: client)) == {"telegram_logout": False}
     assert Failing.disconnected
     assert run(store.audit_log(db, TG))[0]["detail"] == {"telegram_logout": False}
 
@@ -246,3 +246,12 @@ def test_connect_page_is_served_under_api_prefix():
     paths = {r.path for r in routes.pages_router.routes}
     assert paths == {"/api/connect/app", "/api/connect/app/connect.js"}
     assert _safe_login_next("/api/connect/app") == "/api/connect/app"
+
+
+def test_refresh_never_reverts_saved_selection(db):
+    run(store.save_connected(db, TG, 5, None, "S"))
+    run(store.replace_chats(db, TG, [{"id": 1, "title": "A", "kind": "private"}]))
+    run(store.set_allowed(db, TG, [1]))
+    run(store.set_allowed(db, TG, []))  # menejer opt-out qildi
+    run(store.replace_chats(db, TG, [{"id": 1, "title": "A2", "kind": "private"}]))
+    assert run(store.chats(db, TG)) == [{"id": 1, "title": "A2", "kind": "private", "allowed": False}]

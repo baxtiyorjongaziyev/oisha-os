@@ -116,14 +116,19 @@ async def mark_revoked(db, telegram_id: int) -> None:
 
 async def replace_chats(db, telegram_id: int, chats: list[dict]) -> None:
     """Dialoglar roʻyxatini yangilaydi, oldingi ``allowed`` tanlovini saqlab qoladi."""
-    rows = await db.execute(
-        "SELECT chat_id FROM tg_connect_chats WHERE telegram_id = ? AND allowed = 1", [telegram_id])
-    allowed = {int(r["chat_id"]) for r in rows}
-    await db.execute("DELETE FROM tg_connect_chats WHERE telegram_id = ?", [telegram_id])
+    # ``allowed`` hech qachon qayta yozilmaydi: parallel "Saqlash" tanlovi bekor boʻlmasin.
+    ids = [int(c["id"]) for c in chats]
     for c in chats:
         await db.execute(
-            "INSERT INTO tg_connect_chats (telegram_id, chat_id, title, kind, allowed) VALUES (?, ?, ?, ?, ?)",
-            [telegram_id, int(c["id"]), str(c["title"])[:200], c["kind"], int(int(c["id"]) in allowed)])
+            "INSERT INTO tg_connect_chats (telegram_id, chat_id, title, kind, allowed) VALUES (?, ?, ?, ?, 0)"
+            " ON CONFLICT(telegram_id, chat_id) DO UPDATE SET title = excluded.title, kind = excluded.kind",
+            [telegram_id, int(c["id"]), str(c["title"])[:200], c["kind"]])
+    rows = await db.execute("SELECT chat_id FROM tg_connect_chats WHERE telegram_id = ?", [telegram_id])
+    keep = set(ids)
+    for r in rows:
+        if int(r["chat_id"]) not in keep:
+            await db.execute("DELETE FROM tg_connect_chats WHERE telegram_id = ? AND chat_id = ?",
+                             [telegram_id, int(r["chat_id"])])
     await db.commit()
 
 

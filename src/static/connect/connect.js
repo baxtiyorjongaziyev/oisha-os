@@ -108,7 +108,9 @@ async function load() {
 
 $("consent").onchange = (e) => { $("btn-start").disabled = !e.target.checked; };
 $("btn-start").onclick = async () => { err(null); onAttempt(await api("/qr/start", { method: "POST" })); startPoll(); };
-$("btn-cancel").onclick = () => { stopPoll(); show("intro"); };
+$("btn-cancel").onclick = async () => {
+  stopPoll(); await api("/qr/cancel", { method: "POST" }).catch(() => null); show("intro");
+};
 $("btn-pw").onclick = async () => {
   const pw = $("pw").value; $("pw").value = "";
   const r = await api("/qr/password", { method: "POST", body: JSON.stringify({ password: pw }) }).catch(() => null);
@@ -123,7 +125,12 @@ $("btn-save").onclick = async () => {
 };
 $("btn-revoke").onclick = async () => {
   if (!confirm("Oisha Connect uziladi va sessiya Telegramda ham yopiladi. Davom etasizmi?")) return;
-  await api("/revoke", { method: "POST" }); load();
+  const r = await api("/revoke", { method: "POST" });
+  if (!r.telegram_logout) {
+    alert("Sessiya Oisha serveridan oʻchirildi, lekin Telegram uni yopa olmadi. "
+      + "Telegram → Settings → Devices boʻlimida “Oisha Connect”ni qoʻlda Terminate qiling.");
+  }
+  load();
 };
 
 load().catch(() => {});

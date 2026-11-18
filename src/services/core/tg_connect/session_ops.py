@@ -42,7 +42,7 @@ async def list_dialogs(session: str, factory: SessionClientFactory = default_ses
 
 
 async def revoke(db, telegram_id: int, actor: str, ip: str | None = None,
-                 factory: SessionClientFactory = default_session_client) -> bool:
+                 factory: SessionClientFactory = default_session_client) -> dict | None:
     """Sessiyani Telegram serverida yopadi (Devices roʻyxatidan oʻchadi) va DB dan oʻchiradi.
 
     Telegram tomoni xato bersa ham DB dagi sessiya baribir oʻchiriladi: Oisha uni boshqa
@@ -50,7 +50,7 @@ async def revoke(db, telegram_id: int, actor: str, ip: str | None = None,
     """
     acc = await store.account(db, telegram_id)
     if not acc or acc.get("status") != "connected":
-        return False
+        return None
     remote_ok = False
     if acc.get("session_enc"):
         client = None
@@ -68,4 +68,5 @@ async def revoke(db, telegram_id: int, actor: str, ip: str | None = None,
                     pass
     await store.mark_revoked(db, telegram_id)
     await store.audit(db, telegram_id, "revoked", actor, {"telegram_logout": remote_ok}, ip)
-    return True
+    # False boʻlsa menejer Telegram -> Devices dan "Oisha Connect"ni qoʻlda yopishi kerak.
+    return {"telegram_logout": remote_ok}

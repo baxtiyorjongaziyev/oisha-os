@@ -26,6 +26,8 @@ GUARANTEES = (
     "• Istalgan payt <code>/connect off</code> bilan uzasiz."
 )
 NOT_EMPLOYEE = "Telegram hisobingiz xodimlar roʻyxatiga bogʻlanmagan. Avval /ulanish Ism Familiya yuboring."
+REVOKE_MANUAL = ("⚠️ Sessiya Oisha serveridan oʻchirildi, lekin Telegram uni yopa olmadi. "
+                 "Telegram → Settings → Devices boʻlimida “Oisha Connect”ni qoʻlda Terminate qiling.")
 REVOKE_ASK = ("Oisha Connect uziladi va sessiya Telegramda ham yopiladi "
               "(Devices roʻyxatidan “Oisha Connect” yoʻqoladi). Davom etasizmi?")
 
@@ -123,9 +125,13 @@ async def handle_revoke_callback(callback: Any, db=None) -> None:
         await callback.message.edit_text("Bekor qilindi. Oisha Connect ulangan holda qoldi.")
         await callback.answer()
         return
-    ok = await session_ops.revoke(db, tg, f"bot:{tg}")
-    text = ("✅ Oisha Connect uzildi. Sessiya Oisha serveridan oʻchirildi."
-            if ok else "Oisha Connect allaqachon uzilgan.")
+    res = await session_ops.revoke(db, tg, f"bot:{tg}")
+    if res is None:
+        text = "Oisha Connect allaqachon uzilgan."
+    elif res["telegram_logout"]:
+        text = "✅ Oisha Connect uzildi. Sessiya Telegramda ham, Oisha serverida ham yopildi."
+    else:
+        text = REVOKE_MANUAL
     await callback.message.edit_text(text)
     await callback.answer()
 

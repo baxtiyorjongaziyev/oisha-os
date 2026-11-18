@@ -173,9 +173,22 @@ async def revoke(request: Request, principal: Principal = _SELF):
     if att is not None:
         await qr_flow.cancel_attempt(att)
         qr_flow.clear(tg)
-    if not await session_ops.revoke(db, tg, str(tg), _ip(request)):
+    result = await session_ops.revoke(db, tg, str(tg), _ip(request))
+    if result is None:
         raise HTTPException(status_code=409, detail="not_connected")
-    return {"revoked": True}
+    return {"revoked": True, **result}
+
+
+@router.post("/qr/cancel")
+async def qr_cancel(principal: Principal = _SELF):
+    """Brauzerda "Bekor qilish": serverdagi QR urinishini ham toʻxtatadi."""
+    db = await _ready_db()
+    tg, _ = await _me(db, principal)
+    att = qr_flow.get(tg)
+    if att is not None and att.state != "done":
+        await qr_flow.cancel_attempt(att)
+        qr_flow.clear(tg)
+    return {"state": "none"}
 
 
 @router.get("/audit")
