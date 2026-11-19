@@ -42,8 +42,25 @@ DDL = (
 )
 
 
+# Mavjud jadvallarga ustun qoʻshish (idempotent: ustun bor boʻlsa xato eʼtiborsiz).
+MIGRATIONS = (
+    "ALTER TABLE tg_connect_chats ADD COLUMN autonomous INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE tg_connect_accounts ADD COLUMN all_chats INTEGER NOT NULL DEFAULT 0",
+)
+
+
 async def init_tables(db) -> None:
     for ddl in DDL:
+        await db.execute(ddl)
+    for ddl in MIGRATIONS:
+        try:
+            await db.execute(ddl)
+        except Exception as exc:  # noqa: BLE001 - "duplicate column" kutilgan holat
+            if "duplicate" not in str(exc).lower():
+                raise
+    from src.services.core.tg_connect.actions import DDL as ACTIONS_DDL
+
+    for ddl in ACTIONS_DDL:
         await db.execute(ddl)
     await db.commit()
 
@@ -108,7 +125,7 @@ async def save_connected(db, telegram_id: int, employee_id: Optional[int],
 async def mark_revoked(db, telegram_id: int) -> None:
     """Sessiya va MCP token butunlay oʻchiriladi; chat tanlovi ham tozalanadi."""
     await db.execute(
-        "UPDATE tg_connect_accounts SET status = 'revoked', session_enc = NULL, mcp_token_hash = NULL,"
+        "UPDATE tg_connect_accounts SET status = 'revoked', session_enc = NULL, mcp_token_hash = NULL, all_chats = 0,"
         " revoked_at = ? WHERE telegram_id = ?", [int(time.time()), telegram_id])
     await db.execute("DELETE FROM tg_connect_chats WHERE telegram_id = ?", [telegram_id])
     await db.commit()
@@ -134,10 +151,34 @@ async def replace_chats(db, telegram_id: int, chats: list[dict]) -> None:
 
 async def chats(db, telegram_id: int) -> list[dict]:
     rows = await db.execute(
-        "SELECT chat_id, title, kind, allowed FROM tg_connect_chats WHERE telegram_id = ?"
+        "SELECT chat_id, title, kind, allowed, autonomous FROM tg_connect_chats WHERE telegram_id = ?"
         " ORDER BY allowed DESC, title", [telegram_id])
-    return [{"id": r["chat_id"], "title": r["title"], "kind": r["kind"], "allowed": bool(r["allowed"])}
-            for r in rows]
+    return [{"id": r["chat_id"], "title": r["title"], "kind": r["kind"], "allowed": bool(r["allowed"]),
+             "autonomous": bool(r["autonomous"])} for r in rows]
+
+
+async def set_autonomous(db, telegram_id: int, chat_ids: list[int]) -> int:
+    """AI tasdiqsiz yoza oladigan chatlar (menejer oʻzi belgilaydi)."""
+    await db.execute("UPDATE tg_connect_chats SET autonomous = 0 WHERE telegram_id = ?", [telegram_id])
+    count = 0
+    for cid in chat_ids:
+        rows = await db.execute(
+            "UPDATE tg_connect_chats SET autonomous = 1 WHERE telegram_id = ? AND chat_id = ? RETURNING chat_id",
+            [telegram_id, int(cid)])
+        count += len(rows)
+    await db.commit()
+    return count
+
+
+async def all_chats(db, telegram_id: int) -> bool:
+    rows = await db.execute("SELECT all_chats FROM tg_connect_accounts WHERE telegram_id = ?", [telegram_id])
+    return bool(rows and rows[0]["all_chats"])
+
+
+async def set_all_chats(db, telegram_id: int, on: bool) -> None:
+    await db.execute("UPDATE tg_connect_accounts SET all_chats = ? WHERE telegram_id = ?",
+                     [int(bool(on)), telegram_id])
+    await db.commit()
 
 
 async def set_allowed(db, telegram_id: int, chat_ids: list[int]) -> int:

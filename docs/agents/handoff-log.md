@@ -1,4 +1,4 @@
-﻿# Agent Handoff Log
+# Agent Handoff Log
 
 > AGENTS.md dan ko'chirildi (2026-09-29). Yangi yozuvlar shu faylning OXIRIGA qo'shiladi.
 > Format: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker. Sirlar yozilmaydi.
@@ -3012,6 +3012,19 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** #1100 — eskirgan testlar: `register_team_dm_handlers` stub, `test_customer_360` 5 ta, coach 503 testi `app_ctx.db` ni tozalaydi. #1103 — aiogram 3.32 `widget_query` ni `WidgetQuery` sifatida tiplaydi; `aiogram_head.py` raw-update middleware endi `by_alias=True` bilan dump qiladi (aks holda `from` → `from_user`, `user_id=None`, widget avtorizatsiyasi yiqiladi). Test middleware orqali tekshiradi.
 - **Tekshiruv dalillari:** widget/aiogram testlari aiogram 3.31.0 va 3.32.0 da oʻtdi; fix olib tashlansa test yiqiladi. Toʻliq `SKIP_LIVE=1 pytest` (Windows): faqat maʼlum Windows-only 5 ta xato. bandit, uzbek guard toza.
 - **Qolgan ish/Bloker:** `requirements.txt` da `aiogram>=3.29.1` — lock (3.31.0) bilan CI (3.32.0) farq qiladi. `userbot-vps.yml` main da doimiy qizil (tekshirilmagan).
+
+## 2026-11-19 — Claude (userbot-vps.yml parse xatosi)
+- **Bajarilgan ish:** `.github/workflows/userbot-vps.yml` — step `if:` dagi `secrets.LEGACY_VPS_1_HOST` job-level `env` ga koʻchirildi (`if: env.LEGACY_VPS_1_HOST != ''`). GitHub step `if:` da `secrets` ni qabul qilmagani uchun fayl rad etilib, `main` ga har pushda qizil run chiqardi. Workflow faqat qoʻlda ishga tushadi; xatti-harakat oʻzgarmadi.
+- **Tekshiruv dalillari:** YAML parse; workflow testlari — faqat maʼlum Windows-only 4 ta `test_runner_workflow_contract` xatosi; uzbek guard toza.
+- **Qolgan ish/Bloker:** merge dan keyin `main` da `userbot-vps.yml` qizil run chiqarmasligini tekshirish. Faylda `104.197.19.4` IP qattiq yozilgan (fayl qoidasiga zid) — tegilmadi.
+## 2026-11-19 — Claude (harness loop + follow-up PR avtomatikasi)
+- **Bajarilgan ish:** `.claude/skills/harness-loop/SKILL.md` (mirror: `.agents/skills/`) — majburiy sikl va gate'lar, har push dan oldin PR holati tekshiruvi. `.github/workflows/followup-pr.yml` + `scripts/followup_pr.py`: merge boʻlgan branchga keyin tushgan commitlar uchun `followup/<branch>-<sha>` PR; helper `origin/main` dan olinadi; `main` ga sinxronlangan va oldin tiklangan commitlar chiqarib tashlanadi; ochiq follow-up boʻlsa yangisi ochilmaydi; merge-commit boʻlsa qoʻlda tiklash uchun izoh. `CLAUDE.md` ga havola.
+- **Tekshiruv dalillari:** `tests/test_followup_pr.py` 9 passed, skills mirror testi oʻtdi; eski `claude/platform-trust-question-5c7e48` branchida dry-run aynan `97e547d3` ni topdi. GitHub Actions da real push bilan TEKSHIRILMAGAN.
+- **Qolgan ish/Bloker:** follow-up PR larda CI ishlashi uchun `AUTOMATION_PAT` secret (Owner).
+## 2026-11-19 — Claude (Oisha Connect, 4-bosqich: toʻliq Telegram imkoniyatlari)
+- **Bajarilgan ish:** `write_ops.py` (send_message/reply, forward_messages, edit_message, delete_messages, send_file https URL, ixtiyoriy voice note) va `actions.py` (navbat `tg_connect_actions`, TTL 1 soat). MCP yozish vositalari + `get_action_status`. Siyosat: standart — har bir yozish Oisha botida menejer tasdigʻi (`tgca:ok/no:<id>`, faqat egasi bosa oladi); menejer ⚡ belgilagan chatlarda darhol; forward ikkala chat ⚡ boʻlsagina avtomatik. "Barcha chatlar" kaliti (`PUT /api/connect/settings`) — oʻqishni hamma chatga ochadi, yozish baribir tasdiq bilan. Ustunlar migratsiyasi idempotent (`ALTER TABLE ... ADD COLUMN`).
+- **Tekshiruv dalillari:** connect testlari 29 passed (tasdiq, begona tasdiqlay olmasligi, rad etish, ⚡, forward, yopiq chat, all_chats, https); toʻliq pytest — oʻsha 11 asos xatosi (PR #1100 tuzatmoqda); ruff, bandit, uzbek guard toza. Real akkauntda TEKSHIRILMAGAN.
+- **Qolgan ish/Bloker:** ovozli xabarni matnga oʻgirish yoʻq; fayl faqat https URL dan (lokal yuklash yoʻq).
 
 ## 2026-11-19 — Claude (Leadgen holat hisoboti yoʻnalishi)
 - **Bajarilgan ish:** `src/schedulers/leadgen_status_reporter.py` — `send_daily_status_report` endi faqat Marketing → AI Hisobot (#42) ga yuboradi; Target Leads (yangi lid, topic 1020) ga yuborish olib tashlandi. PR #1106.

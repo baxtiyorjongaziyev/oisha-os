@@ -21,7 +21,7 @@ GUARANTEES = (
     "🔒 <b>Kafolatlar</b>\n"
     "• Kod, SMS yoki parol yozmaysiz — faqat QR skanerlaysiz.\n"
     "• Oisha faqat siz tanlagan chatlarni koʻradi.\n"
-    "• Oisha nomingizdan oʻzi xabar yubormaydi.\n"
+    "• AI nomingizdan yozsa, har safar sizdan tasdiq soʻraladi (oʻzingiz ishongan chatlardan tashqari).\n"
     "• Sessiya shifrlangan holda faqat kompaniya serverida.\n"
     "• Istalgan payt <code>/connect off</code> bilan uzasiz."
 )
@@ -136,12 +136,36 @@ async def handle_revoke_callback(callback: Any, db=None) -> None:
     await callback.answer()
 
 
+async def handle_action_callback(callback: Any, db=None) -> None:
+    """Yozish amalini tasdiqlash/rad etish. Faqat amal egasi bosa oladi."""
+    from src.services.core.tg_connect import actions
+
+    if db is None:
+        from src.database_pool import db_pool as db
+    try:
+        verb, raw_id = callback.data[len(actions.CB_PREFIX):].split(":", 1)
+        action_id = int(raw_id)
+    except ValueError:
+        await callback.answer()
+        return
+    res = await actions.decide(db, int(callback.from_user.id), action_id, approve=(verb == "ok"))
+    text = {"done": "✅ Bajarildi.", "rejected": "❌ Rad etildi. Hech narsa yuborilmadi.",
+            "failed": "⚠️ Bajarilmadi: " + str(res.get("error", "")),
+            "not_pending": "Bu soʻrov allaqachon hal qilingan yoki eskirgan."}.get(res["state"], res["state"])
+    await callback.message.edit_text((callback.message.text or "") + "\n\n" + text)
+    await callback.answer()
+
+
 def register_connect_handlers(dp: Any) -> None:
     from aiogram import F
 
     @dp.message(F.text.regexp(r"(?i)^/connect(@\w+)?(\s|$)"))
     async def _connect(message: Any) -> None:
         await handle_connect(message)
+
+    @dp.callback_query(F.data.startswith("tgca:"))
+    async def _action(callback: Any) -> None:
+        await handle_action_callback(callback)
 
     @dp.callback_query(F.data.in_({CB_REVOKE, CB_CANCEL}))
     async def _revoke(callback: Any) -> None:
