@@ -1,4 +1,4 @@
-﻿# Agent Handoff Log
+# Agent Handoff Log
 
 > AGENTS.md dan ko'chirildi (2026-09-29). Yangi yozuvlar shu faylning OXIRIGA qo'shiladi.
 > Format: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker. Sirlar yozilmaydi.
@@ -3044,3 +3044,8 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - During deploy review, found .env rebuild preserved other integrations but dropped JWT_SECRET and TG_CONNECT_SESSION_KEY. Added both exact key names to the existing private backup filter. Synthetic regression failed before the fix and passed afterward; workflow contracts plus Connect tests: 25 passed under UTF-8 Windows mode. Final Linux coverage run includes this workflow/test addition.
 
 - Final Linux workflow-inclusive pre-flight with coverage: 4358 passed, 14 skipped, 4 subtests passed; coverage 57.13% (50% gate passed), exit 0. Full-source Bandit: zero medium/high findings and zero errors. Node 2FA frontend regression, Ruff, skill mirror, staged Uzbek guard and whitespace checks passed.
+
+## 2026-11-19 — Claude (Leadgen holat hisoboti yoʻnalishi)
+- **Bajarilgan ish:** `src/schedulers/leadgen_status_reporter.py` — `send_daily_status_report` endi faqat Marketing → AI Hisobot (#42) ga yuboradi; Target Leads (yangi lid, topic 1020) ga yuborish olib tashlandi. PR #1106.
+- **Tekshiruv dalillari:** `tests/test_leadgen_status_report_routing.py` 3 passed (faqat marketing chaqiriladi, 1020 ga hech qachon, natija faqat marketing yuborishiga bogʻliq); `test_leadgen_watchdog_sos.py` passed. Prod'da TEKSHIRILMAGAN.
+- **Qolgan ish/Bloker:** merge va Hetzner deploy.
