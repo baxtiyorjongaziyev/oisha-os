@@ -1,0 +1,17 @@
+[Unit]
+Description=Oisha Juma TN7 greeting broadcast (06:00 Tashkent until Shom)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/home/deploy/oisha-os
+EnvironmentFile=/home/deploy/oisha-os/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/deploy/oisha-os/venv/bin/python -u /home/deploy/oisha-os/scripts/send_juma_greetings.py --group TN7
+TimeoutStartSec=43200
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/deploy/oisha-os/data

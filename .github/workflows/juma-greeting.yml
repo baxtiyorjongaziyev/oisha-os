@@ -2,20 +2,20 @@
 # Runs directly on Oracle VM using the live Telethon session —
 # no StringSession expiry, no manual token renewal needed.
 #
-# Payshanba Shomidan (taxminan 19:30 Toshkent) boshlab Juma Shomigacha davom
-# etadigan ~24 soatlik oynada, guruh tartibida (6→5→4→3→2) tarqatiladi —
-# skriptning o'zi DEADLINE'ni ushlaydi. GitHub-hosted runner'lar 6 soatdan
-# uzoq ishlay olmaydi, shuning uchun jarayon Oracle VM'da FON rejimida
-# (nohup) ishga tushiriladi — GH Actions job faqat ishga tushganini
-# tasdiqlab, darhol tugaydi; skriptning o'zi Telegram orqali progress
-# xabarlarini yuboradi (send_tg_notification).
+# Juma 06:00 Toshkent (06:00–08:00 silent=True) dan Juma Shomigacha (17:00)
+# davom etadigan oynada, TN7 ustuvorligida tarqatiladi — skriptning o'zi
+# DEADLINE va sokin soatlarni ushlaydi. GitHub-hosted runner'lar 6 soatdan
+# uzoq ishlay olmaydi, shuning uchun jarayon VM'da FON rejimida (nohup)
+# ishga tushiriladi — GH Actions job faqat ishga tushganini tasdiqlab,
+# darhol tugaydi; skriptning o'zi Telegram orqali progress xabarlarini
+# yuboradi (send_tg_notification).
 name: Juma Tabrigi — Tez Natija guruhlar
 
 on:
   workflow_dispatch:
   schedule:
-    # Har Payshanba 19:30 Toshkent vaqti (taxminiy Shom) = 14:30 UTC
-    - cron: '30 14 * * 4'
+    # Har Juma 06:00 Toshkent vaqti = 01:00 UTC
+    - cron: '0 1 * * 5'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -47,7 +47,7 @@ jobs:
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
-            git checkout origin/main -- scripts/send_juma_greetings.py scripts/telethon_guard.py scripts/__init__.py
+            git checkout origin/main -- scripts/send_juma_greetings.py scripts/telethon_guard.py scripts/__init__.py src/services/core/juma_guard.py
 
             # Load credentials from VM's .env (same session the main service uses)
             if [ -f .env ]; then

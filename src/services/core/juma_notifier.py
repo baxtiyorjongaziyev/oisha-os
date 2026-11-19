@@ -10,6 +10,10 @@ from src.services.core.customer_outbound_policy import (
     automatic_customer_send_allowed,
     build_humanized_juma_greeting,
 )
+from src.services.core.juma_guard import (
+    is_excluded_member,
+    load_juma_rate_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +75,11 @@ class JumaNotifier:
         except Exception as e:
             logger.error(f"[JUMA DB ERROR] mark: {e}")
 
-    async def get_tn5_classmates(self):
-        """Fetch all users identified as TN5 students from the database."""
+    async def _fetch_db_classmates(self, config):
+        """Fetch TN classmates from DB excluding PCG usernames and excluded names."""
         classmates = []
         try:
             conn = await self.db.get_connection()
-            # Filter by last_name suffix or specific TN mentions (2, 3, 4, 5)
             query = """
                 SELECT user_id, first_name, username 
                 FROM users 
@@ -86,13 +89,24 @@ class JumaNotifier:
             async with conn.execute(query) as cursor:
                 rows = await cursor.fetchall()
                 for r in rows:
-                    classmates.append({"id": r[0], "name": r[1], "username": r[2]})
+                    excluded, _ = is_excluded_member(
+                        {"id": r[0], "username": r[2], "name": r[1]},
+                        config,
+                        excluded_names=settings.EXCLUDED_NAMES,
+                    )
+                    if not excluded:
+                        classmates.append({"id": r[0], "name": r[1], "username": r[2]})
         except Exception as e:
             logger.error(f"[JUMA DB ERROR] fetch: {e}")
+        return classmates
 
-        # 2. CACHED GROUP DISCOVERY (TNx)
-        logger.info("👸 [JUMA] Targeting TN2, TN3, TN4, and TN5 groups...")
+    async def get_tn5_classmates(self):
+        """Fetch all users identified as TN5/TN7 students from DB and groups."""
+        config = load_juma_rate_config()
+        classmates = await self._fetch_db_classmates(config)
+        logger.info("👸 [JUMA] Targeting TN7 and TN2-TN5 groups...")
         target_group_ids = [
+            -1003926176795,  # TN7 Primary
             -1002061483832,  # TN5 Juma Group
             -1001820339529,  # TN5 Primary
             -1002167483921,  # TN4 Placeholder
@@ -102,124 +116,90 @@ class JumaNotifier:
         if self.group_id and self.group_id not in target_group_ids:
             target_group_ids.append(self.group_id)
 
-        # Original dynamic logic (commented out to avoid flood waits)
-        """
-        try:
-            dialogs = await self.client.get_dialogs()
-            for d in dialogs:
-                # ...
-        except: pass
-        """
-
-        # 3. CRAWL ALL IDENTIFIED GROUPS & DEDUPLICATE
-        processed_ids = {c["id"] for c in classmates}  # Start with DB classmates
+        processed_ids = {c["id"] for c in classmates}
         logger.info(
             f"👸 [JUMA] Starting with {len(classmates)} classmates from DB. Crawling groups for more..."
         )
-
         for g_id in target_group_ids:
             try:
-                # [GOD MODE] Use a shorter timeout or check for flood wait
                 participants = await self.client.get_participants(g_id, limit=200)
                 for u in participants:
-                    if u.bot or u.is_self:
+                    if u.bot or u.is_self or u.id in processed_ids:
                         continue
-                    if u.id in processed_ids:
-                        continue  # DEDUPLICATION
-
-                    # [GOD MODE] STRICT FAMILY/PERSONAL EXCLUSION
                     full_name = f"{u.first_name or ''} {u.last_name or ''}".strip()
-                    if any(
-                        excl.lower() in full_name.lower()
-                        for excl in settings.EXCLUDED_NAMES
-                    ):
+                    excluded, _ = is_excluded_member(
+                        {"id": u.id, "username": getattr(u, "username", None), "name": full_name},
+                        config,
+                        excluded_names=settings.EXCLUDED_NAMES,
+                    )
+                    if excluded:
                         continue
-
                     classmates.append(
-                        {
-                            "id": u.id,
-                            "name": u.first_name or "Do'stim",
-                            "username": u.username,
-                        }
+                        {"id": u.id, "name": u.first_name or "Doʻstim", "username": u.username}
                     )
                     processed_ids.add(u.id)
             except Exception as e:
-                logger.error(
-                    f"👸 [JUMA] Group {g_id} crawl error (likely flood wait): {e}"
-                )
-
+                logger.error(f"👸 [JUMA] Group {g_id} crawl error (likely flood wait): {e}")
         return classmates
+
+    async def _deliver_peer(self, peer: dict, date_str: str) -> bool:
+        """Send one greeting and log to juma_sent_logs; returns True if sent."""
+        conn = await self.db.get_connection()
+        query = "SELECT 1 FROM juma_sent_logs WHERE user_id = ? AND run_date = ?"
+        async with conn.execute(query, (peer["id"], date_str)) as cursor:
+            if await cursor.fetchone():
+                return False
+        contact_name = f"TN Gr {peer['name']}"
+        try:
+            await self.client(
+                functions.contacts.AddContactRequest(
+                    id=peer["id"],
+                    first_name=contact_name,
+                    last_name="",
+                    phone="",
+                    add_phone_privacy_exception=True,
+                )
+            )
+        except Exception:
+            logger.error("Exception handled in %s", __name__, exc_info=True)
+        message = build_humanized_juma_greeting(peer["name"])
+        await self.client.send_message(peer["id"], message)
+        await conn.execute(
+            "INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)",
+            (peer["id"], date_str),
+        )
+        await conn.commit()
+        logger.info(f"✅ [JUMA] Sent to {peer['name']}")
+        return True
 
     async def send_greetings(self, date_str: str, source_message=None):
         """Perform mass messaging with random delays."""
         if not automatic_customer_send_allowed("juma"):
             logger.warning("[JUMA] Direct send blocked outside Friday.")
             return
-
         classmates = await self.get_tn5_classmates()
-
         if not classmates:
             logger.warning("👸 [JUMA] No classmates found in database!")
             await self._mark_as_sent(date_str)
             return
 
-        logger.info(
-            f"👸 [JUMA] Found {len(classmates)} classmates. Delivery started..."
-        )
-
+        logger.info(f"👸 [JUMA] Found {len(classmates)} classmates. Delivery started...")
+        config = load_juma_rate_config()
         success_count = 0
         for peer in classmates:
+            excluded, _ = is_excluded_member(
+                peer,
+                config,
+                excluded_names=settings.EXCLUDED_NAMES,
+            )
+            if excluded:
+                continue
             try:
-                # 1. CHECK IF ALREADY SENT
-                conn = await self.db.get_connection()
-                query = (
-                    "SELECT 1 FROM juma_sent_logs WHERE user_id = ? AND run_date = ?"
-                )
-                async with conn.execute(query, (peer["id"], date_str)) as cursor:
-                    if await cursor.fetchone():
-                        continue
-
-                # 2. SAVE AS CONTACT
-                contact_name = f"TN Gr {peer['name']}"
-                try:
-                    await self.client(
-                        functions.contacts.AddContactRequest(
-                            id=peer["id"],
-                            first_name=contact_name,
-                            last_name="",
-                            phone="",
-                            add_phone_privacy_exception=True,
-                        )
-                    )
-                except Exception:
-                    logger.error("Exception handled in %s", __name__, exc_info=True)
-
-                # 3. SEND
-                message = build_humanized_juma_greeting(peer["name"])
-                await self.client.send_message(peer["id"], message)
-
-                # 4. LOG SUCCESS
-                await conn.execute(
-                    "INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)",
-                    (peer["id"], date_str),
-                )
-                await conn.commit()
-
-                success_count += 1
-                logger.info(f"✅ [JUMA] Sent to {peer['name']}")
-
-                # SAFE DELAY
-                await asyncio.sleep(random.uniform(120, 240))
-
+                if await self._deliver_peer(peer, date_str):
+                    success_count += 1
+                    await asyncio.sleep(random.uniform(120, 240))
             except Exception as e:
                 logger.error(f"❌ [JUMA ERROR] {peer['id']}: {e}")
-                if "flood wait" in str(e).lower():
-                    await asyncio.sleep(600)  # Wait 10 mins on flood
-                else:
-                    await asyncio.sleep(60)
-
-        # 4. Finalize
+                await asyncio.sleep(600 if "flood wait" in str(e).lower() else 60)
         await self._mark_as_sent(date_str)
-        logger.info(
-            f"👸 [JUMA] Success! Sent {success_count} greetings for {date_str}."
-        )
+        logger.info(f"👸 [JUMA] Success! Sent {success_count} greetings for {date_str}.")
