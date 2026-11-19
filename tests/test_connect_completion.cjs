@@ -2,7 +2,6 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const path = require('node:path');
 
 test('2FA completion shows connected while first dialog refresh is pending', async () => {
   const elements = new Map();
@@ -39,8 +38,7 @@ test('2FA completion shows connected while first dialog refresh is pending', asy
     },
     setInterval() {}, clearInterval() {},
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname,
-    '../src/static/connect/connect.js'), 'utf8'), context);
+  vm.runInNewContext(fs.readFileSync('src/static/connect/connect.js', 'utf8'), context);
   await new Promise(setImmediate);
   assert.equal(elements.get('pw-step').classList.hidden, false);
   context.document.getElementById('pw').value = 'synthetic-test-password';
