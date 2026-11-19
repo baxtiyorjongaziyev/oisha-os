@@ -2,7 +2,7 @@
 /* global QRCode */
 // Faqat oʻz API mizga soʻrov: yoʻl → oldindan tuzilgan toʻliq URL.
 const API_URLS = new Map(["/status", "/qr/start", "/qr/status", "/qr/password", "/qr/cancel", "/chats",
-  "/chats/refresh", "/revoke", "/audit", "/mcp-token"].map((p) => [p, "/api/connect" + p]));
+  "/chats/refresh", "/revoke", "/audit", "/mcp-token", "/settings"].map((p) => [p, "/api/connect" + p]));
 const $ = (id) => document.getElementById(id);
 const SECTIONS = ["loading", "login", "intro", "qr-step", "pw-step", "connected"];
 const ERRORS = new Map(Object.entries({
@@ -20,6 +20,9 @@ const ACTIONS = new Map(Object.entries({
   mcp_token_issued: "ChatGPT/Claude havolasi yaratildi",
   mcp_list_chats: "AI chatlar roʻyxatini oldi", mcp_read_chat: "AI chatni oʻqidi",
   mcp_search_chat: "AI chatda qidirdi",
+  write_pending: "AI yozish uchun tasdiq soʻradi", write_done: "AI nomingizdan yozdi",
+  write_failed: "AI yozishi bajarilmadi", write_rejected: "Siz AI yozishini rad etdingiz",
+  all_chats_on: "Barcha chatlar ochildi", all_chats_off: "Barcha chatlar yopildi",
 }));
 let qrObj = null, poll = null, chats = [];
 
@@ -82,7 +85,17 @@ function renderChats(filter = "") {
     box.onchange = () => { c.allowed = box.checked; };
     const icon = document.createElement("span"); icon.textContent = icons[c.kind] || "💬";
     const title = document.createElement("span"); title.className = "truncate"; title.textContent = c.title;
-    row.append(box, icon, title);
+    const auto = document.createElement("button");
+    auto.type = "button"; auto.title = "AI tasdiqsiz yozsin";
+    const paint = () => { auto.textContent = c.autonomous ? "⚡" : "·"; auto.className =
+      "ml-auto w-7 h-7 rounded-lg " + (c.autonomous ? "bg-amber-500/20 text-amber-300" : "text-slate-500"); };
+    auto.onclick = (ev) => {
+      ev.preventDefault();
+      if (!c.autonomous && !confirm("“" + c.title + "” chatida AI sizdan soʻramasdan yoza oladi. Rozimisiz?")) return;
+      c.autonomous = !c.autonomous; paint();
+    };
+    paint();
+    row.append(box, icon, title, auto);
     list.append(row);
   });
   if (!chats.length) { list.textContent = "Chatlar topilmadi. “Yangilash”ni bosing."; }
@@ -93,7 +106,8 @@ function fmt(ts) { return new Date(ts * 1000).toLocaleString("uz-UZ", { timeZone
 async function loadConnected(st) {
   show("connected");
   $("conn-meta").textContent = (st.username ? "@" + st.username + " · " : "") + fmt(st.connected_at)
-    + " · " + st.allowed_chats + " ta chat ochiq";
+    + " · " + (st.all_chats ? "barcha chatlar ochiq" : st.allowed_chats + " ta chat ochiq");
+  $("all-chats").checked = !!st.all_chats;
   chats = (await api("/chats")).chats; renderChats();
   const audit = (await api("/audit")).events;
   const ul = $("audit"); ul.textContent = "";
@@ -127,9 +141,18 @@ $("btn-pw").onclick = async () => {
 };
 $("chat-filter").oninput = (e) => renderChats(e.target.value);
 $("btn-refresh").onclick = async () => { chats = (await api("/chats/refresh", { method: "POST" })).chats; renderChats(); };
+$("all-chats").onchange = async (e) => {
+  const on = e.target.checked;
+  if (on && !confirm("AI barcha chatlaringizni oʻqiy oladi (yozish baribir tasdiq bilan). Davom etasizmi?")) {
+    e.target.checked = false; return;
+  }
+  await api("/settings", { method: "PUT", body: JSON.stringify({ all_chats: on }) });
+  load();
+};
 $("btn-save").onclick = async () => {
   const ids = chats.filter((c) => c.allowed).map((c) => c.id);
-  await api("/chats", { method: "PUT", body: JSON.stringify({ chat_ids: ids }) });
+  const auto = chats.filter((c) => c.autonomous).map((c) => c.id);
+  await api("/chats", { method: "PUT", body: JSON.stringify({ chat_ids: ids, autonomous_ids: auto }) });
   load();
 };
 $("btn-token").onclick = async () => {

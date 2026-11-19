@@ -147,7 +147,9 @@ def widget_update(data, user_id=100, key="widget_query"):
         "update_id": 1,
         key: {
             "id": "q1",
-            "from": {"id": user_id},
+            "from": {"id": user_id, "is_bot": False, "first_name": "Test"},
+            "chat_instance": "ci-1",
+            "type": {"type": "data"},
             "chat": {"id": user_id, "type": "private"},
             "message_id": 10,
             "data": data,
@@ -312,8 +314,36 @@ def test_polling_keeps_widget_updates_in_allowed_list():
 def test_aiogram_update_keeps_widget_query_in_dump():
     from aiogram.types import Update
 
-    upd = Update.model_validate(widget_update("ping:x"))
-    assert "widget_query" in upd.model_dump(exclude_none=True)
+    from types import SimpleNamespace
+
+    from src.services.core.telegram.aiogram_head import AiogramBotHead
+
+    payload = widget_update("ping:x")
+    # aiogram>=3.32 WidgetQuery modelini talab qiladi: toʻliq Telegram payload.
+    payload["widget_query"].update(chat_instance="ci", type={"type": "data"})
+    payload["widget_query"]["from"].update(is_bot=False, first_name="T")
+    upd = Update.model_validate(payload)
+
+    middlewares = []
+    dispatcher = SimpleNamespace(
+        update=SimpleNamespace(
+            outer_middleware=SimpleNamespace(register=middlewares.append)
+        )
+    )
+    received = []
+
+    async def raw_handler(raw):
+        received.append(raw)
+        return "raw"
+
+    async def next_handler(event, data):
+        return "next"
+
+    AiogramBotHead(bot=object(), dispatcher=dispatcher, raw_update_handler=raw_handler)
+    assert run(middlewares[0](next_handler, upd, {})) == "raw"
+    # Middleware Telegram kalitlarini saqlaydi: "from" (from_user emas).
+    query = parse_widget_update(received[0])
+    assert query is not None and query.user_id == 100
 
 
 def test_process_telegram_ai_update_routes_widget_query(monkeypatch):

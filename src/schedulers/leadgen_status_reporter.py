@@ -318,26 +318,25 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
 
 
 async def send_daily_status_report() -> bool:
-    """Send daily integration health report to Target Leads & Marketing groups."""
+    """Send daily integration health report to the Marketing group only.
+
+    The "Yangi lid" (Target Leads) topic is reserved for real lead cards;
+    the status report must not be posted there.
+    """
     # Meta Graph / DB calls block; keep them off the worker's event loop (lead ingestion runs there).
     summary = await asyncio.to_thread(get_creative_summary)
     text = await asyncio.to_thread(build_status_report_text, summary)
     buttons = await asyncio.to_thread(build_creative_buttons, summary)
     reply_markup = {"inline_keyboard": buttons} if buttons else None
 
-    # 1. Sales group (Target Leads topic)
-    sales_chat_id = getattr(settings, "TARGET_LEADS_GROUP_ID", None) or -1003854308552
-    sales_topic_id = getattr(settings, "TARGET_LEADS_TOPIC_ID", None) or 1020
-    ok_sales = await asyncio.to_thread(_send_tg_message, text, sales_chat_id, sales_topic_id, reply_markup=reply_markup)
-
-    # 2. Marketing group (Jon Branding | Marketing -> AI Hisobot topic #42)
+    # Marketing group (Jon Branding | Marketing -> AI Hisobot topic #42)
     mktg_chat_id = getattr(settings, "MARKETING_REPORT_CHAT_ID", None) or -1003608624065
     mktg_topic_id = getattr(settings, "MARKETING_REPORT_TOPIC_ID", None) or 42
     ok_mktg = await asyncio.to_thread(_send_tg_message, text, mktg_chat_id, mktg_topic_id, reply_markup=reply_markup)
 
-    if ok_sales or ok_mktg:
-        logger.info("[LEADGEN REPORTER] Status report sent (sales=%s, marketing=%s)", ok_sales, ok_mktg)
-    return bool(ok_sales or ok_mktg)
+    if ok_mktg:
+        logger.info("[LEADGEN REPORTER] Status report sent to marketing")
+    return bool(ok_mktg)
 
 
 async def leadgen_watchdog_and_reporter_loop() -> None:
