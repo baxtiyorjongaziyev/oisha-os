@@ -35,10 +35,13 @@ jobs:
     if: ${{ inputs.confirm == 'STOP_PRODUCTION_USERBOT' }}
     runs-on: [self-hosted, oracle]
     timeout-minutes: 10
+    env:
+      # `secrets` step-level `if:` da ishlamaydi (workflow fayli rad etiladi).
+      LEGACY_VPS_1_HOST: ${{ secrets.LEGACY_VPS_1_HOST }}
     steps:
       - name: Stop on Legacy VPS 1 (requires LEGACY_VPS_1_HOST secret)
         id: vps1
-        if: ${{ secrets.LEGACY_VPS_1_HOST != '' }}
+        if: ${{ env.LEGACY_VPS_1_HOST != '' }}
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         continue-on-error: true
         with:
