@@ -97,6 +97,20 @@ class MinimalAgentLoop:
         verification: Dict[str, Any] = {}
         attempt = 0
         for attempt in range(1, budget.max_attempts + 1):
+            if attempt > 1:
+                # Kill-switch, approval yoki quiet-hours urinishlar orasida oʻzgarishi mumkin.
+                decision = await self.policy_engine.evaluate_action(task)
+                await self._log(task, "agent_policy", decision.to_payload(), success=decision.allowed, run_id=run_id)
+                if not decision.allowed:
+                    verification = {
+                        "task_id": task.task_id,
+                        "success": False,
+                        "reason": decision.reason,
+                        "verification_mode": "policy_gate",
+                        "attempt": attempt,
+                        "verified_at": get_local_now().isoformat(),
+                    }
+                    break
             execution = await self._execute(task, executor, budget, attempt)
             execution_success = bool(execution.get("success", execution.get("ok", True)))
             await self._log(task, "agent_execute", execution, success=execution_success, run_id=run_id)
@@ -106,8 +120,12 @@ class MinimalAgentLoop:
             verified = bool(verification.get("success", False))
             await self._log(task, "agent_verify", verification, success=verified, run_id=run_id)
 
-            # Toʻxtash shartlari: tasdiqlandi yoki verifier qayta urinishni taqiqladi.
-            if verified or verification.get("retryable") is False:
+            # Toʻxtash shartlari: tasdiqlandi yoki executor/verifier qayta urinishni taqiqladi.
+            if (
+                verified
+                or verification.get("retryable") is False
+                or execution.get("retryable") is False
+            ):
                 break
 
         success = bool(verification.get("success", False))
@@ -147,6 +165,8 @@ class MinimalAgentLoop:
                 "task_id": task.task_id,
                 "success": False,
                 "reason": "executor_timeout",
+                # Natija nomaʼlum: tashqi amal bajarilgan boʻlishi mumkin, qayta yuborilmaydi.
+                "retryable": False,
                 "failed_at": get_local_now().isoformat(),
             }
         except Exception as exc:
@@ -181,6 +201,8 @@ class MinimalAgentLoop:
                 "task_id": task.task_id,
                 "success": False,
                 "reason": "verifier_exception",
+                # Tekshiruv ishlamadi = natija nomaʼlum; executorni takrorlash dublikat yaratadi.
+                "retryable": False,
                 "error": str(exc),
                 "verification_mode": "independent",
                 "verified_at": get_local_now().isoformat(),
