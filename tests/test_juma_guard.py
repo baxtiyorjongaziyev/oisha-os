@@ -381,3 +381,52 @@ async def test_juma_notifier_excludes_pcg_and_competitors(monkeypatch):
     await notifier.send_greetings("2026-11-20")
     assert client.send_message.await_count == 1
     assert client.send_message.await_args.args[0] == 13
+
+
+def test_upsert_juma_env_writes_outside_repo_and_preserves_other_keys(tmp_path):
+    mod = importlib.import_module("scripts.juma_session_login")
+    fake_repo = tmp_path / "repo"
+    fake_repo.mkdir()
+    env_file = tmp_path / "etc_oisha" / "juma.env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("OTHER_KEY=keep_me\nJUMA_SESSION_STRING=old_val\n", encoding="utf-8")
+
+    mod.upsert_juma_env(env_file, "fresh_juma_session", repo_root=fake_repo)
+    content = env_file.read_text(encoding="utf-8").splitlines()
+    assert "OTHER_KEY=keep_me" in content
+    assert "JUMA_SESSION_STRING=fresh_juma_session" in content
+    assert "JUMA_SESSION_STRING=old_val" not in content
+
+
+def test_upsert_juma_env_refuses_path_inside_repo(tmp_path):
+    mod = importlib.import_module("scripts.juma_session_login")
+    fake_repo = tmp_path / "repo"
+    fake_repo.mkdir()
+    with pytest.raises(ValueError, match="repo"):
+        mod.upsert_juma_env(fake_repo / ".env", "fresh_juma_session", repo_root=fake_repo)
+    with pytest.raises(ValueError):
+        mod.upsert_juma_env(tmp_path / "outside.env", "   ", repo_root=fake_repo)
+
+
+def test_assert_not_prod_session_rejects_prod_key_and_allows_distinct(tmp_path):
+    mod = importlib.import_module("scripts.juma_session_login")
+    prod_file = tmp_path / "userbot_session_string.txt"
+    prod_file.write_text("prod_file_secret\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="alohida"):
+        mod.assert_not_prod_session(
+            "prod_env_secret",
+            env={"USERBOT_SESSION_STRING": "prod_env_secret"},
+            shared_files=(str(prod_file),),
+        )
+    with pytest.raises(ValueError, match="alohida"):
+        mod.assert_not_prod_session(
+            "prod_file_secret",
+            env={},
+            shared_files=(str(prod_file),),
+        )
+    mod.assert_not_prod_session(
+        "dedicated_juma_secret",
+        env={"USERBOT_SESSION_STRING": "prod_env_secret"},
+        shared_files=(str(prod_file),),
+    )

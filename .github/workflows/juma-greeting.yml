@@ -49,10 +49,13 @@ jobs:
             git stash --include-untracked 2>/dev/null || true
             git checkout origin/main -- scripts/send_juma_greetings.py scripts/telethon_guard.py scripts/__init__.py src/services/core/juma_guard.py
 
-            # Load credentials from VM's .env (same session the main service uses)
+            # Load credentials from VM's .env and dedicated /etc/oisha/juma.env
             if [ -f .env ]; then
               set -o allexport
               source .env
+              if [ -f /etc/oisha/juma.env ]; then
+                source /etc/oisha/juma.env
+              fi
               set +o allexport
             fi
 
