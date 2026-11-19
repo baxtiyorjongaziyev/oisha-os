@@ -175,6 +175,11 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     except ImportError as exc:
         logger.warning("[DAILY] scheduler unavailable: %s", exc)
     try:
+        from src.schedulers.juma_greeting_scheduler import juma_greeting_loop
+        asyncio.create_task(juma_greeting_loop(bot_runtime), name="juma_greeting_loop")
+    except ImportError as exc:
+        logger.warning("[JUMA] scheduler unavailable: %s", exc)
+    try:
         from src.schedulers.cockpit_autopilot_scheduler import (
             start_cockpit_autopilot_scheduler,
         )

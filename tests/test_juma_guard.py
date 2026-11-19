@@ -292,6 +292,12 @@ class _FakeCursor:
         self._rows = rows or []
         self._one = one
 
+    def __await__(self):
+        async def _done():
+            return self
+
+        return _done().__await__()
+
     async def __aenter__(self):
         return self
 
@@ -335,6 +341,9 @@ class _FakeDb:
     async def mark_job_run(self, job, date_str):
         self.marked.append((job, date_str))
 
+    async def is_job_run(self, job, date_str):
+        return (job, date_str) in self.marked
+
 
 async def test_juma_notifier_excludes_pcg_and_competitors(monkeypatch):
     from src.services.core import juma_notifier as jn_mod
@@ -357,7 +366,7 @@ async def test_juma_notifier_excludes_pcg_and_competitors(monkeypatch):
         SimpleNamespace(id=7, first_name="Kamol", last_name="TN7", username="kamol_uz", bot=False, is_self=False),
     ]
 
-    async def fake_get_participants(g_id, limit=200):
+    async def fake_get_participants(g_id, limit=500):
         return tn7_participants if g_id == -1003926176795 else []
 
     client.get_participants.side_effect = fake_get_participants
@@ -367,20 +376,139 @@ async def test_juma_notifier_excludes_pcg_and_competitors(monkeypatch):
     assert [c["id"] for c in classmates] == [2, 7]
     assert client.get_participants.call_args_list[0].args[0] == -1003926176795
 
-    monkeypatch.setattr(jn_mod, "automatic_customer_send_allowed", lambda kind: True)
     monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
-    notifier.get_tn5_classmates = AsyncMock(
-        return_value=[
-            {"id": 10, "name": "PCG User", "username": "pcg_team"},
-            {"id": 11, "name": "Patent Lab", "username": "ali_p"},
-            {"id": 12, "name": "Nurmuhammad", "username": "nurmuhammadabdulaziz"},
-            {"id": 8691281355, "name": "Rano", "username": "rano_tn7"},
-            {"id": 13, "name": "Real User", "username": "real_biz"},
-        ]
+    notifier.collect_recipients = AsyncMock(
+        return_value=(
+            [
+                {"id": 10, "name": "PCG User", "username": "pcg_team", "warm": True},
+                {"id": 11, "name": "Patent Lab", "username": "ali_p", "warm": True},
+                {"id": 12, "name": "Nurmuhammad", "username": "nurmuhammadabdulaziz", "warm": True},
+                {"id": 8691281355, "name": "Rano", "username": "rano_tn7", "warm": True},
+                {"id": 13, "name": "Real User", "username": "real_biz", "warm": True},
+            ],
+            0,
+        )
     )
-    await notifier.send_greetings("2026-11-20")
+    fri_0900 = datetime(2026, 11, 20, 9, 0, tzinfo=TASHKENT_TZ)
+    await notifier.send_greetings("2026-11-20", now=fri_0900)
     assert client.send_message.await_count == 1
     assert client.send_message.await_args.args[0] == 13
+    assert client.send_message.await_args.kwargs["silent"] is False
+
+
+@pytest.mark.parametrize(
+    "year,month,day,hour,minute,expected",
+    [
+        (2026, 11, 20, 5, 59, False),
+        (2026, 11, 20, 6, 0, True),
+        (2026, 11, 20, 12, 0, True),
+        (2026, 11, 20, 16, 59, True),
+        (2026, 11, 20, 17, 0, False),
+        (2026, 11, 19, 19, 0, False),
+        (2026, 11, 21, 8, 0, False),
+    ],
+)
+def test_should_trigger_juma_schedule(year, month, day, hour, minute, expected):
+    from src.schedulers.juma_greeting_scheduler import should_trigger_juma
+
+    cfg = JumaRateConfig()
+    now = datetime(year, month, day, hour, minute, tzinfo=TASHKENT_TZ)
+    assert should_trigger_juma(now, cfg) is expected
+
+
+async def test_juma_notifier_sends_tn7_warm_first_silent_and_no_add_contact(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.setenv("JUMA_COLD_DAILY_LIMIT", "1")
+    monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
+    conn = _FakeConn(db_rows=[])
+    db = _FakeDb(conn)
+
+    async def fake_iter_dialogs():
+        yield SimpleNamespace(id=20, is_user=True, entity=SimpleNamespace(id=20), title="Warm User")
+
+    client = AsyncMock()
+    client.iter_dialogs = lambda: fake_iter_dialogs()
+    client.get_participants.return_value = [
+        SimpleNamespace(id=10, first_name="Ali", last_name="TN7", username="pcg_staff", bot=False, is_self=False),
+        SimpleNamespace(id=11, first_name="Samandar", last_name="ASXAB", username="samandar_d", bot=False, is_self=False),
+        SimpleNamespace(id=21, first_name="Cold1", last_name="Biz", username="cold1_uz", bot=False, is_self=False, mutual_contact=False),
+        SimpleNamespace(id=20, first_name="Warm", last_name="Biz", username="warm_uz", bot=False, is_self=False, mutual_contact=False),
+        SimpleNamespace(id=22, first_name="Cold2", last_name="Biz", username="cold2_uz", bot=False, is_self=False, mutual_contact=False),
+    ]
+    notices = []
+
+    async def notify(msg):
+        notices.append(msg)
+
+    notifier = jn_mod.JumaNotifier(client=client, db=db, notify_fn=notify)
+    fri_0630 = datetime(2026, 11, 20, 6, 30, tzinfo=TASHKENT_TZ)
+    stats = await notifier.send_greetings("2026-11-20", now=fri_0630)
+
+    assert stats["sent"] == 2
+    assert stats["deferred_cold"] == 1
+    assert stats["excluded"] == 2
+    assert [c.args[0] for c in client.send_message.await_args_list] == [20, 21]
+    assert all(c.kwargs["silent"] is True for c in client.send_message.await_args_list)
+    assert client.await_count == 0
+    assert conn.sent_inserts == [(20, "2026-11-20"), (21, "2026-11-20")]
+    assert ("juma_mubarak", "2026-11-20") in db.marked
+    assert len(notices) == 2
+
+
+async def test_juma_notifier_aborts_on_peer_flood_and_marks_done(monkeypatch):
+    from telethon.errors import PeerFloodError
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
+    conn = _FakeConn(db_rows=[])
+    db = _FakeDb(conn)
+    client = AsyncMock()
+    client.send_message.side_effect = [PeerFloodError(None), None]
+    notices = []
+
+    async def notify(msg):
+        notices.append(msg)
+
+    notifier = jn_mod.JumaNotifier(client=client, db=db, notify_fn=notify)
+    notifier.collect_recipients = AsyncMock(
+        return_value=(
+            [
+                {"id": 31, "name": "U1", "username": "u1_uz", "warm": True},
+                {"id": 32, "name": "U2", "username": "u2_uz", "warm": True},
+            ],
+            0,
+        )
+    )
+    stats = await notifier.send_greetings("2026-11-20", now=datetime(2026, 11, 20, 9, 0, tzinfo=TASHKENT_TZ))
+    assert stats["aborted"] == "PeerFloodError"
+    assert stats["sent"] == 0
+    assert client.send_message.await_count == 1
+    assert ("juma_mubarak", "2026-11-20") in db.marked
+    assert any("PeerFloodError" in n for n in notices)
+
+
+async def test_juma_notifier_check_and_send_respects_flag_window_and_lock(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    conn = _FakeConn(db_rows=[])
+    db = _FakeDb(conn)
+    notifier = jn_mod.JumaNotifier(client=AsyncMock(), db=db)
+    notifier.send_greetings = AsyncMock(return_value={"sent": 1})
+
+    fri_0600 = datetime(2026, 11, 20, 6, 0, tzinfo=TASHKENT_TZ)
+    fri_0559 = datetime(2026, 11, 20, 5, 59, tzinfo=TASHKENT_TZ)
+
+    monkeypatch.delenv("ENABLE_JUMA_NOTIFIER", raising=False)
+    assert await notifier.check_and_send(now=fri_0600) is False
+
+    monkeypatch.setenv("ENABLE_JUMA_NOTIFIER", "1")
+    assert await notifier.check_and_send(now=fri_0559) is False
+    assert await notifier.check_and_send(now=fri_0600) is True
+    assert notifier.send_greetings.await_count == 1
+
+    await db.mark_job_run("juma_mubarak", "2026-11-20")
+    assert await notifier.check_and_send(now=fri_0600) is False
 
 
 def test_upsert_juma_env_writes_outside_repo_and_preserves_other_keys(tmp_path):

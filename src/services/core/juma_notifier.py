@@ -1,205 +1,294 @@
+"""Avtomatlashtirilgan Juma tabriklari (oisha.service ichidan, alohida sessiyasiz)."""
+
+from __future__ import annotations
+
 import asyncio
-import random
+import contextlib
+import inspect
 import logging
 import os
-from datetime import datetime, time
-from telethon import TelegramClient, functions
-from src.database import Database
-from src.settings import settings
-from src.services.core.customer_outbound_policy import (
-    automatic_customer_send_allowed,
-    build_humanized_juma_greeting,
-)
-from src.services.core.juma_guard import (
-    is_excluded_member,
-    load_juma_rate_config,
+import random
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Awaitable, Callable, Optional
+
+from telethon import TelegramClient
+from telethon.errors import (
+    FloodWaitError, InputUserDeactivatedError, PeerFloodError, PeerIdInvalidError,
+    UserNotMutualContactError, UserPrivacyRestrictedError, UsernameInvalidError,
+    UsernameNotOccupiedError,
 )
 
+from src.database import Database
+from src.services.core.customer_outbound_policy import automatic_customer_send_allowed
+from src.services.core.juma_guard import (
+    JUMA_TEMPLATES, TASHKENT_TZ, JumaRateConfig, classify_and_order_recipients,
+    compute_juma_deadline, is_excluded_member, is_juma_send_window, is_quiet_hours,
+    is_silent_send_time, load_custom_greetings, load_juma_rate_config,
+    next_delay_seconds, pick_greeting_text, seconds_until_quiet_ends, select_target_groups,
+)
+from src.settings import settings
+
 logger = logging.getLogger(__name__)
+_SKIP_ERRORS = (
+    UserPrivacyRestrictedError, UserNotMutualContactError, InputUserDeactivatedError,
+    PeerIdInvalidError, UsernameNotOccupiedError, UsernameInvalidError,
+)
+
+
+def _as_tashkent(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=TASHKENT_TZ) if dt.tzinfo is None else dt.astimezone(TASHKENT_TZ)
+
+
+async def _iter_async_or_empty(obj: Any) -> list[Any]:
+    if inspect.iscoroutine(obj):
+        obj.close()
+        return []
+    return [item async for item in obj] if hasattr(obj, "__aiter__") else []
+
+
+async def _send_with_typing(
+    client: TelegramClient, peer_id: int, text: str, config: JumaRateConfig, *, silent: bool
+) -> None:
+    typing_sec = random.uniform(config.typing_min_sec, config.typing_max_sec)
+    with contextlib.suppress(Exception):
+        act = client.action(peer_id, "typing")
+        if inspect.iscoroutine(act):
+            act.close()
+        elif hasattr(act, "__aenter__"):
+            async with act:
+                await asyncio.sleep(typing_sec)
+    await client.send_message(peer_id, text, silent=silent)
+
+
+async def _deliver_one_message(
+    client: TelegramClient, peer: dict, text: str, config: JumaRateConfig, *, silent: bool
+) -> tuple[str, Optional[str]]:
+    """Yagona foydalanuvchiga typing + anti-spam xatolarni ushlash bilan yuboradi."""
+    try:
+        await _send_with_typing(client, peer["id"], text, config, silent=silent)
+        return "sent", None
+    except PeerFloodError:
+        return "abort", "PeerFloodError"
+    except FloodWaitError as exc:
+        if exc.seconds > config.max_flood_wait_sec:
+            return "abort", f"FloodWait {exc.seconds}s > {config.max_flood_wait_sec}s"
+        await asyncio.sleep(exc.seconds + 5)
+        try:
+            await _send_with_typing(client, peer["id"], text, config, silent=silent)
+            return "sent", None
+        except PeerFloodError:
+            return "abort", "PeerFloodError (retry)"
+        except Exception as retry_exc:
+            logger.warning("[JUMA] Retry failed for %s: %s", peer["id"], retry_exc)
+            return "skip", None
+    except _SKIP_ERRORS as exc:
+        logger.info("[JUMA] Skip %s: %s", peer["id"], type(exc).__name__)
+        return "skip", None
+    except Exception as exc:
+        logger.error("[JUMA ERROR] %s: %s", peer["id"], exc)
+        return "skip", None
 
 
 class JumaNotifier:
-    """Automated Friday Greetings for TN5 Classmates."""
+    """Automated Friday Greetings for TN7/TNx Classmates inside oisha.service."""
 
-    def __init__(self, client: TelegramClient, db: Database, group_id: int = None):
+    def __init__(
+        self, client: TelegramClient, db: Database, group_id: int = None,
+        notify_fn: Optional[Callable[[str], Awaitable[Any]]] = None,
+    ):
         self.client = client
         self.db = db
-        self.group_id = group_id  # Default primary group
-        self.RUN_WINDOW_START = time(0, 0)  # 00:00 AM
-        self.RUN_WINDOW_END = time(23, 59)  # 11:59 PM
+        self.group_id = group_id
+        self.notify_fn = notify_fn
+        self.RUN_WINDOW_START = datetime.strptime("06:00", "%H:%M").time()
+        self.RUN_WINDOW_END = datetime.strptime("17:00", "%H:%M").time()
+        self._lock = asyncio.Lock()
 
-    async def check_and_send(self):
-        """Check if it's Friday morning and we haven't sent greetings yet."""
-        if os.getenv("ENABLE_JUMA_NOTIFIER", "").strip().lower() not in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }:
-            logger.info(
-                "[JUMA] Auto mass greeting is disabled. Set ENABLE_JUMA_NOTIFIER=1 to enable."
-            )
+    async def _notify_owner(self, text: str) -> None:
+        if not self.notify_fn:
             return
+        try:
+            res = self.notify_fn(text)
+            if inspect.isawaitable(res):
+                await res
+        except Exception as exc:
+            logger.warning("[JUMA] Owner notify error: %s", exc)
 
-        now = datetime.now()
-
-        # Owner-approved sole exception to the automatic-customer-message ban.
-        if not automatic_customer_send_allowed("juma", now=now):
-            return
-
-        # 2. Check if we are in the time window (8 AM - 11 AM)
-        if not (self.RUN_WINDOW_START <= now.time() <= self.RUN_WINDOW_END):
-            return
-
-        # 3. Check if already sent today
-        today_str = now.strftime("%Y-%m-%d")
-        if await self._is_already_sent(today_str):
-            logger.info(f"👸 [JUMA] Greetings already sent for {today_str}. Skipping.")
-            return
-
-        logger.info("[JUMA] Sending this week's short, humanized greeting.")
-        await self.send_greetings(today_str)
+    async def check_and_send(self, *, now: Optional[datetime] = None, force_enabled: bool = False) -> bool:
+        """Juma 06:00–17:00 Toshkent oynasida navbatdagi tabrikni ishga tushiradi."""
+        if not force_enabled and os.getenv("ENABLE_JUMA_NOTIFIER", "").strip().lower() not in {"1", "true", "yes", "on"}:
+            logger.info("[JUMA] Disabled. Set ENABLE_JUMA_NOTIFIER=1 to enable.")
+            return False
+        config = load_juma_rate_config()
+        current = _as_tashkent(now or datetime.now(TASHKENT_TZ))
+        if not automatic_customer_send_allowed("juma", now=current):
+            return False
+        if not is_juma_send_window(current, config) or is_quiet_hours(current, config):
+            return False
+        today_str = compute_juma_deadline(current, config).strftime("%Y-%m-%d")
+        if self._lock.locked() or await self._is_already_sent(today_str):
+            return False
+        async with self._lock:
+            if await self._is_already_sent(today_str):
+                return False
+            logger.info("[JUMA] Starting Friday TN7 greeting delivery for %s.", today_str)
+            await self.send_greetings(today_str, now=current)
+            return True
 
     async def _is_already_sent(self, date_str: str) -> bool:
-        """Check the database for previous runs of this job."""
         try:
             return await self.db.is_job_run("juma_mubarak", date_str)
-        except Exception as e:
-            logger.error(f"[JUMA DB ERROR] check: {e}")
+        except Exception as exc:
+            logger.error("[JUMA DB ERROR] check: %s", exc)
             return False
 
-    async def _mark_as_sent(self, date_str: str):
-        """Record the successful run in the database."""
+    async def _mark_as_sent(self, date_str: str) -> None:
         try:
             await self.db.mark_job_run("juma_mubarak", date_str)
-        except Exception as e:
-            logger.error(f"[JUMA DB ERROR] mark: {e}")
+        except Exception as exc:
+            logger.error("[JUMA DB ERROR] mark: %s", exc)
 
-    async def _fetch_db_classmates(self, config):
-        """Fetch TN classmates from DB excluding PCG usernames and excluded names."""
-        classmates = []
+    async def _fetch_group_users(self, group: dict, dialogs: list[Any]) -> list[Any]:
+        names_low = {n.lower() for n in group.get("names", [])}
+        matching = [d for d in dialogs if d.id == group["id"] or (getattr(d, "title", "") or "").strip().lower() in names_low]
+        users: list[Any] = []
+        for dialog in matching:
+            users.extend(await _iter_async_or_empty(self.client.iter_participants(dialog)))
+        if not users:
+            try:
+                users.extend(await self.client.get_participants(group["id"], limit=500) or [])
+            except Exception as exc:
+                logger.error("[JUMA] Group %s crawl error: %s", group["id"], exc)
+        return users
+
+    async def collect_recipients(self, config: JumaRateConfig) -> tuple[list[dict], int]:
+        """Maqsad guruhlardan unikal aʼzolarni yigʻadi va PCG/raqiblarni filtrlaydi."""
+        dialogs = await _iter_async_or_empty(self.client.iter_dialogs())
+        existing_dm_ids = {d.entity.id for d in dialogs if getattr(d, "is_user", False) and getattr(d, "entity", None) is not None}
+        target_groups = select_target_groups(os.getenv("JUMA_TARGET_GROUPS", "TN7"))
+        if self.group_id and all(g["id"] != self.group_id for g in target_groups):
+            target_groups.append({"label": f"Group {self.group_id}", "code": str(self.group_id), "names": [], "id": self.group_id})
+        seen_ids: set[int] = set()
+        recipients: list[dict] = []
+        excluded_count = 0
+        for group in target_groups:
+            for u in await self._fetch_group_users(group, dialogs):
+                if getattr(u, "bot", False) or getattr(u, "deleted", False) or getattr(u, "is_self", False) or u.id in seen_ids:
+                    continue
+                seen_ids.add(u.id)
+                uname = getattr(u, "username", None) or ""
+                full_name = f"{getattr(u, 'first_name', '') or ''} {getattr(u, 'last_name', '') or ''}".strip()
+                if is_excluded_member({"id": u.id, "username": uname, "name": full_name}, config, excluded_names=settings.EXCLUDED_NAMES)[0]:
+                    excluded_count += 1
+                    continue
+                mutual = bool(getattr(u, "mutual_contact", False))
+                recipients.append({
+                    "id": u.id, "username": uname,
+                    "name": full_name or getattr(u, "first_name", "") or "Doʻstim",
+                    "group": group["label"], "mutual": mutual, "warm": mutual or (u.id in existing_dm_ids),
+                })
+        return recipients, excluded_count
+
+    async def get_tn5_classmates(self) -> list[dict]:
+        """Backward-compatible wrapper returning filtered classmates."""
+        config = load_juma_rate_config()
+        classmates: list[dict] = []
         try:
             conn = await self.db.get_connection()
-            query = """
-                SELECT user_id, first_name, username 
-                FROM users 
-                WHERE (last_name LIKE '%TN%' OR first_name LIKE '%TN%' OR contact_name LIKE '%TN%')
-                   OR (last_name LIKE '%Tez Natija%' OR first_name LIKE '%Tez Natija%')
-            """
+            query = (
+                "SELECT user_id, first_name, username FROM users "
+                "WHERE (last_name LIKE '%TN%' OR first_name LIKE '%TN%' OR contact_name LIKE '%TN%') "
+                "OR (last_name LIKE '%Tez Natija%' OR first_name LIKE '%Tez Natija%')"
+            )
             async with conn.execute(query) as cursor:
-                rows = await cursor.fetchall()
-                for r in rows:
-                    excluded, _ = is_excluded_member(
-                        {"id": r[0], "username": r[2], "name": r[1]},
-                        config,
-                        excluded_names=settings.EXCLUDED_NAMES,
-                    )
-                    if not excluded:
+                for r in await cursor.fetchall():
+                    if not is_excluded_member({"id": r[0], "username": r[2], "name": r[1]}, config, excluded_names=settings.EXCLUDED_NAMES)[0]:
                         classmates.append({"id": r[0], "name": r[1], "username": r[2]})
-        except Exception as e:
-            logger.error(f"[JUMA DB ERROR] fetch: {e}")
+        except Exception as exc:
+            logger.error("[JUMA DB ERROR] fetch: %s", exc)
+        seen_ids = {c["id"] for c in classmates}
+        group_users, _ = await self.collect_recipients(config)
+        classmates.extend(u for u in group_users if u["id"] not in seen_ids)
         return classmates
 
-    async def get_tn5_classmates(self):
-        """Fetch all users identified as TN5/TN7 students from DB and groups."""
-        config = load_juma_rate_config()
-        classmates = await self._fetch_db_classmates(config)
-        logger.info("👸 [JUMA] Targeting TN7 and TN2-TN5 groups...")
-        target_group_ids = [
-            -1003926176795,  # TN7 Primary
-            -1002061483832,  # TN5 Juma Group
-            -1001820339529,  # TN5 Primary
-            -1002167483921,  # TN4 Placeholder
-            -1001928374655,  # TN3 Placeholder
-            -1001827364554,  # TN2 Placeholder
-        ]
-        if self.group_id and self.group_id not in target_group_ids:
-            target_group_ids.append(self.group_id)
-
-        processed_ids = {c["id"] for c in classmates}
-        logger.info(
-            f"👸 [JUMA] Starting with {len(classmates)} classmates from DB. Crawling groups for more..."
-        )
-        for g_id in target_group_ids:
-            try:
-                participants = await self.client.get_participants(g_id, limit=200)
-                for u in participants:
-                    if u.bot or u.is_self or u.id in processed_ids:
-                        continue
-                    full_name = f"{u.first_name or ''} {u.last_name or ''}".strip()
-                    excluded, _ = is_excluded_member(
-                        {"id": u.id, "username": getattr(u, "username", None), "name": full_name},
-                        config,
-                        excluded_names=settings.EXCLUDED_NAMES,
-                    )
-                    if excluded:
-                        continue
-                    classmates.append(
-                        {"id": u.id, "name": u.first_name or "Doʻstim", "username": u.username}
-                    )
-                    processed_ids.add(u.id)
-            except Exception as e:
-                logger.error(f"👸 [JUMA] Group {g_id} crawl error (likely flood wait): {e}")
-        return classmates
-
-    async def _deliver_peer(self, peer: dict, date_str: str) -> bool:
-        """Send one greeting and log to juma_sent_logs; returns True if sent."""
-        conn = await self.db.get_connection()
+    async def _filter_unsent_today(self, conn: Any, recipients: list[dict], date_str: str) -> list[dict]:
+        eligible: list[dict] = []
         query = "SELECT 1 FROM juma_sent_logs WHERE user_id = ? AND run_date = ?"
-        async with conn.execute(query, (peer["id"], date_str)) as cursor:
-            if await cursor.fetchone():
-                return False
-        contact_name = f"TN Gr {peer['name']}"
-        try:
-            await self.client(
-                functions.contacts.AddContactRequest(
-                    id=peer["id"],
-                    first_name=contact_name,
-                    last_name="",
-                    phone="",
-                    add_phone_privacy_exception=True,
-                )
-            )
-        except Exception:
-            logger.error("Exception handled in %s", __name__, exc_info=True)
-        message = build_humanized_juma_greeting(peer["name"])
-        await self.client.send_message(peer["id"], message)
-        await conn.execute(
-            "INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)",
-            (peer["id"], date_str),
-        )
-        await conn.commit()
-        logger.info(f"✅ [JUMA] Sent to {peer['name']}")
-        return True
+        for peer in recipients:
+            async with conn.execute(query, (peer["id"], date_str)) as cursor:
+                if not await cursor.fetchone():
+                    eligible.append(peer)
+        return eligible
 
-    async def send_greetings(self, date_str: str, source_message=None):
-        """Perform mass messaging with random delays."""
-        if not automatic_customer_send_allowed("juma"):
-            logger.warning("[JUMA] Direct send blocked outside Friday.")
-            return
-        classmates = await self.get_tn5_classmates()
-        if not classmates:
-            logger.warning("👸 [JUMA] No classmates found in database!")
-            await self._mark_as_sent(date_str)
-            return
-
-        logger.info(f"👸 [JUMA] Found {len(classmates)} classmates. Delivery started...")
-        config = load_juma_rate_config()
-        success_count = 0
-        for peer in classmates:
-            excluded, _ = is_excluded_member(
-                peer,
-                config,
-                excluded_names=settings.EXCLUDED_NAMES,
-            )
-            if excluded:
+    async def _send_wave(
+        self, conn: Any, wave: list[dict], date_str: str, config: JumaRateConfig,
+        custom_greetings: dict[str, str], deadline: datetime, fixed_now: Optional[datetime],
+    ) -> dict:
+        sent = failed = 0
+        aborted: Optional[str] = None
+        hit_deadline = False
+        for idx, peer in enumerate(wave):
+            if is_excluded_member(peer, config, excluded_names=settings.EXCLUDED_NAMES)[0]:
                 continue
-            try:
-                if await self._deliver_peer(peer, date_str):
-                    success_count += 1
-                    await asyncio.sleep(random.uniform(120, 240))
-            except Exception as e:
-                logger.error(f"❌ [JUMA ERROR] {peer['id']}: {e}")
-                await asyncio.sleep(600 if "flood wait" in str(e).lower() else 60)
+            loop_now = _as_tashkent(fixed_now) if fixed_now is not None else datetime.now(TASHKENT_TZ)
+            if is_quiet_hours(loop_now, config):
+                wait_q = seconds_until_quiet_ends(loop_now, config)
+                if loop_now + timedelta(seconds=wait_q) >= deadline:
+                    hit_deadline = True
+                    break
+                await asyncio.sleep(wait_q)
+            if loop_now >= deadline:
+                hit_deadline = True
+                break
+            text = pick_greeting_text(peer, custom_greetings, JUMA_TEMPLATES)
+            status, detail = await _deliver_one_message(
+                self.client, peer, text, config, silent=is_silent_send_time(loop_now, config)
+            )
+            if status == "sent":
+                await conn.execute("INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)", (peer["id"], date_str))
+                await conn.commit()
+                sent += 1
+            elif status == "abort":
+                aborted = detail
+                break
+            else:
+                failed += 1
+            if idx + 1 < len(wave):
+                delay_sec, _ = next_delay_seconds(sent, config)
+                if loop_now + timedelta(seconds=delay_sec) >= deadline:
+                    hit_deadline = True
+                    break
+                await asyncio.sleep(delay_sec)
+        return {"sent": sent, "failed": failed, "aborted": aborted, "hit_deadline": hit_deadline}
+
+    async def send_greetings(
+        self, date_str: str, source_message=None, *, now: Optional[datetime] = None
+    ) -> dict:
+        """Juma tabriklarini anti-spam tartibi va issiq/sovuq limiti bilan yuboradi."""
+        current = _as_tashkent(now or datetime.now(TASHKENT_TZ))
+        if not automatic_customer_send_allowed("juma", now=current):
+            logger.warning("[JUMA] Direct send blocked outside Friday.")
+            return {"sent": 0, "failed": 0, "deferred_cold": 0, "excluded": 0, "aborted": "not_friday", "hit_deadline": False}
+        config = load_juma_rate_config()
+        deadline = compute_juma_deadline(current, config)
+        msg_json = os.getenv("JUMA_MESSAGES_JSON", "").strip()
+        custom = load_custom_greetings(Path(msg_json) if msg_json else None)
+        recipients, excluded = await self.collect_recipients(config)
+        conn = await self.db.get_connection()
+        eligible = await self._filter_unsent_today(conn, recipients, date_str)
+        wave, deferred = classify_and_order_recipients(eligible, cold_limit=config.cold_daily_limit)
+        if not wave:
+            await self._mark_as_sent(date_str)
+            await self._notify_owner("🕌 Juma tabrigi: bugun yuboriladigan yangi aʼzo qolmadi.")
+            return {"sent": 0, "failed": 0, "deferred_cold": len(deferred), "excluded": excluded, "aborted": None, "hit_deadline": False}
+        await self._notify_owner(f"▶️ Juma TN7 tabrigi boshlandi: toʻlqin={len(wave)}, blok={excluded}, keyingi={len(deferred)}")
+        res = await self._send_wave(conn, wave, date_str, config, custom, deadline, now)
         await self._mark_as_sent(date_str)
-        logger.info(f"👸 [JUMA] Success! Sent {success_count} greetings for {date_str}.")
+        summary = (
+            f"🛑 Juma tabrigi toʻxtatildi ({res['aborted']}): {res['sent']} yuborildi, {res['failed']} xato."
+            if res["aborted"]
+            else f"✅ Juma tabrigi yakunlandi: {res['sent']} yuborildi, {res['failed']} xato, {len(deferred)} keyingi Jumaga."
+        )
+        await self._notify_owner(summary)
+        return {**res, "deferred_cold": len(deferred), "excluded": excluded}
