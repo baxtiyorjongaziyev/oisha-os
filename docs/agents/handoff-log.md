@@ -3025,3 +3025,22 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** `write_ops.py` (send_message/reply, forward_messages, edit_message, delete_messages, send_file https URL, ixtiyoriy voice note) va `actions.py` (navbat `tg_connect_actions`, TTL 1 soat). MCP yozish vositalari + `get_action_status`. Siyosat: standart — har bir yozish Oisha botida menejer tasdigʻi (`tgca:ok/no:<id>`, faqat egasi bosa oladi); menejer ⚡ belgilagan chatlarda darhol; forward ikkala chat ⚡ boʻlsagina avtomatik. "Barcha chatlar" kaliti (`PUT /api/connect/settings`) — oʻqishni hamma chatga ochadi, yozish baribir tasdiq bilan. Ustunlar migratsiyasi idempotent (`ALTER TABLE ... ADD COLUMN`).
 - **Tekshiruv dalillari:** connect testlari 29 passed (tasdiq, begona tasdiqlay olmasligi, rad etish, ⚡, forward, yopiq chat, all_chats, https); toʻliq pytest — oʻsha 11 asos xatosi (PR #1100 tuzatmoqda); ruff, bandit, uzbek guard toza. Real akkauntda TEKSHIRILMAGAN.
 - **Qolgan ish/Bloker:** ovozli xabarni matnga oʻgirish yoʻq; fayl faqat https URL dan (lokal yuklash yoʻq).
+
+
+## 2026-11-19 — Codex: Connect completion independent of dialog discovery
+- Scope: fix/connect-completion, isolated worktree; no other checkout changes copied.
+- Live evidence: deployed 298c5bc; owner's tg_connect_accounts row was connected with a connected audit event. Read only status/timestamps/action metadata; no session values selected or decrypted.
+- Completion callback persisted the account and then awaited Telegram dialog discovery before qr_flow could report done. A stalled dialog request reproduced the delayed completion in an initially failing regression test.
+- Fix: callback completes after persistence/audit; the connected frontend independently refreshes an empty dialog list without awaiting it. Existing selections remain intact.
+- Added backend regression and Node DOM/VM regression for 2FA completion with an indefinitely pending dialog refresh. All test data synthetic and local.
+- Focused Python tests: 34 passed. Node frontend regression: passed. Bandit entire src: zero medium/high findings and zero scan errors; Ruff crash checks passed. Full suite and staged Uzbek guard pending at entry creation.
+- Added telegram-connect-ops skill with verified environment, key separation, stale-login diagnosis, safe metadata checks, startup readiness and real-account acceptance boundaries.
+- Real owner frontend/Devices/revoke acceptance after deployment remains open; no claim that synthetic tests prove that flow.
+
+- Windows full pre-flight completed: 4349 passed, 17 skipped, 5 failed (one POSIX chmod 0600 assertion, four cp1252 decoding errors in workflow tests). No assertions weakened or tests skipped. Linux snapshot validation runs separately under /tmp with isolated pytest dependencies and SKIP_LIVE=1; production checkout/venv not used as a test working directory.
+- Final focused rerun after removing unused logger: 15 passed (store/QR/API and skill mirror); frontend 2FA regression passed. Staged Uzbek guard passed; diff whitespace check clean.
+
+- Linux full suite on the application snapshot passed: 4357 passed, 14 skipped, 4 subtests passed. Initial archive-only attempts exposed missing PyYAML and absent Git metadata; the scratch environment was corrected without changing tests. Production environment remained separate.
+- During deploy review, found .env rebuild preserved other integrations but dropped JWT_SECRET and TG_CONNECT_SESSION_KEY. Added both exact key names to the existing private backup filter. Synthetic regression failed before the fix and passed afterward; workflow contracts plus Connect tests: 25 passed under UTF-8 Windows mode. Final Linux coverage run includes this workflow/test addition.
+
+- Final Linux workflow-inclusive pre-flight with coverage: 4358 passed, 14 skipped, 4 subtests passed; coverage 57.13% (50% gate passed), exit 0. Full-source Bandit: zero medium/high findings and zero errors. Node 2FA frontend regression, Ruff, skill mirror, staged Uzbek guard and whitespace checks passed.
