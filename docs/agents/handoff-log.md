@@ -3012,3 +3012,8 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** #1100 — eskirgan testlar: `register_team_dm_handlers` stub, `test_customer_360` 5 ta, coach 503 testi `app_ctx.db` ni tozalaydi. #1103 — aiogram 3.32 `widget_query` ni `WidgetQuery` sifatida tiplaydi; `aiogram_head.py` raw-update middleware endi `by_alias=True` bilan dump qiladi (aks holda `from` → `from_user`, `user_id=None`, widget avtorizatsiyasi yiqiladi). Test middleware orqali tekshiradi.
 - **Tekshiruv dalillari:** widget/aiogram testlari aiogram 3.31.0 va 3.32.0 da oʻtdi; fix olib tashlansa test yiqiladi. Toʻliq `SKIP_LIVE=1 pytest` (Windows): faqat maʼlum Windows-only 5 ta xato. bandit, uzbek guard toza.
 - **Qolgan ish/Bloker:** `requirements.txt` da `aiogram>=3.29.1` — lock (3.31.0) bilan CI (3.32.0) farq qiladi. `userbot-vps.yml` main da doimiy qizil (tekshirilmagan).
+
+## 2026-11-19 — Claude (userbot-vps.yml parse xatosi)
+- **Bajarilgan ish:** `.github/workflows/userbot-vps.yml` — step `if:` dagi `secrets.LEGACY_VPS_1_HOST` job-level `env` ga koʻchirildi (`if: env.LEGACY_VPS_1_HOST != ''`). GitHub step `if:` da `secrets` ni qabul qilmagani uchun fayl rad etilib, `main` ga har pushda qizil run chiqardi. Workflow faqat qoʻlda ishga tushadi; xatti-harakat oʻzgarmadi.
+- **Tekshiruv dalillari:** YAML parse; workflow testlari — faqat maʼlum Windows-only 4 ta `test_runner_workflow_contract` xatosi; uzbek guard toza.
+- **Qolgan ish/Bloker:** merge dan keyin `main` da `userbot-vps.yml` qizil run chiqarmasligini tekshirish. Faylda `104.197.19.4` IP qattiq yozilgan (fayl qoidasiga zid) — tegilmadi.
