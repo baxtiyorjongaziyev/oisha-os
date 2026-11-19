@@ -1,0 +1,13 @@
+[
+  {"name": "internal task on weekday passes", "when": "weekday_noon", "kind": "internal_report", "requested_by": "system", "payload": {}, "state": {}, "expect": "auto_master_override"},
+  {"name": "client DM at night is blocked", "when": "weekday_night", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": true}, "state": {}, "expect": "quiet_hours_block"},
+  {"name": "client DM on Sunday is blocked", "when": "sunday_noon", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": true}, "state": {}, "expect": "sunday_block"},
+  {"name": "owner may act at night", "when": "weekday_night", "kind": "client_message", "requested_by": "owner", "payload": {"userbot_available": true}, "state": {}, "expect": "policy_pass"},
+  {"name": "low confidence client reply needs owner", "when": "weekday_noon", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": true, "confidence": 0.6}, "state": {}, "expect": "low_confidence_client_action_requires_owner"},
+  {"name": "price talk needs owner", "when": "weekday_noon", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": true, "text": "Narx bo'yicha chegirma beramiz"}, "state": {}, "expect": "sensitive_negotiation_requires_owner"},
+  {"name": "sensitive internal task does not use master override", "when": "weekday_night", "kind": "internal_report", "requested_by": "system", "payload": {"text": "payment summary"}, "state": {}, "expect": "quiet_hours_block"},
+  {"name": "client action without userbot fails closed", "when": "weekday_noon", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": false}, "state": {}, "expect": "userbot_unavailable_for_client_action"},
+  {"name": "kill switch stops automated client actions", "when": "weekday_noon", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": true}, "state": {"policy:auto_actions_enabled": "false"}, "expect": "auto_actions_disabled"},
+  {"name": "per-kind approval gate holds", "when": "weekday_noon", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": true}, "state": {"policy:require_approval:client_message": "true"}, "expect": "owner_approval_required"},
+  {"name": "approved confident client reply passes", "when": "weekday_noon", "kind": "client_message", "requested_by": "system", "payload": {"userbot_available": true, "confidence": 0.95}, "state": {}, "expect": "policy_pass"}
+]
