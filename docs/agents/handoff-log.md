@@ -3012,3 +3012,8 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** #1100 — eskirgan testlar: `register_team_dm_handlers` stub, `test_customer_360` 5 ta, coach 503 testi `app_ctx.db` ni tozalaydi. #1103 — aiogram 3.32 `widget_query` ni `WidgetQuery` sifatida tiplaydi; `aiogram_head.py` raw-update middleware endi `by_alias=True` bilan dump qiladi (aks holda `from` → `from_user`, `user_id=None`, widget avtorizatsiyasi yiqiladi). Test middleware orqali tekshiradi.
 - **Tekshiruv dalillari:** widget/aiogram testlari aiogram 3.31.0 va 3.32.0 da oʻtdi; fix olib tashlansa test yiqiladi. Toʻliq `SKIP_LIVE=1 pytest` (Windows): faqat maʼlum Windows-only 5 ta xato. bandit, uzbek guard toza.
 - **Qolgan ish/Bloker:** `requirements.txt` da `aiogram>=3.29.1` — lock (3.31.0) bilan CI (3.32.0) farq qiladi. `userbot-vps.yml` main da doimiy qizil (tekshirilmagan).
+
+## 2026-11-19 — Claude (Leadgen holat hisoboti yoʻnalishi)
+- **Bajarilgan ish:** `src/schedulers/leadgen_status_reporter.py` — `send_daily_status_report` endi faqat Marketing → AI Hisobot (#42) ga yuboradi; Target Leads (yangi lid, topic 1020) ga yuborish olib tashlandi. PR #1106.
+- **Tekshiruv dalillari:** `tests/test_leadgen_status_report_routing.py` 3 passed (faqat marketing chaqiriladi, 1020 ga hech qachon, natija faqat marketing yuborishiga bogʻliq); `test_leadgen_watchdog_sos.py` passed. Prod'da TEKSHIRILMAGAN.
+- **Qolgan ish/Bloker:** merge va Hetzner deploy.
