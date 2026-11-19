@@ -1,4 +1,4 @@
-﻿# Agent Handoff Log
+# Agent Handoff Log
 
 > AGENTS.md dan ko'chirildi (2026-09-29). Yangi yozuvlar shu faylning OXIRIGA qo'shiladi.
 > Format: sana/agent, bajarilgan ish, o'zgargan fayllar, tekshiruv dalili, qolgan ish/bloker. Sirlar yozilmaydi.
@@ -3025,3 +3025,8 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** `write_ops.py` (send_message/reply, forward_messages, edit_message, delete_messages, send_file https URL, ixtiyoriy voice note) va `actions.py` (navbat `tg_connect_actions`, TTL 1 soat). MCP yozish vositalari + `get_action_status`. Siyosat: standart — har bir yozish Oisha botida menejer tasdigʻi (`tgca:ok/no:<id>`, faqat egasi bosa oladi); menejer ⚡ belgilagan chatlarda darhol; forward ikkala chat ⚡ boʻlsagina avtomatik. "Barcha chatlar" kaliti (`PUT /api/connect/settings`) — oʻqishni hamma chatga ochadi, yozish baribir tasdiq bilan. Ustunlar migratsiyasi idempotent (`ALTER TABLE ... ADD COLUMN`).
 - **Tekshiruv dalillari:** connect testlari 29 passed (tasdiq, begona tasdiqlay olmasligi, rad etish, ⚡, forward, yopiq chat, all_chats, https); toʻliq pytest — oʻsha 11 asos xatosi (PR #1100 tuzatmoqda); ruff, bandit, uzbek guard toza. Real akkauntda TEKSHIRILMAGAN.
 - **Qolgan ish/Bloker:** ovozli xabarni matnga oʻgirish yoʻq; fayl faqat https URL dan (lokal yuklash yoʻq).
+
+## 2026-11-19 — Claude (Leadgen holat hisoboti yoʻnalishi)
+- **Bajarilgan ish:** `src/schedulers/leadgen_status_reporter.py` — `send_daily_status_report` endi faqat Marketing → AI Hisobot (#42) ga yuboradi; Target Leads (yangi lid, topic 1020) ga yuborish olib tashlandi. PR #1106.
+- **Tekshiruv dalillari:** `tests/test_leadgen_status_report_routing.py` 3 passed (faqat marketing chaqiriladi, 1020 ga hech qachon, natija faqat marketing yuborishiga bogʻliq); `test_leadgen_watchdog_sos.py` passed. Prod'da TEKSHIRILMAGAN.
+- **Qolgan ish/Bloker:** merge va Hetzner deploy.
