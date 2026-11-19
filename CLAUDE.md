@@ -264,6 +264,7 @@ ALLOW_LOCAL_RUN, ENABLE_CLOUD_USERBOT, SURGICAL_MODE, ENABLE_AI_NEGOTIATION
 - `src/services/debug/` — excluded from bandit, must NEVER be imported in production
 - **O'zbekcha matn:** faqat ikki tirnoq ichida yoziladi; ASCII `'` so'z ichida taqiqlanadi (`'qo'ng'iroq'` SyntaxError beradi). `oʻ`/`gʻ` → `ö`/`ğ` yoki `ʻ` (U+02BB), tutuq → `ʼ` (U+02BC). Identifikator, email, teg, username — ASCII. Tekshiruv: `python scripts/check_uzbek_text.py --staged`. Batafsil: `.agents/skills/uzbek-text/SKILL.md`.
 - **Code Mode:** Koʻp qadamli API/MCP operatsiyalarida yoki katta maʼlumotlar tahlilida ketma-ket tool chaqirib kontekst oynasini toʻldirmang; uning oʻrniga ixcham skript yozib (`execute`), lokal filtrlab faqat yakuniy natijani oling. Batafsil: `.claude/skills/code-mode/SKILL.md`.
+- **Harness loop (majburiy):** har bir kod ishi Sync → Reja → Branch (`origin/main` dan) → Gate → PR → CI/Review loop → Merge → Post-merge → Handoff siklidan oʻtadi. Har push dan oldin `gh pr view --json state` — `MERGED` boʻlsa push qilinmaydi, yangi branch ochiladi. Merge dan keyin qolgan commitlar uchun `followup-pr.yml` avtomatik PR ochadi. Batafsil: `.agents/skills/harness-loop/SKILL.md`.
 - Do not run a local userbot while Hetzner prod (`2.29.198.0`) owns the session (see Runtime)
 
 ## TypeScript Monorepos
