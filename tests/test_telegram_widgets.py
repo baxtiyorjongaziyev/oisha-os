@@ -147,7 +147,9 @@ def widget_update(data, user_id=100, key="widget_query"):
         "update_id": 1,
         key: {
             "id": "q1",
-            "from": {"id": user_id},
+            "from": {"id": user_id, "is_bot": False, "first_name": "Test"},
+            "chat_instance": "ci-1",
+            "type": {"type": "data"},
             "chat": {"id": user_id, "type": "private"},
             "message_id": 10,
             "data": data,
