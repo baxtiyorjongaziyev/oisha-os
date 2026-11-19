@@ -5,7 +5,6 @@ Har bir endpoint faqat kirgan menejerning OʻZ akkauntiga ishlaydi (Telegram ID 
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 from typing import Optional
 
@@ -16,7 +15,6 @@ from src.api.rbac import Permission, Principal, Role, require_permissions
 from src.api.routes.attendance_routes import _RateLimiter
 from src.services.core.tg_connect import qr_flow, session_ops, store
 
-logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/connect", tags=["tg-connect"])
 _SELF = require_permissions(Permission.TELEGRAM_CONNECT_SELF)
 _limiter = _RateLimiter(limit=40, window_s=60)
@@ -71,10 +69,6 @@ def _on_done(db, employee_id: int | None, ip: str | None):
     async def done(telegram_id: int, result: dict) -> None:
         await store.save_connected(db, telegram_id, employee_id, result.get("username"), result["session"])
         await store.audit(db, telegram_id, "connected", str(telegram_id), {"device": qr_flow.DEVICE_MODEL}, ip)
-        try:
-            await store.replace_chats(db, telegram_id, await session_ops.list_dialogs(result["session"]))
-        except Exception as exc:  # noqa: BLE001 - roʻyxatni keyin "Yangilash" bilan olsa boʻladi
-            logger.warning("tg_connect dialogs fetch failed: %s", type(exc).__name__)
     return done
 
 

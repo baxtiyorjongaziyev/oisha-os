@@ -258,3 +258,23 @@ def test_refresh_never_reverts_saved_selection(db):
     run(store.set_allowed(db, TG, []))  # menejer opt-out qildi
     run(store.replace_chats(db, TG, [{"id": 1, "title": "A2", "kind": "private"}]))
     assert run(store.chats(db, TG)) == [{"id": 1, "title": "A2", "kind": "private", "allowed": False, "autonomous": False}]
+
+
+def test_connection_completion_does_not_wait_for_dialog_sync(monkeypatch, db):
+    from src.api.routes import tg_connect_routes as routes
+    from unittest.mock import AsyncMock
+
+    async def slow_dialogs(session):
+        await asyncio.Event().wait()
+
+    dialogs = AsyncMock(side_effect=slow_dialogs)
+    monkeypatch.setattr(session_ops, "list_dialogs", dialogs)
+
+    async def scenario():
+        done = routes._on_done(db, 5, None)
+        await asyncio.wait_for(done(TG, {"session": "SYNTHETIC-SESSION", "username": "mgr"}), 0.1)
+        assert (await store.account(db, TG))["status"] == "connected"
+        assert (await store.audit_log(db, TG))[0]["action"] == "connected"
+
+    run(scenario())
+    dialogs.assert_not_awaited()
