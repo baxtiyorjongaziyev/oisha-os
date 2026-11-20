@@ -15,9 +15,12 @@ def _apply_github_token_env(env: dict[str, str], token_val: str) -> None:
     env.setdefault("GIT_TERMINAL_PROMPT", "0")
     basic = base64.b64encode(f"x-access-token:{token_val}".encode("utf-8")).decode("ascii")
     idx = int(env.get("GIT_CONFIG_COUNT", "0") or "0")
-    env["GIT_CONFIG_COUNT"] = str(idx + 1)
+    # Reset prior extraheader entries (multivar) before adding our Authorization header.
+    env["GIT_CONFIG_COUNT"] = str(idx + 2)
     env[f"GIT_CONFIG_KEY_{idx}"] = "http.https://github.com/.extraheader"
-    env[f"GIT_CONFIG_VALUE_{idx}"] = f"AUTHORIZATION: basic {basic}"
+    env[f"GIT_CONFIG_VALUE_{idx}"] = ""
+    env[f"GIT_CONFIG_KEY_{idx + 1}"] = "http.https://github.com/.extraheader"
+    env[f"GIT_CONFIG_VALUE_{idx + 1}"] = f"AUTHORIZATION: basic {basic}"
 
 
 def _git_bin() -> str | None:

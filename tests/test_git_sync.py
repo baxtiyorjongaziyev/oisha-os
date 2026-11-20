@@ -36,6 +36,7 @@ async def test_push_vault_handles_secret_and_plain_tokens(tmp_path: Path, monkey
         captured_envs.append(dict(kwargs.get("env") or {}))
         return _FakeProc(0)
 
+    monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
     monkeypatch.setattr(git_sync.settings, "GITHUB_TOKEN", token_obj)
     monkeypatch.setattr(git_sync, "_git_bin", lambda: "/usr/bin/git")
     with patch("src.utils.git_sync.asyncio.create_subprocess_exec", side_effect=fake_exec):
@@ -45,6 +46,9 @@ async def test_push_vault_handles_secret_and_plain_tokens(tmp_path: Path, monkey
     env = captured_envs[-1]
     assert env["GIT_HTTPS_TOKEN"] == expected
     assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["GIT_CONFIG_COUNT"] == "2"
     assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
+    assert env["GIT_CONFIG_VALUE_0"] == ""
+    assert env["GIT_CONFIG_KEY_1"] == "http.https://github.com/.extraheader"
     expected_basic = base64.b64encode(f"x-access-token:{expected}".encode("utf-8")).decode("ascii")
-    assert env["GIT_CONFIG_VALUE_0"] == f"AUTHORIZATION: basic {expected_basic}"
+    assert env["GIT_CONFIG_VALUE_1"] == f"AUTHORIZATION: basic {expected_basic}"
