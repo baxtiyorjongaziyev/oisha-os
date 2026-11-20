@@ -30,20 +30,25 @@ jobs:
           persist-credentials: false
       - name: Prepare temporary QR dependencies
         if: inputs.qr_login
-        run: /home/ubuntu/oisha-os/venv/bin/python -m pip install --quiet --target "$RUNNER_TEMP/tn-audit-qr-deps" 'qrcode[pil]'
+        run: |
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          "$OISHA_DIR/venv/bin/python" -m pip install --quiet --target "$RUNNER_TEMP/tn-audit-qr-deps" 'qrcode[pil]'
       - name: Start memory-only owner QR login
         if: inputs.qr_login
-        working-directory: /home/ubuntu/oisha-os
         env:
           TELEGRAM_PASSWORD: ${{ secrets.TELEGRAM_PASSWORD }}
           TG_PASSWORD: ${{ secrets.TG_PASSWORD }}
         run: |
           set -euo pipefail
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
           echo "TN_AUDIT_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
           rm -f "$RUNNER_TEMP/tn-audit-qr.png" "$RUNNER_TEMP/tn-audit-status"
           PYTHONPATH="$RUNNER_TEMP/tn-audit-qr-deps" nohup ./venv/bin/python \
             "$GITHUB_WORKSPACE/tn-audit-helper/.github/tn_audit_qr.py" \
-            --app /home/ubuntu/oisha-os --qr "$RUNNER_TEMP/tn-audit-qr.png" \
+            --app "$OISHA_DIR" --qr "$RUNNER_TEMP/tn-audit-qr.png" \
             --status "$RUNNER_TEMP/tn-audit-status" > "$RUNNER_TEMP/tn-audit.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/tn-audit-pid"
           for attempt in $(seq 1 30); do
@@ -75,21 +80,23 @@ jobs:
           exit 1
       - name: Run audit script
         if: ${{ !inputs.qr_login && inputs.snapshot_stamp == '' }}
-        working-directory: /home/ubuntu/oisha-os
         env:
           TELEGRAM_MCP_SESSION_STRING: ${{ secrets.TELEGRAM_MCP_SESSION_STRING }}
         run: |
           set -euo pipefail
-          # Skript production deploy orqali checkout'ga tushadi; git fetch
-          # qilinmaydi (origin'da eski deploy token'i turadi).
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
           test -f scripts/prod/tn_revenue_audit.py
           echo "TN_AUDIT_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
           ./venv/bin/python scripts/prod/tn_revenue_audit.py --send
       - name: Inspect fresh detail without phone or username
-        working-directory: /home/ubuntu/oisha-os
         env:
           TN_AUDIT_SNAPSHOT: ${{ inputs.snapshot_stamp }}
         run: |
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
           ./venv/bin/python - <<'PY'
           import csv
           import json

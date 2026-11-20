@@ -5,12 +5,12 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=ubuntu
-WorkingDirectory=/home/ubuntu/oisha-os
-EnvironmentFile=/home/ubuntu/oisha-os/.env
+User=deploy
+WorkingDirectory=/home/deploy/oisha-os
+EnvironmentFile=/home/deploy/oisha-os/.env
 # No Google consent = no CRM or Drive mutation.
-ExecCondition=/usr/bin/test -r /home/ubuntu/oisha-os/data/gdrive_oauth_token.json
-ExecStart=/usr/bin/flock -n /run/lock/oisha-crm-drive.lock /home/ubuntu/oisha-os/venv/bin/python scripts/safe_crm_drive_sync.py --recent 100 --stage-existing
+ExecCondition=/usr/bin/test -r /home/deploy/oisha-os/data/gdrive_oauth_token.json
+ExecStart=/usr/bin/flock -n /run/lock/oisha-crm-drive.lock /home/deploy/oisha-os/venv/bin/python scripts/safe_crm_drive_sync.py --recent 100 --stage-existing
 TimeoutStartSec=1800
 NoNewPrivileges=true
 PrivateTmp=true

@@ -106,7 +106,8 @@ class TestAPISecurity:
         assert "USERBOT_DISABLE_PRIVATE_REPLIES=true" in content
         assert "TELEGRAM_BOT_TO_BOT_ENABLED=false" in content
         assert "USERBOT_SESSION_STRING=${USERBOT_SESSION_STRING}" in content
-        assert "sudo systemctl restart oisha-os" in content
+        assert 'SERVICE_NAME="oisha"' in content
+        assert 'sudo systemctl restart "$SERVICE_NAME"' in content
         assert "http://127.0.0.1:8080/readyz/" in content
 
     def test_cloud_run_control_plane_skips_userbot_session_parsing(self):

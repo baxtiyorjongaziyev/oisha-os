@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=ubuntu
-WorkingDirectory=/home/ubuntu/oisha-os
-EnvironmentFile=/home/ubuntu/oisha-os/.env
-ExecStart=/home/ubuntu/oisha-os/venv/bin/python scripts/hourly_sales_control.py
+User=deploy
+WorkingDirectory=/home/deploy/oisha-os
+EnvironmentFile=/home/deploy/oisha-os/.env
+ExecStart=/home/deploy/oisha-os/venv/bin/python scripts/hourly_sales_control.py
 TimeoutStartSec=600
 NoNewPrivileges=true
 PrivateTmp=true

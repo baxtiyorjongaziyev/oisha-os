@@ -62,11 +62,11 @@ jobs:
           RESTART_MODE: ${{ inputs.mode }}
         with:
           envs: RESTART_MODE
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST || secrets.ORACLE_HOST }}
+          username: ${{ vars.PROD_SSH_USER || 'deploy' }}
+          key: ${{ secrets.HETZNER_SSH_KEY || secrets.ORACLE_SSH_KEY }}
           # Host key pinning — qarang oracle-health.yml dagi izoh.
-          fingerprint: ${{ secrets.ORACLE_SSH_FINGERPRINT }}
+          fingerprint: ${{ secrets.HETZNER_SSH_FINGERPRINT || secrets.ORACLE_SSH_FINGERPRINT }}
           port: 22
           timeout: 30s
           command_timeout: 8m

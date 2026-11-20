@@ -33,12 +33,12 @@ jobs:
       ALLOW_LOCAL_RUN: "0"
     steps:
       - name: Checkout Oisha-OS
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -56,6 +56,7 @@ jobs:
           APP_ID: ${{ inputs.app_id || '80b6106f-6db5-4f9a-9b1c-7d5a60fb7827' }}
           SOURCE_REPO: ${{ inputs.repo_name || 'baxtiyorjongaziyev/oisha-os-preview' }}
           SOURCE_BRANCH: ${{ inputs.branch || 'main' }}
+          AI_STUDIO_GITHUB_TOKEN: ${{ secrets.AI_STUDIO_SYNC_TOKEN || secrets.REPO_ADMIN_PAT }}
         run: |
           python -m scripts.ai_studio_bridge \
             --app-id "$APP_ID" \

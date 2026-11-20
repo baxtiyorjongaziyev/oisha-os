@@ -239,7 +239,7 @@ def _load_env() -> None:
         from dotenv import load_dotenv
     except ImportError:
         return
-    for path in ("/home/ubuntu/oisha-os/.env", ".env"):
+    for path in ("/home/deploy/oisha-os/.env", "/home/ubuntu/oisha-os/.env", ".env"):
         if os.path.exists(path):
             load_dotenv(path)
             return
