@@ -734,3 +734,26 @@ async def test_juma_notifier_empty_recipients_does_not_mark_done():
     assert stats["aborted"] == "no_recipients"
     assert ("juma_mubarak", "2026-11-20") not in db.marked
     assert any("olinmadi" in n for n in notices)
+
+
+async def test_juma_notifier_bounds_iter_dialogs_limit(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    seen_limits = []
+
+    async def fake_iter_dialogs(limit=None):
+        seen_limits.append(limit)
+        if False:
+            yield None
+
+    client = AsyncMock()
+    client.iter_dialogs = lambda limit=None: fake_iter_dialogs(limit=limit)
+    client.get_participants.return_value = []
+    notifier = jn_mod.JumaNotifier(client=client, db=_FakeDb(_FakeConn(db_rows=[])))
+
+    monkeypatch.delenv("JUMA_DIALOG_SCAN_LIMIT", raising=False)
+    await notifier.collect_recipients(JumaRateConfig())
+    monkeypatch.setenv("JUMA_DIALOG_SCAN_LIMIT", "250")
+    await notifier.collect_recipients(JumaRateConfig())
+
+    assert seen_limits == [400, 250]

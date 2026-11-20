@@ -109,7 +109,8 @@ async def collect_members(
     client: TelegramClient, target_groups: list[dict], config: JumaRateConfig
 ) -> tuple[list[dict], dict]:
     """Maqsad guruhlardan unikal aʼzolarni yigʻadi va bloklangan aʼzolarni chiqaradi."""
-    all_dialogs = [d async for d in client.iter_dialogs()]
+    dialog_limit = max(50, int(os.environ.get("JUMA_DIALOG_SCAN_LIMIT", "400")))
+    all_dialogs = [d async for d in client.iter_dialogs(limit=dialog_limit)]
     existing_dm_ids = {d.entity.id for d in all_dialogs if d.is_user and getattr(d, "entity", None)}
     seen_ids: set[int] = set()
     members: list[dict] = []

@@ -47,6 +47,14 @@ async def _iter_async_or_empty(obj: Any) -> list[Any]:
     return [item async for item in obj] if hasattr(obj, "__aiter__") else []
 
 
+async def _iter_recent_dialogs(client: Any, limit: int) -> list[Any]:
+    try:
+        obj = client.iter_dialogs(limit=limit)
+    except TypeError:
+        obj = client.iter_dialogs()
+    return await _iter_async_or_empty(obj)
+
+
 def _is_client_connected(client: Any) -> bool:
     if client is None:
         return False
@@ -182,7 +190,8 @@ class JumaNotifier:
 
     async def collect_recipients(self, config: JumaRateConfig) -> tuple[list[dict], int]:
         """Maqsad guruhlardan unikal aʼzolarni yigʻadi va PCG/raqiblarni filtrlaydi."""
-        dialogs = await _iter_async_or_empty(self.client.iter_dialogs())
+        dialog_limit = max(50, int(os.getenv("JUMA_DIALOG_SCAN_LIMIT", "400")))
+        dialogs = await _iter_recent_dialogs(self.client, dialog_limit)
         existing_dm_ids = {d.entity.id for d in dialogs if getattr(d, "is_user", False) and getattr(d, "entity", None) is not None}
         target_groups = select_target_groups(os.getenv("JUMA_TARGET_GROUPS", "TN7"))
         if self.group_id and all(g["id"] != self.group_id for g in target_groups):
