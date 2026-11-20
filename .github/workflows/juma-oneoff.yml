@@ -42,7 +42,7 @@ jobs:
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
-            git checkout origin/main -- scripts/send_juma_oneoff.py scripts/telethon_guard.py scripts/__init__.py
+            git checkout origin/main -- scripts/send_juma_oneoff.py scripts/telethon_guard.py scripts/__init__.py src/services/core/juma_guard.py
 
             # Load credentials
             if [ -f .env ]; then

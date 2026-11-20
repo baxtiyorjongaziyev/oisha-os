@@ -139,13 +139,16 @@ class AdminCronRunnerMixin:
                         await self.db.set_state(job_id, "running")
                         await run_stagnation_job(self.db, job_id, api_server_module)
 
-                # 8. Juma Mubarak (Juma 09:00)
-                if now.weekday() == 4 and current_time == "09:00":
+                # 8. Juma Mubarak (Juma 06:00)
+                if now.weekday() == 4 and current_time == "06:00":
                     job_id = f"juma_mubarak_{today}"
                     state = await self.db.get_state(job_id)
                     if state not in ("done", "running"):
                         await self.db.set_state(job_id, "running")
-                        await run_juma_job(self, self.db, job_id, api_server_module)
+                        asyncio.create_task(
+                            run_juma_job(self, self.db, job_id, api_server_module),
+                            name="admin_juma_job",
+                        )
 
                 # 9. Pipeline Funnel (Dushanba 09:30)
                 if now.weekday() == 0 and current_time == "09:30":
