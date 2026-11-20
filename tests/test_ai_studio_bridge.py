@@ -94,19 +94,46 @@ def test_git_sync_list_source_files(tmp_path: Path):
 def test_git_sync_env_injects_github_header_without_leaking_token_in_argv(monkeypatch):
     import base64
 
+    monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
+    monkeypatch.delenv("GIT_CONFIG_KEY_0", raising=False)
     monkeypatch.setenv("AI_STUDIO_GITHUB_TOKEN", "ghp_synthetic_test_token")
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     manager = GitSyncManager()
 
     env = manager._git_env("https://github.com/baxtiyorjongaziyev/oisha-os-preview.git")
     assert env["GIT_TERMINAL_PROMPT"] == "0"
-    assert env["GIT_CONFIG_COUNT"] == "1"
+    assert env["GIT_CONFIG_COUNT"] == "2"
     assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
+    assert env["GIT_CONFIG_VALUE_0"] == ""
+    assert env["GIT_CONFIG_KEY_1"] == "http.https://github.com/.extraheader"
     expected_basic = base64.b64encode(b"x-access-token:ghp_synthetic_test_token").decode("ascii")
-    assert env["GIT_CONFIG_VALUE_0"] == f"AUTHORIZATION: basic {expected_basic}"
+    assert env["GIT_CONFIG_VALUE_1"] == f"AUTHORIZATION: basic {expected_basic}"
 
     other_env = manager._git_env("https://example.com/other.git")
     assert "GIT_CONFIG_KEY_0" not in other_env
+
+
+def test_git_sync_safe_stderr_redacts_credentials():
+    import base64
+    from types import SimpleNamespace
+
+    sample_b64 = base64.b64encode(b"sample-credential").decode("ascii")
+    sample_tok = "sample_tok_placeholder"
+    auth_prefix = "x-access-token:"
+    sample_stderr = (
+        "remote: Repository not found.\n"
+        f"AUTHORIZATION: basic {sample_b64} "
+        + "https://"
+        + auth_prefix
+        + sample_tok
+        + "@github.com"
+    )
+    exc = SimpleNamespace(stderr=sample_stderr)
+    sanitized = GitSyncManager._safe_stderr(exc)
+    assert "Repository not found." in sanitized
+    assert sample_b64 not in sanitized
+    assert sample_tok not in sanitized
+    assert "***" in sanitized
 
 
 def test_pipeline_run_end_to_end_mocked(tmp_path: Path):

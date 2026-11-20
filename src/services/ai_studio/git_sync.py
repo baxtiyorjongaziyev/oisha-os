@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import subprocess  # nosec B404
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -27,10 +28,24 @@ class GitSyncManager:
         token = (env.get("AI_STUDIO_GITHUB_TOKEN") or env.get("GITHUB_TOKEN") or "").strip()
         if token and repo_url.startswith("https://github.com/"):
             basic = base64.b64encode(f"x-access-token:{token}".encode("utf-8")).decode("ascii")
-            env["GIT_CONFIG_COUNT"] = "1"
-            env["GIT_CONFIG_KEY_0"] = "http.https://github.com/.extraheader"
-            env["GIT_CONFIG_VALUE_0"] = f"AUTHORIZATION: basic {basic}"
+            idx = int(env.get("GIT_CONFIG_COUNT", "0") or "0")
+            # Clear prior http.https://github.com/.extraheader entries (e.g. actions/checkout) first.
+            env["GIT_CONFIG_COUNT"] = str(idx + 2)
+            env[f"GIT_CONFIG_KEY_{idx}"] = "http.https://github.com/.extraheader"
+            env[f"GIT_CONFIG_VALUE_{idx}"] = ""
+            env[f"GIT_CONFIG_KEY_{idx + 1}"] = "http.https://github.com/.extraheader"
+            env[f"GIT_CONFIG_VALUE_{idx + 1}"] = f"AUTHORIZATION: basic {basic}"
         return env
+
+    @staticmethod
+    def _safe_stderr(exc: BaseException) -> str:
+        """Extracts, redacts credentials from, and bounds git subprocess stderr for logs."""
+        raw = getattr(exc, "stderr", "") or ""
+        text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
+        text = re.sub(r"(?i)(basic\s+)[A-Za-z0-9+/=]+", r"\1***", text)
+        text = re.sub(r"(x-access-token:)[^\s@]+", r"\1***", text)
+        collapsed = " | ".join(line.strip() for line in text.splitlines() if line.strip())
+        return collapsed[:240]
 
     def get_latest_remote_commit(self, repo_url: str, branch: str = "main") -> Optional[str]:
         """Fetches the latest commit SHA from the remote git repository using ls-remote."""
@@ -48,7 +63,12 @@ class GitSyncManager:
             if output:
                 return output.split()[0]
         except (subprocess.SubprocessError, FileNotFoundError) as exc:
-            logger.warning("Failed to fetch remote commit SHA", repo_url=repo_url, error=str(exc))
+            logger.warning(
+                "Failed to fetch remote commit SHA",
+                repo_url=repo_url,
+                error=str(exc),
+                stderr=self._safe_stderr(exc),
+            )
         return None
 
     def sync_repository(
@@ -89,7 +109,7 @@ class GitSyncManager:
             logger.info("Successfully cloned AI Studio repo", repo=repo_url, target=str(target_dir))
             return True
         except subprocess.SubprocessError as exc:
-            logger.error("Git clone failed", repo=repo_url, error=str(exc))
+            logger.error("Git clone failed", repo=repo_url, error=str(exc), stderr=self._safe_stderr(exc))
             return False
 
     def _pull_updates(self, target_dir: Path, branch: str) -> bool:
@@ -107,7 +127,7 @@ class GitSyncManager:
             logger.info("Successfully pulled latest AI Studio updates", target=str(target_dir))
             return True
         except subprocess.SubprocessError as exc:
-            logger.error("Git pull failed", target=str(target_dir), error=str(exc))
+            logger.error("Git pull failed", target=str(target_dir), error=str(exc), stderr=self._safe_stderr(exc))
             return False
 
     def list_source_files(self, directory: Path) -> List[Path]:
