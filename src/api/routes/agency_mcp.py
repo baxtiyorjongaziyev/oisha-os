@@ -21,6 +21,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse, Response
 
 from src.api.rbac import Permission, Principal, has_permission, require_permissions
+from src.api.routes.attendance_routes import _RateLimiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agency-mcp", tags=["agency-mcp"])
@@ -28,6 +29,7 @@ _MCP_AUTH = require_permissions(Permission.MCP_READ)
 _PROTOCOL = "2025-06-18"
 _MAX_REQUEST_BYTES = 16_384
 _MAX_RESULT_BYTES = 128_000
+_RATE_LIMITER = _RateLimiter(limit=60, window_s=60)
 
 # Only explicitly reviewed read paths may be published here. Never accept a
 # caller-provided URL, database query, table name, or arbitrary method.
@@ -272,6 +274,7 @@ async def _handle(message: Any, principal: Principal) -> dict | None:
 
 @router.post("")
 async def agency_mcp(request: Request, principal: Principal = _MCP_AUTH):
+    _RATE_LIMITER.check(f"agency-mcp:{principal.subject}")
     body = await request.body()
     if len(body) > _MAX_REQUEST_BYTES:
         return JSONResponse({"error": "request_too_large"}, status_code=413)
