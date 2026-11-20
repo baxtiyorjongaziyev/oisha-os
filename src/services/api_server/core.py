@@ -140,6 +140,7 @@ from src.api.routes.health import liveness_probe
 from src.api.routes.health import router as health_router
 from src.api.routes.instagram_routes import router as instagram_router
 from src.api.routes.marketing_dashboard import router as marketing_router
+from src.api.routes.agency_mcp import router as agency_mcp_router
 from src.api.routes.metasell_dashboard import router as metasell_dashboard_router
 from src.api.routes.openclaw_gateway import router as openclaw_router
 from src.api.routes.parallel_crm import router as parallel_crm_router
@@ -179,6 +180,7 @@ app.include_router(crm_reports_router)
 app.include_router(finance_dashboard_router)
 app.include_router(finance_ai_router)
 app.include_router(marketing_router)
+app.include_router(agency_mcp_router)
 app.include_router(capi_platform_router)
 app.include_router(callmaster_router)
 app.include_router(dashboard_overview_router)
