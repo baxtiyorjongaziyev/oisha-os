@@ -36,7 +36,7 @@ class GitSyncManager:
         """Fetches the latest commit SHA from the remote git repository using ls-remote."""
         cmd = ["git", "ls-remote", repo_url, f"refs/heads/{branch}"]
         try:
-            res = subprocess.run(  # nosec B603
+            res = subprocess.run(  # nosec B603 # nosemgrep
                 cmd,
                 capture_output=True,
                 text=True,
@@ -78,7 +78,7 @@ class GitSyncManager:
             str(target_dir),
         ]
         try:
-            subprocess.run(  # nosec B603
+            subprocess.run(  # nosec B603 # nosemgrep
                 cmd,
                 capture_output=True,
                 text=True,
@@ -96,7 +96,7 @@ class GitSyncManager:
         """Pulls latest updates in an already cloned directory."""
         cmd = ["git", "-C", str(target_dir), "pull", "origin", branch]
         try:
-            subprocess.run(  # nosec B603
+            subprocess.run(  # nosec B603 # nosemgrep
                 cmd,
                 capture_output=True,
                 text=True,

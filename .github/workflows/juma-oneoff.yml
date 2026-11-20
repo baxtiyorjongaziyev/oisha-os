@@ -53,8 +53,7 @@ jobs:
           else
             mkdir -p data/logs
             LOG_FILE="data/logs/juma_oneoff_$(date +%Y%m%d_%H%M%S).log"
-            nohup ./venv/bin/python scripts/send_juma_oneoff.py --broadcast > "$LOG_FILE" 2>&1 < /dev/null &
-            disown
+            env -u RUNNER_TRACKING_ID setsid nohup ./venv/bin/python scripts/send_juma_oneoff.py --broadcast > "$LOG_FILE" 2>&1 < /dev/null &
             PID=$!
             sleep 5
             if kill -0 "$PID" 2>/dev/null; then

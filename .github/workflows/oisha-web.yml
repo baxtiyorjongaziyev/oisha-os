@@ -37,6 +37,7 @@ jobs:
     steps:
       - name: Server diagnostics (read-only)
         run: |
+          set +e
           set -u
           echo "=== SYSTEM ==="; uname -n; free -h | head -2; df -h / | tail -1
           echo "=== SERVICES ==="
@@ -48,8 +49,8 @@ jobs:
           echo "=== NODE ==="
           node -v 2>/dev/null || echo "node yo'q"; command -v pnpm >/dev/null && pnpm -v || echo "pnpm yo'q"
           echo "=== HEALTH ==="
-          curl -s -m 5 http://127.0.0.1:8080/healthz/ | head -c 300; echo
-          curl -s -m 8 http://127.0.0.1:8080/readyz/ | head -c 600; echo
+          curl -s -m 5 http://127.0.0.1:8080/healthz/ | head -c 300 || true; echo
+          curl -s -m 8 http://127.0.0.1:8080/readyz/ | head -c 600 || true; echo
           curl -s -m 5 -o /dev/null -w 'localhost:3000 -> %{http_code}\n' http://127.0.0.1:3000/ || echo "localhost:3000 -> ulanib bo'lmadi"
 
   build:
@@ -57,15 +58,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
         with:
           version: 10.33.2
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
           cache: 'pnpm'
@@ -84,7 +85,7 @@ jobs:
           ls -lh /tmp/oisha-web-bundle.tar.gz
 
       - name: Upload standalone bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: oisha-web-bundle
           path: /tmp/oisha-web-bundle.tar.gz
@@ -96,12 +97,12 @@ jobs:
     runs-on: [self-hosted, oracle]
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
       - name: Download standalone bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oisha-web-bundle
           path: ${{ runner.temp }}/oisha-web-bundle

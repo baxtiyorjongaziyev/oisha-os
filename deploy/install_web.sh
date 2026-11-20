@@ -3,7 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE_PATH="${1:-${HOME}/oisha-web-bundle.tar.gz}"
-WEB_DIR="${HOME}/oisha-web"
+WEB_DIR="/home/deploy/oisha-web"
+if [ ! -d /home/deploy ] && [ -d /home/ubuntu ]; then
+  WEB_DIR="/home/ubuntu/oisha-web"
+fi
 
 # 1. Ensure node is installed
 if ! command -v node >/dev/null 2>&1 || [ "$(node -v | cut -c2-3 | tr -d '.')" -lt 20 ]; then
@@ -13,9 +16,12 @@ fi
 
 # 2. Extract standalone bundle
 sudo systemctl stop oisha-web 2>/dev/null || true
-rm -rf "$WEB_DIR"
-mkdir -p "$WEB_DIR"
-tar -xzf "$BUNDLE_PATH" -C "$WEB_DIR"
+sudo rm -rf "$WEB_DIR"
+sudo mkdir -p "$WEB_DIR"
+sudo tar -xzf "$BUNDLE_PATH" -C "$WEB_DIR"
+if id -u deploy >/dev/null 2>&1; then
+  sudo chown -R deploy:deploy "$WEB_DIR"
+fi
 rm -f "$BUNDLE_PATH"
 
 # 3. Setup systemd unit

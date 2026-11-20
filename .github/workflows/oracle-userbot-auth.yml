@@ -96,8 +96,8 @@ jobs:
               fi
               echo "TELEGRAM_PHONE: .env da bor (oxirgi 4 raqam: ...${TELEGRAM_PHONE: -4})"
               rm -f data/userbot_auth_code.txt data/userbot_auth_status.json
-              nohup ./venv/bin/python scripts/prod/auth_userbot_on_oracle.py \
-                > data/userbot_auth.log 2>&1 &
+              env -u RUNNER_TRACKING_ID setsid nohup ./venv/bin/python scripts/prod/auth_userbot_on_oracle.py \
+                > data/userbot_auth.log 2>&1 < /dev/null &
               echo "Auth skript fonda ishga tushdi (PID $!)"
               sleep 15
               show_status

@@ -55,11 +55,11 @@ jobs:
             set +o allexport
           fi
 
-          # Fon rejimida ishga tushirish: jarayon serverda davom etaveradi.
+          # Fon rejimida ishga tushirish: RUNNER_TRACKING_ID olib tashlanadi va setsid
+          # yangi sessiya ochadi, aks holda runner cleanup jarayonni o'ldiradi.
           mkdir -p data/logs
           LOG_FILE="data/logs/juma_$(date +%Y%m%d_%H%M%S).log"
-          nohup ./venv/bin/python scripts/send_juma_greetings.py > "$LOG_FILE" 2>&1 < /dev/null &
-          disown
+          env -u RUNNER_TRACKING_ID setsid nohup ./venv/bin/python scripts/send_juma_greetings.py > "$LOG_FILE" 2>&1 < /dev/null &
           PID=$!
           sleep 5
           if kill -0 "$PID" 2>/dev/null; then
