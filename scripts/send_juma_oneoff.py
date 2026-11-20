@@ -33,8 +33,8 @@ from scripts.telethon_guard import (  # noqa: E402
 from src.services.core.juma_guard import (  # noqa: E402
     JUMA_TEMPLATES, TASHKENT_TZ, JumaRateConfig, classify_and_order_recipients,
     estimate_duration_minutes, is_excluded_juma_recipient, is_excluded_member,
-    is_silent_send_time, load_custom_greetings, load_juma_rate_config, next_delay_seconds,
-    pick_greeting_text, select_target_groups,
+    is_silent_send_time, load_custom_greetings, load_juma_rate_config, match_group_dialogs,
+    next_delay_seconds, pick_greeting_text, select_target_groups,
 )
 
 MAX_CONSECUTIVE_DISCONNECTS = 3
@@ -118,8 +118,7 @@ async def collect_group_members(
     members: list[dict] = []
     excluded_blocked = 0
     for group in target_groups:
-        names_low = {n.lower() for n in group["names"]}
-        matching = [d for d in all_dialogs if d.id == group["id"] or (d.title or "").strip().lower() in names_low]
+        matching = match_group_dialogs(all_dialogs, group)
         if not matching:
             print(f"XATO: {group['label']} guruhi topilmadi (ID: {group['id']})")
             notify(f"XATO: {group['label']} guruhi topilmadi")

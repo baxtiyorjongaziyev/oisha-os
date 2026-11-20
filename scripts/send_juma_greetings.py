@@ -35,7 +35,7 @@ from src.services.core.juma_guard import (  # noqa: E402
     JUMA_TEMPLATES, TASHKENT_TZ, JumaRateConfig, classify_and_order_recipients,
     compute_juma_deadline, estimate_duration_minutes, is_excluded_member,
     is_juma_send_window, is_quiet_hours, is_silent_send_time, load_custom_greetings,
-    load_juma_rate_config, next_delay_seconds, pick_greeting_text,
+    load_juma_rate_config, match_group_dialogs, next_delay_seconds, pick_greeting_text,
     seconds_until_quiet_ends, select_target_groups,
 )
 
@@ -115,8 +115,7 @@ async def collect_members(
     members: list[dict] = []
     excluded_blocked = 0
     for group in target_groups:
-        names_low = {n.lower() for n in group["names"]}
-        matching = [d for d in all_dialogs if d.id == group["id"] or (d.title or "").strip().lower() in names_low]
+        matching = match_group_dialogs(all_dialogs, group)
         if not matching:
             print(f"OGOHLANTIRISH: {group['label']} topilmadi (ID: {group['id']})")
             send_tg_notification(f"OGOHLANTIRISH: {group['label']} guruhi topilmadi")

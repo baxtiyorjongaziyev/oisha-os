@@ -48,7 +48,7 @@ GROUP_PRIORITY: list[dict] = [
     {"label": "Tez Natija 7", "code": "TN7", "names": ["Tez natija 7", '"TEZ NATIJA 7" UMUMIY', "TN7 Gr"], "id": int(os.environ.get("TN7_GROUP_ID", "-1003926176795"))},
     {"label": "Tez Natija 6", "code": "TN6", "names": ["Tez natija 6", '"TEZ NATIJA 6" UMUMIY', "TN6 Gr"], "id": int(os.environ.get("TN6_GROUP_ID", "-1003496493814"))},
     {"label": "Tez Natija 5", "code": "TN5", "names": ["Tez natija 5", '"TEZ NATIJA 5" UMUMIY', "TN5 Gr"], "id": int(os.environ.get("TN5_GROUP_ID", "-1003820339529"))},
-    {"label": "Tez Natija 4", "code": "TN4", "names": ["Tez natija 4", '"TEZ NATIJA 4" UMUMIY', "TN4 Gr"], "id": int(os.environ.get("TN4_GROUP_ID", "-1003149184518"))},
+    {"label": "Tez Natija 4", "code": "TN4", "names": ["Tez natija 4", '"TEZ NATIJA 4" UMUMIY', "TN4 Gr"], "id": int(os.environ.get("TN4_GROUP_ID", "-1003149348132"))},
     {"label": "Tez Natija 3", "code": "TN3", "names": ["Tez natija 3", '"TEZ NATIJA 3" UMUMIY', "TN3 Gr"], "id": int(os.environ.get("TN3_GROUP_ID", "-1002849105320"))},
     {"label": "Tez Natija 2", "code": "TN2", "names": ["Tez natija 2", '"TEZ NATIJA 2" UMUMIY', "TN2 Gr"], "id": int(os.environ.get("TN2_GROUP_ID", "-1002440481294"))},
 ]
@@ -205,7 +205,7 @@ def is_excluded_member(
     )
 
 def select_target_groups(target_spec: str = "TN7", groups: Sequence[dict] = GROUP_PRIORITY) -> list[dict]:
-    """Guruh kodi boʻyicha maqsad guruhlarni tanlaydi (masalan TN7, TN7,TN6, all)."""
+    """Guruh kodi yoki ID boʻyicha maqsad guruhlarni tanlaydi (masalan TN7, -1003926176795, all)."""
     spec = (target_spec or "TN7").strip()
     if spec.lower() == "all":
         return list(groups)
@@ -213,11 +213,30 @@ def select_target_groups(target_spec: str = "TN7", groups: Sequence[dict] = GROU
     seen_ids: set[int] = set()
     for token in (p.strip().upper() for p in spec.split(",") if p.strip()):
         norm = f"TN{token}" if token.isdigit() else token
+        matched = False
         for grp in groups:
-            if norm in {str(grp.get("code", "")).upper(), str(grp.get("label", "")).upper()} and grp["id"] not in seen_ids:
-                selected.append(grp)
-                seen_ids.add(grp["id"])
+            if norm in {str(grp.get("code", "")).upper(), str(grp.get("label", "")).upper(), str(grp["id"])}:
+                matched = True
+                if grp["id"] not in seen_ids:
+                    selected.append(grp)
+                    seen_ids.add(grp["id"])
+        if not matched and token.startswith("-") and token[1:].isdigit():
+            cid = int(token)
+            if cid not in seen_ids:
+                selected.append({"label": f"Group {cid}", "code": str(cid), "names": [], "id": cid})
+                seen_ids.add(cid)
     return selected
+
+
+def match_group_dialogs(dialogs: Sequence[object], group: Mapping[str, object]) -> list[object]:
+    """Avval aniq chat ID, topilmasa sarlavha boʻyicha guruh dialoglarini tanlaydi."""
+    exact = [d for d in dialogs if getattr(d, "id", None) == group.get("id")]
+    if exact:
+        return exact
+    names_low = {str(n).strip().lower() for n in group.get("names", ()) if str(n).strip()}
+    if not names_low:
+        return []
+    return [d for d in dialogs if (getattr(d, "title", None) or "").strip().lower() in names_low]
 
 def classify_and_order_recipients(members: Sequence[dict], *, cold_limit: Optional[int]) -> tuple[list[dict], list[dict]]:
     """Issiq (oldin DM bor/mutual) aʼzolarni oldinga qoʻyadi, sovuqlarni limitlaydi."""

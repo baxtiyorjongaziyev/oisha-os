@@ -24,7 +24,7 @@ from src.services.core.customer_outbound_policy import automatic_customer_send_a
 from src.services.core.juma_guard import (
     JUMA_TEMPLATES, TASHKENT_TZ, JumaRateConfig, classify_and_order_recipients,
     compute_juma_deadline, is_excluded_member, is_juma_send_window, is_quiet_hours,
-    is_silent_send_time, load_custom_greetings, load_juma_rate_config,
+    is_silent_send_time, load_custom_greetings, load_juma_rate_config, match_group_dialogs,
     next_delay_seconds, pick_greeting_text, seconds_until_quiet_ends, select_target_groups,
 )
 from src.settings import settings
@@ -150,16 +150,18 @@ class JumaNotifier:
             logger.error("[JUMA DB ERROR] mark: %s", exc)
 
     async def _fetch_group_users(self, group: dict, dialogs: list[Any]) -> list[Any]:
-        names_low = {n.lower() for n in group.get("names", [])}
-        matching = [d for d in dialogs if d.id == group["id"] or (getattr(d, "title", "") or "").strip().lower() in names_low]
         users: list[Any] = []
-        for dialog in matching:
+        exact = [d for d in dialogs if getattr(d, "id", None) == group["id"]]
+        for dialog in exact:
             users.extend(await _iter_async_or_empty(self.client.iter_participants(dialog)))
         if not users:
             try:
                 users.extend(await self.client.get_participants(group["id"], limit=500) or [])
             except Exception as exc:
                 logger.error("[JUMA] Group %s crawl error: %s", group["id"], exc)
+        if not users and not exact:
+            for dialog in match_group_dialogs(dialogs, group):
+                users.extend(await _iter_async_or_empty(self.client.iter_participants(dialog)))
         return users
 
     async def collect_recipients(self, config: JumaRateConfig) -> tuple[list[dict], int]:
@@ -212,13 +214,32 @@ class JumaNotifier:
         classmates.extend(u for u in group_users if u["id"] not in seen_ids)
         return classmates
 
-    async def _filter_unsent_today(self, conn: Any, recipients: list[dict], date_str: str) -> list[dict]:
+    async def _fetch_last_sent_map(self, conn: Any) -> dict[int, str]:
+        query = "SELECT user_id, MAX(run_date) FROM juma_sent_logs GROUP BY user_id"
+        try:
+            async with conn.execute(query) as cursor:
+                rows = await cursor.fetchall()
+        except Exception as exc:
+            logger.warning("[JUMA DB WARN] history query: %s", exc)
+            return {}
+        return {int(r[0]): str(r[1]) for r in rows if r and r[0] is not None and r[1]}
+
+    async def _filter_eligible_recipients(
+        self, conn: Any, recipients: list[dict], date_str: str
+    ) -> list[dict]:
+        """Bugun va (oylik rejimda) joriy oyda olganlarni chiqaradi, qolganlarini navbatlaydi."""
+        last_sent = await self._fetch_last_sent_map(conn)
+        mode = os.getenv("JUMA_REPEAT_MODE", "monthly").strip().lower()
+        month_prefix = f"{date_str[:7]}-"
         eligible: list[dict] = []
-        query = "SELECT 1 FROM juma_sent_logs WHERE user_id = ? AND run_date = ?"
         for peer in recipients:
-            async with conn.execute(query, (peer["id"], date_str)) as cursor:
-                if not await cursor.fetchone():
-                    eligible.append(peer)
+            last_date = last_sent.get(peer["id"], "")
+            if last_date == date_str:
+                continue
+            if mode == "monthly" and last_date.startswith(month_prefix):
+                continue
+            eligible.append(peer)
+        eligible.sort(key=lambda peer: last_sent.get(peer["id"], ""))
         return eligible
 
     async def _send_wave(
@@ -246,7 +267,7 @@ class JumaNotifier:
                 self.client, peer, text, config, silent=is_silent_send_time(loop_now, config)
             )
             if status == "sent":
-                await conn.execute("INSERT INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)", (peer["id"], date_str))
+                await conn.execute("INSERT OR IGNORE INTO juma_sent_logs (user_id, run_date) VALUES (?, ?)", (peer["id"], date_str))
                 await conn.commit()
                 sent += 1
             elif status == "abort":
@@ -276,7 +297,7 @@ class JumaNotifier:
         custom = load_custom_greetings(Path(msg_json) if msg_json else None)
         recipients, excluded = await self.collect_recipients(config)
         conn = await self.db.get_connection()
-        eligible = await self._filter_unsent_today(conn, recipients, date_str)
+        eligible = await self._filter_eligible_recipients(conn, recipients, date_str)
         wave, deferred = classify_and_order_recipients(eligible, cold_limit=config.cold_daily_limit)
         if not wave:
             await self._mark_as_sent(date_str)
