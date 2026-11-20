@@ -31,7 +31,7 @@ def test_source_web_service_limits_restart_storm_and_requires_build():
 
     assert "StartLimitIntervalSec=60" in unit
     assert "StartLimitBurst=3" in unit
-    assert "ExecStartPre=/usr/bin/test -f /home/ubuntu/oisha-web/apps/web/server.js" in unit
+    assert "ExecStartPre=/usr/bin/test -f /home/deploy/oisha-web/apps/web/server.js" in unit
 
 
 def test_optional_brain_synthesizer_cannot_abort_core_boot():

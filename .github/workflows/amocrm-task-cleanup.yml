@@ -24,38 +24,34 @@ jobs:
     runs-on: [self-hosted, oracle]
     timeout-minutes: 15
     steps:
-      - name: Run task cleanup on Oracle VM
-        uses: appleboy/ssh-action@v1
+      - name: Run task cleanup on Hetzner VPS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MODE: ${{ inputs.mode || 'dry-run' }}
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          timeout: 30s
-          command_timeout: 12m
-          envs: GITHUB_TOKEN,MODE
-          script: |
-            set -euo pipefail
-            cd /home/ubuntu/oisha-os
+        run: |
+          set -euo pipefail
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
 
+          if [ -d .git ]; then
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
             git checkout origin/main -- scripts/amocrm_task_cleanup.py
+            git remote set-url origin "https://github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+          fi
 
-            if [ "${MODE}" = "live" ]; then
-              ./venv/bin/python - <<'PY'
-            import sys
-            from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner, CONFIRM_TEXT
-            result = AmoCRMTaskCleaner(live=True, confirm=CONFIRM_TEXT).run(
-                closed_oisha_only=True
-            )
-            print(result)
-            sys.exit(0 if result["success"] else 1)
-            PY
-            else
-              ./venv/bin/python scripts/amocrm_task_cleanup.py --closed-oisha-only
-            fi
+          if [ "${MODE}" = "live" ]; then
+            ./venv/bin/python - <<'PY'
+          import sys
+          from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner, CONFIRM_TEXT
+          result = AmoCRMTaskCleaner(live=True, confirm=CONFIRM_TEXT).run(
+              closed_oisha_only=True
+          )
+          print(result)
+          sys.exit(0 if result["success"] else 1)
+          PY
+          else
+            ./venv/bin/python scripts/amocrm_task_cleanup.py --closed-oisha-only
+          fi

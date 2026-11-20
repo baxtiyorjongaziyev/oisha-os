@@ -22,38 +22,33 @@ concurrency:
 
 jobs:
   send-greetings:
-    name: Tez Natija Qurbon Hayit Tabrigi (Oracle VM)
+    name: Tez Natija Qurbon Hayit Tabrigi (Hetzner VPS)
     runs-on: [self-hosted, oracle]
     timeout-minutes: 120
 
     steps:
-      - name: Send Qurbon Hayit greetings on Oracle VM
-        uses: appleboy/ssh-action@v1
+      - name: Send Qurbon Hayit greetings on Hetzner VPS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          timeout: 30s
-          command_timeout: 115m
-          envs: GITHUB_TOKEN
-          script: |
-            set -euo pipefail
-            cd /home/ubuntu/oisha-os
+        run: |
+          set -euo pipefail
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
 
-            # Pull latest script from main
+          if [ -d .git ]; then
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
             git checkout origin/main -- scripts/send_qurbon_greetings.py scripts/telethon_guard.py scripts/__init__.py
+            git remote set-url origin "https://github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+          fi
 
-            # Load credentials from VM's .env (same session the main service uses)
-            if [ -f .env ]; then
-              set -o allexport
-              source .env
-              set +o allexport
-            fi
+          # Load credentials from VM's .env (same session the main service uses)
+          if [ -f .env ]; then
+            set -o allexport
+            source .env
+            set +o allexport
+          fi
 
-            ./venv/bin/python scripts/send_qurbon_greetings.py
+          ./venv/bin/python scripts/send_qurbon_greetings.py

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 import os
 import shutil
@@ -6,6 +7,17 @@ from pathlib import Path
 from src.settings import settings
 
 logger = logging.getLogger("git_sync")
+
+
+def _apply_github_token_env(env: dict[str, str], token_val: str) -> None:
+    """Attach GitHub HTTPS header auth and legacy GIT_HTTPS_TOKEN to subprocess env."""
+    env["GIT_HTTPS_TOKEN"] = token_val
+    env.setdefault("GIT_TERMINAL_PROMPT", "0")
+    basic = base64.b64encode(f"x-access-token:{token_val}".encode("utf-8")).decode("ascii")
+    idx = int(env.get("GIT_CONFIG_COUNT", "0") or "0")
+    env["GIT_CONFIG_COUNT"] = str(idx + 1)
+    env[f"GIT_CONFIG_KEY_{idx}"] = "http.https://github.com/.extraheader"
+    env[f"GIT_CONFIG_VALUE_{idx}"] = f"AUTHORIZATION: basic {basic}"
 
 
 def _git_bin() -> str | None:
@@ -30,14 +42,15 @@ async def push_vault_to_remote(vault_path: Path) -> None:
     If a GITHUB_TOKEN is set, it is exported as GIT_HTTPS_TOKEN for git.
     """
     env = os.environ.copy()
-    if getattr(settings, "GITHUB_TOKEN", None):
-        token = settings.GITHUB_TOKEN
-        if isinstance(token, type(settings.GITHUB_TOKEN)):
-            token_val = token.get_secret_value()
-        else:
-            token_val = str(token)
+    token = getattr(settings, "GITHUB_TOKEN", None)
+    if token:
+        token_val = (
+            token.get_secret_value()
+            if hasattr(token, "get_secret_value")
+            else str(token)
+        ).strip()
         if token_val:
-            env["GIT_HTTPS_TOKEN"] = token_val
+            _apply_github_token_env(env, token_val)
     vault_path_str = str(vault_path)
 
     git_bin = _git_bin()

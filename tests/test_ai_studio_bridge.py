@@ -75,9 +75,11 @@ def test_modularizer_preserves_ts_until_safe_extraction_exists(tmp_path: Path):
 def test_git_sync_list_source_files(tmp_path: Path):
     (tmp_path / "src").mkdir()
     (tmp_path / "node_modules").mkdir()
+    (tmp_path / ".agents" / "skills").mkdir(parents=True)
     (tmp_path / "src" / "index.ts").write_text("console.log('hi')", encoding="utf-8")
     (tmp_path / "src" / "app.py").write_text("print('hi')", encoding="utf-8")
     (tmp_path / "node_modules" / "bad.js").write_text("// bad", encoding="utf-8")
+    (tmp_path / ".agents" / "skills" / "vendor.js").write_text("// vendor", encoding="utf-8")
 
     manager = GitSyncManager(workspace_root=tmp_path)
     files = manager.list_source_files(tmp_path)
@@ -86,6 +88,25 @@ def test_git_sync_list_source_files(tmp_path: Path):
     assert "index.ts" in file_names
     assert "app.py" in file_names
     assert "bad.js" not in file_names
+    assert "vendor.js" not in file_names
+
+
+def test_git_sync_env_injects_github_header_without_leaking_token_in_argv(monkeypatch):
+    import base64
+
+    monkeypatch.setenv("AI_STUDIO_GITHUB_TOKEN", "ghp_synthetic_test_token")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    manager = GitSyncManager()
+
+    env = manager._git_env("https://github.com/baxtiyorjongaziyev/oisha-os-preview.git")
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["GIT_CONFIG_COUNT"] == "1"
+    assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
+    expected_basic = base64.b64encode(b"x-access-token:ghp_synthetic_test_token").decode("ascii")
+    assert env["GIT_CONFIG_VALUE_0"] == f"AUTHORIZATION: basic {expected_basic}"
+
+    other_env = manager._git_env("https://example.com/other.git")
+    assert "GIT_CONFIG_KEY_0" not in other_env
 
 
 def test_pipeline_run_end_to_end_mocked(tmp_path: Path):

@@ -23,55 +23,49 @@ concurrency:
 
 jobs:
   send-greetings:
-    name: Tez Natija Juma Tabrigi (Oracle VM)
+    name: Tez Natija Juma Tabrigi (Hetzner VPS)
     runs-on: [self-hosted, oracle]
     timeout-minutes: 10
     steps:
-      - name: Send Juma greetings on Oracle VM (fon rejimida)
-        uses: appleboy/ssh-action@v1
+      - name: Send Juma greetings on Hetzner VPS (fon rejimida)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ubuntu
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          timeout: 30s
-          command_timeout: 5m
-          envs: GITHUB_TOKEN
-          script: |
-            set -euo pipefail
-            cd /home/ubuntu/oisha-os
+        run: |
+          set -euo pipefail
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
 
-            # Pull latest script from main
+          # Pull latest script from main if git repo is initialized
+          if [ -d .git ]; then
             git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
             git fetch origin main
             git stash --include-untracked 2>/dev/null || true
             git checkout origin/main -- scripts/send_juma_greetings.py scripts/telethon_guard.py scripts/__init__.py src/services/core/juma_guard.py
+            git remote set-url origin "https://github.com/baxtiyorjongaziyev/oisha-os.git" 2>/dev/null || true
+          fi
 
-            # Load credentials from VM's .env and dedicated /etc/oisha/juma.env
-            if [ -f .env ]; then
-              set -o allexport
-              source .env
-              if [ -f /etc/oisha/juma.env ]; then
-                source /etc/oisha/juma.env
-              fi
-              set +o allexport
+          # Load credentials from VM's .env and dedicated /etc/oisha/juma.env
+          if [ -f .env ]; then
+            set -o allexport
+            source .env
+            if [ -f /etc/oisha/juma.env ]; then
+              source /etc/oisha/juma.env
             fi
+            set +o allexport
+          fi
 
-            # Fon rejimida ishga tushirish: SSH ulanish/GH Actions job yopilsa
-            # ham jarayon Oracle VM'da davom etaveradi (~24 soatlik oyna kerak,
-            # GH-hosted runner esa 6 soatdan uzoq ushlab turolmaydi).
-            mkdir -p data/logs
-            LOG_FILE="data/logs/juma_$(date +%Y%m%d_%H%M%S).log"
-            nohup ./venv/bin/python scripts/send_juma_greetings.py > "$LOG_FILE" 2>&1 < /dev/null &
-            disown
-            PID=$!
-            sleep 5
-            if kill -0 "$PID" 2>/dev/null; then
-              echo "Juma tabrigi fon rejimida ishga tushdi (PID $PID), log: $LOG_FILE"
-            else
-              echo "OGOHLANTIRISH: jarayon darhol to'xtadi. Log:"
-              cat "$LOG_FILE" || true
-              exit 1
-            fi
+          # Fon rejimida ishga tushirish: RUNNER_TRACKING_ID olib tashlanadi va setsid
+          # yangi sessiya ochadi, aks holda runner cleanup jarayonni o'ldiradi.
+          mkdir -p data/logs
+          LOG_FILE="data/logs/juma_$(date +%Y%m%d_%H%M%S).log"
+          env -u RUNNER_TRACKING_ID setsid nohup ./venv/bin/python scripts/send_juma_greetings.py > "$LOG_FILE" 2>&1 < /dev/null &
+          PID=$!
+          sleep 5
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "Juma tabrigi fon rejimida ishga tushdi (PID $PID), log: $LOG_FILE"
+          else
+            echo "OGOHLANTIRISH: jarayon darhol to'xtadi. Log:"
+            cat "$LOG_FILE" || true
+            exit 1
+          fi
