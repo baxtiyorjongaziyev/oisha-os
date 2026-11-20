@@ -33,7 +33,9 @@ jobs:
         run: |
           set -euo pipefail
           case "$DAYS" in ''|*[!0-9]*) echo "days must be a number"; exit 1;; esac
-          cd /home/ubuntu/oisha-os
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
           set -a
           . ./.env
           set +a

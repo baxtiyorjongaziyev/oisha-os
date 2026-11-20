@@ -40,14 +40,16 @@ jobs:
     runs-on: [self-hosted, oracle]
     timeout-minutes: 30
     steps:
-      - name: Run campaign on Oracle
+      - name: Run campaign on Hetzner
         env:
           MODE: ${{ github.event_name == 'schedule' && 'auto' || inputs.mode }}
           DAYS: ${{ inputs.days || '7' }}
           AD_ACCOUNT_INPUT: ${{ inputs.ad_account_id }}
         run: |
           set -euo pipefail
-          cd /home/ubuntu/oisha-os
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          cd "$OISHA_DIR"
           if [ -n "${AD_ACCOUNT_INPUT}" ]; then
             export META_AD_ACCOUNT_ID="${AD_ACCOUNT_INPUT}"
           fi

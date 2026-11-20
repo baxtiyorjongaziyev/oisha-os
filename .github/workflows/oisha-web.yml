@@ -1,8 +1,8 @@
 name: Oisha Web Ops
 
 # oisha.jonbranding.uz web dashboard: diagnostika va deploy.
-# 1GB serverda build qilinmaydi — build Actions runner'da bo'lib,
-# tayyor standalone bundle serverga ko'chiriladi.
+# 1GB serverda build qilinmaydi — build ubuntu-latest da bo'lib,
+# tayyor standalone bundle artifact orqali Hetzner serverga o'rnatiladi.
 
 on:
   workflow_dispatch:
@@ -17,8 +17,13 @@ on:
       - "ops/web-deploy"
     paths:
       - "apps/web/**"
-      - "deploy/**"
+      - "deploy/oisha-web.service"
+      - "deploy/Caddyfile"
+      - "deploy/install_web.sh"
       - ".github/workflows/oisha-web.yml"
+
+permissions:
+  contents: read
 
 concurrency:
   group: oisha-web-ops
@@ -31,49 +36,46 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Server diagnostics (read-only)
-        env:
-          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
-          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$ORACLE_SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
-          ssh -o ConnectTimeout=15 ubuntu@$ORACLE_HOST 'bash -s' <<'EOF'
-            set -u
-            echo "=== SYSTEM ==="; uname -n; free -h | head -2; df -h / | tail -1
-            echo "=== SERVICES ==="
-            systemctl list-units --type=service --no-pager | grep -Ei 'oisha|caddy|nginx|node' || true
-            echo "=== PORTS ==="
-            sudo ss -tlnp | grep -E ':(80|443|3000|8080|8088)\s' || true
-            echo "=== CADDY CONFIG ==="
-            sudo cat /etc/caddy/Caddyfile 2>/dev/null || echo "Caddyfile yo'q"
-            echo "=== NODE ==="
-            node -v 2>/dev/null || echo "node yo'q"; command -v pnpm >/dev/null && pnpm -v || echo "pnpm yo'q"
-            echo "=== HEALTH ==="
-            curl -s -m 5 http://127.0.0.1:8080/healthz/ | head -c 300; echo
-            curl -s -m 8 http://127.0.0.1:8080/readyz/ | head -c 600; echo
-            curl -s -m 5 -o /dev/null -w 'localhost:3000 -> %{http_code}\n' http://127.0.0.1:3000/ || echo "localhost:3000 -> ulanib bo'lmadi"
-          EOF
+          set +e
+          set -u
+          echo "=== SYSTEM ==="; uname -n; free -h | head -2; df -h / | tail -1
+          echo "=== SERVICES ==="
+          systemctl list-units --type=service --no-pager | grep -Ei 'oisha|caddy|nginx|node' || true
+          echo "=== PORTS ==="
+          sudo ss -tlnp | grep -E ':(80|443|3000|8080|8088)\s' || true
+          echo "=== CADDY CONFIG ==="
+          sudo cat /etc/caddy/Caddyfile 2>/dev/null || echo "Caddyfile yo'q"
+          echo "=== NODE ==="
+          node -v 2>/dev/null || echo "node yo'q"; command -v pnpm >/dev/null && pnpm -v || echo "pnpm yo'q"
+          echo "=== HEALTH ==="
+          curl -s -m 5 http://127.0.0.1:8080/healthz/ | head -c 300 || true; echo
+          curl -s -m 8 http://127.0.0.1:8080/readyz/ | head -c 600 || true; echo
+          curl -s -m 5 -o /dev/null -w 'localhost:3000 -> %{http_code}\n' http://127.0.0.1:3000/ || echo "localhost:3000 -> ulanib bo'lmadi"
 
-  deploy:
+  build:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'deploy')
-    runs-on: [self-hosted, oracle]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
+          cache: 'pnpm'
 
       - name: Build web app (standalone)
         env:
           NEXT_PUBLIC_API_URL: https://oisha.jonbranding.uz
           NEXT_TELEMETRY_DISABLED: "1"
         run: |
-          corepack enable
-          corepack prepare pnpm@10 --activate || npm i -g pnpm
           pnpm install --no-frozen-lockfile --filter @salescoach/web...
           pnpm --filter @salescoach/web run build
           mkdir -p apps/web/.next/standalone/apps/web/.next/static
@@ -82,18 +84,28 @@ jobs:
           tar -czf /tmp/oisha-web-bundle.tar.gz -C apps/web/.next/standalone .
           ls -lh /tmp/oisha-web-bundle.tar.gz
 
-      - name: Deploy bundle to Oracle VM via Native SSH
-        env:
-          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
-          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$ORACLE_SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
+      - name: Upload standalone bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oisha-web-bundle
+          path: /tmp/oisha-web-bundle.tar.gz
+          retention-days: 1
 
-          # Copy bundle and deployment scripts
-          scp /tmp/oisha-web-bundle.tar.gz deploy/oisha-web.service deploy/Caddyfile deploy/install_web.sh ubuntu@$ORACLE_HOST:/home/ubuntu/
+  deploy:
+    needs: build
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'deploy')
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-          # Remote execution
-          ssh ubuntu@$ORACLE_HOST "chmod +x /home/ubuntu/install_web.sh && bash /home/ubuntu/install_web.sh"
+      - name: Download standalone bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: oisha-web-bundle
+          path: ${{ runner.temp }}/oisha-web-bundle
+
+      - name: Install and restart oisha-web on Hetzner
+        run: bash deploy/install_web.sh "${{ runner.temp }}/oisha-web-bundle/oisha-web-bundle.tar.gz"

@@ -1,0 +1,759 @@
+"""Tests for Juma anti-spam guard, TN7 targeting, and PCG username exclusion."""
+
+from __future__ import annotations
+
+import importlib
+import json
+import random
+from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+
+from src.services.core.juma_guard import (
+    JUMA_TEMPLATES,
+    TASHKENT_TZ,
+    JumaRateConfig,
+    classify_and_order_recipients,
+    compute_juma_deadline,
+    estimate_duration_minutes,
+    is_excluded_juma_recipient,
+    is_excluded_member,
+    is_juma_send_window,
+    is_quiet_hours,
+    is_silent_send_time,
+    load_custom_greetings,
+    load_juma_rate_config,
+    match_group_dialogs,
+    next_delay_seconds,
+    pick_greeting_text,
+    seconds_until_quiet_ends,
+    select_target_groups,
+)
+
+
+@pytest.mark.parametrize(
+    "username,expected",
+    [
+        ("pcg", True),
+        ("@PCG_admin", True),
+        ("sherbek_pcg", True),
+        ("myPcgUser", True),
+        ("baxtiyorjon", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_is_excluded_juma_recipient_pcg_usernames(username, expected):
+    blocked, reason = is_excluded_juma_recipient(username)
+    assert blocked is expected
+    if expected:
+        assert reason == "username:pcg"
+    else:
+        assert reason == ""
+
+
+def test_is_excluded_juma_recipient_custom_tokens_and_names():
+    cfg = load_juma_rate_config({"JUMA_EXCLUDED_USERNAME_TOKENS": " @PCG , vip_staff "})
+    assert cfg.blocked_username_tokens == ("pcg", "vip_staff")
+    assert is_excluded_juma_recipient(
+        "ali_vip_staff", blocked_username_tokens=cfg.blocked_username_tokens
+    ) == (True, "username:vip_staff")
+    assert is_excluded_juma_recipient(
+        "normal_user", full_name="Hasanboy Admin", excluded_names=["Admin"]
+    ) == (True, "name:Admin")
+
+
+@pytest.mark.parametrize(
+    "member,expected_prefix",
+    [
+        ({"id": 1, "username": "amaan_uz", "name": "Zokir"}, "brand_username:amaan"),
+        ({"id": 2, "username": "zokir_u", "name": "Zokir Umedov Patent Amaan"}, "brand_name:amaan"),
+        ({"id": 3, "username": "zokir_u", "name": "Амаан Патент"}, "brand_name:amaan"),
+        ({"id": 4, "username": "@Asxab_sotuv", "name": "Samandar"}, "brand_username:asxab"),
+        ({"id": 5, "username": "samandar_d", "name": "Samandar ASXAB"}, "brand_name:asxab"),
+        ({"id": 6, "username": "alisher_d", "name": "Асхаб Дизайн"}, "brand_name:asxab"),
+        ({"id": 5190113669, "username": "alisher_tn7", "name": "Алишер Тешаев TN7"}, "user_id:5190113669"),
+        ({"id": 7, "username": "noor_marketing", "name": "Nurmuhammad"}, "brand_username:noormarketing"),
+        ({"id": 8, "username": "@noormarketing", "name": "Nurmuhammad"}, "brand_username:noormarketing"),
+        ({"id": 9, "username": "nurmuhammad_a", "name": "Ноор Маркетинг"}, "brand_name:noormarketing"),
+        ({"id": 10, "username": "nurmuhammad_a", "name": "Nurmuhammad", "company": "NOOR marketing agentligi"}, "brand_meta:noormarketing"),
+        ({"id": 11, "username": "@nurmuhammadabdulaziz", "name": "Nurmuhammad"}, "exact_username:nurmuhammadabdulaziz"),
+        ({"id": 12, "username": "metasell_uz", "name": "Rano"}, "brand_username:metasell"),
+        ({"id": 13, "username": "rano_m", "name": "Метаселл Агентство"}, "brand_name:metasell"),
+        ({"id": 8691281355, "username": "rano_tn7", "name": "Rano TN7 Gr"}, "user_id:8691281355"),
+        ({"id": 14, "username": "@bifoza_assistance", "name": "Lochinbek"}, "brand_username:bifoza"),
+        ({"id": 15, "username": "lochin_b", "name": "Lochinbek Bifoza"}, "brand_name:bifoza"),
+        ({"id": 16, "username": "sarvar_erp", "name": "Бифоза"}, "brand_name:bifoza"),
+        ({"id": 17, "username": "@rahimov_erpflow", "name": "Jamshid"}, "exact_username:rahimov_erpflow"),
+        ({"id": 18, "username": "sarvarbeksaibov", "name": "Sarvar"}, "exact_username:sarvarbeksaibov"),
+        ({"id": 19, "username": "@patent_lab", "name": "Ali"}, "brand_username:patentlab"),
+        ({"id": 20, "username": "ali_p", "name": "Patent Lab"}, "brand_name:patentlab"),
+        ({"id": 21, "username": "ali_p", "name": "PatentLab"}, "brand_name:patentlab"),
+        ({"id": 22, "username": "ali_p", "name": "Патент Лаб"}, "brand_name:patentlab"),
+    ],
+)
+def test_competitor_brands_and_accounts_excluded(member, expected_prefix):
+    cfg = load_juma_rate_config({})
+    blocked, reason = is_excluded_member(member, cfg)
+    assert blocked is True
+    assert reason == expected_prefix
+
+
+@pytest.mark.parametrize(
+    "member",
+    [
+        {"id": 901, "username": "noor_ali", "name": "Nooruliyman"},
+        {"id": 902, "username": "ali_biz", "name": "- PCG TN4 Gr"},
+        {"id": 903, "username": "kamol_mebel", "name": "Kamoliddin Mebel TN7"},
+    ],
+)
+def test_non_competitor_members_not_false_positived(member):
+    cfg = load_juma_rate_config({})
+    blocked, reason = is_excluded_member(member, cfg)
+    assert blocked is False
+    assert reason == ""
+
+
+def test_classify_and_order_recipients():
+    members = [{"id": i, "warm": False, "mutual": False} for i in range(1, 61)]
+    members.append({"id": 100, "warm": True, "mutual": False})
+    members.append({"id": 101, "warm": False, "mutual": True})
+
+    selected, deferred = classify_and_order_recipients(members, cold_limit=50)
+    assert [m["id"] for m in selected[:2]] == [100, 101]
+    assert len(selected) == 52
+    assert len(deferred) == 10
+    assert deferred[0]["id"] == 51
+
+    only_warm, all_cold_deferred = classify_and_order_recipients(members, cold_limit=0)
+    assert [m["id"] for m in only_warm] == [100, 101]
+    assert len(all_cold_deferred) == 60
+
+    all_selected, none_deferred = classify_and_order_recipients(members, cold_limit=None)
+    assert len(all_selected) == 62
+    assert none_deferred == []
+
+
+@pytest.mark.parametrize(
+    "hour,minute,expected_quiet,expected_sec",
+    [
+        (22, 29, False, 0.0),
+        (22, 30, True, 7 * 3600 + 30 * 60),
+        (3, 0, True, 3 * 3600),
+        (5, 59, True, 60.0),
+        (6, 0, False, 0.0),
+    ],
+)
+def test_quiet_hours_and_seconds_until_end(hour, minute, expected_quiet, expected_sec):
+    cfg = JumaRateConfig()
+    now = datetime(2026, 11, 19, hour, minute, tzinfo=TASHKENT_TZ)
+    assert is_quiet_hours(now, cfg) is expected_quiet
+    assert seconds_until_quiet_ends(now, cfg) == pytest.approx(expected_sec)
+
+
+@pytest.mark.parametrize(
+    "hour,minute,expected_silent",
+    [
+        (5, 59, False),
+        (6, 0, True),
+        (7, 59, True),
+        (8, 0, False),
+        (14, 0, False),
+    ],
+)
+def test_is_silent_send_time(hour, minute, expected_silent):
+    cfg = JumaRateConfig()
+    now = datetime(2026, 11, 20, hour, minute, tzinfo=TASHKENT_TZ)
+    assert is_silent_send_time(now, cfg) is expected_silent
+
+
+async def test_send_to_member_passes_silent_flag(monkeypatch):
+    mod_greetings = importlib.import_module("scripts.send_juma_greetings")
+    monkeypatch.setattr(mod_greetings.asyncio, "sleep", AsyncMock())
+
+    class _DummyAction:
+        async def __aenter__(self):
+            return None
+
+        async def __aexit__(self, *args):
+            return False
+
+    client = SimpleNamespace(
+        action=lambda *args, **kwargs: _DummyAction(),
+        send_message=AsyncMock(),
+    )
+    cfg = JumaRateConfig(typing_min_sec=0.0, typing_max_sec=0.0)
+    await mod_greetings.send_to_member(client, {"id": 42}, "Salom", cfg, silent=True)
+    await mod_greetings.send_to_member(client, {"id": 43}, "Salom", cfg, silent=False)
+    assert client.send_message.await_args_list[0].kwargs["silent"] is True
+    assert client.send_message.await_args_list[1].kwargs["silent"] is False
+
+
+def test_juma_send_window_and_deadline():
+    cfg = JumaRateConfig(shom_hour=17, shom_minute=0)
+    thu_before = datetime(2026, 11, 19, 16, 59, tzinfo=TASHKENT_TZ)
+    thu_at = datetime(2026, 11, 19, 17, 0, tzinfo=TASHKENT_TZ)
+    fri_morning = datetime(2026, 11, 20, 8, 0, tzinfo=TASHKENT_TZ)
+    fri_shom = datetime(2026, 11, 20, 17, 0, tzinfo=TASHKENT_TZ)
+    sat = datetime(2026, 11, 21, 10, 0, tzinfo=TASHKENT_TZ)
+
+    assert is_juma_send_window(thu_before, cfg) is False
+    assert is_juma_send_window(thu_at, cfg) is True
+    assert is_juma_send_window(fri_morning, cfg) is True
+    assert is_juma_send_window(fri_shom, cfg) is False
+    assert is_juma_send_window(sat, cfg) is False
+
+    expected_deadline = datetime(2026, 11, 20, 17, 0, tzinfo=TASHKENT_TZ)
+    assert compute_juma_deadline(thu_at, cfg) == expected_deadline
+    assert compute_juma_deadline(fri_morning, cfg) == expected_deadline
+
+
+def test_next_delay_seconds_and_estimate():
+    cfg = JumaRateConfig()
+    rng = random.Random(42)
+
+    d1, is_b1 = next_delay_seconds(1, cfg, rng=rng)
+    assert is_b1 is False
+    assert 90.0 <= d1 <= 180.0
+
+    d15, is_b15 = next_delay_seconds(15, cfg, rng=rng)
+    d30, is_b30 = next_delay_seconds(30, cfg, rng=rng)
+    assert is_b15 is True and 900.0 <= d15 <= 1200.0
+    assert is_b30 is True and 900.0 <= d30 <= 1200.0
+
+    assert estimate_duration_minutes(0, cfg) == 0.0
+    est_50 = estimate_duration_minutes(50, cfg)
+    assert est_50 > 120.0
+
+
+def test_load_custom_greetings_and_pick(tmp_path):
+    dict_path = tmp_path / "dict.json"
+    dict_path.write_text(
+        json.dumps({"101": "Salom 101", "@Ali_Biz": "Salom Ali", "999": "   "}),
+        encoding="utf-8",
+    )
+    loaded = load_custom_greetings(dict_path)
+    assert pick_greeting_text({"id": 101, "username": "x"}, loaded, JUMA_TEMPLATES) == "Salom 101"
+    assert pick_greeting_text({"id": 202, "username": "ali_biz"}, loaded, JUMA_TEMPLATES) == "Salom Ali"
+    fallback = pick_greeting_text({"id": 999, "username": "unknown"}, loaded, JUMA_TEMPLATES, rng=random.Random(1))
+    assert fallback in JUMA_TEMPLATES
+
+    list_path = tmp_path / "list.json"
+    list_path.write_text(
+        json.dumps([{"id": 55, "username": "@Zafar", "message": "Maxsus tabrik"}, {"id": 56, "text": ""}]),
+        encoding="utf-8",
+    )
+    loaded_list = load_custom_greetings(list_path)
+    assert pick_greeting_text({"id": 55}, loaded_list, JUMA_TEMPLATES) == "Maxsus tabrik"
+    assert pick_greeting_text({"id": 77, "username": "zafar"}, loaded_list, JUMA_TEMPLATES) == "Maxsus tabrik"
+
+
+def test_select_target_groups():
+    tn7 = select_target_groups("TN7")
+    assert len(tn7) == 1
+    assert tn7[0]["id"] == -1003926176795
+
+    both = select_target_groups("TN7,TN6")
+    assert [g["code"] for g in both] == ["TN7", "TN6"]
+
+    all_groups = select_target_groups("all")
+    assert len(all_groups) == 6
+    assert all_groups[0]["code"] == "TN7"
+
+
+def test_scripts_import_cleanly_without_api_env_or_day_exit(monkeypatch):
+    monkeypatch.delenv("API_ID", raising=False)
+    monkeypatch.delenv("API_HASH", raising=False)
+    mod_greetings = importlib.import_module("scripts.send_juma_greetings")
+    mod_oneoff = importlib.import_module("scripts.send_juma_oneoff")
+    assert hasattr(mod_greetings, "run")
+    assert hasattr(mod_oneoff, "run")
+
+
+async def test_juma_scripts_safety_guards():
+    mod_greetings = importlib.import_module("scripts.send_juma_greetings")
+    mod_oneoff = importlib.import_module("scripts.send_juma_oneoff")
+
+    bad_args = SimpleNamespace(ignore_day_check=True, dry_run=False, cold_limit=None)
+    with pytest.raises(ValueError, match="dry-run"):
+        await mod_greetings.run(bad_args)
+
+    for blocked_user in ("@Sherbek_PCG", "@Asxab_sotuv", "@patentlab", "@nurmuhammadabdulaziz"):
+        oneoff_blocked = SimpleNamespace(
+            test_user=blocked_user, broadcast=False, cold_limit=None, messages_json=""
+        )
+        with pytest.raises(ValueError, match="bloklangan"):
+            await mod_oneoff.run(oneoff_blocked)
+
+
+class _FakeCursor:
+    def __init__(self, rows=None, one=None):
+        self._rows = rows or []
+        self._one = one
+
+    def __await__(self):
+        async def _done():
+            return self
+
+        return _done().__await__()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def fetchall(self):
+        return self._rows
+
+    async def fetchone(self):
+        return self._one
+
+
+class _FakeConn:
+    def __init__(self, db_rows, sent_logs=None):
+        self.db_rows = db_rows
+        self.sent_inserts = list(sent_logs or [])
+        self.committed = 0
+
+    def execute(self, query, params=()):
+        if "FROM users" in query:
+            return _FakeCursor(rows=self.db_rows)
+        if "SELECT user_id, MAX(run_date) FROM juma_sent_logs" in query:
+            latest = {}
+            for uid, run_date in self.sent_inserts:
+                if uid not in latest or str(run_date) > latest[uid]:
+                    latest[uid] = str(run_date)
+            return _FakeCursor(rows=list(latest.items()))
+        if "SELECT 1 FROM juma_sent_logs" in query:
+            return _FakeCursor(one=None)
+        if "INSERT" in query and "INTO juma_sent_logs" in query:
+            pair = (params[0], params[1])
+            if pair not in self.sent_inserts:
+                self.sent_inserts.append(pair)
+        return _FakeCursor()
+
+    async def commit(self):
+        self.committed += 1
+
+
+class _FakeDb:
+    def __init__(self, conn):
+        self._conn = conn
+        self.marked = []
+
+    async def get_connection(self):
+        return self._conn
+
+    async def mark_job_run(self, job, date_str):
+        self.marked.append((job, date_str))
+
+    async def is_job_run(self, job, date_str):
+        return (job, date_str) in self.marked
+
+
+async def test_juma_notifier_excludes_pcg_and_competitors(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    conn = _FakeConn(
+        db_rows=[
+            (1, "Ali TN7", "pcg_curator"),
+            (2, "Vali TN7", "vali_biz"),
+            (3, "Lochinbek Bifoza", "lochin_uz"),
+            (4, "Jamshid TN7", "rahimov_erpflow"),
+            (5190113669, "Alisher Teshayev", "alisher_tn7"),
+        ]
+    )
+    db = _FakeDb(conn)
+    client = AsyncMock()
+    tn7_participants = [
+        SimpleNamespace(id=5, first_name="Alisher", last_name="TN7", username="Alisher_PCG", bot=False, is_self=False),
+        SimpleNamespace(id=6, first_name="Samandar", last_name="ASXAB", username="samandar_d", bot=False, is_self=False),
+        SimpleNamespace(id=8691281355, first_name="Rano", last_name="TN7", username="rano_tn7", bot=False, is_self=False),
+        SimpleNamespace(id=7, first_name="Kamol", last_name="TN7", username="kamol_uz", bot=False, is_self=False),
+    ]
+
+    async def fake_get_participants(g_id, limit=500):
+        return tn7_participants if g_id == -1003926176795 else []
+
+    client.get_participants.side_effect = fake_get_participants
+    notifier = jn_mod.JumaNotifier(client=client, db=db)
+
+    classmates = await notifier.get_tn5_classmates()
+    assert [c["id"] for c in classmates] == [2, 7]
+    assert client.get_participants.call_args_list[0].args[0] == -1003926176795
+
+    monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
+    notifier.collect_recipients = AsyncMock(
+        return_value=(
+            [
+                {"id": 10, "name": "PCG User", "username": "pcg_team", "warm": True},
+                {"id": 11, "name": "Patent Lab", "username": "ali_p", "warm": True},
+                {"id": 12, "name": "Nurmuhammad", "username": "nurmuhammadabdulaziz", "warm": True},
+                {"id": 8691281355, "name": "Rano", "username": "rano_tn7", "warm": True},
+                {"id": 13, "name": "Real User", "username": "real_biz", "warm": True},
+            ],
+            0,
+        )
+    )
+    fri_0900 = datetime(2026, 11, 20, 9, 0, tzinfo=TASHKENT_TZ)
+    await notifier.send_greetings("2026-11-20", now=fri_0900)
+    assert client.send_message.await_count == 1
+    assert client.send_message.await_args.args[0] == 13
+    assert client.send_message.await_args.kwargs["silent"] is False
+
+
+@pytest.mark.parametrize(
+    "year,month,day,hour,minute,expected",
+    [
+        (2026, 11, 20, 5, 59, False),
+        (2026, 11, 20, 6, 0, True),
+        (2026, 11, 20, 12, 0, True),
+        (2026, 11, 20, 16, 59, True),
+        (2026, 11, 20, 17, 0, False),
+        (2026, 11, 19, 19, 0, False),
+        (2026, 11, 21, 8, 0, False),
+    ],
+)
+def test_should_trigger_juma_schedule(year, month, day, hour, minute, expected):
+    from src.schedulers.juma_greeting_scheduler import should_trigger_juma
+
+    cfg = JumaRateConfig()
+    now = datetime(year, month, day, hour, minute, tzinfo=TASHKENT_TZ)
+    assert should_trigger_juma(now, cfg) is expected
+
+
+async def test_juma_notifier_sends_tn7_warm_first_silent_and_no_add_contact(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.setenv("JUMA_COLD_DAILY_LIMIT", "1")
+    monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
+    conn = _FakeConn(db_rows=[])
+    db = _FakeDb(conn)
+
+    async def fake_iter_dialogs():
+        yield SimpleNamespace(id=20, is_user=True, entity=SimpleNamespace(id=20), title="Warm User")
+
+    client = AsyncMock()
+    client.iter_dialogs = lambda: fake_iter_dialogs()
+    client.get_participants.return_value = [
+        SimpleNamespace(id=10, first_name="Ali", last_name="TN7", username="pcg_staff", bot=False, is_self=False),
+        SimpleNamespace(id=11, first_name="Samandar", last_name="ASXAB", username="samandar_d", bot=False, is_self=False),
+        SimpleNamespace(id=21, first_name="Cold1", last_name="Biz", username="cold1_uz", bot=False, is_self=False, mutual_contact=False),
+        SimpleNamespace(id=20, first_name="Warm", last_name="Biz", username="warm_uz", bot=False, is_self=False, mutual_contact=False),
+        SimpleNamespace(id=22, first_name="Cold2", last_name="Biz", username="cold2_uz", bot=False, is_self=False, mutual_contact=False),
+    ]
+    notices = []
+
+    async def notify(msg):
+        notices.append(msg)
+
+    notifier = jn_mod.JumaNotifier(client=client, db=db, notify_fn=notify)
+    fri_0630 = datetime(2026, 11, 20, 6, 30, tzinfo=TASHKENT_TZ)
+    stats = await notifier.send_greetings("2026-11-20", now=fri_0630)
+
+    assert stats["sent"] == 2
+    assert stats["deferred_cold"] == 1
+    assert stats["excluded"] == 2
+    assert [c.args[0] for c in client.send_message.await_args_list] == [20, 21]
+    assert all(c.kwargs["silent"] is True for c in client.send_message.await_args_list)
+    assert client.await_count == 0
+    assert conn.sent_inserts == [(20, "2026-11-20"), (21, "2026-11-20")]
+    assert ("juma_mubarak", "2026-11-20") in db.marked
+    assert len(notices) == 2
+
+
+async def test_juma_notifier_aborts_on_peer_flood_and_marks_done(monkeypatch):
+    from telethon.errors import PeerFloodError
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
+    conn = _FakeConn(db_rows=[])
+    db = _FakeDb(conn)
+    client = AsyncMock()
+    client.send_message.side_effect = [PeerFloodError(None), None]
+    notices = []
+
+    async def notify(msg):
+        notices.append(msg)
+
+    notifier = jn_mod.JumaNotifier(client=client, db=db, notify_fn=notify)
+    notifier.collect_recipients = AsyncMock(
+        return_value=(
+            [
+                {"id": 31, "name": "U1", "username": "u1_uz", "warm": True},
+                {"id": 32, "name": "U2", "username": "u2_uz", "warm": True},
+            ],
+            0,
+        )
+    )
+    stats = await notifier.send_greetings("2026-11-20", now=datetime(2026, 11, 20, 9, 0, tzinfo=TASHKENT_TZ))
+    assert stats["aborted"] == "PeerFloodError"
+    assert stats["sent"] == 0
+    assert client.send_message.await_count == 1
+    assert ("juma_mubarak", "2026-11-20") in db.marked
+    assert any("PeerFloodError" in n for n in notices)
+
+
+async def test_juma_notifier_check_and_send_respects_flag_window_and_lock(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    conn = _FakeConn(db_rows=[])
+    db = _FakeDb(conn)
+    notifier = jn_mod.JumaNotifier(client=AsyncMock(), db=db)
+    notifier.send_greetings = AsyncMock(return_value={"sent": 1})
+
+    fri_0600 = datetime(2026, 11, 20, 6, 0, tzinfo=TASHKENT_TZ)
+    fri_0559 = datetime(2026, 11, 20, 5, 59, tzinfo=TASHKENT_TZ)
+
+    monkeypatch.delenv("ENABLE_JUMA_NOTIFIER", raising=False)
+    assert await notifier.check_and_send(now=fri_0600) is False
+
+    monkeypatch.setenv("ENABLE_JUMA_NOTIFIER", "1")
+    assert await notifier.check_and_send(now=fri_0559) is False
+    assert await notifier.check_and_send(now=fri_0600) is True
+    assert notifier.send_greetings.await_count == 1
+
+    await db.mark_job_run("juma_mubarak", "2026-11-20")
+    assert await notifier.check_and_send(now=fri_0600) is False
+
+
+def test_upsert_juma_env_writes_outside_repo_and_preserves_other_keys(tmp_path):
+    mod = importlib.import_module("scripts.juma_session_login")
+    fake_repo = tmp_path / "repo"
+    fake_repo.mkdir()
+    env_file = tmp_path / "etc_oisha" / "juma.env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("OTHER_KEY=keep_me\nJUMA_SESSION_STRING=old_val\n", encoding="utf-8")
+
+    mod.upsert_juma_env(env_file, "fresh_juma_session", repo_root=fake_repo)
+    content = env_file.read_text(encoding="utf-8").splitlines()
+    assert "OTHER_KEY=keep_me" in content
+    assert "JUMA_SESSION_STRING=fresh_juma_session" in content
+    assert "JUMA_SESSION_STRING=old_val" not in content
+
+
+def test_upsert_juma_env_refuses_path_inside_repo(tmp_path):
+    mod = importlib.import_module("scripts.juma_session_login")
+    fake_repo = tmp_path / "repo"
+    fake_repo.mkdir()
+    with pytest.raises(ValueError, match="repo"):
+        mod.upsert_juma_env(fake_repo / ".env", "fresh_juma_session", repo_root=fake_repo)
+    with pytest.raises(ValueError):
+        mod.upsert_juma_env(tmp_path / "outside.env", "   ", repo_root=fake_repo)
+
+
+def test_assert_not_prod_session_rejects_prod_key_and_allows_distinct(tmp_path):
+    mod = importlib.import_module("scripts.juma_session_login")
+    prod_file = tmp_path / "userbot_session_string.txt"
+    prod_file.write_text("prod_file_secret\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="alohida"):
+        mod.assert_not_prod_session(
+            "prod_env_secret",
+            env={"USERBOT_SESSION_STRING": "prod_env_secret"},
+            shared_files=(str(prod_file),),
+        )
+    with pytest.raises(ValueError, match="alohida"):
+        mod.assert_not_prod_session(
+            "prod_file_secret",
+            env={},
+            shared_files=(str(prod_file),),
+        )
+    mod.assert_not_prod_session(
+        "dedicated_juma_secret",
+        env={"USERBOT_SESSION_STRING": "prod_env_secret"},
+        shared_files=(str(prod_file),),
+    )
+
+
+def test_select_target_groups_by_chat_id():
+    tn7 = select_target_groups("-1003926176795")
+    assert len(tn7) == 1
+    assert tn7[0]["code"] == "TN7"
+    assert tn7[0]["id"] == -1003926176795
+
+    custom = select_target_groups("-100999888777")
+    assert len(custom) == 1
+    assert custom[0]["id"] == -100999888777
+    assert custom[0]["code"] == "-100999888777"
+    assert custom[0]["names"] == []
+
+
+def test_match_group_dialogs_prefers_exact_id_and_falls_back_to_title():
+    tn7 = select_target_groups("TN7")[0]
+    exact = SimpleNamespace(id=-1003926176795, title="Custom TN7 Title")
+    dup_title = SimpleNamespace(id=-1008888888888, title="Tez natija 7")
+    tn6 = SimpleNamespace(id=-1003496493814, title='"TEZ NATIJA 6" UMUMIY')
+
+    assert match_group_dialogs([dup_title, tn6, exact], tn7) == [exact]
+    assert match_group_dialogs([dup_title, tn6], tn7) == [dup_title]
+    assert match_group_dialogs([tn6], tn7) == []
+
+
+async def test_juma_notifier_collect_recipients_strict_tn7_exact_id(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.delenv("JUMA_TARGET_GROUPS", raising=False)
+    tn7_dialog = SimpleNamespace(id=-1003926176795, is_user=False, entity=None, title='"TEZ NATIJA 7" UMUMIY')
+    dup_dialog = SimpleNamespace(id=-1007777777777, is_user=False, entity=None, title="TN7 Gr")
+    tn6_dialog = SimpleNamespace(id=-1003496493814, is_user=False, entity=None, title='"TEZ NATIJA 6" UMUMIY')
+
+    async def fake_iter_dialogs():
+        for dialog in (dup_dialog, tn6_dialog, tn7_dialog):
+            yield dialog
+
+    async def fake_iter_participants(dialog):
+        if dialog.id == -1003926176795:
+            yield SimpleNamespace(id=701, first_name="TN7", last_name="Real", username="tn7_real", bot=False, deleted=False, is_self=False, mutual_contact=True)
+        elif dialog.id == -1007777777777:
+            yield SimpleNamespace(id=702, first_name="Dup", last_name="User", username="dup_user", bot=False, deleted=False, is_self=False, mutual_contact=True)
+        else:
+            yield SimpleNamespace(id=601, first_name="TN6", last_name="User", username="tn6_user", bot=False, deleted=False, is_self=False, mutual_contact=True)
+
+    client = AsyncMock()
+    client.iter_dialogs = lambda: fake_iter_dialogs()
+    client.iter_participants = lambda dialog: fake_iter_participants(dialog)
+    notifier = jn_mod.JumaNotifier(client=client, db=_FakeDb(_FakeConn(db_rows=[])))
+
+    recipients, excluded = await notifier.collect_recipients(JumaRateConfig())
+    assert [r["id"] for r in recipients] == [701]
+    assert excluded == 0
+    assert client.get_participants.await_count == 0
+
+
+async def test_juma_notifier_monthly_dedup_advances_across_fridays(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.setenv("JUMA_COLD_DAILY_LIMIT", "1")
+    monkeypatch.delenv("JUMA_REPEAT_MODE", raising=False)
+    monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
+    conn = _FakeConn(db_rows=[])
+    db = _FakeDb(conn)
+    client = AsyncMock()
+    notifier = jn_mod.JumaNotifier(client=client, db=db)
+    notifier.collect_recipients = AsyncMock(
+        return_value=(
+            [
+                {"id": 101, "name": "User A", "username": "user_a", "warm": False},
+                {"id": 102, "name": "User B", "username": "user_b", "warm": False},
+            ],
+            0,
+        )
+    )
+
+    nov_w1 = await notifier.send_greetings("2026-11-20", now=datetime(2026, 11, 20, 9, 0, tzinfo=TASHKENT_TZ))
+    assert nov_w1["sent"] == 1
+    assert nov_w1["deferred_cold"] == 1
+
+    nov_w2 = await notifier.send_greetings("2026-11-27", now=datetime(2026, 11, 27, 9, 0, tzinfo=TASHKENT_TZ))
+    assert nov_w2["sent"] == 1
+    assert nov_w2["deferred_cold"] == 0
+
+    dec_w1 = await notifier.send_greetings("2026-12-04", now=datetime(2026, 12, 4, 9, 0, tzinfo=TASHKENT_TZ))
+    assert dec_w1["sent"] == 1
+    assert dec_w1["deferred_cold"] == 1
+    assert [c.args[0] for c in client.send_message.await_args_list] == [101, 102, 101]
+
+
+async def test_juma_notifier_round_robin_prioritizes_unseen_and_skips_same_day(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.setenv("JUMA_REPEAT_MODE", "round_robin")
+    monkeypatch.setenv("JUMA_COLD_DAILY_LIMIT", "1")
+    monkeypatch.setattr(jn_mod.asyncio, "sleep", AsyncMock())
+    conn = _FakeConn(db_rows=[], sent_logs=[(101, "2026-11-13"), (102, "2026-11-20")])
+    db = _FakeDb(conn)
+    client = AsyncMock()
+    notifier = jn_mod.JumaNotifier(client=client, db=db)
+    notifier.collect_recipients = AsyncMock(
+        return_value=(
+            [
+                {"id": 102, "name": "Today User", "username": "u102", "warm": False},
+                {"id": 101, "name": "Old User", "username": "u101", "warm": False},
+                {"id": 103, "name": "Never User", "username": "u103", "warm": False},
+            ],
+            0,
+        )
+    )
+
+    stats = await notifier.send_greetings("2026-11-20", now=datetime(2026, 11, 20, 9, 0, tzinfo=TASHKENT_TZ))
+    assert stats["sent"] == 1
+    assert stats["deferred_cold"] == 1
+    assert [c.args[0] for c in client.send_message.await_args_list] == [103]
+
+
+async def test_juma_notifier_skips_when_client_disconnected(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    monkeypatch.setenv("ENABLE_JUMA_NOTIFIER", "1")
+    fri_0610 = datetime(2026, 11, 20, 6, 10, tzinfo=TASHKENT_TZ)
+    client = AsyncMock()
+    client.is_connected = lambda: False
+    notifier = jn_mod.JumaNotifier(client=client, db=_FakeDb(_FakeConn(db_rows=[])))
+    notifier.send_greetings = AsyncMock()
+
+    assert await notifier.check_and_send(now=fri_0610) is False
+    assert notifier.send_greetings.await_count == 0
+
+
+async def test_juma_notifier_live_check_and_send_passes_none_now(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    class _FakeDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 20, 6, 10, tzinfo=tz or TASHKENT_TZ)
+
+    monkeypatch.setenv("ENABLE_JUMA_NOTIFIER", "1")
+    monkeypatch.setattr(jn_mod, "datetime", _FakeDateTime)
+    client = AsyncMock()
+    client.is_connected = lambda: True
+    notifier = jn_mod.JumaNotifier(client=client, db=_FakeDb(_FakeConn(db_rows=[])))
+    notifier.send_greetings = AsyncMock(return_value={"sent": 1})
+
+    assert await notifier.check_and_send() is True
+    assert notifier.send_greetings.await_args.kwargs["now"] is None
+
+
+async def test_juma_notifier_empty_recipients_does_not_mark_done():
+    from src.services.core import juma_notifier as jn_mod
+
+    db = _FakeDb(_FakeConn(db_rows=[]))
+    notices = []
+
+    async def notify(msg):
+        notices.append(msg)
+
+    notifier = jn_mod.JumaNotifier(client=AsyncMock(), db=db, notify_fn=notify)
+    notifier.collect_recipients = AsyncMock(return_value=([], 0))
+    stats = await notifier.send_greetings("2026-11-20", now=datetime(2026, 11, 20, 6, 10, tzinfo=TASHKENT_TZ))
+
+    assert stats["aborted"] == "no_recipients"
+    assert ("juma_mubarak", "2026-11-20") not in db.marked
+    assert any("olinmadi" in n for n in notices)
+
+
+async def test_juma_notifier_bounds_iter_dialogs_limit(monkeypatch):
+    from src.services.core import juma_notifier as jn_mod
+
+    seen_limits = []
+
+    async def fake_iter_dialogs(limit=None):
+        seen_limits.append(limit)
+        if False:
+            yield None
+
+    client = AsyncMock()
+    client.iter_dialogs = lambda limit=None: fake_iter_dialogs(limit=limit)
+    client.get_participants.return_value = []
+    notifier = jn_mod.JumaNotifier(client=client, db=_FakeDb(_FakeConn(db_rows=[])))
+
+    monkeypatch.delenv("JUMA_DIALOG_SCAN_LIMIT", raising=False)
+    await notifier.collect_recipients(JumaRateConfig())
+    monkeypatch.setenv("JUMA_DIALOG_SCAN_LIMIT", "250")
+    await notifier.collect_recipients(JumaRateConfig())
+
+    assert seen_limits == [400, 250]

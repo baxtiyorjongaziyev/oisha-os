@@ -46,13 +46,21 @@ jobs:
           echo "=== 3. Oisha bilan bog'liq systemd unitlari ==="
           systemctl list-units --type=service --all --no-pager | grep -i oisha
 
-          echo
-          echo "=== 4. oisha-os.service holati ==="
-          systemctl status oisha-os --no-pager 2>&1 | head -25
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          if systemctl list-unit-files --no-legend oisha.service 2>/dev/null | grep -q '^oisha\.service'; then
+            SERVICE_NAME="oisha"
+          else
+            SERVICE_NAME="oisha-os"
+          fi
 
           echo
-          echo "=== 5. Deploy katalogidagi kod versiyasi ==="
-          cd /home/ubuntu/oisha-os 2>/dev/null && git log -1 --format='%h %ci %s' && git status --short | head
+          echo "=== 4. ${SERVICE_NAME}.service holati ==="
+          systemctl status "$SERVICE_NAME" --no-pager 2>&1 | head -25
+
+          echo
+          echo "=== 5. Deploy katalogidagi kod versiyasi ($OISHA_DIR) ==="
+          cd "$OISHA_DIR" 2>/dev/null && git log -1 --format='%h %ci %s' && git status --short | head
 
           echo
           echo "=== 6. Diskda proactive_worker.py ning BARCHA nusxalari ==="
@@ -77,13 +85,15 @@ jobs:
 
           echo
           echo "=== 9. Oxirgi deadline alert loglari ==="
-          journalctl -u oisha-os --since "6 hours ago" --no-pager 2>/dev/null | grep -i "deadline" | tail -20
+          journalctl -u "$SERVICE_NAME" --since "6 hours ago" --no-pager 2>/dev/null | grep -i "deadline" | tail -20
 
           exit 0
 
       - name: Deep check — spam manbai va watchdog
         run: |
           set +e
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
           echo "=== A. Bugun 'Project deadline check started' necha marta ==="
           journalctl --since today --no-pager 2>/dev/null | grep -c "Project deadline check started"
           echo "--- vaqtlari ---"
@@ -97,7 +107,7 @@ jobs:
           echo "=== C. Watchdog nima qiladi ==="
           systemctl cat watchdog.service --no-pager 2>/dev/null | head -30
           echo "--- watchdog skripti ichida main.py ishga tushirish bormi ---"
-          for f in /home/ubuntu/oisha-os/ops/*.sh /home/ubuntu/oisha-os/scripts/*watchdog* /opt/oisha-os/ops/*.sh; do
+          for f in "$OISHA_DIR"/ops/*.sh "$OISHA_DIR"/scripts/*watchdog* /opt/oisha-os/ops/*.sh; do
             [ -f "$f" ] || continue
             if grep -lE "main\.py|systemctl (start|restart)" "$f" >/dev/null 2>&1; then
               echo "### $f"
@@ -117,7 +127,7 @@ jobs:
 
           echo
           echo "=== F. Job claim jadvali ishlayaptimi (yangi fix) ==="
-          ls -la /home/ubuntu/oisha-os/data/job_claims/ 2>/dev/null || echo "job_claims katalogi hali yaratilmagan"
+          ls -la "$OISHA_DIR/data/job_claims/" 2>/dev/null || echo "job_claims katalogi hali yaratilmagan"
 
           echo
           echo "=== G. Watchdog maqsadi: oisha.service vs oisha-os.service ==="
@@ -131,14 +141,19 @@ jobs:
           journalctl -u watchdog --since "24 hours ago" --no-pager 2>/dev/null | grep -iE "restart|fail" | tail -10
           exit 0
 
-      - name: Stop oisha-os service
+      - name: Stop oisha service
         if: inputs.mode == 'stop-service'
         run: |
           set +e
-          echo "oisha-os servisi to'xtatilmoqda..."
-          sudo systemctl stop oisha-os
+          if systemctl list-unit-files --no-legend oisha.service 2>/dev/null | grep -q '^oisha\.service'; then
+            SERVICE_NAME="oisha"
+          else
+            SERVICE_NAME="oisha-os"
+          fi
+          echo "${SERVICE_NAME} servisi to'xtatilmoqda..."
+          sudo systemctl stop "$SERVICE_NAME"
           sleep 5
-          systemctl is-active oisha-os
+          systemctl is-active "$SERVICE_NAME"
           echo "--- to'xtatishdan keyin qolgan process'lar ---"
           ps -eo pid,lstart,cmd | grep -E "python3?.*(src/main|oisha)" | grep -v grep
           exit 0
@@ -147,11 +162,17 @@ jobs:
         if: inputs.mode == 'sync-models'
         run: |
           set +e
-          cd /home/ubuntu/oisha-os 2>/dev/null || cd "$GITHUB_WORKSPACE"
+          OISHA_DIR="/home/deploy/oisha-os"
+          RUN_USER="deploy"
+          if [ ! -d "$OISHA_DIR" ]; then
+            OISHA_DIR="/home/ubuntu/oisha-os"
+            RUN_USER="ubuntu"
+          fi
+          cd "$OISHA_DIR" 2>/dev/null || cd "$GITHUB_WORKSPACE"
           sudo python3 scripts/sync_agents_runtime.py
           echo
           echo "=== OpenClaw Gateway diagnostikasi ==="
-          sudo -iu ubuntu openclaw gateway status 2>&1 || true
+          sudo -iu "$RUN_USER" openclaw gateway status 2>&1 || true
           echo
           echo "=== Jarayonlar tekshiruvi ==="
           ps -eo pid,cmd | grep -E "hermes|openclaw" | grep -v grep || true

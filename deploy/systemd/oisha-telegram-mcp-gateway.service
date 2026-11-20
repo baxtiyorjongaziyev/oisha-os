@@ -5,20 +5,20 @@ Requires=telegram-mcp-upstream.service
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/oisha-os
-EnvironmentFile=/home/ubuntu/oisha-os/.env
+User=deploy
+WorkingDirectory=/home/deploy/oisha-os
+EnvironmentFile=/home/deploy/oisha-os/.env
 Environment=TELEGRAM_MCP_GATEWAY_HOST=127.0.0.1
 Environment=TELEGRAM_MCP_GATEWAY_PORT=8766
 Environment=TELEGRAM_MCP_UPSTREAM_URL=http://127.0.0.1:8765/mcp
-ExecStart=/home/ubuntu/oisha-os/venv/bin/python scripts/run_telegram_mcp_gateway.py
+ExecStart=/home/deploy/oisha-os/venv/bin/python scripts/run_telegram_mcp_gateway.py
 Restart=on-failure
 RestartSec=10
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/ubuntu/oisha-os/data
+ReadWritePaths=/home/deploy/oisha-os/data
 
 [Install]
 WantedBy=multi-user.target

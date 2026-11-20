@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Oisha Juma TN7 greeting every Friday at 06:00 Tashkent
+
+[Timer]
+OnCalendar=Fri *-*-* 06:00:00 Asia/Tashkent
+Persistent=false
+
+[Install]
+WantedBy=timers.target

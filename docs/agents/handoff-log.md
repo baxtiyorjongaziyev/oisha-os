@@ -3026,10 +3026,55 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv dalillari:** connect testlari 29 passed (tasdiq, begona tasdiqlay olmasligi, rad etish, ⚡, forward, yopiq chat, all_chats, https); toʻliq pytest — oʻsha 11 asos xatosi (PR #1100 tuzatmoqda); ruff, bandit, uzbek guard toza. Real akkauntda TEKSHIRILMAGAN.
 - **Qolgan ish/Bloker:** ovozli xabarni matnga oʻgirish yoʻq; fayl faqat https URL dan (lokal yuklash yoʻq).
 
+
+## 2026-11-19 — Codex: Connect completion independent of dialog discovery
+- Scope: fix/connect-completion, isolated worktree; no other checkout changes copied.
+- Live evidence: deployed 298c5bc; owner's tg_connect_accounts row was connected with a connected audit event. Read only status/timestamps/action metadata; no session values selected or decrypted.
+- Completion callback persisted the account and then awaited Telegram dialog discovery before qr_flow could report done. A stalled dialog request reproduced the delayed completion in an initially failing regression test.
+- Fix: callback completes after persistence/audit; the connected frontend independently refreshes an empty dialog list without awaiting it. Existing selections remain intact.
+- Added backend regression and Node DOM/VM regression for 2FA completion with an indefinitely pending dialog refresh. All test data synthetic and local.
+- Focused Python tests: 34 passed. Node frontend regression: passed. Bandit entire src: zero medium/high findings and zero scan errors; Ruff crash checks passed. Full suite and staged Uzbek guard pending at entry creation.
+- Added telegram-connect-ops skill with verified environment, key separation, stale-login diagnosis, safe metadata checks, startup readiness and real-account acceptance boundaries.
+- Real owner frontend/Devices/revoke acceptance after deployment remains open; no claim that synthetic tests prove that flow.
+
+- Windows full pre-flight completed: 4349 passed, 17 skipped, 5 failed (one POSIX chmod 0600 assertion, four cp1252 decoding errors in workflow tests). No assertions weakened or tests skipped. Linux snapshot validation runs separately under /tmp with isolated pytest dependencies and SKIP_LIVE=1; production checkout/venv not used as a test working directory.
+- Final focused rerun after removing unused logger: 15 passed (store/QR/API and skill mirror); frontend 2FA regression passed. Staged Uzbek guard passed; diff whitespace check clean.
+
+- Linux full suite on the application snapshot passed: 4357 passed, 14 skipped, 4 subtests passed. Initial archive-only attempts exposed missing PyYAML and absent Git metadata; the scratch environment was corrected without changing tests. Production environment remained separate.
+- During deploy review, found .env rebuild preserved other integrations but dropped JWT_SECRET and TG_CONNECT_SESSION_KEY. Added both exact key names to the existing private backup filter. Synthetic regression failed before the fix and passed afterward; workflow contracts plus Connect tests: 25 passed under UTF-8 Windows mode. Final Linux coverage run includes this workflow/test addition.
+
+- Final Linux workflow-inclusive pre-flight with coverage: 4358 passed, 14 skipped, 4 subtests passed; coverage 57.13% (50% gate passed), exit 0. Full-source Bandit: zero medium/high findings and zero errors. Node 2FA frontend regression, Ruff, skill mirror, staged Uzbek guard and whitespace checks passed.
+
 ## 2026-11-19 — Claude (Leadgen holat hisoboti yoʻnalishi)
 - **Bajarilgan ish:** `src/schedulers/leadgen_status_reporter.py` — `send_daily_status_report` endi faqat Marketing → AI Hisobot (#42) ga yuboradi; Target Leads (yangi lid, topic 1020) ga yuborish olib tashlandi. PR #1106.
 - **Tekshiruv dalillari:** `tests/test_leadgen_status_report_routing.py` 3 passed (faqat marketing chaqiriladi, 1020 ga hech qachon, natija faqat marketing yuborishiga bogʻliq); `test_leadgen_watchdog_sos.py` passed. Prod'da TEKSHIRILMAGAN.
 - **Qolgan ish/Bloker:** merge va Hetzner deploy.
+
+## 2026-11-20 — Antigravity — Qatʼiy TN7 (`-1003926176795`) 06:00 avtomatik Juma scheduler + anti-spam guard
+- **Sabab:** Egasi hozir faqat `"TEZ NATIJA 7" UMUMIY` (`-1003926176795`) aʼzolarini `pcg` username va `Amaan/Asxab/Noor marketing/Metasell/Bifoza/Patentlab` raqib brendlaridan tozalangan holda har Juma **06:00 dan Shomgacha (`17:00`)** avtomatik tabriklashni buyurdi (alohida QR-login/ikkinchi sessiyasiz, `oisha.service` ichidan).
+- **Bajarilgan ish:**
+  1. `src/services/core/juma_guard.py` (347L, sof stdlib): TN7 (`-1003926176795`) ustuvor va default; `match_group_dialogs` aniq chat ID qulfi; `pcg` username + 6 ta raqib brend (lotin/kirill, aniq username va ID `5190113669`, `8691281355`); issiq/mutual birinchi, sovuq limit `50`, `06:00–08:00` `silent=True`, sokin soatlar `22:30–06:00`, Shom `17:00`, `90–180s` pauza + har `15` tada `15–20 daq` tanaffus.
+  2. `src/services/core/juma_notifier.py` (338L) + `src/schedulers/juma_greeting_scheduler.py` (55L): `oisha.service` ichidagi yagona userbot sessiyasida `AddContactRequest` siz ishlaydi; `JUMA_REPEAT_MODE=monthly` (joriy oyda olganlarni oʻtkazib yuboradi; `round_robin` ixtiyoriy); jonli vaqt (`now=None`), ulanish tekshiruvi (`_is_client_connected`), `20s` startup delay va boʻsh roʻyxatda kunni "done" qilmaslik himoyalari qoʻshildi; bootstrap (`domain_agents.py`, `schedulers.py`, `cron_runner.py`) ulandi.
+  3. `scripts/send_juma_greetings.py` (377L), `scripts/send_juma_oneoff.py` (289L), `scripts/juma_session_login.py` (142L), `.github/workflows/juma-greeting.yml`, `.github/workflows/juma-oneoff.yml`, `deploy/systemd/oisha-juma-greeting.{service,timer}` ham TN7/guardga yangilandi.
+  4. `tests/test_juma_guard.py`: 122 passed (`test_juma_guard`, `test_telethon_session_guard`, `test_customer_outbound_policy`, 3 Windows `fcntl` skips; mock bilan); `bandit -ll` 0 Medium/High; `check_uzbek_text.py` toza (1763 fayl).
+- **Qolgan ish:** `feat/juma-tn7-auto-scheduler` PR + Hetzner VPS (`2.29.198.0`) jonli deploy va 06:00 oqimi tekshiruvi.
+- **2026-11-20 (follow-up):** Konfliktli PR #1111 yopildi (oʻzgarishlar PR #1112 da merge qilingan). Jonli Hetzner’da cheksiz `iter_dialogs()` 6,137+ dialogda `GetDialogsRequest` FloodWait (24–27s) chaqirgani aniqlandi; `JUMA_DIALOG_SCAN_LIMIT=400` bilan cheklandi (`juma_notifier.py`, `send_juma_greetings.py`, `send_juma_oneoff.py`).
+
+## 2026-11-20 — Antigravity — GitHub Actions, Deploy, Follow-up PR, AI Studio Sync va Dependabot tiklandi (`fix/github-integration`)
+- **Sabab:** Jonli GitHub auditida barcha self-hosted deploy/operatsion workflowlar eski Oracle/Contabo yoʻllari (`/home/ubuntu/oisha-os`, `oisha-os.service`) va oʻlik `ORACLE_HOST` SSH tufayli yiqilayotgani, `followup-pr.yml` oʻchirilgan branch va repo PR ruxsati sababli qizil boʻlayotgani, `ai-studio-sync.yml` private `oisha-os-preview` reposiga tokensiz kira olmayotgani hamda Dependabot #382 (`effect@3.21.0`, `CVE-2026-121707`) yangilanmayotgani aniqlandi.
+- **Bajarilgan ish:**
+  1. GitHub repo workflow ruxsati: `can_approve_pull_request_reviews=true` yoqildi (`default_workflow_permissions=read` saqlandi).
+  2. `.github/workflows/oracle-deploy.yml` va 6 ta `deploy/systemd/*.service`: `/home/deploy/oisha-os` va `oisha.service` ni avtomatik aniqlash, `.git` boʻlmaganda xavfsiz `git init -b main` + fetch/reset, mavjud `.env` va `data/amocrm_token.json` ni saqlab qolish, `deploy` foydalanuvchisiga moslash.
+  3. `.github/workflows/followup-pr.yml`: `main` checkout, `git ls-remote --exit-code --heads origin` orqali oʻchirilgan branchlarni xavfsiz oʻtkazib yuborish.
+  4. `.github/workflows/oisha-web.yml`, `deploy/oisha-web.service`, `deploy/install_web.sh`: `build` (`ubuntu-latest`) → artifact → Hetzner `deploy`, tor `push.paths`, `User=deploy` va `/home/deploy/oisha-web`.
+  5. 17 ta self-hosted workflow + `scripts/instagram_plus_campaign.py` + 3 ta SSH workflow (`oracle-health`, `oracle-free-memory`, `oracle-runner-restart`): oʻlik `ORACLE_HOST` SSH olib tashlandi va Hetzner `deploy`/`oisha` bilan fallback qoʻshildi; `amocrm-phone-normalize.yml` dagi `.env` ustidan yozish xatosi bartaraf etildi.
+  6. `.github/workflows/ai-studio-sync.yml` va `src/services/ai_studio/git_sync.py`: `AI_STUDIO_GITHUB_TOKEN` header autentifikatsiyasi va yashirin dot-papkalarni chiqarib tashlash.
+  7. `src/utils/git_sync.py`: `SecretStr`/oddiy `str` token boshqaruvi va GitHub `extraheader` autentifikatsiyasi.
+  8. `salescoach-ai/{package.json,pnpm-workspace.yaml,pnpm-lock.yaml}`: `effect: ^3.22.1` (`3.22.5`) ga koʻtarilib Dependabot #382 yopildi.
+  9. Testlar: `tests/test_runner_workflow_contract.py` (UTF-8 + yangi kontraktlar), `tests/test_ai_studio_bridge.py`, `tests/test_git_sync.py`, `tests/test_api_server_security.py`, `tests/test_production_boot_contracts.py`.
+- **Tekshiruv dalillari:** Fokuslangan kontrakt testlari (`60 passed, 1 skipped`); `salescoach-ai` CI (`prisma generate`, `negotiations.*.spec.ts` 7/7 passed, `tsc --noEmit` exit 0); `compileall` / `ruff` / `bandit -r src/ -ll` toza; `SKIP_LIVE=1 pytest` (editlardan oldingi toʻliq run: `4438 passed, 18 skipped`, qolgan test xatolari tuzatildi).
+- **Qolgan ish (Owner uchun secretlar):** `CLAUDE_CODE_OAUTH_TOKEN`, `production` environmentdagi eski `2026-09-26` `USERBOT_SESSION_STRING`/`MOIZVONKI_API_KEY` ni tozalash, `HETZNER_HOST`/`HETZNER_SSH_KEY` (yoki `ORACLE_HOST`/`ORACLE_SSH_KEY` ni `2.29.198.0` ga yangilash), Hetzner `.env` ga `META_PAGE_ACCESS_TOKEN`/`META_INSTAGRAM_USER_ID`, hamda `oisha-os-preview` kirishi uchun kerak boʻlsa `AI_STUDIO_SYNC_TOKEN`.
+- **2026-11-20 (follow-up, `fix/git-extraheader-auth`):** PR #1114 (`6531eba7`) merge qilingach `Production Deploy` (`44657397182`), `Oisha Web Ops` (`44657397247`), `Follow-up PR` (`44657398110`), `Verify Userbot Session` (`44657734096`) va `AmoCRM Task Cleanup` (`44657739436`) jonli `success` berdi; Dependabot #382 (`effect`) `fixed` holatiga oʻtdi (ochiq Dependabot alertlar: `0`). `AI Studio <-> Antigravity Sync` (`44657745069`) tekshiruvi `GIT_CONFIG` multi-valued `http.https://github.com/.extraheader` xususiyati (`actions/checkout` headeri bilan toʻqnashuv) va `REPO_ADMIN_PAT` ning private `oisha-os-preview` ga ruxsati yoʻqligini koʻrsatdi; `src/services/ai_studio/git_sync.py`, `src/utils/git_sync.py` (boʻsh reset yozuvi + redaksiya qilingan `stderr` logi) va `.github/workflows/ai-studio-sync.yml` (`persist-credentials: false`) tuzatildi.
 
 ## 2026-11-19 — Claude (agent loop: budjet, retry, eskalatsiya, policy eval)
 - **Bajarilgan ish:** `MinimalAgentLoop.run` ga `LoopBudget` (max_attempts, timeout_s; default 1 urinish — eski xatti-harakat saqlanadi), verifier tasdiqlaguncha retry, har retry oldidan policy qayta tekshiruvi, `escalate` hook va `agent_escalate` log. Verifier istisnosi va executor timeout natija nomaʼlum deb hisoblanadi (`retryable: False`) — tashqi amal takrorlanmaydi. Har bosqich logida `run_id`, `attempt`, `duration_ms`; verifikatsiyada `verification_mode` (`self_reported` / `independent` / `policy_gate`).

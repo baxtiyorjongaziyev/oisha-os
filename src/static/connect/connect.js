@@ -109,6 +109,11 @@ async function loadConnected(st) {
     + " · " + (st.all_chats ? "barcha chatlar ochiq" : st.allowed_chats + " ta chat ochiq");
   $("all-chats").checked = !!st.all_chats;
   chats = (await api("/chats")).chats; renderChats();
+  if (!chats.length) {
+    api("/chats/refresh", { method: "POST" }).then((r) => {
+      chats = r.chats; renderChats($("chat-filter").value);
+    }).catch(() => {});
+  }
   const audit = (await api("/audit")).events;
   const ul = $("audit"); ul.textContent = "";
   audit.forEach((e) => {

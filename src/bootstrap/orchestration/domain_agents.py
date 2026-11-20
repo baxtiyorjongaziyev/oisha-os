@@ -40,7 +40,14 @@ def init_domain_agents(
     bot_runtime: Any,
     m: Any,
 ) -> Dict[str, Any]:
-    juma_notifier = JumaNotifier(client=client, db=msg_controller.db)
+    async def _juma_notify(text: str) -> None:
+        if bot_runtime is not None:
+            await bot_runtime.send_message(settings.OWNER_ID, text)
+
+    juma_notifier = JumaNotifier(
+        client=client, db=msg_controller.db, notify_fn=_juma_notify
+    )
+    app_ctx.juma_notifier = juma_notifier
     lead_scraper = LeadScraper(
         google_service=msg_controller.google, db=msg_controller.db,
         client=client, amocrm=msg_controller.crm.amocrm,
@@ -98,6 +105,7 @@ def init_domain_agents(
         bot_client=bot_client, user_client=client, db=msg_controller.db,
         msg_controller=msg_controller, access_manager=access_manager,
         team_group_id=settings.TEAM_GROUP_ID,
+        juma_notifier=juma_notifier,
         bot_runtime=bot_runtime,
     )
 
