@@ -30,6 +30,7 @@ def lead_with_owner(value=None, tags=None):
 
 def test_seller_field_is_exact():
     assert resolve_seller_key(lead_with_owner("Rayxona"), SALES) == "rayxona"
+    assert resolve_seller_key(lead_with_owner("Rayxon"), SALES) == "rayxona"
     assert resolve_seller_key(lead_with_owner("Rayxona VIP"), SALES) is None
 
 
