@@ -3083,6 +3083,13 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Qolgan ish/Bloker:** (a) mavjud agentlar hali `self_reported` — mustaqil verifierga oʻtkazish. (b) har agent uchun tool allowlist — `agent_policy.py` oʻzgarishi, koordinator qarori. (c) `policy:auto_master` default `true` ichki ishlarda quiet-hours/approvalni chetlab oʻtadi — Owner qarori.
 
 
+## 2026-11-21 — ChatGPT — revenue task audit (read-only)
+- **Maqsad:** Work sessiyasi tugab qolganidan keyin Oisha/amoCRM AI yaratgan vazifalarni daromadga bogʻliq boʻlganlarga ajratish; odam yozgan vazifalar va toʻlov undirish ishlari xavfsiz saqlansin.
+- **Bajarilgan ish:** scripts/amocrm_revenue_task_audit.py alohida, faqat oʻqish rejimidagi audit; AI markerini qatʼiy tekshiradi, lead holati/harakat matni/dublikatni guruhlaydi, nomaʼlum holatni review ga yuboradi, CRM maʼlumotini oʻzgartirmaydi. Audit faqat statistika chiqaradi; xususiy hisobot faqat ixtiyoriy --output da yaratiladi. tests/test_amocrm_revenue_task_audit.py sintetik himoya testlari.
+- **Tekshiruv:** GitHub Actions CI bu PR ochilgach tekshiriladi; jonli amoCRM audit hali ISHGA TUSHIRILMAGAN, hech qanday vazifa yopilmagan. Oldingi 2026-11-20 GitHub Actions amocrm-task-cleanup dry-run: 589 ochiq vazifa, yopilgan bitimlarda 0 ta mos Oisha vazifasi. Bu barcha 589 vazifaning daromad sifatini tasdiqlamaydi.
+- **Qolgan ish/Bloker:** auditni Hetznerda faqat read-only ishga tushirish, chiqqan nomzodlarni owner bilan koʻrib chiqish, faqat tasdiqlangan IDlarni qayta tekshiruvdan keyin yopish. Sotuvchilarga shaxsiy vazifa yoʻnaltirishning oldingi Work sessiyasidagi 11 ta lokal oʻzgarishi GitHub main da mavjud emas; ular tasdiqlanmaguncha production statusi nomaʼlum.
+
+
 ## 2026-11-21 — ChatGPT — daily-priority seller ownership fail-closed
 - **Muammo:** mavjud daily_priority/gatherer.py 3 sotuvchiga deal bosqichlari bo‘yicha narxi yuqori bitimlarni round-robin taqsimlagan, bu bitta amoCRM login ishlatilayotgan paytda boshqa sotuvchining mijozini shaxsiy chatga joʻnatishi mumkin.
 - **Bajarilgan ish:** src/services/core/daily_priority/ownership.py — aniq Sotuvchi custom field yoki aniq tegdan shaxsiy egasini topadi; field/tag zid boʻlsa yoki nomaʼlum boʻlsa hech kimga biriktirmaydi. gatherer.py — round-robin oʻrniga egasi tekshirilgan bitimni faqat shu sotuvchiga yuboradi; moliya bosqichi oʻzgarmagan. tests/test_daily_priority.py fixturelari yangilandi, tests/test_daily_priority_ownership.py qoʻshildi.
