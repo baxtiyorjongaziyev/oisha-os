@@ -11,6 +11,8 @@ from typing import Any
 
 
 SELLER_FIELD_NAMES = frozenset({"sotuvchi", "seller"})
+# Only explicitly known name variants. Never infer an owner from a substring.
+SELLER_ALIASES = {"rayxona": frozenset({"rayxon"})}
 
 
 def _norm(value: object) -> str:
@@ -25,7 +27,10 @@ def _match(value: object, sellers: list[dict[str, Any]]) -> str | None:
     matched = {
         str(seller.get("key"))
         for seller in sellers
-        if candidate in {_norm(seller.get("key")), _norm(seller.get("name"))}
+        if candidate in (
+            {_norm(seller.get("key")), _norm(seller.get("name"))}
+            | set(SELLER_ALIASES.get(str(seller.get("key")), ()))
+        )
     }
     return next(iter(matched)) if len(matched) == 1 else None
 
