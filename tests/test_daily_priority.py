@@ -34,7 +34,7 @@ def _lead(lead_id, price, status_id, days_idle=0):
         "id": lead_id, "name": f"Mijoz {lead_id}", "price": price, "status_id": status_id,
         "updated_at": int(NOW.timestamp()) - days_idle * 86400,
     }
-    sellers = {10: "Rayxona", 11: "Rayxona", 12: "Mumtozmaxal", 13: "Mumtozmaxal"}
+    sellers = {10: "Rayxon", 11: "Rayxon", 12: "Mumtozmaxal", 13: "Mumtozmaxal"}
     if lead_id in sellers:
         lead["custom_fields_values"] = [
             {"field_name": "Sotuvchi", "values": [{"value": sellers[lead_id]}]}
