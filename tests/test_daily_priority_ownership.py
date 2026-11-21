@@ -64,3 +64,75 @@ def test_daily_priority_never_round_robins_unknown_owner():
     assert [t["lead_id"] for t in result["rayxona"]] == [31]
     assert result["shahnoza"] == []
     assert result["mumtozmaxal"] == []
+
+
+def test_menejer_custom_field_from_crm_setup_plan():
+    lead = lead_with_owner()
+    lead["custom_fields_values"] = [{
+        "field_name": "Menejer",
+        "field_id": 560001,
+        "values": [{"value": "Rayxon"}],
+    }]
+    assert resolve_seller_key(lead, SALES) == "rayxona"
+
+
+def test_field_id_metadata_verified_via_environment(monkeypatch):
+    lead = lead_with_owner()
+    # amoCRM may return an ID without field_name; never accept an unverified ID.
+    lead["custom_fields_values"] = [{
+        "field_id": 560001,
+        "values": [{"value": "Shahnoza"}],
+    }]
+    monkeypatch.delenv("DAILY_PRIORITY_SELLER_FIELD_IDS", raising=False)
+    assert resolve_seller_key(lead, SALES) is None
+    monkeypatch.setenv("DAILY_PRIORITY_SELLER_FIELD_IDS", "560001")
+    assert resolve_seller_key(lead, SALES) == "shahnoza"
+
+
+def test_full_name_tags_generated_by_lead_assigner():
+    assert resolve_seller_key(
+        lead_with_owner(tags=["sotuvchi:Rayxona Rahimova"]), SALES
+    ) == "rayxona"
+    assert resolve_seller_key(
+        lead_with_owner(tags=["sotuvchi:Shahnoza Abdijabborova"]), SALES
+    ) == "shahnoza"
+    assert resolve_seller_key(
+        lead_with_owner(tags=["sotuvchi:Mumtozmaxal Normurodova"]), SALES
+    ) == "mumtozmaxal"
+
+
+def test_old_and_new_reassignment_tags_require_manual_reconciliation():
+    lead = lead_with_owner(tags=[
+        "sotuvchi:Rayxona Rahimova", "sotuvchi:Shahnoza Abdijabborova",
+    ])
+    assert resolve_seller_key(lead, SALES) is None
+
+
+def test_menejer_and_tag_conflict_is_not_delivered():
+    lead = lead_with_owner(tags=["sotuvchi:Shahnoza Abdijabborova"])
+    lead["custom_fields_values"] = [{
+        "field_name": "Menejer",
+        "values": [{"value": "Rayxon"}],
+    }]
+    assert resolve_seller_key(lead, SALES) is None
+
+
+def test_founder_deals_are_not_assigned_to_staff():
+    lead = lead_with_owner()
+    lead["custom_fields_values"] = [{
+        "field_name": "Menejer",
+        "values": [{"value": "Baxtiyorjon"}],
+    }]
+    assert resolve_seller_key(lead, SALES) is None
+
+
+def test_daily_priority_full_name_seller_tag_is_not_lost():
+    async def fetch(_pipeline, status):
+        if status == 88871066:
+            return [lead_with_owner(tags=["sotuvchi:Rayxona Rahimova"])]
+        return []
+
+    result = asyncio.run(gather_tasks(SALES, fetch=fetch, now_ts=1_700_000_000))
+    assert [task["lead_id"] for task in result["rayxona"]] == [31]
+    assert result["shahnoza"] == []
+    assert result["mumtozmaxal"] == []
