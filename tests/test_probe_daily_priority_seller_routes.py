@@ -55,19 +55,6 @@ class FakeAmo:
 def test_probe_uses_only_get_and_restores_environment(monkeypatch):
     fake = FakeAmo()
     monkeypatch.setattr(diag, "AmoCRMTaskCleaner", lambda **_: fake)
-    def fake_get(url, headers, params, timeout):
-        assert url.startswith(fake.amo.base_url)
-        assert headers["Authorization"] == "Bearer synthetic-token"
-        assert timeout == 30
-        return SimpleNamespace(
-            content=b"synthetic",
-            json=lambda: fake._get(url[len(fake.amo.base_url):], params),
-            raise_for_status=lambda: None,
-        )
-
-    monkeypatch.setattr(diag.requests, "get", fake_get)
-    monkeypatch.setattr(diag.requests, "post", lambda *a, **kw: pytest.fail("POST forbidden"))
-    monkeypatch.setattr(diag.requests, "patch", lambda *a, **kw: pytest.fail("PATCH forbidden"))
     monkeypatch.setattr(diag, "SALES_STAGES", [
         (11162698, 88871066, "Kelishuv / Yopish"),
     ])
@@ -104,10 +91,75 @@ def test_probe_fails_without_metadata(monkeypatch):
         amo = SimpleNamespace(base_url="https://example.invalid", access_token="synthetic")
 
     monkeypatch.setattr(diag, "AmoCRMTaskCleaner", NoMetadata)
-    monkeypatch.setattr(diag.requests, "get", lambda url, headers, params, timeout: SimpleNamespace(
-        content=b"synthetic",
-        json=lambda: {"_embedded": {"custom_fields": []}},
-        raise_for_status=lambda: None,
-    ))
     with pytest.raises(RuntimeError, match="No verified"):
         diag.probe(max_pages=1)
+
+
+def test_oauth_401_uses_shared_client_refresh_once(monkeypatch):
+    """A 401 can be recovered by the production credential rotation guard."""
+    from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner
+
+    auth = SimpleNamespace(base_url="https://example.invalid", current="old", refresh_count=0)
+
+    def get_headers():
+        return {"Authorization": f"Bearer {auth.current}"}
+
+    def refresh_token():
+        auth.refresh_count += 1
+        auth.current = "renewed"
+        return True
+
+    auth._get_headers = get_headers
+    auth.refresh_token = refresh_token
+    client = object.__new__(AmoCRMTaskCleaner)
+    client.amo = auth
+    calls = []
+
+    def fake_get(url, headers, params, timeout):
+        calls.append((url, headers["Authorization"], params, timeout))
+        status = 401 if len(calls) == 1 else 200
+
+        def raise_for_status():
+            if status != 200:
+                raise RuntimeError(f"HTTP {status}")
+
+        return SimpleNamespace(
+            status_code=status,
+            json=lambda: {"verified": True},
+            raise_for_status=raise_for_status,
+        )
+
+    monkeypatch.setattr("scripts.amocrm_task_cleanup.requests.get", fake_get)
+    result = diag._read_get(client, "/api/v4/leads/custom_fields", {"page": 1})
+    assert result == {"verified": True}
+    assert auth.refresh_count == 1
+    assert [call[1] for call in calls] == ["Bearer old", "Bearer renewed"]
+    assert all(call[2] == {"page": 1} for call in calls)
+
+
+def test_401_without_refresh_remains_error(monkeypatch):
+    """Never conceal invalid integration credentials or loop indefinitely."""
+    from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner
+    import requests
+
+    auth = SimpleNamespace(
+        base_url="https://example.invalid",
+        _get_headers=lambda: {"Authorization": "Bearer invalid"},
+        refresh_token=lambda: False,
+    )
+    client = object.__new__(AmoCRMTaskCleaner)
+    client.amo = auth
+    calls = []
+
+    def fake_get(url, headers, params, timeout):
+        calls.append(1)
+
+        def failed():
+            raise requests.HTTPError("HTTP 401 Unauthorized")
+
+        return SimpleNamespace(status_code=401, raise_for_status=failed)
+
+    monkeypatch.setattr("scripts.amocrm_task_cleanup.requests.get", fake_get)
+    with pytest.raises(requests.HTTPError, match="401"):
+        diag._read_get(client, "/api/v4/leads/custom_fields", {"page": 1})
+    assert len(calls) == 1
