@@ -110,7 +110,7 @@ async def test_send_task_alert_and_deduplication():
     mock_bot = AsyncMock()
     mock_amocrm = MagicMock()
     mock_amocrm.get_user_name.return_value = "Baxtiyorjon Gaziyev"
-    mock_amocrm.get_lead = AsyncMock(return_value={"name": "Test Lead"})
+    mock_amocrm.get_lead = AsyncMock(return_value={"name": "Test Lead", "_embedded": {"tags": [{"name": "Rayxon"}]}})
     mock_amocrm.get_lead_phone.return_value = "+998901112233"
     mock_amocrm.get_contact_details_async = AsyncMock(return_value=None)
 
@@ -145,7 +145,7 @@ async def test_check_and_notify_due_tasks(monkeypatch):
     mock_bot = AsyncMock()
     mock_amocrm = MagicMock()
     mock_amocrm.get_user_name.return_value = "Baxtiyorjon"
-    mock_amocrm.get_lead = AsyncMock(return_value={"name": "Due Lead"})
+    mock_amocrm.get_lead = AsyncMock(return_value={"name": "Due Lead", "_embedded": {"tags": [{"name": "Shahnoza"}]}})
     mock_amocrm.get_lead_phone.return_value = None
     mock_amocrm.get_contact_details_async = AsyncMock(return_value=None)
 

@@ -141,22 +141,9 @@ class AmoCRMTasksNotesMixin:
             return False
 
     async def get_tasks(self, is_completed: bool = False) -> List[Dict[str, Any]]:
-        """AmoCRM dan vazifalarni olish."""
-        if not self.access_token:
-            self._load_token()
-
-        url = f"{self.base_url}/api/v4/tasks"
-        params = {"filter[is_completed]": 1 if is_completed else 0}
-
-        try:
-            response = await asyncio.to_thread(requests.get, url, headers=self._get_headers(), params=params, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("_embedded", {}).get("tasks", [])
-            return []
-        except Exception as e:
-            logger.error(f"[AMOCRM GET TASKS ERROR] {e}")
-            return []
+        """Read every task page, raising on unavailable or partial source data."""
+        from src.services.core.crm.amocrm.task_reader import read_tasks
+        return await read_tasks(self, is_completed)
 
     async def get_task(self, task_id: int) -> Optional[Dict[str, Any]]:
         """AmoCRM dan bitta vazifani ID bo'yicha olish."""

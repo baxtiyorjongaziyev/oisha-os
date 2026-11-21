@@ -8,6 +8,8 @@ import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.settings import settings
+from src.services.core.crm.task_notifier.routing import resolve_seller
+from src.services.core.crm.task_notifier.delivery import deliver
 
 from src.services.core.crm.task_notifier.formatter import (
     format_task_notification,
@@ -35,6 +37,13 @@ class AmoCrmTaskNotifier:
         self.amocrm = amocrm
         self.db = db
         self.bot_runtime = bot_runtime
+        from aiogram import Bot
+        from telethon import TelegramClient
+        from src.services.core.telegram.bot_runtime import AiogramBotRuntime, TelethonBotRuntime
+        if isinstance(bot_runtime, TelegramClient):
+            self.bot_runtime = TelethonBotRuntime(bot_runtime)
+        elif isinstance(bot_runtime, Bot):
+            self.bot_runtime = AiogramBotRuntime(bot_runtime)
         self._sent_alerts: Set[str] = set()
 
     def _get_target_destination(self) -> Tuple[Optional[int], Optional[int]]:
@@ -87,20 +96,20 @@ class AmoCrmTaskNotifier:
         alert_type: str = "due",
         force: bool = False,
     ) -> bool:
-        """Send task alert to Sales Follow-up Topic via @jonairobot."""
+        """Send a task only to its verified seller through Oisha."""
         task_id = task.get("id")
         if not task_id:
             return False
-        if not force and await self.is_alert_sent(task_id, alert_type):
-            logger.debug(f"[TASK_NOTIFIER] Task {task_id} {alert_type} alert already sent. Skipping.")
+        if task.get("_event_type") == "add":
+            alert_type = "new"
+        if task.get("is_completed") in (True, 1, "1", "true"):
             return False
         if not self.bot_runtime:
             logger.warning("[TASK_NOTIFIER] bot_runtime not available. Cannot send alert.")
             return False
 
-        group_id, topic_id = self._get_target_destination()
-        if not group_id:
-            logger.warning("[TASK_NOTIFIER] Target group_id not configured.")
+        entity_type = task.get("entity_type") or task.get("element_type") or "leads"
+        if entity_type not in ("leads", 2, "2"):
             return False
 
         # Fetch full task data if needed
@@ -112,6 +121,9 @@ class AmoCrmTaskNotifier:
                         task = {**full_task, **task}
             except Exception as e:
                 logger.debug(f"[TASK_NOTIFIER] Could not auto-fetch full task {task_id}: {e}")
+
+        if task.get("is_completed") in (True, 1, "1", "true"):
+            return False
 
         # Guard future due alerts
         complete_till = task.get("complete_till")
@@ -126,7 +138,7 @@ class AmoCrmTaskNotifier:
             return False
 
         # Resolve entity & user info
-        entity_type = task.get("entity_type") or "leads"
+        entity_type = "leads"
         entity_id = task.get("entity_id") or task.get("element_id")
         lead_or_contact = None
         contact_details = None
@@ -167,6 +179,13 @@ class AmoCrmTaskNotifier:
             except Exception as e:
                 logger.debug(f"[TASK_NOTIFIER] Non-client check warning: {e}")
 
+        seller = resolve_seller(lead_or_contact)
+        if lead_or_contact and str(lead_or_contact.get("status_id")) in {"142", "143"}:
+            return False
+        if not seller:
+            logger.warning("[TASK_DM] Unresolved/conflicting seller task=%s lead=%s", task_id, entity_id)
+            return False
+        responsible_name = seller.name
         subdomain = getattr(self.amocrm, "subdomain", None) or DEFAULT_SUBDOMAIN
         text, buttons = format_task_notification(
             task=task,
@@ -177,23 +196,7 @@ class AmoCrmTaskNotifier:
             alert_type=alert_type,
             subdomain=subdomain,
         )
-        try:
-            await self.bot_runtime.send_message(
-                chat_id=group_id,
-                text=text,
-                message_thread_id=topic_id,
-                buttons=buttons,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-            await self.mark_alert_sent(task_id, alert_type)
-            logger.info(
-                f"[TASK_NOTIFIER] Sent {alert_type} alert for task {task_id} (entity={entity_id}) to group {group_id} topic {topic_id}"
-            )
-            return True
-        except Exception as e:
-            logger.error(f"[TASK_NOTIFIER] Failed to send message for task {task_id}: {e}")
-            return False
+        return await deliver(self.bot_runtime, self.db, task, seller, alert_type, text, buttons)
 
     async def check_and_notify_due_tasks(self, limit: int = 250) -> Dict[str, int]:
         """Proactive check of open tasks from AmoCRM API."""
@@ -214,7 +217,7 @@ class AmoCrmTaskNotifier:
                     stats["skipped"] += 1
                     continue
                 diff = now - complete_till
-                if -60 <= diff <= 900:
+                if -900 <= diff <= 900:
                     sent = await self.send_task_alert(task, alert_type="due")
                     if sent:
                         stats["due_sent"] += 1
@@ -224,6 +227,11 @@ class AmoCrmTaskNotifier:
                     sent = await self.send_task_alert(task, alert_type="overdue")
                     if sent:
                         stats["overdue_sent"] += 1
+                    else:
+                        stats["skipped"] += 1
+                elif 0 <= now - int(task.get("created_at") or 0) < 900:
+                    if await self.send_task_alert(task, alert_type="new"):
+                        stats["new_sent"] = stats.get("new_sent", 0) + 1
                     else:
                         stats["skipped"] += 1
                 else:

@@ -2851,3 +2851,13 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   2. `scripts/amocrm_surgical_cleanup_execute.py` skripti oʻchirildi (qayta ishlab ketish xavfi yoʻq).
   3. `amocrm_hygiene.py` va `crm_discipline_scheduler.py` da avtomatik arxivlash qatʼiyan oʻchirildi (`auto_archive=False`, xavfsiz ostonasi 480 ga koʻtarildi). Fon tekshiruvi bitimlarni oʻzboshimchalik bilan yopmaydi, faqat vazifalarni nazorat qiladi va limit oshganda xabarnoma chiqaradi.
   4. Meta CAPI tekshirildi: `STATUS_LOST (143)` CAPI triggerlariga ulanmagan (`STATUS_EVENT_MAP` faqat 142 ni oladi), shuning uchun Meta CAPI da hech qanday notoʻgʻri konversiya yuborilmagan.
+
+
+## 2026-11-21 Codex - seller task private delivery
+- Branch: feat/seller-task-telegram; isolated worktree seller-task-dm.
+- Added field 1559389 / exact tag seller resolver, pinned verified Telegram IDs, private bot delivery, deadline/recipient atomic claims, complete task paging, Tashkent timestamps, safe raw bot adapters.
+- Source: owner requested each seller receive their own amoCRM tasks through Oisha; three sellers confirmed in chat.
+- Validation: 30 focused tests pass; full src Bandit pass. Full preflight: 3853 passed, 18 skipped, 6 failures in untouched token fallback, lead guard and logging tests. Clean baseline reproduces five; logging test passes alone. No PR/merge.
+- Production: seven-file scoped patch on Hetzner /home/deploy/oisha-os, verified original hashes, backup /home/deploy/oisha-task-dm-backups/20261121T111354Z. oisha.service active PID418988, readiness ready with database/userbot/CRM connected.
+- Real delivery receipts: Shahnoza task50445049 msg13409; Mumtozmaxal task50638895 msg13410; Rayxon task50467301 msg13411. Telegram accepted; reading/completion not claimed.
+- Open: historical overdue backlog not mass-sent; ambiguous/unknown owners blocked; preflight failures prevent PR. Existing tags/integrations retained.

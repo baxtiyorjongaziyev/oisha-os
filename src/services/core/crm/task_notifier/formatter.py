@@ -6,6 +6,7 @@ from __future__ import annotations
 import html
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger('AmoCRMTaskNotifier')
@@ -60,7 +61,7 @@ def _format_timestamp(ts: Optional[int | float]) -> str:
     if not ts:
         return "Noma'lum"
     try:
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone()
+        dt = datetime.fromtimestamp(int(ts), tz=timezone.utc).astimezone(ZoneInfo("Asia/Tashkent"))
         return dt.strftime("%d.%m.%Y %H:%M")
     except Exception:
         return str(ts)
