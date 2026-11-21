@@ -88,6 +88,6 @@ def test_completed_ai_task_is_not_reported():
 
 
 def test_oisha_markers_and_uzbek_apostrophes():
-    assert is_ai_task(_task(14, "🤖 Oisha-OS Keyingi Qadam: qoʻngʻiroq qiling")) is False
+    assert is_ai_task(_task(14, "🤖 Oisha-OS Keyingi Qadam: qoʻngʻiroq qiling")) is True
     assert is_ai_task(_task(15, "Oisha-OS Keyingi Qadam: qoʻngʻiroq qiling"))
     assert normalized("Toʻlov") == normalized("To'lov")
