@@ -68,3 +68,12 @@ Hisobotdan tekshiriladiganlar:
 - [ ] AmoCRM task_notifierʼni shaxsiyga yuborish alohida PRʼda sinovdan o‘tkaziladi.
 
 **Holat:** ishlab chiqish va testlar PR’da. Live read-only tekshiruvni bajarilmagan bo‘lsa bajarildi deb belgilangani yo‘q.
+
+
+## 6. GitHub orqali keyingi read-only nazorat
+
+PR asosiy branch'ga merge bo'lgach, GitHub Actions sahifasidan **DailyPriority Seller Routing Audit (Read Only)** workflow'ini ochib **Run workflow** ni tanlang; branch: main, max_pages: 20.
+
+Bu workflow Hetzner runner'ida alohida checkout qiladi; production ishchi checkout'iga git stash, git reset, git checkout, API PATCH yoki Telegram send qilmaydi. Faqat agregatsiya natijalari GitHub Actions logida ko'rinadi.
+
+**Muhim:** workflow default branch'da mavjud bo'lmaguncha GitHub Actions interfeysidan Run workflow tugmasi ko'rinmasligi mumkin. Merge oldidan jonli auditni alohida worktree/checkout'da mavjud server virtualenv'i bilan bajaring. Jonli audit o'tmasdan merge qilishni release tasdig'i deb hisoblamang.
