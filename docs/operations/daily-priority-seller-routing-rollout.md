@@ -32,7 +32,7 @@ Serverda amoCRM tokeni va ishchi virtualenv mavjud, kodning shu branchʼi alohid
 python scripts/prod/probe_daily_priority_seller_routes.py --max-pages 20
 ```
 
-Bu skript **faqat GET** ishlatadi, xabar yubormaydi, CRMʼda hech narsani yozmaydi, token/mijoz identifikatorlarini logga chiqarmaydi.
+Bu skript **CRMʼdagi bitimlar, vazifalar va teglar uchun faqat GET** ishlatadi; Telegram xabar yubormaydi, token/mijoz identifikatorlarini logga chiqarmaydi. Mavjud amoCRM autentifikatsiya yuklagichi tokenni ishga tushishda ichki autentifikatsiya bazasiga sinxronlashi mumkin; bu CRM biznes yozuvlariga tegmaydi. Tokenni HTTP orqali refresh qilish uchun POST avtomatik yuborilmaydi: token yaroqsiz bo‘lsa diagnostika to‘xtaydi.
 
 Hisobotdan tekshiriladiganlar:
 
