@@ -72,7 +72,6 @@ def probe(max_pages: int) -> dict:
     if not fields:
         raise RuntimeError("No verified Menejer/Sotuvchi custom field metadata")
 
-    # Process-local only: use metadata IDs, never change the production .env.
     original_env = os.environ.get("DAILY_PRIORITY_SELLER_FIELD_IDS")
     ids = ",".join(str(item["id"]) for item in fields)
     os.environ["DAILY_PRIORITY_SELLER_FIELD_IDS"] = ids
@@ -116,9 +115,7 @@ def probe(max_pages: int) -> dict:
             "verified_seller_fields": fields,
             "suggested_env_field_ids": ids,
             "total_unique_leads_scanned": len(seen),
-            "verified_seller_leads": {
-                s["key"]: totals.get(s["key"], 0) for s in sellers
-            },
+            "verified_seller_leads": {s["key"]: totals.get(s["key"], 0) for s in sellers},
             "unassigned_or_conflicting": totals.get("unassigned", 0),
             "stages": output,
         }
