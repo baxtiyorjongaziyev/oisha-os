@@ -1,5 +1,6 @@
 """Read-only live probe tests; all fixtures are synthetic."""
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,7 @@ class FakeAmo:
     def __init__(self, *, live=False):
         assert live is False
         self.requests = []
+        self.amo = SimpleNamespace(base_url="https://example.invalid", access_token="synthetic-token")
 
     def _get(self, path, params=None):
         self.requests.append((path, params))
@@ -53,6 +55,19 @@ class FakeAmo:
 def test_probe_uses_only_get_and_restores_environment(monkeypatch):
     fake = FakeAmo()
     monkeypatch.setattr(diag, "AmoCRMTaskCleaner", lambda **_: fake)
+    def fake_get(url, headers, params, timeout):
+        assert url.startswith(fake.amo.base_url)
+        assert headers["Authorization"] == "Bearer synthetic-token"
+        assert timeout == 30
+        return SimpleNamespace(
+            content=b"synthetic",
+            json=lambda: fake._get(url[len(fake.amo.base_url):], params),
+            raise_for_status=lambda: None,
+        )
+
+    monkeypatch.setattr(diag.requests, "get", fake_get)
+    monkeypatch.setattr(diag.requests, "post", lambda *a, **kw: pytest.fail("POST forbidden"))
+    monkeypatch.setattr(diag.requests, "patch", lambda *a, **kw: pytest.fail("PATCH forbidden"))
     monkeypatch.setattr(diag, "SALES_STAGES", [
         (11162698, 88871066, "Kelishuv / Yopish"),
     ])
@@ -86,6 +101,13 @@ def test_probe_fails_without_metadata(monkeypatch):
             assert path == "/api/v4/leads/custom_fields"
             return {"_embedded": {"custom_fields": []}}
 
+        amo = SimpleNamespace(base_url="https://example.invalid", access_token="synthetic")
+
     monkeypatch.setattr(diag, "AmoCRMTaskCleaner", NoMetadata)
+    monkeypatch.setattr(diag.requests, "get", lambda url, headers, params, timeout: SimpleNamespace(
+        content=b"synthetic",
+        json=lambda: {"_embedded": {"custom_fields": []}},
+        raise_for_status=lambda: None,
+    ))
     with pytest.raises(RuntimeError, match="No verified"):
         diag.probe(max_pages=1)
