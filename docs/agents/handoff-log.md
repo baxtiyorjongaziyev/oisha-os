@@ -3081,3 +3081,10 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Oʻzgargan fayllar:** `src/services/core/agent_loop.py`, `tests/test_agent_loop_budget.py`, `tests/test_policy_eval_golden.py`, `tests/evals/policy_golden.json` (`.gitignore` dagi `*.json` sababli `git add -f`), `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:** yangi va aloqador testlar oʻtdi; bandit toza; uzbek guard toza. Toʻliq `SKIP_LIVE=1 pytest` dagi 5 xato (`test_runner_workflow_contract` 4, `test_drive_oauth_onboarding` 1) toza HEAD da ham bor.
 - **Qolgan ish/Bloker:** (a) mavjud agentlar hali `self_reported` — mustaqil verifierga oʻtkazish. (b) har agent uchun tool allowlist — `agent_policy.py` oʻzgarishi, koordinator qarori. (c) `policy:auto_master` default `true` ichki ishlarda quiet-hours/approvalni chetlab oʻtadi — Owner qarori.
+
+
+## 2026-11-21 — ChatGPT — daily-priority seller ownership fail-closed
+- **Muammo:** mavjud daily_priority/gatherer.py 3 sotuvchiga deal bosqichlari bo‘yicha narxi yuqori bitimlarni round-robin taqsimlagan, bu bitta amoCRM login ishlatilayotgan paytda boshqa sotuvchining mijozini shaxsiy chatga joʻnatishi mumkin.
+- **Bajarilgan ish:** src/services/core/daily_priority/ownership.py — aniq Sotuvchi custom field yoki aniq tegdan shaxsiy egasini topadi; field/tag zid boʻlsa yoki nomaʼlum boʻlsa hech kimga biriktirmaydi. gatherer.py — round-robin oʻrniga egasi tekshirilgan bitimni faqat shu sotuvchiga yuboradi; moliya bosqichi oʻzgarmagan. tests/test_daily_priority.py fixturelari yangilandi, tests/test_daily_priority_ownership.py qoʻshildi.
+- **Tekshiruv:** GitHub CI va xavfsizlik skanlari PR ochilgach tekshiriladi, real amoCRM bitimlari bilan hali ISBOTLANMAGAN. Nomaʼlum sotuvchi uchun Oisha faqat xodimdan bugungi ishini soʻraydi, begona mijoz maʼlumotini yubormaydi.
+- **Qolgan ish/Bloker:** live Sotuvchi field/tag formatlarini dry-run tekshirish; Work sessiyasida tahrirlangan task_notifier/delivery.py bilan integratsiya alohida PR bo‘lib, bu o‘zgarish uni almashtirmaydi. Production deploy amalga oshirilmagan.
