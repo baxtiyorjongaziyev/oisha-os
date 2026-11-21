@@ -12,8 +12,6 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-import requests
-
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -29,18 +27,11 @@ PAGE_SIZE = 250
 
 
 def _read_get(client: AmoCRMTaskCleaner, path: str, params: dict) -> dict:
-    """Never use _get_headers: it can refresh OAuth credentials via POST."""
-    token = client.amo.access_token
-    if not token:
-        raise RuntimeError("No existing amoCRM token; read-only probe aborted")
-    response = requests.get(
-        client.amo.base_url + path,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        params=params,
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.json() if response.content else {}
+    """Use shared amoCRM GET helper: refresh OAuth on 401, never modify leads.
+
+    OAuth refresh may persist rotated credentials; CRM business data stays read-only.
+    """
+    return client._get(path, params)
 
 
 def _field_metadata(client: AmoCRMTaskCleaner) -> list[dict]:
