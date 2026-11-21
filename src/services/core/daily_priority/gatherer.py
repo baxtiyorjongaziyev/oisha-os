@@ -5,9 +5,9 @@ Bosqichlar joriy amoCRM voronkalaridan olingan (2026-11-16):
 - Moliya (toʻlov kutilmoqda): Closer "Avans kutilmoqda",
   Farmer "Yakuniy 50% toʻlov kutilmoqda".
 
-Uchala sotuv menejeri bitta amoCRM foydalanuvchisida ishlaydi, shuning uchun
-bitimlar ular orasida navbatma-navbat (eng qimmati birinchi) boʻlinadi —
-bitta bitim ikki kishiga tushmaydi.
+Uchala sotuv menejeri bitta amoCRM foydalanuvchisida ishlaydi. Shaxsiy
+vazifalar faqat bitimning Sotuvchi maydoni yoki aniq tasdiqlangan tegidan
+yagona egasi topilganda yuboriladi. Nomaʼlum holatda vazifa taqsimlanmaydi.
 """
 from __future__ import annotations
 
