@@ -5,9 +5,9 @@ Bosqichlar joriy amoCRM voronkalaridan olingan (2026-11-16):
 - Moliya (toʻlov kutilmoqda): Closer "Avans kutilmoqda",
   Farmer "Yakuniy 50% toʻlov kutilmoqda".
 
-Uchala sotuv menejeri bitta amoCRM foydalanuvchisida ishlaydi, shuning uchun
-bitimlar ular orasida navbatma-navbat (eng qimmati birinchi) boʻlinadi —
-bitta bitim ikki kishiga tushmaydi.
+Uchala sotuv menejeri bitta amoCRM foydalanuvchisida ishlaydi. Shaxsiy
+vazifalar faqat bitimning Sotuvchi maydoni yoki aniq tasdiqlangan tegidan
+yagona egasi topilganda yuboriladi. Nomaʼlum holatda vazifa taqsimlanmaydi.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ import time
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from src.services.core.daily_priority.team import ROLE_FINANCE, ROLE_SALES
+from src.services.core.daily_priority.ownership import resolve_seller_key
 
 logger = logging.getLogger("DailyPriority")
 
@@ -78,7 +79,10 @@ def _rank(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(tasks, key=lambda t: (-t["price"], -(t["idle_days"] or 0)))
 
 
-async def _collect(stages, fetch: FetchLeads, now_ts: float) -> List[Dict[str, Any]]:
+async def _collect(
+    stages, fetch: FetchLeads, now_ts: float,
+    *, sellers: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
     tasks: List[Dict[str, Any]] = []
     seen = set()
     for pipeline_id, status_id, stage in stages:
@@ -91,7 +95,10 @@ async def _collect(stages, fetch: FetchLeads, now_ts: float) -> List[Dict[str, A
             if lead.get("id") in seen or int(lead.get("status_id") or status_id) != status_id:
                 continue
             seen.add(lead.get("id"))
-            tasks.append(_to_task(lead, stage, now_ts))
+            task = _to_task(lead, stage, now_ts)
+            if sellers is not None:
+                task["seller_key"] = resolve_seller_key(lead, sellers)
+            tasks.append(task)
     return _rank(tasks)
 
 
@@ -110,9 +117,17 @@ async def gather_tasks(
     finance = [m for m in team if m.get("role") == ROLE_FINANCE]
 
     if sales:
-        pool = await _collect(SALES_STAGES, fetch, now_ts)
-        for index, task in enumerate(pool[: MAX_PER_MEMBER * len(sales)]):
-            result[sales[index % len(sales)]["key"]].append(task)
+        pool = await _collect(SALES_STAGES, fetch, now_ts, sellers=sales)
+        unassigned = 0
+        for task in pool:
+            owner = task.get("seller_key")
+            if owner is None:
+                unassigned += 1
+                continue
+            if len(result[owner]) < MAX_PER_MEMBER:
+                result[owner].append(task)
+        if unassigned:
+            logger.warning("[DAILY] %s ta bitimda Sotuvchi tasdiqlanmadi; shaxsiy vazifa berilmadi.", unassigned)
     if finance:
         pool = await _collect(FINANCE_STAGES, fetch, now_ts)
         for index, task in enumerate(pool[: MAX_PER_MEMBER * len(finance)]):

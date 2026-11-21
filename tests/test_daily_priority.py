@@ -30,10 +30,16 @@ async def no_ai(*_args, **_kwargs):
 
 
 def _lead(lead_id, price, status_id, days_idle=0):
-    return {
+    lead = {
         "id": lead_id, "name": f"Mijoz {lead_id}", "price": price, "status_id": status_id,
         "updated_at": int(NOW.timestamp()) - days_idle * 86400,
     }
+    sellers = {10: "Rayxon", 11: "Rayxon", 12: "Mumtozmaxal", 13: "Mumtozmaxal"}
+    if lead_id in sellers:
+        lead["custom_fields_values"] = [
+            {"field_name": "Sotuvchi", "values": [{"value": sellers[lead_id]}]}
+        ]
+    return lead
 
 
 async def fake_fetch(pipeline_id, status_id):

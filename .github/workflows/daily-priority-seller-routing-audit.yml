@@ -1,0 +1,42 @@
+name: DailyPriority Seller Routing Audit (Read Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: "Max CRM pages per sales stage (250 leads each)"
+        required: true
+        type: choice
+        default: "20"
+        options:
+          - "5"
+          - "20"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-priority-seller-routing-readonly
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Verify amoCRM seller field and routing WITHOUT writes
+    runs-on: [self-hosted, oracle]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout read-only probe code
+        uses: actions/checkout@v7
+
+      - name: Read-only seller ownership summary
+        env:
+          MAX_PAGES: ${{ inputs.max_pages }}
+        run: |
+          set -euo pipefail
+          OISHA_DIR="/home/deploy/oisha-os"
+          [ -d "$OISHA_DIR" ] || OISHA_DIR="/home/ubuntu/oisha-os"
+          test -x "$OISHA_DIR/venv/bin/python"
+          cd "$OISHA_DIR"
+          PYTHONPATH="$GITHUB_WORKSPACE" "$OISHA_DIR/venv/bin/python" \
+            "$GITHUB_WORKSPACE/scripts/prod/probe_daily_priority_seller_routes.py" \
+            --max-pages "$MAX_PAGES"
