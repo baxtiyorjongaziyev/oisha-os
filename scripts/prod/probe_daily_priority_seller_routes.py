@@ -12,6 +12,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+import requests
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -26,11 +28,26 @@ from src.services.core.daily_priority.team import ROLE_SALES, get_team  # noqa: 
 PAGE_SIZE = 250
 
 
+def _read_get(client: AmoCRMTaskCleaner, path: str, params: dict) -> dict:
+    """Never use _get_headers: it can refresh OAuth credentials via POST."""
+    token = client.amo.access_token
+    if not token:
+        raise RuntimeError("No existing amoCRM token; read-only probe aborted")
+    response = requests.get(
+        client.amo.base_url + path,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        params=params,
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json() if response.content else {}
+
+
 def _field_metadata(client: AmoCRMTaskCleaner) -> list[dict]:
     fields: list[dict] = []
     for page in range(1, 11):
-        data = client._get(
-            "/api/v4/leads/custom_fields",
+        data = _read_get(
+            client, "/api/v4/leads/custom_fields",
             {"page": page, "limit": PAGE_SIZE},
         )
         batch = (data.get("_embedded") or {}).get("custom_fields") or []
@@ -46,8 +63,8 @@ def _stage_leads(client: AmoCRMTaskCleaner, pipeline_id: int, status_id: int,
                  max_pages: int) -> tuple[list[dict], bool]:
     result: list[dict] = []
     for page in range(1, max_pages + 1):
-        data = client._get(
-            "/api/v4/leads",
+        data = _read_get(
+            client, "/api/v4/leads",
             {
                 "page": page,
                 "limit": PAGE_SIZE,
