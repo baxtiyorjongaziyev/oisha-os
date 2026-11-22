@@ -38,9 +38,11 @@ class AiogramBotHead:
         "business_message",
         "edited_business_message",
         "deleted_business_messages",
+        "stopped_message_generation",
         "widget_query",
         "shared_widget_query",
     )
+    _RAW_MESSAGE_SERVICE_KEYS = ("write_access_allowed", "checklist_tasks_done")
 
     def _register_raw_update_middleware(self) -> None:
         raw_update_handler = self.raw_update_handler
@@ -48,8 +50,13 @@ class AiogramBotHead:
         async def _raw_update_middleware(handler, event, data):
             try:
                 payload = event.model_dump(exclude_none=True, by_alias=True)
-                if raw_update_handler is not None and any(
-                    key in payload for key in AiogramBotHead._RAW_PASSTHROUGH_KEYS
+                msg_dict = payload.get("message")
+                has_service_msg = isinstance(msg_dict, dict) and any(
+                    k in msg_dict for k in AiogramBotHead._RAW_MESSAGE_SERVICE_KEYS
+                )
+                if raw_update_handler is not None and (
+                    has_service_msg
+                    or any(key in payload for key in AiogramBotHead._RAW_PASSTHROUGH_KEYS)
                 ):
                     return await raw_update_handler(payload)
             except Exception as exc:

@@ -3089,6 +3089,42 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv:** GitHub Actions CI bu PR ochilgach tekshiriladi; jonli amoCRM audit hali ISHGA TUSHIRILMAGAN, hech qanday vazifa yopilmagan. Oldingi 2026-11-20 GitHub Actions amocrm-task-cleanup dry-run: 589 ochiq vazifa, yopilgan bitimlarda 0 ta mos Oisha vazifasi. Bu barcha 589 vazifaning daromad sifatini tasdiqlamaydi.
 - **Qolgan ish/Bloker:** auditni Hetznerda faqat read-only ishga tushirish, chiqqan nomzodlarni owner bilan koʻrib chiqish, faqat tasdiqlangan IDlarni qayta tekshiruvdan keyin yopish. Sotuvchilarga shaxsiy vazifa yoʻnaltirishning oldingi Work sessiyasidagi 11 ta lokal oʻzgarishi GitHub main da mavjud emas; ular tasdiqlanmaguncha production statusi nomaʼlum.
 
+## 2026-11-21 — ChatGPT — daily-priority seller ownership fail-closed
+- **Muammo:** mavjud daily_priority/gatherer.py 3 sotuvchiga deal bosqichlari bo‘yicha narxi yuqori bitimlarni round-robin taqsimlagan, bu bitta amoCRM login ishlatilayotgan paytda boshqa sotuvchining mijozini shaxsiy chatga joʻnatishi mumkin.
+- **Bajarilgan ish:** src/services/core/daily_priority/ownership.py — aniq Sotuvchi custom field yoki aniq tegdan shaxsiy egasini topadi; field/tag zid boʻlsa yoki nomaʼlum boʻlsa hech kimga biriktirmaydi. gatherer.py — round-robin oʻrniga egasi tekshirilgan bitimni faqat shu sotuvchiga yuboradi; moliya bosqichi oʻzgarmagan. tests/test_daily_priority.py fixturelari yangilandi, tests/test_daily_priority_ownership.py qoʻshildi.
+- **Tekshiruv:** GitHub CI va xavfsizlik skanlari PR ochilgach tekshiriladi, real amoCRM bitimlari bilan hali ISBOTLANMAGAN. Nomaʼlum sotuvchi uchun Oisha faqat xodimdan bugungi ishini soʻraydi, begona mijoz maʼlumotini yubormaydi.
+- **Qolgan ish/Bloker:** live Sotuvchi field/tag formatlarini dry-run tekshirish; Work sessiyasida tahrirlangan task_notifier/delivery.py bilan integratsiya alohida PR bo‘lib, bu o‘zgarish uni almashtirmaydi. Production deploy amalga oshirilmagan.
+
+
+## 2026-11-21 — ChatGPT — PR #1119 production-readiness hardening
+- **Maqsad:** bitta amoCRM loginidan uch sotuvchiga notoʻgʻri Telegram DailyPriority xabari ketmasligini taʼminlash; PR #1119 ni jonli chiqishga tayyorlash.
+- **Source tekshiruvlari:** 2026-11-21 brauzerdagi amoCRM Сделки sahifasida Sotuvchi maydoni, Rayxon/Shahnoza/Mumtozmaxal qiymatlari va uchta faol bitimlar filtrini koʻrish mumkin. 2026-10-26 tarixiy CRM rejasida Menejer maydoni yaratilishi rejalashtirilgan, real nom bu sahifada Sotuvchi. UI URLʼidagi 1559389 raqami haqiqiy metadata ID sifatida hali API orqali tasdiqlanmagan. LeadAssigner amoCRMʼga sotuvchi:<toʻliq ism> tegini qoʻshadi; reassignment eski tegni oʻchirmaydi.
+- **Bajarilgan:** ownership.py da Sotuvchi + Menejer maydonlarini va faqat tasdiqlangan ID uchun environment lookup; roster asosidagi aniq toʻliq ism variantlari. Ikkita bir-biriga zid tag yoki notoʻgʻri field qiymati boʻlsa fail-closed. Read-only diagnostics skripti scripts/prod/probe_daily_priority_seller_routes.py; test_probe_daily_priority_seller_routes.py + ownership regression testlar. docs/operations/daily-priority-seller-routing-rollout.md joriy qilish va rollback checklist.
+- **Tekshiruv:** GitHub Actions PRʼda tekshirilmoqda; lokal barcha testlar bu chat sandboxida repo checkout yoʻqligi uchun ishga tushirilmadi. Jonli amoCRM metadata probe hali BAJARILMAGAN. Telegram shaxsiy yuborish yoki amoCRM mutatsiyasi BAJARILMAGAN.
+- **Cheklovlar va keyingi ish:** checklar yashil boʻlsin, Hetzner ishchi muhitida faqat GET diagnostika oʻtkazilsin, field ID/statuslar va kamida 3 nazorat bitimi tasdiqlansin, ziddiyatli eski taglar faqat tekshirilgan holda tuzatilsin. Alohida amoCRM task_notifier umumiy guruh routingni shaxsiy chatga koʻchirish kodi hali ushbu PRʼda yoʻq. Shularsiz production release deb atamang.
+
+## 2026-11-22 — Antigravity — feat(telegram): @BotNews (Bot API 9.0–10.5) 6 ta ustuvor imkoniyatni toʻliq joriy etish
+
+- **Vazifa:** `https://t.me/BotNews` kanalidagi barcha 121 ta post (#1–#123, Bot API 1.0–10.5) ni oʻrganib, Oisha-OS da qolib ketgan 6 ta yuqori ROI imkoniyatni (Owner Private Topics + Sidebar, Native Checklists, Adaptive HTML Widget / Rich Table hisobotlar, Ephemeral 10.3/10.4 + Styled/Disabled tugmalar + Date-Time entity, Lead Personal Channel Auto-Enrichment + Business Read Receipt, Guruh lavozim teglari + Streaming Stop button) rejalashtirish va kodga ulash.
+- **Yangi va oʻzgargan fayllar:**
+  - `src/services/core/telegram/ai_features/bot_api_extensions.py` (226 qator): `BotAPIExtensionsMixin` (`read_business_message`, `delete_business_messages`, `send_checklist`, `edit_message_checklist`, `create_forum_topic`, `edit_forum_topic`, `set_chat_member_tag`, `send_rich_message_draft`, `edit_ephemeral_message_text`).
+  - `src/services/core/telegram/ai_features/rich_builders.py` (212 qator): `build_input_checklist`, `extract_checklist_tasks_done`, `build_styled_inline_button` (`style="danger"|"success"|"primary"`, `disabled={}`), `build_date_time_entity`, `rich_table` (`is_compact`, `is_striped`), `rich_button_row`, `build_ephemeral_parameters`, `extract_stopped_message_generation`.
+  - `src/services/core/telegram/ai_features/workflows.py` (248 qator): `bootstrap_owner_private_topics` (5 ta private topic + 10.5 Topic Sidebar), `enrich_lead_from_personal_channel` (`getUserPersonalChatMessages` + `user_rating` + `birthdate`), `send_client_native_checklist`, `sync_team_member_tags`, `send_oisha_kpi_report` (1-on-1 chatda 10.4 HTML Widget, guruhda 10.1/10.5 Rich Table + `expandable_blockquote`).
+  - `src/services/core/telegram/ai_features/bot_api_client.py` (399 qator): `set_my_settings` (10.5), `BotAPIExtensionsMixin` merosi, `send_message_draft` (`can_stop`, `keep_on_stop`), `send_ephemeral_message` (`ephemeral_message_parameters`).
+  - `src/services/core/telegram/ai_features/models.py` (371 qator): `rich_expandable_blockquote`, `build_bot_invite_link`, `extract_write_access_allowed_context`, `BotFullInfo` (10.5) status bayroqlari, `stopped_message_generation`.
+  - `src/services/core/telegram/ai_features/__init__.py` & `src/services/core/telegram/telegram_ai_features.py`: yangi metod va builderlar eksporti.
+  - `src/services/core/tool_adapters_pkg/telegram_api10.py` (384 qator): `configure_bot_settings`, `bootstrap_private_topics`, `send_native_checklist`, `set_member_role_tag`.
+  - `src/services/core/telegram/widgets/runtime.py`: `"ack"` va `"refresh_kpi"` interaktiv widget handlerlari.
+  - `src/handlers/messages.py` (337 qator): `send_message_draft(..., can_stop=True, keep_on_stop=True)` va `handle_business_message` ichida `read_business_message` (Bot API 9.0).
+  - `src/services/api_server/webhooks.py` (396 qator): `stopped_message_generation`, `write_access_allowed`, va `checklist_tasks_done` update marshrutlashi.
+  - `tests/test_telegram_ai_features.py` & `tests/test_telegram_botnews_capabilities.py`: barcha yangi Bot API 9.0–10.5 funksiyalari uchun unit va webhook testlar.
+- **Tekshiruv dalili:**
+  - `python -m pytest tests/test_telegram_botnews_capabilities.py tests/test_telegram_ai_features.py tests/test_telegram_widgets.py -q`: **46 passed** (13.50s).
+  - `python scripts/check_uzbek_text.py` (oʻzgargan 8 ta fayl): **toza (0 ta xato)**.
+  - `bandit -r src/services/core/telegram/ai_features/ src/services/core/telegram/widgets/ src/services/core/tool_adapters_pkg/telegram_api10.py -ll -q`: **0 issues**.
+  - Barcha production fayllar qatʼiy `150–400` qator standartiga mos (`bot_api_extensions.py`: 226, `rich_builders.py`: 212, `workflows.py`: 248, `bot_api_client.py`: 399, `models.py`: 371, `telegram_api10.py`: 384, `webhooks.py`: 396, `messages.py`: 337).
+- **Qolgan ish / Keyingi qadam:** Jonli bot tokeni bilan production/staging muhitda `bootstrap_owner_private_topics(client, OWNER_ID)` ni bir marta ishga tushirib, Owner shaxsiy chatida 5 ta topic va sidebar ochilishini koʻzdan kechirish.
+
 ## 2026-11-21 - OpenCode - Agency MCP production audit va conversion fix
 - **Maqsad:** `POST /api/agency-mcp` ni real, scoped, read-only biznes gateway sifatida tekshirish; AI uchun alohida token; ishlamayotgan manbalarni aniqlash.
 - **Bajarilgan ish:**

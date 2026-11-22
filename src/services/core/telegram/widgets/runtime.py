@@ -38,12 +38,17 @@ async def _ping(query: WidgetQuery) -> str:
     return "pong " + time.strftime("%H:%M:%S")
 
 
+async def _ack(query: WidgetQuery) -> str:
+    return "Tasdiqlandi " + time.strftime("%H:%M")
+
+
 def build_widget_router(token: str, allowed_ids: List[int]) -> WidgetQueryRouter:
     router = WidgetQueryRouter(
         WidgetClient(TelegramBotAPI10Client(token)),
         allowed_user_ids=allowed_ids,
     )
     router.register("ping", _ping)
+    router.register("ack", _ack)
     return router
 
 
