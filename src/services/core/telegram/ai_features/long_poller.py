@@ -29,7 +29,11 @@ class TelegramBotAPILongPoller:
         "edited_business_message",
         "deleted_business_messages",
         "managed_bot",
+        "stopped_message_generation",
+        "widget_query",
+        "shared_widget_query",
     }
+    SPECIAL_MESSAGE_KEYS = ("write_access_allowed", "checklist_tasks_done")
 
     def __init__(
         self,
@@ -109,7 +113,11 @@ class TelegramBotAPILongPoller:
                 continue
             update_id = int(update.get("update_id") or 0)
             self.offset = max(self.offset or 0, update_id + 1)
-            if classify_update(update) not in self.SPECIAL_UPDATE_TYPES:
+            msg_obj = update.get("message")
+            is_special_msg = isinstance(msg_obj, dict) and any(
+                k in msg_obj for k in self.SPECIAL_MESSAGE_KEYS
+            )
+            if not is_special_msg and classify_update(update) not in self.SPECIAL_UPDATE_TYPES:
                 continue
             if self._queue is None:
                 await self._dispatch_update(update)

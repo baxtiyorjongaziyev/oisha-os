@@ -53,7 +53,7 @@ async def process_message_logic(
 
     user_id = user.id
     username = user.username or "yoq"
-    first_name = user.first_name or "Noma'lum"
+    first_name = user.first_name or "Nomaʼlum"
 
     # 1. Basic Rate Limiting / Security (Simplified for now)
     # TODO: Migrate rate limiting check here if needed
@@ -122,18 +122,25 @@ async def process_message_logic(
         if not should_respond:
             return
 
-        # [API 10] Show draft status while AI is thinking (all chats)
+        # [API 10 / 10.3] Show draft status with optional Stop button while AI is thinking
         streaming_enabled = getattr(config, "TELEGRAM_AI_STREAMING_ENABLED", True)
-        if streaming_enabled and chat_type == "private":
+        personal_channel_profile = None
+        if chat_type == "private":
             try:
                 api_client = TelegramBotAPI10Client(context.bot.token if context and context.bot else config.BOT_TOKEN)
-                await api_client.send_message_draft(
-                    chat_id=chat.id,
-                    draft_id=message.message_id,
-                    text="Oisha javob tayyorlamoqda...",
-                )
+                if streaming_enabled:
+                    await api_client.send_message_draft(
+                        chat_id=chat.id,
+                        draft_id=message.message_id,
+                        text="Oisha javob tayyorlamoqda...",
+                        can_stop=True,
+                        keep_on_stop=True,
+                    )
+                if not user.is_bot:
+                    from src.services.core.telegram.telegram_ai_features import enrich_lead_from_personal_channel
+                    personal_channel_profile = await enrich_lead_from_personal_channel(api_client, user_id, limit=5)
             except Exception:
-                logger.debug("send_message_draft_typing_indicator_failed", exc_info=True)
+                logger.debug("private_chat_ai_features_prehook_failed", exc_info=True)
 
         # Use MessageController for agentic flow
         # Strip bot mention from message so agents don't see "@jonairobot" prefix
@@ -150,10 +157,18 @@ async def process_message_logic(
                 "is_bot": user.is_bot,
                 "is_team_group": is_team_group,
                 "chat_id": chat.id,
+                "personal_channel_profile": personal_channel_profile,
             },
         )
 
-        # 5. Execute Actions and Clean Response
+        # 5. Check if user pressed Stop on streamed draft (Bot API 10.3) before executing actions
+        if chat_type == "private":
+            from src.services.core.telegram.ai_features.workflows import consume_draft_stopped
+            if consume_draft_stopped(chat.id, message.message_id):
+                logger.info("message_generation_stopped_by_user", chat_id=chat.id, draft_id=message.message_id)
+                return
+
+        # 6. Execute Actions and Clean Response
         final_text = await action_parser.parse_and_execute(
             reply_text=ai_response,
             sender_id=user_id,
@@ -268,12 +283,18 @@ async def handle_business_message(
     action_parser,
     msg_controller,
 ) -> None:
-    """Entry point for business messages."""
-    conn_id = (
-        update.business_message.business_connection_id
-        if update.business_message
-        else None
-    )
+    """Entry point for business messages (marks message as read via Bot API 9.0)."""
+    bmsg = update.business_message
+    conn_id = bmsg.business_connection_id if bmsg else None
+    if bmsg and conn_id and getattr(bmsg, "chat", None) and getattr(bmsg, "message_id", None):
+        try:
+            token = context.bot.token if context and context.bot else config.BOT_TOKEN
+            if token:
+                await TelegramBotAPI10Client(token).read_business_message(
+                    conn_id, bmsg.chat.id, bmsg.message_id
+                )
+        except Exception:
+            logger.debug("read_business_message_failed", exc_info=True)
     await process_message_logic(
         update,
         context,

@@ -16,7 +16,9 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import scripts.amocrm_task_cleanup as cleanup_mod  # noqa: E402
 from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner  # noqa: E402
+from src.services.core.crm.amocrm.refresh_guard import refresh_lock  # noqa: E402
 from src.services.core.daily_priority.gatherer import SALES_STAGES  # noqa: E402
 from src.services.core.daily_priority.ownership import (  # noqa: E402
     SELLER_FIELD_NAMES, _norm, resolve_seller_key,
@@ -26,12 +28,50 @@ from src.services.core.daily_priority.team import ROLE_SALES, get_team  # noqa: 
 PAGE_SIZE = 250
 
 
-def _read_get(client: AmoCRMTaskCleaner, path: str, params: dict) -> dict:
-    """Use shared amoCRM GET helper: refresh OAuth on 401, never modify leads.
+def _refresh_after_401(client: AmoCRMTaskCleaner, rejected_auth: str | None) -> tuple[bool, dict]:
+    """Ensure a 401 actually yields a new token instead of retrying the rejected one."""
+    if not client.amo.refresh_token():
+        return False, client._headers()
+    next_headers = client._headers()
+    if next_headers.get("Authorization") != rejected_auth:
+        return True, next_headers
+    do_http = getattr(client.amo, "_do_http_refresh", None)
+    if not callable(do_http):
+        return False, next_headers
+    with refresh_lock():
+        reload_fn = getattr(client.amo, "_reload_freshest_token", None)
+        apply_fn = getattr(client.amo, "_set_token_data", None)
+        if callable(reload_fn) and callable(apply_fn):
+            freshest = reload_fn()
+            if isinstance(freshest, dict) and freshest.get("access_token"):
+                if f"Bearer {freshest['access_token']}" != rejected_auth:
+                    apply_fn(freshest)
+                    return True, client._headers()
+        if do_http():
+            next_headers = client._headers()
+            return next_headers.get("Authorization") != rejected_auth, next_headers
+    return False, client._headers()
 
-    OAuth refresh may persist rotated credentials; CRM business data stays read-only.
+
+def _read_get(client: AmoCRMTaskCleaner, path: str, params: dict) -> dict:
+    """Read-only amoCRM GET with forced OAuth refresh on 401 and strict 404 failure.
+
+    Only HTTP 204 returns an empty dict; HTTP 404 raises so missing stage endpoints
+    cannot silently pass the audit.
     """
-    return client._get(path, params)
+    if not isinstance(client, cleanup_mod.AmoCRMTaskCleaner):
+        return client._get(path, params)
+    url = f"{client.amo.base_url}{path}"
+    headers = client._headers()
+    r = cleanup_mod.requests.get(url, headers=headers, params=params or {}, timeout=30)
+    if r.status_code == 401:
+        refreshed, next_headers = _refresh_after_401(client, headers.get("Authorization"))
+        if refreshed:
+            r = cleanup_mod.requests.get(url, headers=next_headers, params=params or {}, timeout=30)
+    if r.status_code == 204:
+        return {}
+    r.raise_for_status()
+    return r.json()
 
 
 def _field_metadata(client: AmoCRMTaskCleaner) -> list[dict]:

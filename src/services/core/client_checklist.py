@@ -131,6 +131,32 @@ class ClientChecklist:
         await conn.commit()
         return True
 
+    async def sync_from_telegram_tasks_done(
+        self,
+        marked_done_ids: List[int],
+        marked_undone_ids: Optional[List[int]] = None,
+        completed_by: Optional[int] = None,
+    ) -> int:
+        """Bot API 9.1 checklist_tasks_done servis xabaridan DB statuslarini yangilash."""
+        now = datetime.now().isoformat()
+        conn = await self.db.get_connection()
+        updated = 0
+        for row_id in marked_done_ids or []:
+            await conn.execute(
+                "UPDATE client_checklists SET status='done', completed_by=?, completed_at=? WHERE id=?",
+                (completed_by, now, int(row_id)),
+            )
+            updated += 1
+        for row_id in marked_undone_ids or []:
+            await conn.execute(
+                "UPDATE client_checklists SET status='pending', completed_at=NULL WHERE id=?",
+                (int(row_id),),
+            )
+            updated += 1
+        if updated:
+            await conn.commit()
+        return updated
+
     async def get_lead_checklist(self, lead_id: int) -> List[Dict[str, Any]]:
         """Lead uchun checklist elementlarini olish."""
         conn = await self.db.get_connection()

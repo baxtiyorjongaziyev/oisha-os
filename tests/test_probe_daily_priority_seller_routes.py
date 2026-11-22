@@ -163,3 +163,101 @@ def test_401_without_refresh_remains_error(monkeypatch):
     with pytest.raises(requests.HTTPError, match="401"):
         diag._read_get(client, "/api/v4/leads/custom_fields", {"page": 1})
     assert len(calls) == 1
+
+
+def test_401_forces_http_refresh_when_guard_reuses_rejected_token(monkeypatch):
+    """If refresh_token() keeps the rejected unexpired token, force OAuth exchange."""
+    from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner
+
+    auth = SimpleNamespace(
+        base_url="https://example.invalid",
+        current="rejected",
+        http_refreshes=0,
+    )
+    auth._get_headers = lambda: {"Authorization": f"Bearer {auth.current}"}
+    auth.refresh_token = lambda: True  # Simulates refresh_with_guard reusing stored unexpired token
+
+    def do_http_refresh():
+        auth.http_refreshes += 1
+        auth.current = "forced-new"
+        return True
+
+    auth._do_http_refresh = do_http_refresh
+    client = object.__new__(AmoCRMTaskCleaner)
+    client.amo = auth
+    sent_auths = []
+
+    def fake_get(url, headers, params, timeout):
+        sent_auths.append(headers["Authorization"])
+        status = 401 if len(sent_auths) == 1 else 200
+        return SimpleNamespace(
+            status_code=status,
+            json=lambda: {"ok": True},
+            raise_for_status=lambda: None,
+        )
+
+    monkeypatch.setattr("scripts.amocrm_task_cleanup.requests.get", fake_get)
+    assert diag._read_get(client, "/api/v4/leads/custom_fields", {"page": 1}) == {"ok": True}
+    assert auth.http_refreshes == 1
+    assert sent_auths == ["Bearer rejected", "Bearer forced-new"]
+
+
+def test_401_never_retries_same_rejected_token(monkeypatch):
+    """If refresh_token returns True with unchanged token and no HTTP refresh, fail closed."""
+    from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner
+    import requests
+
+    auth = SimpleNamespace(
+        base_url="https://example.invalid",
+        _get_headers=lambda: {"Authorization": "Bearer stuck"},
+        refresh_token=lambda: True,
+    )
+    client = object.__new__(AmoCRMTaskCleaner)
+    client.amo = auth
+    calls = []
+
+    def fake_get(url, headers, params, timeout):
+        calls.append(headers["Authorization"])
+
+        def failed():
+            raise requests.HTTPError("HTTP 401 Unauthorized")
+
+        return SimpleNamespace(status_code=401, raise_for_status=failed)
+
+    monkeypatch.setattr("scripts.amocrm_task_cleanup.requests.get", fake_get)
+    with pytest.raises(requests.HTTPError, match="401"):
+        diag._read_get(client, "/api/v4/leads/custom_fields", {"page": 1})
+    assert calls == ["Bearer stuck"]
+
+
+def test_404_raises_instead_of_empty_while_204_is_empty(monkeypatch):
+    """HTTP 404 must fail the stage audit; only 204 returns {}."""
+    from scripts.amocrm_task_cleanup import AmoCRMTaskCleaner
+    import requests
+
+    auth = SimpleNamespace(
+        base_url="https://example.invalid",
+        _get_headers=lambda: {"Authorization": "Bearer ok"},
+        refresh_token=lambda: False,
+    )
+    client = object.__new__(AmoCRMTaskCleaner)
+    client.amo = auth
+
+    def fake_get_404(url, headers, params, timeout):
+        def failed():
+            raise requests.HTTPError("HTTP 404 Not Found")
+
+        return SimpleNamespace(status_code=404, raise_for_status=failed)
+
+    monkeypatch.setattr("scripts.amocrm_task_cleanup.requests.get", fake_get_404)
+    with pytest.raises(requests.HTTPError, match="404"):
+        diag._stage_leads(client, 11162698, 88871066, max_pages=1)
+
+    monkeypatch.setattr(
+        "scripts.amocrm_task_cleanup.requests.get",
+        lambda url, headers, params, timeout: SimpleNamespace(
+            status_code=204,
+            raise_for_status=lambda: None,
+        ),
+    )
+    assert diag._read_get(client, "/api/v4/leads", {"page": 1}) == {}

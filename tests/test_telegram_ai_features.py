@@ -7,13 +7,16 @@ from src.services.core.telegram.telegram_ai_features import (
     TelegramBotAPI10Client,
     TelegramBotAPIError,
     TelegramBotAPILongPoller,
+    build_bot_invite_link,
     build_input_rich_message,
     build_live_feature_status,
     build_offline_feature_status,
     build_text_article_result,
     classify_update,
     extract_guest_message_context,
+    extract_write_access_allowed_context,
     feature_matrix_payload,
+    rich_expandable_blockquote,
     rich_paragraph,
     rich_section_heading,
 )
@@ -310,3 +313,88 @@ async def test_running_long_poller_acknowledges_updates_before_slow_handler_fini
         assert poller._queue is not None
         await poller._queue.join()
         await poller._stop_workers()
+
+
+@pytest.mark.asyncio
+async def test_bot_api_10_5_set_my_settings_and_validation():
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        return {"ok": True, "result": True}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+    ok = await client.set_my_settings(
+        can_read_all_group_messages=True,
+        can_communicate_with_bots=True,
+        has_topics_enabled=True,
+        has_topic_sidebar=True,
+        callback_query_mode="auto",
+    )
+
+    assert ok is True
+    assert calls == [
+        (
+            "setMySettings",
+            {
+                "can_read_all_group_messages": True,
+                "can_communicate_with_bots": True,
+                "has_topics_enabled": True,
+                "has_topic_sidebar": True,
+                "callback_query_mode": "auto",
+            },
+        )
+    ]
+
+    with pytest.raises(ValueError, match="Invalid callback_query_mode"):
+        await client.set_my_settings(callback_query_mode="invalid")
+
+    with pytest.raises(ValueError, match="Invalid inline_feedback_share_denominator"):
+        await client.set_my_settings(inline_feedback_share_denominator=50)
+
+
+def test_bot_api_10_5_invite_link_write_access_and_expandable_blockquote():
+    assert build_bot_invite_link("@jonairobot") == "https://t.me/botinvite/jonairobot"
+
+    update = {
+        "update_id": 501,
+        "message": {
+            "message_id": 99,
+            "chat": {"id": 12345, "type": "private"},
+            "from": {"id": 12345, "first_name": "Sardor"},
+            "write_access_allowed": {
+                "inviter": {"id": 777, "first_name": "Baxtiyorjon"},
+            },
+        },
+    }
+    ctx = extract_write_access_allowed_context(update)
+    assert ctx is not None
+    assert ctx["inviter"]["id"] == 777
+    assert ctx["from_user"]["first_name"] == "Sardor"
+
+    block = rich_expandable_blockquote(
+        [rich_section_heading("Tafsilot"), rich_paragraph("Jadval va media")],
+        credit="Oisha-OS",
+    )
+    assert block == {
+        "type": "expandable_blockquote",
+        "blocks": [
+            {"type": "section_heading", "text": "Tafsilot"},
+            {"type": "paragraph", "text": "Jadval va media"},
+        ],
+        "credit": "Oisha-OS",
+    }
+
+    live = build_live_feature_status(
+        {
+            "has_topics_enabled": True,
+            "has_topic_sidebar": True,
+            "active_usernames": ["jonairobot", "oisha_ai"],
+            "inline_query_placeholder": "Savol yozing...",
+            "needs_inline_query_location": False,
+        }
+    )
+    assert live["topic_sidebar"] is True
+    assert live["active_usernames"] == ["jonairobot", "oisha_ai"]
+    assert live["inline_query_placeholder"] == "Savol yozing..."
+
