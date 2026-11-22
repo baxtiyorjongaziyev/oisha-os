@@ -26,6 +26,8 @@ BOT_API_10_ALLOWED_UPDATES: List[str] = [
     "message_reaction",
     "message_reaction_count",
     "purchased_paid_media",
+    # Bot API 10.3 stopped draft generation
+    "stopped_message_generation",
     # Bot API 10.4 widgets
     "widget_query",
     "shared_widget_query",
@@ -74,10 +76,7 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         key="guest_mode",
         title_uz="Guest Mode: Oisha istalgan chatda @username orqali chaqiriladi",
         official_name="Guest Bots / guest_message / answerGuestQuery",
-        oisha_use=(
-            "Mijoz yoki jamoa Oisha botni guruhga qo'shmasdan @mention qiladi; "
-            "Oisha faqat shu xabar kontekstida javob beradi."
-        ),
+        oisha_use="Mijoz yoki jamoa Oisha botni guruhga qoʻshmasdan @mention qiladi; Oisha faqat shu xabar kontekstida javob beradi.",
         implementation="raw_bot_api_10",
         status_source="getMe.supports_guest_queries",
     ),
@@ -85,21 +84,15 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         key="bot_to_bot",
         title_uz="Bot-to-bot: Oisha boshqa botlar bilan ish oqimi qiladi",
         official_name="Bot-to-Bot Communication",
-        oisha_use=(
-            "CRM, booking, payment yoki audit botlari bilan loop-safeguard orqali "
-            "nazoratli agentlararo muloqot."
-        ),
+        oisha_use="CRM, booking, payment yoki audit botlari bilan loop-safeguard orqali nazoratli agentlararo muloqot.",
         implementation="raw_sendMessage_to_username",
-        status_source="BotFather setting + getMe flags",
+        status_source="setMySettings.can_communicate_with_bots + getMe flags",
     ),
     TelegramAIFeature(
         key="streaming_responses",
-        title_uz="Streaming: javob yozilayotganda draft ko'rinadi",
+        title_uz="Streaming: javob yozilayotganda draft koʻrinadi",
         official_name="sendMessageDraft",
-        oisha_use=(
-            "Uzun audit yoki negotiation javobida foydalanuvchi 30 soniyalik "
-            "jonli draft/Thinking holatini ko'radi."
-        ),
+        oisha_use="Uzun audit yoki negotiation javobida foydalanuvchi 30 soniyalik jonli draft/Thinking holatini koʻradi.",
         implementation="raw_sendMessageDraft_then_sendMessage",
         status_source="Bot API method availability",
     ),
@@ -107,70 +100,52 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         key="chat_automation",
         title_uz="Chat Automation: bot profilga ulanib biznes chatlarni boshqaradi",
         official_name="Telegram Business / Chat Automation",
-        oisha_use=(
-            "Shaxsiy akkauntdagi ruxsat berilgan chatlarda lead/mijozlarni "
-            "saralash, javob draft qilish va follow-up nazorati."
-        ),
+        oisha_use="Shaxsiy akkauntdagi ruxsat berilgan chatlarda lead/mijozlarni saralash, javob draft qilish va follow-up nazorati.",
         implementation="business_connection_updates",
         status_source="getMe.can_connect_to_business",
         manual_step="Telegram Settings > Chat Automation ichida bot ulanishi kerak.",
     ),
     TelegramAIFeature(
         key="quick_action_bar",
-        title_uz="Quick Action Bar: mijoz chatidan Oisha boshqaruviga tez o'tish",
+        title_uz="Quick Action Bar: mijoz chatidan Oisha boshqaruviga tez oʻtish",
         official_name="Manage Bot deep link: /start bizChat<user_chat_id>",
-        oisha_use=(
-            "Chat tepasidagi Manage Bot orqali aynan shu mijoz bo'yicha CRM, "
-            "task va tavsiya oynasini ochish."
-        ),
+        oisha_use="Chat tepasidagi Manage Bot orqali aynan shu mijoz boʻyicha CRM, task va tavsiya oynasini ochish.",
         implementation="deep_link_parser_ready",
         status_source="business_connection_updates",
-        manual_step="Business mode ulanganidan keyin Telegram o'zi chiqaradi.",
+        manual_step="Business mode ulanganidan keyin Telegram oʻzi chiqaradi.",
     ),
     TelegramAIFeature(
         key="managed_bots",
         title_uz="Suggested/Managed bots: mijozlar uchun maxsus agent bot yaratish",
         official_name="Managed Bots",
-        oisha_use=(
-            "Kelajakda har bir kompaniya yoki loyiha uchun alohida yordamchi bot "
-            "yaratish va kirishni cheklash."
-        ),
+        oisha_use="Kelajakda har bir kompaniya yoki loyiha uchun alohida yordamchi bot yaratish va kirishni cheklash.",
         implementation="get/setManagedBotAccessSettings",
         status_source="getMe.can_manage_bots",
-        manual_step="BotFather MiniApp'da Bot Management Mode yoqilishi kerak.",
+        manual_step="setMySettings(can_manage_bots=True) yoki BotFather orqali yoqiladi.",
     ),
     TelegramAIFeature(
         key="private_topics",
         title_uz="Private topics: xususiy chat ichida mavzularga ajratish",
         official_name="Starting in Topics / private chat topics",
-        oisha_use=(
-            "Bitta mijoz bilan chat ichida Brif, To'lov, Feedback, Fayllar kabi "
-            "mavzularni tartibga solish."
-        ),
+        oisha_use="Bitta mijoz bilan chat ichida Brif, Toʻlov, Feedback, Fayllar kabi mavzularni tartibga solish.",
         implementation="message_thread_id_support",
         status_source="getMe.has_topics_enabled",
-        manual_step="BotFather'da Topics yoqilishi kerak.",
+        manual_step="setMySettings(has_topics_enabled=True, has_topic_sidebar=True) orqali yoqiladi.",
     ),
     TelegramAIFeature(
         key="profile_context",
-        title_uz="Profil konteksti: birthdate, location, personal chat xabarlarini o'qish",
+        title_uz="Profil konteksti: birthdate, location, personal chat xabarlarini oʻqish",
         official_name="Birthdate / Location / getUserPersonalChatMessages",
-        oisha_use=(
-            "Ruxsatli profil ma'lumotlari orqali mijoz kontekstini boyitish, "
-            "lekin shaxsiy hayot filtrlarini saqlash."
-        ),
+        oisha_use="Ruxsatli profil maʼlumotlari orqali mijoz kontekstini boyitish, lekin shaxsiy hayot filtrlarini saqlash.",
         implementation="getChat + getUserPersonalChatMessages",
         status_source="permissioned_data",
-        manual_step="Telegram faqat ruxsatli/ko'rinadigan profil ma'lumotini beradi.",
+        manual_step="Telegram faqat ruxsatli/koʻrinadigan profil maʼlumotini beradi.",
     ),
     TelegramAIFeature(
         key="monetization",
         title_uz="Monetizatsiya: Stars, paid media va paid broadcast",
         official_name="Telegram Stars / Paid Media / allow_paid_broadcast",
-        oisha_use=(
-            "Kurs, audit yoki premium konsultatsiyalarni Telegram ichida sotish; "
-            "zarur bo'lsa pulli tez broadcast."
-        ),
+        oisha_use="Kurs, audit yoki premium konsultatsiyalarni Telegram ichida sotish; zarur boʻlsa pulli tez broadcast.",
         implementation="sendInvoice/sendPaidMedia/allow_paid_broadcast",
         status_source="payment_provider_and_stars",
         manual_step="Stars/payment sozlamalari va huquqiy narx siyosati kerak.",
@@ -179,10 +154,7 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         key="moderation_and_polls",
         title_uz="Poll limitlari va reaction moderation",
         official_name="country_codes, members_only, deleteMessageReaction",
-        oisha_use=(
-            "Jamoa so'rovnomalari, lead segmentatsiyasi va guruh moderatsiyasida "
-            "aniq nazorat."
-        ),
+        oisha_use="Jamoa soʻrovnomalari, lead segmentatsiyasi va guruh moderatsiyasida aniq nazorat.",
         implementation="sendPoll/deleteMessageReaction/deleteAllMessageReactions",
         status_source="admin_rights_required",
         manual_step="Guruh/channel admin huquqlari kerak.",
@@ -191,45 +163,33 @@ FEATURE_MATRIX: List[TelegramAIFeature] = [
         key="custom_ai_styles",
         title_uz="Custom AI Styles: Telegram text editor uchun Oisha uslubi",
         official_name="Custom AI Styles",
-        oisha_use=(
-            "Jon Branding tone-of-voice promptlarini Telegram AI Text Editor ichida "
-            "standart yozish uslubiga aylantirish."
-        ),
+        oisha_use="Jon Branding tone-of-voice promptlarini Telegram AI Text Editor ichida standart yozish uslubiga aylantirish.",
         implementation="telegram_client_feature",
         status_source="manual_telegram_app",
-        manual_step="Telegram AI Text Editor > Style > Create ichida qo'lda yaratiladi.",
+        manual_step="Telegram AI Text Editor > Style > Create ichida qoʻlda yaratiladi.",
     ),
     TelegramAIFeature(
         key="emoji_sticker_search",
         title_uz="Emoji/sticker search: 100M+ sticker ichidan tez qidirish",
         official_name="Expanded Emoji and Sticker Search",
-        oisha_use=(
-            "Jamoa va mijoz chatlarida brend ohangiga mos sticker/emoji tanlash; "
-            "Bot API emas, Telegram ilovasi imkoniyati."
-        ),
+        oisha_use="Jamoa va mijoz chatlarida brend ohangiga mos sticker/emoji tanlash; Bot API emas, Telegram ilovasi imkoniyati.",
         implementation="telegram_client_feature",
         status_source="telegram_app",
     ),
     TelegramAIFeature(
         key="poll_statistics",
-        title_uz="Poll statistics: ovozlar dinamikasini ko'rish",
+        title_uz="Poll statistics: ovozlar dinamikasini koʻrish",
         official_name="Statistics for Polls",
-        oisha_use=(
-            "Katta guruhlarda feedback va jamoa qarorlarining vaqt bo'yicha "
-            "o'zgarishini kuzatish."
-        ),
+        oisha_use="Katta guruhlarda feedback va jamoa qarorlarining vaqt boʻyicha oʻzgarishini kuzatish.",
         implementation="telegram_admin_ui",
         status_source="telegram_poll_ui",
-        manual_step="Telegram poll statistikasi 100+ ovozdan keyin ko'rinadi.",
+        manual_step="Telegram poll statistikasi 100+ ovozdan keyin koʻrinadi.",
     ),
     TelegramAIFeature(
         key="silent_scheduled_messages",
         title_uz="Silent scheduled messages: rejalangan xabarlar bezovta qilmasin",
         official_name="Silent Scheduled Messages / disable_notification",
-        oisha_use=(
-            "Kecha yoki dam olish payti yuboriladigan eslatmalarni ovozsiz qilish; "
-            "bot xabarlarida disable_notification ishlatiladi."
-        ),
+        oisha_use="Kecha yoki dam olish payti yuboriladigan eslatmalarni ovozsiz qilish; bot xabarlarida disable_notification ishlatiladi.",
         implementation="send_methods_disable_notification",
         status_source="bot_send_parameters_or_client_schedule",
     ),
@@ -297,6 +257,45 @@ def rich_section_heading(text: str) -> Dict[str, Any]:
     return {"type": "section_heading", "text": text}
 
 
+def rich_expandable_blockquote(
+    blocks: List[Dict[str, Any]],
+    *,
+    credit: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Bot API 10.5 InputRichBlockExpandableBlockQuotation with nested rich blocks."""
+    payload: Dict[str, Any] = {"type": "expandable_blockquote", "blocks": list(blocks)}
+    if credit is not None:
+        payload["credit"] = credit
+    return payload
+
+
+def build_bot_invite_link(bot_username: str) -> str:
+    """Bot API 10.5 owner invite link for onboarding up to 10 users at once."""
+    clean = bot_username.strip().lstrip("@")
+    if not clean:
+        raise ValueError("bot_username is required")
+    return f"https://t.me/botinvite/{clean}"
+
+
+def extract_write_access_allowed_context(update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Extract Bot API 10.5 WriteAccessAllowed service message (including inviter)."""
+    message = update.get("message") or update.get("business_message")
+    if not isinstance(message, dict):
+        return None
+    wa = message.get("write_access_allowed")
+    if not isinstance(wa, dict):
+        return None
+    return {
+        "update_id": int(update.get("update_id") or 0),
+        "chat": message.get("chat") or {},
+        "from_user": message.get("from") or {},
+        "inviter": wa.get("inviter"),
+        "from_request": bool(wa.get("from_request")),
+        "from_attachment_menu": bool(wa.get("from_attachment_menu")),
+        "web_app_name": wa.get("web_app_name"),
+    }
+
+
 def extract_guest_message_context(update: Dict[str, Any]) -> Optional[GuestMessageContext]:
     message = update.get("guest_message")
     if not isinstance(message, dict):
@@ -325,6 +324,7 @@ def classify_update(update: Dict[str, Any]) -> str:
 def build_offline_feature_status() -> Dict[str, Any]:
     return {
         "bot_api_version_target": "10.0",
+        "bot_api_latest_supported": "10.5",
         "botfather_activated": True,
         "code_ready": {
             "guest_mode": True,
@@ -333,6 +333,10 @@ def build_offline_feature_status() -> Dict[str, Any]:
             "business_chat_automation": True,
             "managed_bot_access": True,
             "private_topics": True,
+            "topic_sidebar": True,
+            "bot_settings_automation": True,
+            "bot_invite_links": True,
+            "expandable_rich_blockquote": True,
             "profile_context": True,
             "monetization": True,
             "moderation_and_polls": True,
@@ -352,8 +356,16 @@ def build_live_feature_status(me: Dict[str, Any]) -> Dict[str, Any]:
         "business_chat_automation": bool(me.get("can_connect_to_business")),
         "main_mini_app": bool(me.get("has_main_web_app")),
         "private_topics": bool(me.get("has_topics_enabled")),
+        "topic_sidebar": bool(me.get("has_topic_sidebar")),
+        "allows_users_to_create_topics": bool(me.get("allows_users_to_create_topics")),
         "managed_bots": bool(me.get("can_manage_bots")),
         "inline_queries": bool(me.get("supports_inline_queries")),
+        "inline_query_placeholder": me.get("inline_query_placeholder"),
+        "needs_inline_query_location": bool(me.get("needs_inline_query_location")),
+        "can_join_groups": bool(me.get("can_join_groups")),
+        "can_read_all_group_messages": bool(me.get("can_read_all_group_messages")),
+        "supports_join_request_queries": bool(me.get("supports_join_request_queries")),
+        "active_usernames": list(me.get("active_usernames") or []),
         "raw_get_me": me,
     }
 
