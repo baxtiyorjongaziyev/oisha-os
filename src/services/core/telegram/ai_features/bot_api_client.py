@@ -7,6 +7,9 @@ import logging
 from typing import Any, Dict, Iterable, List, Optional
 import httpx
 
+from src.services.core.telegram.ai_features.bot_api_extensions import (
+    BotAPIExtensionsMixin,
+)
 from src.services.core.telegram.ai_features.models import (
     BOT_API_10_ALLOWED_UPDATES,
     BotApiTransport,
@@ -16,7 +19,7 @@ from src.services.core.telegram.ai_features.models import (
 
 logger = logging.getLogger("TelegramBotAPI10Client")
 
-class TelegramBotAPI10Client:
+class TelegramBotAPI10Client(BotAPIExtensionsMixin):
     """Small raw Bot API client for methods not yet exposed by local libraries."""
 
     def __init__(
@@ -129,6 +132,8 @@ class TelegramBotAPI10Client:
         text: str = "",
         message_thread_id: Optional[int] = None,
         parse_mode: Optional[str] = None,
+        can_stop: Optional[bool] = None,
+        keep_on_stop: Optional[bool] = None,
     ) -> bool:
         result = await self.call(
             "sendMessageDraft",
@@ -138,6 +143,8 @@ class TelegramBotAPI10Client:
                 "draft_id": draft_id,
                 "text": text,
                 "parse_mode": parse_mode,
+                "can_stop": can_stop,
+                "keep_on_stop": keep_on_stop,
             },
         )
         return bool(result)
@@ -246,12 +253,7 @@ class TelegramBotAPI10Client:
         user_id: Optional[int] = None,
         actor_chat_id: Optional[int | str] = None,
     ) -> bool:
-        """Remove an actor's recent reactions in a chat (Bot API 10, actor-scoped).
-
-        Per the changelog this is scoped to an actor (``user_id`` or ``actor_chat_id``),
-        not to a single message. Unverified here — confirm against a live Bot API 10 bot
-        before production use.
-        """
+        """Remove an actor's recent reactions in a chat (Bot API 10, actor-scoped)."""
         result = await self.call(
             "deleteAllMessageReactions",
             {"chat_id": chat_id, "user_id": user_id, "actor_chat_id": actor_chat_id},
@@ -292,29 +294,27 @@ class TelegramBotAPI10Client:
 
     async def send_ephemeral_message(
         self,
-        chat_id: int | str,
+        chat_id: Optional[int | str],
         text: str,
         *,
         receiver_user_id: Optional[int] = None,
         callback_query_id: Optional[str] = None,
+        replace_callback_query_message: Optional[bool] = None,
+        ephemeral_message_parameters: Optional[Dict[str, Any]] = None,
         message_thread_id: Optional[int] = None,
         parse_mode: Optional[str] = "HTML",
         reply_markup: Optional[Dict[str, Any]] = None,
         disable_notification: bool = False,
     ) -> Dict[str, Any]:
-        """Send a message visible only to one user (Bot API 10.2).
-
-        Pass ``receiver_user_id`` to show the message to a single group member, or
-        ``callback_query_id`` to answer an ephemeral callback. NOTE: verify against a
-        live Bot API 10.2 bot before enabling in production.
-        """
+        """Send a message visible only to one user (Bot API 10.2–10.4)."""
         result = await self.call(
             "sendMessage",
             {
                 "chat_id": chat_id,
                 "text": text,
-                "receiver_user_id": receiver_user_id,
-                "callback_query_id": callback_query_id,
+                "receiver_user_id": receiver_user_id if ephemeral_message_parameters is None else None,
+                "callback_query_id": callback_query_id if ephemeral_message_parameters is None else None,
+                "ephemeral_message_parameters": ephemeral_message_parameters,
                 "message_thread_id": message_thread_id,
                 "parse_mode": parse_mode,
                 "reply_markup": reply_markup,
@@ -347,13 +347,7 @@ class TelegramBotAPI10Client:
         reply_markup: Optional[Dict[str, Any]] = None,
         effect_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Send a block-structured rich message (Bot API 10.1 ``sendRichMessage``).
-
-        ``rich_message`` is an InputRichMessage dict — e.g.
-        ``{"text": "...", "blocks": [...]}``. Build it with
-        :func:`build_input_rich_message`. NOTE: verify block schema against a live
-        Bot API 10.1 bot before enabling in production.
-        """
+        """Send a block-structured rich message (Bot API 10.1+ ``sendRichMessage``)."""
         result = await self.call(
             "sendRichMessage",
             {
@@ -368,4 +362,40 @@ class TelegramBotAPI10Client:
             },
         )
         return result if isinstance(result, dict) else {}
+
+    async def set_my_settings(
+        self,
+        *,
+        supports_inline_queries: Optional[bool] = None,
+        inline_query_placeholder: Optional[str] = None,
+        needs_inline_query_location: Optional[bool] = None,
+        inline_feedback_share_denominator: Optional[int] = None,
+        can_join_groups: Optional[bool] = None,
+        can_read_all_group_messages: Optional[bool] = None,
+        can_connect_to_business: Optional[bool] = None,
+        can_manage_bots: Optional[bool] = None,
+        supports_guest_queries: Optional[bool] = None,
+        supports_join_request_queries: Optional[bool] = None,
+        has_topics_enabled: Optional[bool] = None,
+        allows_users_to_create_topics: Optional[bool] = None,
+        has_topic_sidebar: Optional[bool] = None,
+        can_communicate_with_bots: Optional[bool] = None,
+        callback_query_mode: Optional[str] = None,
+    ) -> bool:
+        """Automate bot configuration (Bot API 10.5 ``setMySettings``)."""
+        if callback_query_mode is not None and callback_query_mode not in ("default", "auto", "inline"):
+            raise ValueError(f"Invalid callback_query_mode: {callback_query_mode}")
+        if inline_feedback_share_denominator is not None and inline_feedback_share_denominator not in (0, 1, 10, 100, 1000):
+            raise ValueError(f"Invalid inline_feedback_share_denominator: {inline_feedback_share_denominator}")
+        result = await self.call("setMySettings", {
+            "supports_inline_queries": supports_inline_queries, "inline_query_placeholder": inline_query_placeholder,
+            "needs_inline_query_location": needs_inline_query_location, "inline_feedback_share_denominator": inline_feedback_share_denominator,
+            "can_join_groups": can_join_groups, "can_read_all_group_messages": can_read_all_group_messages,
+            "can_connect_to_business": can_connect_to_business, "can_manage_bots": can_manage_bots,
+            "supports_guest_queries": supports_guest_queries, "supports_join_request_queries": supports_join_request_queries,
+            "has_topics_enabled": has_topics_enabled, "allows_users_to_create_topics": allows_users_to_create_topics,
+            "has_topic_sidebar": has_topic_sidebar, "can_communicate_with_bots": can_communicate_with_bots,
+            "callback_query_mode": callback_query_mode,
+        })
+        return bool(result)
 
