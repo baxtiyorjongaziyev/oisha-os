@@ -9,6 +9,7 @@ High-ROI Oisha-OS business workflows powered by Telegram Bot API 9.0–10.5:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from src.services.core.telegram.ai_features.models import (
@@ -34,6 +35,14 @@ OISHA_PRIVATE_TOPICS: Tuple[Tuple[str, str, int], ...] = (
     ("hr", "HR va Davomat", 13338331),             # Violet
     ("system", "Tizim va Alertlar", 16478047),     # Red
 )
+
+
+def get_owner_topic_id(section: str) -> Optional[int]:
+    """Resolve OWNER_TOPIC_<SECTION> thread ID from environment (None if unset)."""
+    raw = os.getenv(f"OWNER_TOPIC_{section.strip().upper()}", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return None
 
 INDUSTRY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
     "education": ("kurs", "akademiya", "taʼlim", "talim", "school", "ustoz", "ielts"),
@@ -198,6 +207,39 @@ def _format_kpi_fallback_text(
     return "\n".join(lines)
 
 
+async def _send_rich_kpi_message(
+    client: Any,
+    chat_id: int | str,
+    *,
+    title: str,
+    subtitle: str,
+    kpis: Sequence[Tuple[str, Any]],
+    table_headers: Sequence[str],
+    table_rows: Sequence[Sequence[Any]],
+    numeric_cols: Sequence[int] = (),
+    details_text: Optional[str] = None,
+    message_thread_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    blocks: List[Dict[str, Any]] = [rich_section_heading(title), rich_paragraph(subtitle)]
+    if kpis:
+        blocks.append(rich_paragraph(" • ".join(f"{k}: {v}" for k, v in kpis)))
+    if table_headers and table_rows:
+        blocks.append(
+            rich_table(
+                table_headers,
+                table_rows,
+                numeric_cols=numeric_cols,
+                is_bordered=True,
+                is_striped=True,
+                is_compact=True,
+            )
+        )
+    if details_text:
+        blocks.append(rich_expandable_blockquote([rich_paragraph(details_text)], credit="Oisha-OS"))
+    rich_msg = build_input_rich_message(blocks=blocks)
+    return await client.send_rich_message(chat_id, rich_msg, message_thread_id=message_thread_id)
+
+
 async def _send_private_kpi_widget(
     client: Any,
     chat_id: int,
@@ -215,6 +257,7 @@ async def _send_private_kpi_widget(
 ) -> Dict[str, Any]:
     from src.services.core.telegram.widgets import templates as wt
     from src.services.core.telegram.widgets.client import WidgetClient
+    from src.services.core.telegram.widgets.flags import widgets_enabled
     from src.services.core.telegram.widgets.sender import send_widget_or_text
 
     def _build_html() -> str:
@@ -226,6 +269,32 @@ async def _send_private_kpi_widget(
         parts.append(wt.action_bar([("Tasdiqlash", "ack")]))
         return wt.render_widget(*parts, interactive=True)
 
+    rich_sent = False
+
+    async def _send_fallback(cid: int | str, txt: str) -> Any:
+        nonlocal rich_sent
+        if widgets_enabled("kpi_report"):
+            try:
+                res_rich = await _send_rich_kpi_message(
+                    client,
+                    cid,
+                    title=title,
+                    subtitle=subtitle,
+                    kpis=kpis,
+                    table_headers=table_headers,
+                    table_rows=table_rows,
+                    numeric_cols=numeric_cols,
+                    details_text=details_text,
+                    message_thread_id=message_thread_id,
+                )
+                rich_sent = True
+                return res_rich
+            except Exception as exc:
+                logger.warning("[KPI] Rich message fallback failed: %s", exc)
+        return await client.finalize_streamed_message(
+            int(cid), txt, message_thread_id=message_thread_id
+        )
+
     fallback = _format_kpi_fallback_text(
         title, subtitle, kpis, table_headers, table_rows, progress_done, progress_total, details_text
     )
@@ -235,14 +304,13 @@ async def _send_private_kpi_widget(
         module="kpi_report",
         build_html=_build_html,
         fallback_text=fallback,
-        send_text=lambda cid, txt: client.finalize_streamed_message(
-            int(cid), txt, message_thread_id=message_thread_id
-        ),
+        send_text=_send_fallback,
         caption=f"{title}: {subtitle}"[:200],
         allow_queries=True,
         message_thread_id=message_thread_id,
     )
-    return {"ok": res.success, "mode": res.metadata.get("mode"), "tool": res.tool_name}
+    mode = "rich" if rich_sent else res.metadata.get("mode")
+    return {"ok": res.success, "mode": mode, "tool": res.tool_name}
 
 
 async def send_oisha_kpi_report(
@@ -278,34 +346,16 @@ async def send_oisha_kpi_report(
             message_thread_id=message_thread_id,
         )
 
-    blocks: List[Dict[str, Any]] = [
-        rich_section_heading(title),
-        rich_paragraph(subtitle),
-    ]
-    if kpis:
-        blocks.append(rich_paragraph(" • ".join(f"{k}: {v}" for k, v in kpis)))
-    if table_headers and table_rows:
-        blocks.append(
-            rich_table(
-                table_headers,
-                table_rows,
-                numeric_cols=numeric_cols,
-                is_bordered=True,
-                is_striped=True,
-                is_compact=True,
-            )
-        )
-    if details_text:
-        blocks.append(
-            rich_expandable_blockquote(
-                [rich_paragraph(details_text)],
-                credit="Oisha-OS",
-            )
-        )
-    rich_msg = build_input_rich_message(blocks=blocks)
-    return await client.send_rich_message(
+    return await _send_rich_kpi_message(
+        client,
         chat_id,
-        rich_msg,
+        title=title,
+        subtitle=subtitle,
+        kpis=kpis,
+        table_headers=table_headers,
+        table_rows=table_rows,
+        numeric_cols=numeric_cols,
+        details_text=details_text,
         message_thread_id=message_thread_id,
     )
 

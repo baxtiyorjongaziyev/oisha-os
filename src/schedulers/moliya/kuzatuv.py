@@ -205,9 +205,12 @@ async def run_kuzatuv_report(now: datetime) -> bool:
     text = await build_kuzatuv_report(now)
     try:
         from telegram import Bot
+        from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
 
+        topic_id = get_owner_topic_id("finance")
+        kwargs = {"message_thread_id": topic_id} if topic_id else {}
         await Bot(token=bot_token).send_message(
-            chat_id=owner_id, text=text[:4000], parse_mode="HTML"
+            chat_id=owner_id, text=text[:4000], parse_mode="HTML", **kwargs
         )
         logger.info("[HISOBCHI] Kuzatuv hisoboti yuborildi")
         return True

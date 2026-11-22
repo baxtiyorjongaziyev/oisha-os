@@ -138,7 +138,11 @@ async def send_daily_report_to_destinations(
     owner_id = int(getattr(settings, "OWNER_ID", 0) or 0)
     if owner_id and bot_runtime:
         try:
-            await bot_runtime.send_message(owner_id, report_text, parse_mode="md")
+            from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
+
+            owner_topic = get_owner_topic_id("sales")
+            kw = {"message_thread_id": owner_topic} if owner_topic else {}
+            await bot_runtime.send_message(owner_id, report_text, parse_mode="md", **kw)
             sent_count += 1
             logger.info("[AMOBOT_REPORT] Sent to owner %s via bot_runtime", owner_id)
         except Exception as exc:

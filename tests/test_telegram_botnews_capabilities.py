@@ -11,6 +11,7 @@ from src.services.core.telegram.telegram_ai_features import (
     enrich_lead_from_personal_channel,
     extract_checklist_tasks_done,
     extract_stopped_message_generation,
+    get_owner_topic_id,
     rich_button_row,
     rich_table,
     send_client_native_checklist,
@@ -333,3 +334,55 @@ async def test_styled_buttons_ephemeral_10_4_and_adaptive_kpi_report(monkeypatch
     )
     assert ack_res["handled"] is True
     assert calls[-1][0] == "answerWidgetQuery"
+
+
+def test_get_owner_topic_id_reads_env_safely(monkeypatch):
+    monkeypatch.delenv("OWNER_TOPIC_FINANCE", raising=False)
+    assert get_owner_topic_id("finance") is None
+
+    monkeypatch.setenv("OWNER_TOPIC_FINANCE", "invalid")
+    assert get_owner_topic_id("finance") is None
+
+    monkeypatch.setenv("OWNER_TOPIC_FINANCE", "0")
+    assert get_owner_topic_id("finance") is None
+
+    monkeypatch.setenv("OWNER_TOPIC_FINANCE", "2199290")
+    assert get_owner_topic_id("finance") == 2199290
+
+
+@pytest.mark.asyncio
+async def test_private_kpi_report_falls_back_to_rich_message_when_widget_rejected(monkeypatch):
+    monkeypatch.setenv("WIDGETS_ENABLED", "1")
+    calls = []
+
+    async def transport(method, payload):
+        calls.append((method, payload))
+        if method == "sendWidget":
+            return {
+                "ok": False,
+                "error_code": 400,
+                "description": "Bad Request: INPUT_MEDIA_WIDGET_NOT_ALLOWED",
+            }
+        return {"ok": True, "result": {"message_id": 601}}
+
+    client = TelegramBotAPI10Client("token", transport=transport)
+    res = await send_oisha_kpi_report(
+        client,
+        777,
+        title="Moliya",
+        subtitle="2026-11-22",
+        kpis=[("Kirim", "10M")],
+        table_headers=["Band", "Summa"],
+        table_rows=[["Savdo", "10M"]],
+        numeric_cols=(1,),
+        is_private_chat=True,
+        message_thread_id=2199290,
+    )
+
+    assert res["ok"] is True
+    assert res["mode"] == "rich"
+    assert [m for m, _ in calls] == ["sendWidget", "sendRichMessage"]
+    rich_blocks = calls[-1][1]["rich_message"]["blocks"]
+    assert rich_blocks[0] == {"type": "heading", "text": "Moliya", "size": 3}
+    assert calls[-1][1]["message_thread_id"] == 2199290
+

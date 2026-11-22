@@ -252,9 +252,9 @@ def rich_paragraph(text: str) -> Dict[str, Any]:
     return {"type": "paragraph", "text": text}
 
 
-def rich_section_heading(text: str) -> Dict[str, Any]:
-    """Convenience InputRichBlockSectionHeading block."""
-    return {"type": "section_heading", "text": text}
+def rich_section_heading(text: str, *, size: int = 3) -> Dict[str, Any]:
+    """Convenience InputRichBlockHeading block (Bot API 10.1+ live type='heading')."""
+    return {"type": "heading", "text": text, "size": size}
 
 
 def rich_expandable_blockquote(

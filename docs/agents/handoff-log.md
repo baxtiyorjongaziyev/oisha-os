@@ -3125,3 +3125,16 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `bandit -r src/services/core/telegram/ai_features/ src/services/core/telegram/widgets/ src/services/core/tool_adapters_pkg/telegram_api10.py -ll -q`: **0 issues**.
   - Barcha production fayllar qatʼiy `150–400` qator standartiga mos (`bot_api_extensions.py`: 226, `rich_builders.py`: 212, `workflows.py`: 248, `bot_api_client.py`: 399, `models.py`: 371, `telegram_api10.py`: 384, `webhooks.py`: 396, `messages.py`: 337).
 - **Qolgan ish / Keyingi qadam:** Jonli bot tokeni bilan production/staging muhitda `bootstrap_owner_private_topics(client, OWNER_ID)` ni bir marta ishga tushirib, Owner shaxsiy chatida 5 ta topic va sidebar ochilishini koʻzdan kechirish.
+
+
+## 2026-11-22 — Antigravity — fix(telegram): `rich_section_heading`, Widget→Rich fallback va 4 ta Owner hisobotini Sidebar Topiclariga yoʻnaltirish
+
+- **Vazifa:** Jonli Telegram Bot API 10.5 tekshiruvida aniqlangan 2 ta tafovutni tuzatish (`sendRichMessage` da `"heading"` blok turi va `sendWidget` rad etilganda `sendRichMessage` fallback) hamda 4 ta asosiy Owner hisobotini (`Hisobchi kuzatuvi`, `CRM monitoring`, `Davomat`, `Tizim nazoratda`) shaxsiy Sidebar Topiclariga (`OWNER_TOPIC_*`) bogʻlash.
+- **Oʻzgargan fayllar:**
+  - `src/services/core/telegram/ai_features/models.py`: `rich_section_heading()` endi `{"type": "heading", "text": text, "size": size}` qaytaradi.
+  - `src/services/core/telegram/ai_features/workflows.py` (390 qator): `get_owner_topic_id(section)`, `_send_rich_kpi_message()`, va `_send_private_kpi_widget()` da `WIDGETS_ENABLED=1` paytida `sendWidget` xatosidan `sendRichMessage` ga fallback.
+  - `src/services/core/telegram/ai_features/__init__.py` & `src/services/core/telegram/telegram_ai_features.py` (37 qator): `get_owner_topic_id` eksporti.
+  - `src/schedulers/moliya/kuzatuv.py`, `src/services/core/crm/amobot_daily_report.py`, `src/schedulers/attendance_summary_scheduler.py`, `src/schedulers/bg_monitor/helpers.py`, `src/schedulers/bg_monitor/jobs_crm.py`, `src/schedulers/main_loop/periodic_reports.py`: Owner hisobotlari mos `OWNER_TOPIC_FINANCE/SALES/HR/SYSTEM` topiclariga va `Tizim nazoratda` raw `**` dan `<b>` HTML ga oʻtkazildi.
+  - `tests/test_telegram_ai_features.py` & `tests/test_telegram_botnews_capabilities.py`: `heading` strukturasi, `get_owner_topic_id`, va `Widget -> sendRichMessage` fallback testlari.
+- **Tekshiruv dalili:** `pytest` (7 ta modul: 76 passed), `ruff check --select F821,F822,ASYNC210,ASYNC221` (All checks passed), `bandit -ll` (0 issues), `check_uzbek_text.py --staged` (toza).
+- **Qolgan ish:** PR merge dan keyin Hetzner `.env` ga `OWNER_TOPIC_{FINANCE,SALES,MARKETING,HR,SYSTEM}` IDlarini qoʻshish va `oisha.service` ni `active` holatda tasdiqlash.
