@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""Sync OpenClaw and Hermes agents with latest models and personas on the server.
+"""Sync Oisha, Mr.Jon (OpenClaw) and Amina (Hermes) personas, Yadro.md and runtimes.
 
-Usage:
-    python scripts/sync_agents_runtime.py
+Supports per-bot isolated synchronization and restart so one bot can be updated
+or restarted without touching the other two:
+    python scripts/sync_agents_runtime.py --bot mrjon
+    python scripts/sync_agents_runtime.py --bot amina
+    python scripts/sync_agents_runtime.py --bot oisha --restart
+    python scripts/sync_agents_runtime.py --bot all --no-restart
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import logging
 import os
@@ -12,16 +19,84 @@ import pathlib
 import shutil
 import subprocess
 import time
-from typing import Any
+from typing import Any, Sequence
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("sync_agents_runtime")
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEPLOY_DIR = REPO_ROOT / "deploy"
+OISHA_DEPLOY_DIR = DEPLOY_DIR / "oisha"
 OPENCLAW_DEPLOY_DIR = DEPLOY_DIR / "openclaw"
 HERMES_DEPLOY_DIR = DEPLOY_DIR / "hermes"
 HERMES_HOME = pathlib.Path("/home/hermes/.hermes")
+OISHA_RUNTIME_DIR = pathlib.Path("/home/deploy/oisha-os")
+
+BOT_ALIASES: dict[str, str] = {
+    "oisha": "oisha", "mrjon": "mrjon", "mr.jon": "mrjon", "openclaw": "mrjon",
+    "amina": "amina", "hermes": "amina", "all": "all",
+}
+YADRO_RELATIVE_PATHS: dict[str, pathlib.Path] = {
+    "oisha": pathlib.Path("90-AI") / "Bots" / "Oisha" / "Yadro.md",
+    "mrjon": pathlib.Path("90-AI") / "Bots" / "Mr.Jon" / "Yadro.md",
+    "amina": pathlib.Path("90-AI") / "Bots" / "Amina" / "Yadro.md",
+}
+
+
+def normalize_bot_target(raw: str) -> str:
+    """Resolve CLI bot name or alias into canonical target (oisha, mrjon, amina, all)."""
+    key = (raw or "all").strip().lower()
+    if key not in BOT_ALIASES:
+        raise ValueError(f"Nomaʼlum bot nomi: {raw!r}. Ruxsat etilgan: oisha, mrjon, amina, all")
+    return BOT_ALIASES[key]
+
+
+def strip_yaml_frontmatter(text: str) -> str:
+    """Remove optional YAML frontmatter block from Obsidian Yadro.md content."""
+    if not text.startswith("---"):
+        return text
+    lines = text.splitlines(keepends=True)
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            return "".join(lines[idx + 1 :]).lstrip("\r\n")
+    return text
+
+
+def _deploy_soul_path_for_bot(bot: str) -> pathlib.Path:
+    """Return canonical deploy SOUL.md path for the given bot."""
+    mapping = {
+        "oisha": OISHA_DEPLOY_DIR / "SOUL.md",
+        "mrjon": OPENCLAW_DEPLOY_DIR / "workspace" / "SOUL.md",
+        "amina": HERMES_DEPLOY_DIR / "SOUL.md",
+    }
+    if bot not in mapping:
+        raise ValueError(f"Notoʻgʻri bot identifikatori: {bot}")
+    return mapping[bot]
+
+
+def sync_yadro_to_deploy(bot: str, vault_dir: pathlib.Path | None = None) -> bool:
+    """One-way sync from Obsidian Vault 90-AI/Bots/<Bot>/Yadro.md to deploy/.../SOUL.md."""
+    canonical = normalize_bot_target(bot)
+    if canonical == "all":
+        return all(sync_yadro_to_deploy(b, vault_dir=vault_dir) for b in ("oisha", "mrjon", "amina"))
+    resolved_vault = vault_dir or (
+        pathlib.Path(os.environ["OBSIDIAN_VAULT_DIR"].strip())
+        if os.environ.get("OBSIDIAN_VAULT_DIR", "").strip()
+        else None
+    )
+    if resolved_vault is None or not resolved_vault.is_dir():
+        return False
+    yadro_file = resolved_vault / YADRO_RELATIVE_PATHS[canonical]
+    if not yadro_file.is_file():
+        logger.warning("[Yadro] %s uchun Yadro.md topilmadi: %s", canonical, yadro_file)
+        return False
+    soul_body = strip_yaml_frontmatter(yadro_file.read_text(encoding="utf-8"))
+    dst = _deploy_soul_path_for_bot(canonical)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(soul_body, encoding="utf-8")
+    logger.info("[Yadro] %s Yadro.md -> %s sinxronlandi.", canonical, dst)
+    return True
+
 
 
 def update_openclaw_config_file(config_path: pathlib.Path) -> bool:
@@ -42,9 +117,6 @@ def update_openclaw_config_file(config_path: pathlib.Path) -> bool:
             ],
         }
 
-        # OpenClaw 2026 schema boʻyicha bundled provayderlar (google, groq) models.providers
-        # ichida apiKey: {"source": "env"} formatini qabul qilmaydi (exit 78 xatolik beradi).
-        # Ular muhit oʻzgaruvchilaridan (GEMINI_API_KEY, GROQ_API_KEY) toʻgʻridan-toʻgʻri oʻqiladi.
         if "models" in data and isinstance(data["models"], dict):
             providers = data["models"].get("providers")
             if isinstance(providers, dict):
@@ -91,21 +163,22 @@ def sync_openclaw_workspace(workspace_dir: pathlib.Path, owner_user: str | None 
         return False
 
 
+def _discover_possible_homes(base_homes: list[pathlib.Path] | None) -> list[pathlib.Path]:
+    """Return candidate user home directories on the host."""
+    if base_homes is not None:
+        return base_homes
+    homes = [pathlib.Path.home()]
+    if pathlib.Path("/home").is_dir():
+        homes.extend(p for p in pathlib.Path("/home").iterdir() if p.is_dir())
+    if pathlib.Path("/root").is_dir():
+        homes.append(pathlib.Path("/root"))
+    return homes
+
+
 def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None) -> None:
     """Search and sync all openclaw directories on the server."""
-    if base_homes is not None:
-        possible_homes = base_homes
-    else:
-        possible_homes = [pathlib.Path.home()]
-        if pathlib.Path("/home").is_dir():
-            for p in pathlib.Path("/home").iterdir():
-                if p.is_dir():
-                    possible_homes.append(p)
-        if pathlib.Path("/root").is_dir():
-            possible_homes.append(pathlib.Path("/root"))
-
-    seen_homes = set()
-    for home in possible_homes:
+    seen_homes: set[pathlib.Path] = set()
+    for home in _discover_possible_homes(base_homes):
         real_home = home.resolve()
         if real_home in seen_homes:
             continue
@@ -122,17 +195,9 @@ def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None
         if config_path.is_file():
             update_openclaw_config_file(config_path)
 
-        # Standart va moslashtirilgan workspaceʼlarni yangilash
-        workspaces = [
-            oc_dir / "workspace" / "oisha",
-            oc_dir / "workspace",
-            real_home / "openclaw" / "workspace",
-        ]
-        for ws in workspaces:
+        for ws in (oc_dir / "workspace" / "oisha", oc_dir / "workspace", real_home / "openclaw" / "workspace"):
             sync_openclaw_workspace(ws, owner_user)
 
-        # Doctor can stop the managed gateway: never run repairs automatically.
-        # Owner can opt in during a maintenance window, not during normal deploy.
         if owner_user and os.name != "nt":
             if os.getenv("OISHA_RUN_OPENCLAW_DOCTOR_FIX", "0") == "1":
                 try:
@@ -148,16 +213,25 @@ def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None
                 'openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash"'
             )
             try:
-                subprocess.run(
-                    ["sudo", "-iu", owner_user, "bash", "-c", cmd],
-                    check=False, timeout=30,
-                )
+                subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False, timeout=30)
             except subprocess.TimeoutExpired:
                 logger.warning("[OpenClaw] Model config timed out for %s", owner_user)
 
 
-def sync_hermes_agent(hermes_dir: pathlib.Path | None = None) -> None:
-    """Sync Hermes agent persona and model settings."""
+def restart_hermes_gateway() -> bool:
+    """Restart ONLY hermes-gateway.service (Amina) without touching Mr.Jon or Oisha."""
+    if os.name == "nt":
+        return True
+    restart_res = subprocess.run(["sudo", "systemctl", "restart", "hermes-gateway"], check=False)
+    if restart_res.returncode == 0:
+        logger.info("[Hermes] hermes-gateway xizmati qayta ishga tushirildi.")
+        return True
+    logger.warning("[Hermes] hermes-gateway restart qaytarish kodi: %s", restart_res.returncode)
+    return False
+
+
+def sync_hermes_agent(hermes_dir: pathlib.Path | None = None, *, restart: bool = True) -> None:
+    """Sync Amina (Hermes) agent persona and model settings."""
     hermes_home = hermes_dir or HERMES_HOME
     if not hermes_home.is_dir():
         logger.info("[Hermes] %s katalogi topilmadi, oʻtkazib yuborildi.", hermes_home)
@@ -173,17 +247,13 @@ def sync_hermes_agent(hermes_dir: pathlib.Path | None = None) -> None:
             subprocess.run(["chown", "hermes:hermes", str(soul_dst)], check=False)
 
     if os.name != "nt":
-        hermes_cmds = [
+        for c in (
             "hermes config set model.provider gemini || true",
             "hermes config set model.default gemini-2.5-flash || true",
-        ]
-        for c in hermes_cmds:
+        ):
             subprocess.run(["sudo", "-iu", "hermes", "bash", "-c", c], check=False)
-
-        # hermes-gateway servisni qayta ishga tushirish
-        restart_res = subprocess.run(["sudo", "systemctl", "restart", "hermes-gateway"], check=False)
-        if restart_res.returncode == 0:
-            logger.info("[Hermes] hermes-gateway xizmati qayta ishga tushirildi.")
+        if restart:
+            restart_hermes_gateway()
 
 
 def ensure_openclaw_gateway_active() -> bool:
@@ -198,17 +268,9 @@ def ensure_openclaw_gateway_active() -> bool:
             return True
 
         status = subprocess.run(
-            [
-                "sudo",
-                "-iu",
-                "ubuntu",
-                "bash",
-                "-c",
-                "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
+            ["sudo", "-iu", "ubuntu", "bash", "-c",
+             "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true"],
+            capture_output=True, text=True, check=False,
         )
         output = (status.stdout or status.stderr or "").strip()
         if output and any(token in output.lower() for token in ["running", "active", "ready", "healthy"]):
@@ -224,15 +286,12 @@ def ensure_openclaw_gateway_active() -> bool:
 
 
 def restart_openclaw_gateway() -> None:
-    """Restart or start OpenClaw gateway service and verify it is running."""
+    """Restart or start ONLY OpenClaw gateway service (Mr.Jon)."""
     if os.name == "nt":
         return
 
     logger.info("[OpenClaw] Gateway jarayonini boshqarish...")
-
-    # 1. Systemd servislari bormi tekshirish
-    units = ["openclaw-gateway.service", "openclaw.service", "claw.service"]
-    for u in units:
+    for u in ("openclaw-gateway.service", "openclaw.service", "claw.service"):
         check = subprocess.run(["systemctl", "list-unit-files", u], capture_output=True, text=True, check=False)
         if u in check.stdout:
             logger.info("[OpenClaw] Systemd unit %s topildi, qayta ishga tushirilmoqda...", u)
@@ -241,21 +300,12 @@ def restart_openclaw_gateway() -> None:
                 return
             break
 
-    # 2. OpenClaw CLI orqali start / restart
-    for user in ["ubuntu", "root"]:
+    for user in ("ubuntu", "root"):
         cli_res = subprocess.run(
-            [
-                "sudo",
-                "-iu",
-                user,
-                "bash",
-                "-c",
-                "command -v openclaw >/dev/null 2>&1 && "
-                "(openclaw gateway restart || openclaw gateway start || openclaw gateway install)",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
+            ["sudo", "-iu", user, "bash", "-c",
+             "command -v openclaw >/dev/null 2>&1 && "
+             "(openclaw gateway restart || openclaw gateway start || openclaw gateway install)"],
+            capture_output=True, text=True, check=False,
         )
         if cli_res.returncode == 0:
             logger.info("[OpenClaw] CLI gateway (%s): %s", user, cli_res.stdout.strip())
@@ -263,7 +313,6 @@ def restart_openclaw_gateway() -> None:
                 return
             break
 
-    # 3. Agar jarayon hali ham koʻrinmasa, fon rejimida start berish
     time.sleep(1)
     ps_check = subprocess.run(["pgrep", "-af", "openclaw.*gateway"], capture_output=True, text=True, check=False)
     if not ps_check.stdout.strip():
@@ -273,34 +322,72 @@ def restart_openclaw_gateway() -> None:
             check=False,
         )
 
-    # 4. Status va tekshiruv
     if ensure_openclaw_gateway_active():
         return
-
     status_check = subprocess.run(
-        [
-            "sudo",
-            "-iu",
-            "ubuntu",
-            "bash",
-            "-c",
-            "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+        ["sudo", "-iu", "ubuntu", "bash", "-c",
+         "command -v openclaw >/dev/null 2>&1 && openclaw gateway status 2>&1 || true"],
+        capture_output=True, text=True, check=False,
     )
     if status_check.stdout.strip():
         logger.info("[OpenClaw] Gateway holati:\n%s", status_check.stdout.strip())
 
 
-def main() -> None:
-    logger.info("=== Agentlar (Oisha, Amina va Mr.Jon) modellar va personalar sinxronizatsiyasi boshlandi ===")
-    sync_all_openclaw_installations()
-    sync_hermes_agent()
-    restart_openclaw_gateway()
-    logger.info("=== Sinxronizatsiya yakunlandi ===")
+def restart_oisha_service() -> bool:
+    """Restart ONLY oisha.service without touching Mr.Jon or Amina."""
+    if os.name == "nt":
+        return True
+    res = subprocess.run(["sudo", "systemctl", "restart", "oisha.service"], check=False)
+    if res.returncode == 0:
+        logger.info("[Oisha] oisha.service qayta ishga tushirildi.")
+        return True
+    logger.warning("[Oisha] oisha.service restart qaytarish kodi: %s", res.returncode)
+    return False
+
+
+def sync_oisha_agent(runtime_dir: pathlib.Path | None = None, *, restart: bool = False) -> bool:
+    """Sync Oisha SOUL.md into runtime deploy directory and optionally restart oisha.service."""
+    soul_src = OISHA_DEPLOY_DIR / "SOUL.md"
+    target_root = runtime_dir or OISHA_RUNTIME_DIR
+    if soul_src.is_file() and target_root.is_dir():
+        dst = target_root / "deploy" / "oisha" / "SOUL.md"
+        if soul_src.resolve() != dst.resolve():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(soul_src, dst)
+            logger.info("[Oisha] Oisha SOUL.md koʻchirildi: %s", dst)
+    if restart:
+        return restart_oisha_service()
+    return True
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Per-bot persona and runtime synchronizer")
+    parser.add_argument("--bot", default="all", help="Target bot: oisha | mrjon | amina | all")
+    parser.add_argument("--no-restart", action="store_true", help="Sync files without restarting services")
+    parser.add_argument("--restart", action="store_true", help="Force restart of the selected bot service")
+    parser.add_argument("--vault-dir", type=pathlib.Path, default=None, help="Obsidian Vault root directory")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = _build_parser().parse_args(list(argv) if argv is not None else [])
+    target = normalize_bot_target(args.bot)
+    do_restart = not args.no_restart
+    logger.info("=== Agent sinxronizatsiyasi boshlandi (target=%s, restart=%s) ===", target, do_restart)
+    sync_yadro_to_deploy(target, vault_dir=args.vault_dir)
+    if target == "oisha":
+        sync_oisha_agent(restart=bool(args.restart and do_restart))
+    else:
+        if target in {"mrjon", "all"}:
+            sync_all_openclaw_installations()
+        if target in {"amina", "all"}:
+            sync_hermes_agent(restart=do_restart)
+        if target in {"mrjon", "all"} and do_restart:
+            restart_openclaw_gateway()
+    logger.info("=== Sinxronizatsiya yakunlandi (target=%s) ===", target)
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    main(sys.argv[1:])

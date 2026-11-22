@@ -1,18 +1,32 @@
 """
-OpenClaw <-> Oisha-OS koʻprigi.
+OpenClaw (Mr.Jon) <-> Oisha-OS koʻprigi.
 
-OpenClaw gateway barcha kanallardan (WhatsApp, Slack, Discord, Telegram,
-Signal, iMessage ...) xabarlarni /webhook/openclaw ga yuboradi.
-Bu modul ularni tegishli Oisha agentiga yoʻnaltiradi va javob qaytaradi.
+OpenClaw gateway barcha tashqi kanallardan (WhatsApp, Slack, Discord, Telegram
+@jon_clawbot, Signal, iMessage ...) xabarlarni /webhook/openclaw ga yuboradi.
+Ushbu koʻprik Mr.Jon shaxsiyatini (deploy/openclaw/workspace/SOUL.md) saqlagan
+holda soʻrovlarni qayta ishlaydi — hech qachon oʻzini Oisha yoki Amina deb
+tanishtirmaydi.
 """
 from __future__ import annotations
 
 import hashlib
 import logging
 import os
+import pathlib
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger("OpenClawBridge")
+
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_MRJON_SOUL_PATH = _REPO_ROOT / "deploy" / "openclaw" / "workspace" / "SOUL.md"
+
+MRJON_DEFAULT_INSTRUCTION = (
+    "Sen Mr.Jonsan — Jon Branding agentligi asoschisi Baxtiyorjon Gaziyevning "
+    "raqamli egizagisan (Digital Twin) va agentlikning tashqi yuzisan. "
+    "Sen Oisha emassan va Amina emassan. Oʻzingni faqat 'Mr.Jon' deb tanishtir. "
+    "Aniq narx, shartnoma sharti yoki chegirma vaʼda qilma; ichki moliya va "
+    "xodimlar maʼlumotini oshkor qilma."
+)
 
 # Kanal -> user_id prefiks (har bir kanal uchun noyob ID maydoni)
 _CHANNEL_PREFIX: Dict[str, int] = {
@@ -27,9 +41,22 @@ _CHANNEL_PREFIX: Dict[str, int] = {
     "webchat": 8_000_000_000,
 }
 
-# Singleton agent manager (birinchi chaqiruvda yaratiladi)
+# Mr.Jon uchun alohida agent manager va orkestrator (Oisha prompti bilan aralashmasligi uchun)
 _agent_manager = None
 _orchestrator = None
+
+
+def load_mrjon_system_instruction(soul_path: Optional[pathlib.Path] = None) -> str:
+    """Mr.Jon SOUL.md faylini oʻqish; topilmasa standart Mr.Jon koʻrsatmasini qaytarish."""
+    target = soul_path or _MRJON_SOUL_PATH
+    try:
+        if target.is_file():
+            content = target.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+    except OSError:
+        logger.debug("[OpenClawBridge] Mr.Jon SOUL.md oʻqilmadi: %s", target, exc_info=True)
+    return MRJON_DEFAULT_INSTRUCTION
 
 
 def _get_numeric_user_id(sender_id: str, channel: str) -> int:
@@ -48,61 +75,59 @@ def _build_context(
 ) -> Dict[str, Any]:
     return {
         "source": "openclaw",
+        "persona": "mrjon",
+        "bot_name": "Mr.Jon",
         "channel": channel,
         "sender_name": sender,
         **metadata,
     }
 
 
-def _running_orchestrator() -> Optional[Any]:
-    """Agar Oisha-OS MessageController ishga tushgan boʻlsa, uning orkestratorini qaytaradi."""
-    try:
-        from src.api.routes.state import api_state
-
-        ctrl = getattr(api_state, "msg_controller", None)
-        if ctrl is not None and getattr(ctrl, "orchestrator", None) is not None:
-            return ctrl.orchestrator
-    except Exception:
-        logger.debug("[OpenClawBridge] api_state.msg_controller oʻqilmadi", exc_info=True)
-    try:
-        from src.context import app_ctx
-
-        ctrl = getattr(app_ctx, "msg_controller", None)
-        if ctrl is not None and getattr(ctrl, "orchestrator", None) is not None:
-            return ctrl.orchestrator
-    except Exception:
-        logger.debug("[OpenClawBridge] app_ctx.msg_controller oʻqilmadi", exc_info=True)
+def _resolve_live_controller() -> Optional[Any]:
+    """Ishlab turgan MessageController ni (faqat db va executor uchun) topish."""
+    for module_path, attr_holder in (
+        ("src.api.routes.state", "api_state"),
+        ("src.context", "app_ctx"),
+    ):
+        try:
+            mod = __import__(module_path, fromlist=[attr_holder])
+            holder = getattr(mod, attr_holder, None)
+            ctrl = getattr(holder, "msg_controller", None)
+            if ctrl is not None:
+                return ctrl
+        except Exception:
+            logger.debug("[OpenClawBridge] %s.msg_controller oʻqilmadi", attr_holder, exc_info=True)
     return None
 
 
-def _register_core_agents(manager: Any, api_keys: Dict[str, str], db: Optional[Any]) -> None:
-    """Standalone rejimda OpenClaw koʻprigi uchun asosiy agentlarni roʻyxatdan oʻtkazadi."""
+def _register_core_agents(
+    manager: Any,
+    api_keys: Dict[str, str],
+    db: Optional[Any],
+    executor: Optional[Any] = None,
+) -> None:
+    """OpenClaw koʻprigi uchun agentlarni Mr.Jon shaxsiyati (SOUL.md) bilan roʻyxatdan oʻtkazadi."""
     from src.agents.pm_agent import PMAgent
     from src.agents.researcher_agent import ResearcherAgent
     from src.agents.sales_agent import SalesAgent
     from src.agents.support_agent import SupportAgent
-    from src.settings import settings
 
-    base = getattr(settings, "SYSTEM_INSTRUCTION", "Siz JonBranding yordamchisisiz.")
-    manager.register_agent(SalesAgent("sales", base, api_keys, None, db))
+    base = load_mrjon_system_instruction()
+    manager.register_agent(SalesAgent("sales", base, api_keys, executor, db))
     manager.register_agent(
-        PMAgent("strategist", base + "\n\nLoyihalar va reja uchun masʼulsiz.", api_keys, None, db)
+        PMAgent("strategist", base + "\n\nBrending strategiyasi va loyiha rejasi uchun masʼulsiz.", api_keys, executor, db)
     )
     manager.register_agent(
-        ResearcherAgent("researcher", base + "\n\nBozor tahlili va tadqiqot uchun masʼulsiz.", api_keys, None, db)
+        ResearcherAgent("researcher", base + "\n\nBozor tahlili va tadqiqot uchun masʼulsiz.", api_keys, executor, db)
     )
     manager.register_agent(
-        SupportAgent("support", base + "\n\nTezkor yordam va texnik savollar uchun masʼulsiz.", api_keys, None, db)
+        SupportAgent("support", base + "\n\nMijoz va hamkor savollariga tezkor javob uchun masʼulsiz.", api_keys, executor, db)
     )
 
 
 async def _get_orchestrator(db: Optional[Any]):
-    """Mavjud MessageController orkestratorini olish yoki standalone init qilish."""
+    """Mr.Jon shaxsiyatiga ega alohida AgentOrchestrator qaytarish."""
     global _agent_manager, _orchestrator
-
-    live = _running_orchestrator()
-    if live is not None:
-        return live
 
     if _orchestrator is not None:
         return _orchestrator
@@ -110,8 +135,16 @@ async def _get_orchestrator(db: Optional[Any]):
     from src.agents.core import AgentManager
     from src.agents.orchestrator import AgentOrchestrator
 
-    api_keys: Dict[str, str] = {}
-    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    ctrl = _resolve_live_controller()
+    resolved_db = db if db is not None else getattr(ctrl, "db", None)
+    executor = getattr(ctrl, "executor", None)
+
+    api_keys: Dict[str, str] = dict(getattr(ctrl, "api_keys", None) or {})
+    gemini_key = (
+        os.environ.get("MRJON_GEMINI_API_KEY")
+        or os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+    )
     if gemini_key:
         api_keys["gemini"] = gemini_key
     groq_key = os.environ.get("GROQ_API_KEY")
@@ -119,9 +152,9 @@ async def _get_orchestrator(db: Optional[Any]):
         api_keys["groq"] = groq_key
 
     _agent_manager = AgentManager(api_keys=api_keys)
-    _register_core_agents(_agent_manager, api_keys, db)
+    _register_core_agents(_agent_manager, api_keys, resolved_db, executor=executor)
     _orchestrator = AgentOrchestrator(agent_manager=_agent_manager)
-    logger.info("[OpenClawBridge] AgentOrchestrator tayyor.")
+    logger.info("[OpenClawBridge] Mr.Jon AgentOrchestrator tayyor.")
     return _orchestrator
 
 
@@ -135,7 +168,7 @@ async def handle_openclaw_message(
     db: Optional[Any] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """OpenClaw webhook yoki Telegram AI yangilanishidan kelgan xabarni qayta ishlash."""
+    """OpenClaw webhook yoki tashqi kanaldan kelgan xabarni Mr.Jon shaxsiyatida qayta ishlash."""
     if metadata is None:
         metadata = {}
 

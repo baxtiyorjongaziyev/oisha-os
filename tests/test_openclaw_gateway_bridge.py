@@ -107,10 +107,37 @@ async def test_get_orchestrator_registers_core_agents_without_booted_controller(
     monkeypatch.setattr(app_ctx, "msg_controller", None)
 
     orchestrator = await openclaw_bridge._get_orchestrator(db=None)
-    assert orchestrator.manager.get_agent("sales") is not None
+    sales_agent = orchestrator.manager.get_agent("sales")
+    assert sales_agent is not None
     assert orchestrator.manager.get_agent("support") is not None
     assert orchestrator.manager.get_agent("strategist") is not None
     assert orchestrator.manager.get_agent("researcher") is not None
+    # Mr.Jon bridge must use Mr.Jon SOUL.md identity, never Oisha identity
+    assert "Mr.Jon" in sales_agent.system_prompt
+    assert "Sen Oisha emassan va Amina emassan" in sales_agent.system_prompt
+
+
+@pytest.mark.asyncio
+async def test_openclaw_bridge_preserves_mrjon_persona_even_when_oisha_controller_booted(monkeypatch):
+    monkeypatch.setattr(openclaw_bridge, "_agent_manager", None)
+    monkeypatch.setattr(openclaw_bridge, "_orchestrator", None)
+    monkeypatch.setenv("MRJON_GEMINI_API_KEY", "mrjon-dedicated-key")
+
+    from src.api.routes.state import api_state
+
+    oisha_ctrl = SimpleNamespace(
+        orchestrator=SimpleNamespace(name="oisha_orchestrator"),
+        db="shared_db",
+        executor="shared_executor",
+        api_keys={"gemini": "oisha-key"},
+    )
+    monkeypatch.setattr(api_state, "msg_controller", oisha_ctrl)
+
+    orchestrator = await openclaw_bridge._get_orchestrator(db=None)
+    assert orchestrator is not oisha_ctrl.orchestrator
+    sales_agent = orchestrator.manager.get_agent("sales")
+    assert "Mr.Jon" in sales_agent.system_prompt
+    assert orchestrator.manager.api_keys["gemini"] == "mrjon-dedicated-key"
 
 
 @pytest.mark.asyncio
@@ -127,3 +154,7 @@ async def test_handle_openclaw_message_works_without_session_arg():
             channel="telegram_business",
         )
     assert reply == "Mehmon javobi"
+    ctx = fake_orchestrator.get_agent_response.await_args.kwargs["context"]
+    assert ctx["persona"] == "mrjon"
+    assert ctx["bot_name"] == "Mr.Jon"
+

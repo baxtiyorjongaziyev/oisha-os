@@ -104,7 +104,7 @@ class TestSyncAgentsRuntime(unittest.TestCase):
         base_dir = Path("tmp_test_hermes")
         deploy_hermes = base_dir / "deploy" / "hermes"
         deploy_hermes.mkdir(parents=True, exist_ok=True)
-        (deploy_hermes / "SOUL.md").write_text("Oisha SOUL", encoding="utf-8")
+        (deploy_hermes / "SOUL.md").write_text("Amina SOUL", encoding="utf-8")
 
         hermes_home = base_dir / "hermes_home"
         hermes_home.mkdir(parents=True, exist_ok=True)
@@ -117,7 +117,7 @@ class TestSyncAgentsRuntime(unittest.TestCase):
                 mock_run.return_value = MagicMock(returncode=0)
                 sync_agents_runtime.sync_hermes_agent(hermes_dir=hermes_home)
                 self.assertTrue((hermes_home / "SOUL.md").is_file())
-                self.assertEqual((hermes_home / "SOUL.md").read_text(encoding="utf-8"), "Oisha SOUL")
+                self.assertEqual((hermes_home / "SOUL.md").read_text(encoding="utf-8"), "Amina SOUL")
         finally:
             shutil.rmtree(base_dir, ignore_errors=True)
 
@@ -154,7 +154,7 @@ class TestSyncAgentsRuntime(unittest.TestCase):
             self.assertGreaterEqual(mock_run.call_count, 5)
 
     def test_main_orchestration(self) -> None:
-        """Test main orchestrator executes all steps."""
+        """Test main orchestrator executes all steps by default."""
         with (
             patch.object(sync_agents_runtime, "sync_all_openclaw_installations") as m_oc,
             patch.object(sync_agents_runtime, "sync_hermes_agent") as m_hermes,
@@ -162,8 +162,100 @@ class TestSyncAgentsRuntime(unittest.TestCase):
         ):
             sync_agents_runtime.main()
             m_oc.assert_called_once()
-            m_hermes.assert_called_once()
+            m_hermes.assert_called_once_with(restart=True)
             m_gw.assert_called_once()
+
+    def test_sync_yadro_to_deploy_strips_frontmatter_and_isolates_bot(self) -> None:
+        """Test 1-way sync from Obsidian Vault Yadro.md to deploy/.../SOUL.md."""
+        base_dir = Path("tmp_test_yadro")
+        vault_dir = base_dir / "vault"
+        deploy_dir = base_dir / "deploy"
+        try:
+            for rel, body in (
+                (Path("90-AI/Bots/Oisha/Yadro.md"), "---\ntitle: Oisha\n---\n\n# Oisha Yadro\n"),
+                (Path("90-AI/Bots/Mr.Jon/Yadro.md"), "---\ntitle: Mr.Jon\n---\n\n# Mr.Jon Yadro\n"),
+                (Path("90-AI/Bots/Amina/Yadro.md"), "# Amina Yadro Without Frontmatter\n"),
+            ):
+                p = vault_dir / rel
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(body, encoding="utf-8")
+
+            with (
+                patch.object(sync_agents_runtime, "OISHA_DEPLOY_DIR", deploy_dir / "oisha"),
+                patch.object(sync_agents_runtime, "OPENCLAW_DEPLOY_DIR", deploy_dir / "openclaw"),
+                patch.object(sync_agents_runtime, "HERMES_DEPLOY_DIR", deploy_dir / "hermes"),
+            ):
+                self.assertTrue(sync_agents_runtime.sync_yadro_to_deploy("mrjon", vault_dir=vault_dir))
+                self.assertEqual(
+                    (deploy_dir / "openclaw" / "workspace" / "SOUL.md").read_text(encoding="utf-8"),
+                    "# Mr.Jon Yadro\n",
+                )
+                self.assertFalse((deploy_dir / "hermes" / "SOUL.md").exists())
+
+                self.assertTrue(sync_agents_runtime.sync_yadro_to_deploy("all", vault_dir=vault_dir))
+                self.assertEqual(
+                    (deploy_dir / "oisha" / "SOUL.md").read_text(encoding="utf-8"),
+                    "# Oisha Yadro\n",
+                )
+                self.assertEqual(
+                    (deploy_dir / "hermes" / "SOUL.md").read_text(encoding="utf-8"),
+                    "# Amina Yadro Without Frontmatter\n",
+                )
+        finally:
+            shutil.rmtree(base_dir, ignore_errors=True)
+
+    def test_main_per_bot_isolation_mrjon(self) -> None:
+        """Test --bot mrjon touches only OpenClaw (Mr.Jon) and not Amina or Oisha."""
+        with (
+            patch.object(sync_agents_runtime, "sync_all_openclaw_installations") as m_oc,
+            patch.object(sync_agents_runtime, "sync_hermes_agent") as m_hermes,
+            patch.object(sync_agents_runtime, "sync_oisha_agent") as m_oisha,
+            patch.object(sync_agents_runtime, "restart_openclaw_gateway") as m_gw,
+        ):
+            sync_agents_runtime.main(["--bot", "mrjon"])
+            m_oc.assert_called_once()
+            m_gw.assert_called_once()
+            m_hermes.assert_not_called()
+            m_oisha.assert_not_called()
+
+    def test_main_per_bot_isolation_amina(self) -> None:
+        """Test --bot amina touches only Hermes (Amina) and not Mr.Jon or Oisha."""
+        with (
+            patch.object(sync_agents_runtime, "sync_all_openclaw_installations") as m_oc,
+            patch.object(sync_agents_runtime, "sync_hermes_agent") as m_hermes,
+            patch.object(sync_agents_runtime, "sync_oisha_agent") as m_oisha,
+            patch.object(sync_agents_runtime, "restart_openclaw_gateway") as m_gw,
+        ):
+            sync_agents_runtime.main(["--bot", "amina"])
+            m_hermes.assert_called_once_with(restart=True)
+            m_oc.assert_not_called()
+            m_gw.assert_not_called()
+            m_oisha.assert_not_called()
+
+    def test_main_per_bot_isolation_oisha_and_no_restart(self) -> None:
+        """Test --bot oisha --restart and --no-restart flags."""
+        with (
+            patch.object(sync_agents_runtime, "sync_all_openclaw_installations") as m_oc,
+            patch.object(sync_agents_runtime, "sync_hermes_agent") as m_hermes,
+            patch.object(sync_agents_runtime, "sync_oisha_agent") as m_oisha,
+            patch.object(sync_agents_runtime, "restart_openclaw_gateway") as m_gw,
+        ):
+            sync_agents_runtime.main(["--bot", "oisha", "--restart"])
+            m_oisha.assert_called_once_with(restart=True)
+            m_oc.assert_not_called()
+            m_hermes.assert_not_called()
+            m_gw.assert_not_called()
+
+            m_oisha.reset_mock()
+            sync_agents_runtime.main(["--bot", "all", "--no-restart"])
+            m_oc.assert_called_once()
+            m_hermes.assert_called_once_with(restart=False)
+            m_gw.assert_not_called()
+
+    def test_normalize_bot_target_rejects_unknown(self) -> None:
+        """Test invalid bot target raises ValueError."""
+        with self.assertRaises(ValueError):
+            sync_agents_runtime.normalize_bot_target("unknown_bot")
 
 
 if __name__ == "__main__":
