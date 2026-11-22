@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import structlog
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from src.database import Database
 from src.time_utils import get_local_now

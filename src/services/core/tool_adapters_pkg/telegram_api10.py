@@ -7,8 +7,11 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src.services.core.telegram.telegram_ai_features import (
+    bootstrap_owner_private_topics,
     build_input_rich_message,
     build_text_article_result,
+    send_client_native_checklist,
+    send_oisha_kpi_report,
 )
 from src.services.core.tool_registry import ToolResult
 
@@ -267,3 +270,115 @@ class TelegramAPI10Mixin:
                 failed_targets=[{"chat_id": chat_id, "error": str(exc)}],
                 metadata={"chat_id": chat_id, "thread_id": thread_id},
             )
+
+    async def configure_bot_settings(
+        self,
+        **settings: Any,
+    ) -> ToolResult:
+        """Automate bot setup via Bot API 10.5 ``setMySettings``."""
+        try:
+            ok = await self.bot_api10.set_my_settings(**settings)
+            return ToolResult(
+                tool_name="telegram.set_my_settings",
+                success=bool(ok),
+                status="succeeded" if ok else "failed",
+                metadata={"settings": {k: v for k, v in settings.items() if v is not None}},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] setMySettings failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.set_my_settings",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                metadata={"settings": {k: v for k, v in settings.items() if v is not None}},
+            )
+
+    async def bootstrap_private_topics(
+        self,
+        owner_chat_id: int,
+        *,
+        bot_username: Optional[str] = None,
+    ) -> ToolResult:
+        """Enable Topic Sidebar (10.5) and create 5 Oisha-OS private topics (9.3/9.4)."""
+        try:
+            data = await bootstrap_owner_private_topics(
+                self.bot_api10, owner_chat_id, bot_username=bot_username
+            )
+            return ToolResult(
+                tool_name="telegram.private_topics",
+                success=True,
+                status="succeeded",
+                metadata=data,
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] Private topics bootstrap failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.private_topics",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                metadata={"owner_chat_id": owner_chat_id},
+            )
+
+    async def send_native_checklist(
+        self,
+        business_connection_id: str,
+        chat_id: int | str,
+        client_name: str,
+        items: List[Dict[str, Any]],
+        *,
+        stage_title: str = "Loyiha cheklisti",
+    ) -> ToolResult:
+        """Send an interactive native checklist (Bot API 9.1 sendChecklist)."""
+        try:
+            msg = await send_client_native_checklist(
+                self.bot_api10,
+                business_connection_id=business_connection_id,
+                chat_id=chat_id,
+                client_name=client_name,
+                items=items,
+                stage_title=stage_title,
+            )
+            return ToolResult(
+                tool_name="telegram.checklist",
+                success=True,
+                sent_count=1,
+                group_message_id=msg.get("message_id"),
+                metadata={"chat_id": chat_id, "client_name": client_name},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] sendChecklist failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.checklist",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                metadata={"chat_id": chat_id, "client_name": client_name},
+            )
+
+    async def set_member_role_tag(
+        self,
+        chat_id: int | str,
+        user_id: int,
+        tag: Optional[str],
+    ) -> ToolResult:
+        """Assign or clear a group member role tag (Bot API 9.5 setChatMemberTag)."""
+        try:
+            ok = await self.bot_api10.set_chat_member_tag(chat_id, user_id, tag=tag)
+            return ToolResult(
+                tool_name="telegram.member_tag",
+                success=bool(ok),
+                status="succeeded" if ok else "failed",
+                metadata={"chat_id": chat_id, "user_id": user_id, "tag": tag},
+            )
+        except Exception as exc:
+            logger.warning("[TELEGRAM TOOL] setChatMemberTag failed: %s", exc)
+            return ToolResult(
+                tool_name="telegram.member_tag",
+                success=False,
+                status="failed",
+                reason=str(exc),
+                metadata={"chat_id": chat_id, "user_id": user_id, "tag": tag},
+            )
+

@@ -29,16 +29,27 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 async def process_telegram_ai_update(update: Dict[str, Any]):
-    """Central dispatcher for Bot API 10.0 AI updates."""
+    """Central dispatcher for Bot API 9.x–10.5 AI updates."""
+    from src.services.core.telegram.ai_features.workflows import handle_botnews_service_update
     from src.services.core.telegram.telegram_ai_features import (
         TelegramBotAPI10Client,
+        build_text_article_result,
         classify_update as classify_bot_api_update,
         extract_guest_message_context,
-        build_text_article_result,
     )
 
     update_type = classify_bot_api_update(update)
     logger.info("[TG-AI] update_type=%s", update_type)
+    token = os.environ.get("BOT_TOKEN") or (settings.BOT_TOKEN.get_secret_value() if settings.BOT_TOKEN else "")
+    runtime_db = None
+    if "checklist_tasks_done" in str(update):
+        try:
+            runtime_db = await _get_db_instance()
+        except Exception:
+            runtime_db = None
+    service_res = await handle_botnews_service_update(update, token=token, db=runtime_db)
+    if service_res is not None:
+        return service_res
 
     if update_type == "guest_message":
         guest_ctx = extract_guest_message_context(update)
@@ -181,12 +192,7 @@ async def amocrm_lead_created_webhook(
     background_tasks: BackgroundTasks,
     secret: Optional[str] = Query(default=None),
 ):
-    """Receive lead[add] webhooks from AmoCRM to trigger Voice Agent.
-
-    Requires a shared secret (AMOCRM_WEBHOOK_SECRET) as a query param since
-    AmoCRM webhooks carry no signature — and stays fully disabled unless
-    ENABLE_VOICE_AGENT=True, regardless of whether VAPI_API_KEY is set.
-    """
+    """Receive lead[add] webhooks from AmoCRM to trigger Voice Agent (requires AMOCRM_WEBHOOK_SECRET)."""
     if not settings.ENABLE_VOICE_AGENT:
         return JSONResponse(status_code=404, content={"status": "disabled"})
 
@@ -196,20 +202,16 @@ async def amocrm_lead_created_webhook(
 
     try:
         form_data = await request.form()
-
-        # Parse AmoCRM structure: leads[add][0][name], etc.
         lead_id = form_data.get("leads[add][0][id]")
         if not lead_id:
             return JSONResponse(status_code=400, content={"status": "ignored", "message": "Not a lead addition"})
 
-        # Idempotency: skip if this lead_id already triggered a call.
         idempotency_key = f"voice_call_triggered:{lead_id}"
         db = get_db()
         if await db.kv.get_state(idempotency_key):
             return JSONResponse(content={"status": "ignored", "message": "Already processed"})
 
         lead_name = form_data.get("leads[add][0][name]", f"Lead {lead_id}")
-
         phone_number = None
         for key, value in form_data.items():
             if "custom_fields" in key and "values" in key and "value" in key:
@@ -222,7 +224,6 @@ async def amocrm_lead_created_webhook(
             return JSONResponse(content={"status": "ignored", "message": "No phone number found"})
 
         await db.kv.set_state(idempotency_key, True)
-
         approval_key = f"voice_call_pending:{lead_id}"
         await db.kv.set_state(approval_key, {
             "lead_id": lead_id,
@@ -237,7 +238,7 @@ async def amocrm_lead_created_webhook(
             await app_ctx.outgoing_messages.put({
                 "chat_id": owner_id,
                 "text": (
-                    f"🎙 Voice Agent tasdiq so'raladi\n\n"
+                    f"🎙 Voice Agent tasdiq soʻraladi\n\n"
                     f"Lead: {lead_name} (ID: {lead_id})\n"
                     f"Telefon: {phone_number}\n\n"
                     f"Tasdiqlash uchun: /voice_approve {lead_id}\n"
@@ -252,18 +253,15 @@ async def amocrm_lead_created_webhook(
 
 
 async def approve_voice_call(lead_id: str) -> bool:
-    """Owner tasdiqlagach chaqiriladi (masalan /voice_approve buyrug'idan)."""
+    """Owner tasdiqlagach chaqiriladi (masalan /voice_approve buyrugʻidan)."""
     if not settings.ENABLE_VOICE_AGENT:
         return False
-
     from src.services.core.voice_agent import trigger_voice_agent
-
     db = get_db()
     approval_key = f"voice_call_pending:{lead_id}"
     pending = await db.kv.get_state(approval_key)
     if not pending:
         return False
-
     await db.kv.set_state(approval_key, None)
     await trigger_voice_agent(
         lead_name=pending["lead_name"],
@@ -285,7 +283,7 @@ async def reject_voice_call(lead_id: str) -> bool:
 
 
 async def _resolve_lead_id_for_note(note_data: Dict[str, Any], amocrm: Any) -> Optional[int]:
-    """Qo'ng'iroq izohidan tegishli AmoCRM lid ID sini aniqlash."""
+    """Qoʻngʻiroq izohidan tegishli AmoCRM lid ID sini aniqlash."""
     el_id = note_data.get("element_id")
     el_type = str(note_data.get("element_type") or "").lower()
     if el_type in {"2", "lead", "leads", ""}:
@@ -318,11 +316,7 @@ async def _resolve_lead_id_for_note(note_data: Dict[str, Any], amocrm: Any) -> O
 @limiter.limit("60/minute")
 async def amocrm_notes_webhook(request: Request):
     """Receive note[add] webhooks from AmoCRM to send Telegram messages natively and trigger call analysis."""
-    # "TG:" izohi lidga Telegram xabar yuboradi — imzosiz so'rov agentlik
-    # nomidan istalgan lidga xabar jo'natishi mumkin edi. /webhook/amocrm
-    # bilan bir xil ?token=<AMOCRM_WEBHOOK_SECRET> tekshiruvi.
     from src.api.routes.amocrm_integration import _is_authorized_amocrm_webhook
-
     if not _is_authorized_amocrm_webhook(request):
         logger.warning("[AMOCRM NOTES WEBHOOK] Rejected — invalid/missing token")
         return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
@@ -333,26 +327,16 @@ async def amocrm_notes_webhook(request: Request):
             if key.startswith("notes[add]["):
                 parts = key.replace("notes[add][", "").split("][")
                 if len(parts) >= 2:
-                    idx = parts[0]
-                    field = parts[-1].rstrip("]")
-                    if idx not in notes:
-                        notes[idx] = {}
-                    notes[idx][field] = value
-                    
+                    idx, field = parts[0], parts[-1].rstrip("]")
+                    notes.setdefault(idx, {})[field] = value
         for idx, note_data in notes.items():
             text = note_data.get("text", "")
             lead_id_str = note_data.get("element_id")
             note_type = str(note_data.get("note_type") or "").lower()
-            
-            # Agar menejer "TG: salom" deb yozsa
             if text.lower().startswith("tg:") and lead_id_str:
-                clean_text = text[3:].strip()
-                lead_id = int(lead_id_str)
-                
+                clean_text, lead_id = text[3:].strip(), int(lead_id_str)
                 from src.services.core.crm.amocrm_sync import AmoCRMSync
-                amocrm = AmoCRMSync()
-                phone = amocrm.get_lead_phone(lead_id)
-                
+                phone = AmoCRMSync().get_lead_phone(lead_id)
                 if phone:
                     if app_ctx.outgoing_messages is None:
                         app_ctx.outgoing_messages = asyncio.Queue()
@@ -362,19 +346,19 @@ async def amocrm_notes_webhook(request: Request):
                     })
                     logger.info(f"[NATIVE AMOCRM CHAT] Sent to {phone}: {clean_text}")
 
-            # Javobsiz kiruvchi qo'ng'iroq → Telegram alert + qayta qo'ng'iroq vazifasi
+            # Javobsiz kiruvchi qoʻngʻiroq → Telegram alert + qayta qoʻngʻiroq vazifasi
             if missed_call_responder.get_mode() != "off" and missed_call_responder.is_missed_inbound(note_data):
                 asyncio.create_task(
                     missed_call_responder.handle_missed_call_note(note_data, amocrm=_get_amocrm_instance())
                 )
 
-            # Call tracking: kiruvchi qo'ng'iroq qaysi kanal raqamiga kelgani → lid izohi
+            # Call tracking: kiruvchi qoʻngʻiroq qaysi kanal raqamiga kelgani → lid izohi
             if call_tracking.is_enabled():
                 asyncio.create_task(
                     call_tracking.attribute_inbound_call(note_data, amocrm=_get_amocrm_instance())
                 )
 
-            # Yangi qo'ng'iroq (Moizvonki 10/11 yoki audio yozuv) → darhol real-time tahlil
+            # Yangi qoʻngʻiroq (Moizvonki 10/11 yoki audio yozuv) → darhol real-time tahlil
             is_call = (
                 note_type in {"10", "11", "call_in", "call_out", "call", "service_message"}
                 or bool(note_data.get("link") or note_data.get("recording") or note_data.get("duration"))

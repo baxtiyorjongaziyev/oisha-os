@@ -13,7 +13,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.db.repositories.proposals import ProposalRepository
 from src.services.core.oisha_self_diagnosis import (
