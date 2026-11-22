@@ -1,5 +1,5 @@
 # Ixtiyoriy: davomatda yuzni tasdiqlash (ATTENDANCE_FACE_REQUIRED=1). Asosiy requirements.txt ga kirmaydi.
 insightface>=0.7.3
-onnxruntime>=1.18
-opencv-python-headless>=4.9
-numpy>=1.26
+onnxruntime>=1.32.0
+opencv-python-headless>=5.0.0.93
+numpy>=2.5.5
