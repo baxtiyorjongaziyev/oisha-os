@@ -161,7 +161,14 @@ async def process_message_logic(
             },
         )
 
-        # 5. Execute Actions and Clean Response
+        # 5. Check if user pressed Stop on streamed draft (Bot API 10.3) before executing actions
+        if chat_type == "private":
+            from src.services.core.telegram.ai_features.workflows import consume_draft_stopped
+            if consume_draft_stopped(chat.id, message.message_id):
+                logger.info("message_generation_stopped_by_user", chat_id=chat.id, draft_id=message.message_id)
+                return
+
+        # 6. Execute Actions and Clean Response
         final_text = await action_parser.parse_and_execute(
             reply_text=ai_response,
             sender_id=user_id,

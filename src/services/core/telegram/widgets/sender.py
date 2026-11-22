@@ -25,6 +25,7 @@ async def send_widget_or_text(
     caption: Optional[str] = None,
     allow_queries: bool = False,
     chat_data: Optional[str] = None,
+    message_thread_id: Optional[int] = None,
 ) -> ToolResult:
     """Widgets work only in private chats in production; callers pass private chat ids."""
     tool = f"widget:{module}"
@@ -37,6 +38,7 @@ async def send_widget_or_text(
                 caption=caption,
                 allow_queries=allow_queries,
                 chat_data=chat_data,
+                message_thread_id=message_thread_id,
             )
             mid = result.get("message_id")
             return ToolResult(

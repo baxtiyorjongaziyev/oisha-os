@@ -44,7 +44,8 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
     runtime_db = None
     if "checklist_tasks_done" in str(update):
         try:
-            runtime_db = await _get_db_instance()
+            db_candidate = _get_db_instance()
+            runtime_db = await db_candidate if asyncio.iscoroutine(db_candidate) else db_candidate
         except Exception:
             runtime_db = None
     service_res = await handle_botnews_service_update(update, token=token, db=runtime_db)
@@ -128,6 +129,12 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
             return {"handled": False, "reason": "empty_agent_response"}
 
         client = TelegramBotAPI10Client(token)
+        msg_id = message.get("message_id")
+        if msg_id:
+            try:
+                await client.read_business_message(connection_id, int(chat_id), int(msg_id))
+            except Exception as exc:
+                logger.debug("[TG-AI] read_business_message skipped: %s", exc)
         sent = await client.call(
             "sendMessage",
             {

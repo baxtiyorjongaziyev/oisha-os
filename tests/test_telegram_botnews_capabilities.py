@@ -112,9 +112,31 @@ async def test_native_checklist_send_edit_and_webhook_extraction():
     assert parsed["checklist_message_id"] == 404
     assert parsed["marked_as_done_task_ids"] == [1]
 
-    webhook_res = await process_telegram_ai_update(update)
+    executed_sql = []
+
+    class FakeConn:
+        async def execute(self, sql, params):
+            executed_sql.append((sql.strip(), params))
+
+        async def commit(self):
+            executed_sql.append(("COMMIT", ()))
+
+    class FakeDB:
+        async def get_connection(self):
+            return FakeConn()
+
+    import src.services.api_server.webhooks as wh_mod
+    orig_get_db = wh_mod._get_db_instance
+    wh_mod._get_db_instance = lambda: FakeDB()
+    try:
+        webhook_res = await process_telegram_ai_update(update)
+    finally:
+        wh_mod._get_db_instance = orig_get_db
+
     assert webhook_res["handled"] is True
     assert webhook_res["update_type"] == "checklist_tasks_done"
+    assert webhook_res["synced_count"] == 2
+    assert any("UPDATE client_checklists" in item[0] for item in executed_sql)
 
 
 @pytest.mark.asyncio
@@ -205,6 +227,9 @@ async def test_member_role_tags_and_streaming_stop_button():
     wh = await process_telegram_ai_update(stop_update)
     assert wh["handled"] is True
     assert wh["update_type"] == "stopped_message_generation"
+    from src.services.core.telegram.telegram_ai_features import consume_draft_stopped
+    assert consume_draft_stopped(101, 1) is True
+    assert consume_draft_stopped(101, 1) is False
 
 
 @pytest.mark.asyncio
@@ -243,7 +268,7 @@ async def test_styled_buttons_ephemeral_10_4_and_adaptive_kpi_report(monkeypatch
         "replace_callback_query_message": True,
     }
 
-    # Private chat -> sends Bot API 10.4 HTML Widget
+    # Private chat -> sends Bot API 10.4 HTML Widget and forwards message_thread_id
     await send_oisha_kpi_report(
         client,
         777,
@@ -256,8 +281,28 @@ async def test_styled_buttons_ephemeral_10_4_and_adaptive_kpi_report(monkeypatch
         progress_done=18,
         progress_total=20,
         is_private_chat=True,
+        message_thread_id=12,
     )
     assert calls[-1][0] == "sendWidget"
+    assert calls[-1][1]["message_thread_id"] == 12
+
+    # When widgets are disabled, text fallback preserves table rows and progress
+    monkeypatch.setenv("WIDGETS_ENABLED", "0")
+    await send_oisha_kpi_report(
+        client,
+        777,
+        title="Kunlik Moliya va Sotuv",
+        subtitle="2026-11-22",
+        kpis=[("Tushum", "45M")],
+        table_headers=["Menejer", "Sotuv"],
+        table_rows=[["Ali", "25M"]],
+        progress_done=18,
+        progress_total=20,
+        is_private_chat=True,
+    )
+    assert calls[-1][0] == "sendMessage"
+    assert "Progress: 18/20" in calls[-1][1]["text"]
+    assert "Ali | 25M" in calls[-1][1]["text"]
 
     # Group chat -> sends Bot API 10.1/10.5 Rich Message with compact table & expandable blockquote
     await send_oisha_kpi_report(

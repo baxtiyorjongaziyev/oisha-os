@@ -222,3 +222,39 @@ class BotAPIExtensionsMixin:
                 "reply_markup": reply_markup,
             },
         )
+
+    async def set_my_settings(
+        self,
+        *,
+        supports_inline_queries: Optional[bool] = None,
+        inline_query_placeholder: Optional[str] = None,
+        needs_inline_query_location: Optional[bool] = None,
+        inline_feedback_share_denominator: Optional[int] = None,
+        can_join_groups: Optional[bool] = None,
+        can_read_all_group_messages: Optional[bool] = None,
+        can_connect_to_business: Optional[bool] = None,
+        can_manage_bots: Optional[bool] = None,
+        supports_guest_queries: Optional[bool] = None,
+        supports_join_request_queries: Optional[bool] = None,
+        has_topics_enabled: Optional[bool] = None,
+        allows_users_to_create_topics: Optional[bool] = None,
+        has_topic_sidebar: Optional[bool] = None,
+        can_communicate_with_bots: Optional[bool] = None,
+        callback_query_mode: Optional[str] = None,
+    ) -> bool:
+        """Automate bot configuration (Bot API 10.5 ``setMySettings``)."""
+        if callback_query_mode is not None and callback_query_mode not in ("default", "auto", "inline"):
+            raise ValueError(f"Invalid callback_query_mode: {callback_query_mode}")
+        if inline_feedback_share_denominator is not None and inline_feedback_share_denominator not in (0, 1, 10, 100, 1000):
+            raise ValueError(f"Invalid inline_feedback_share_denominator: {inline_feedback_share_denominator}")
+        result = await self.call("setMySettings", {
+            "supports_inline_queries": supports_inline_queries, "inline_query_placeholder": inline_query_placeholder,
+            "needs_inline_query_location": needs_inline_query_location, "inline_feedback_share_denominator": inline_feedback_share_denominator,
+            "can_join_groups": can_join_groups, "can_read_all_group_messages": can_read_all_group_messages,
+            "can_connect_to_business": can_connect_to_business, "can_manage_bots": can_manage_bots,
+            "supports_guest_queries": supports_guest_queries, "supports_join_request_queries": supports_join_request_queries,
+            "has_topics_enabled": has_topics_enabled, "allows_users_to_create_topics": allows_users_to_create_topics,
+            "has_topic_sidebar": has_topic_sidebar, "can_communicate_with_bots": can_communicate_with_bots,
+            "callback_query_mode": callback_query_mode,
+        })
+        return bool(result)

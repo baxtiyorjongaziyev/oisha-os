@@ -42,10 +42,6 @@ async def _ack(query: WidgetQuery) -> str:
     return "Tasdiqlandi " + time.strftime("%H:%M")
 
 
-async def _refresh_kpi(query: WidgetQuery) -> str:
-    return "Yangilandi " + time.strftime("%H:%M:%S")
-
-
 def build_widget_router(token: str, allowed_ids: List[int]) -> WidgetQueryRouter:
     router = WidgetQueryRouter(
         WidgetClient(TelegramBotAPI10Client(token)),
@@ -53,7 +49,6 @@ def build_widget_router(token: str, allowed_ids: List[int]) -> WidgetQueryRouter
     )
     router.register("ping", _ping)
     router.register("ack", _ack)
-    router.register("refresh_kpi", _refresh_kpi)
     return router
 
 
