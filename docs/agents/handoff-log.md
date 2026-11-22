@@ -3089,7 +3089,6 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv:** GitHub Actions CI bu PR ochilgach tekshiriladi; jonli amoCRM audit hali ISHGA TUSHIRILMAGAN, hech qanday vazifa yopilmagan. Oldingi 2026-11-20 GitHub Actions amocrm-task-cleanup dry-run: 589 ochiq vazifa, yopilgan bitimlarda 0 ta mos Oisha vazifasi. Bu barcha 589 vazifaning daromad sifatini tasdiqlamaydi.
 - **Qolgan ish/Bloker:** auditni Hetznerda faqat read-only ishga tushirish, chiqqan nomzodlarni owner bilan koʻrib chiqish, faqat tasdiqlangan IDlarni qayta tekshiruvdan keyin yopish. Sotuvchilarga shaxsiy vazifa yoʻnaltirishning oldingi Work sessiyasidagi 11 ta lokal oʻzgarishi GitHub main da mavjud emas; ular tasdiqlanmaguncha production statusi nomaʼlum.
 
-
 ## 2026-11-21 — ChatGPT — daily-priority seller ownership fail-closed
 - **Muammo:** mavjud daily_priority/gatherer.py 3 sotuvchiga deal bosqichlari bo‘yicha narxi yuqori bitimlarni round-robin taqsimlagan, bu bitta amoCRM login ishlatilayotgan paytda boshqa sotuvchining mijozini shaxsiy chatga joʻnatishi mumkin.
 - **Bajarilgan ish:** src/services/core/daily_priority/ownership.py — aniq Sotuvchi custom field yoki aniq tegdan shaxsiy egasini topadi; field/tag zid boʻlsa yoki nomaʼlum boʻlsa hech kimga biriktirmaydi. gatherer.py — round-robin oʻrniga egasi tekshirilgan bitimni faqat shu sotuvchiga yuboradi; moliya bosqichi oʻzgarmagan. tests/test_daily_priority.py fixturelari yangilandi, tests/test_daily_priority_ownership.py qoʻshildi.
@@ -3125,3 +3124,14 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `bandit -r src/services/core/telegram/ai_features/ src/services/core/telegram/widgets/ src/services/core/tool_adapters_pkg/telegram_api10.py -ll -q`: **0 issues**.
   - Barcha production fayllar qatʼiy `150–400` qator standartiga mos (`bot_api_extensions.py`: 226, `rich_builders.py`: 212, `workflows.py`: 248, `bot_api_client.py`: 399, `models.py`: 371, `telegram_api10.py`: 384, `webhooks.py`: 396, `messages.py`: 337).
 - **Qolgan ish / Keyingi qadam:** Jonli bot tokeni bilan production/staging muhitda `bootstrap_owner_private_topics(client, OWNER_ID)` ni bir marta ishga tushirib, Owner shaxsiy chatida 5 ta topic va sidebar ochilishini koʻzdan kechirish.
+
+## 2026-11-21 - OpenCode - Agency MCP production audit va conversion fix
+- **Maqsad:** `POST /api/agency-mcp` ni real, scoped, read-only biznes gateway sifatida tekshirish; AI uchun alohida token; ishlamayotgan manbalarni aniqlash.
+- **Bajarilgan ish:**
+  1. Production token yaratildi: `OISHA_SERVICE_TOKENS_JSON` (.env, 600) + `.secrets/agency-mcp-token` (600); `.env.bak.20261121-092709` backup. Scope: `mcp:read`, `dashboard:read`, `lead:read:all`, `marketing:read`, `call:read:all`, `finance:read`.
+  2. `oisha` restart qilindi; `/healthz/` va `/readyz/` 200; token bilan `initialize`, `tools/list`, 9 manba productionda tekshirildi.
+  3. `conversion` route'dagi eskirgan engine metodlari (`get_overview`, `get_trend`, `get_volume`, `get_seller_card`, `sync_revenue`) haqiqiy API'ga almashtirildi (`team_summary`, `conversion_trend`, `fetch_volumes`, `diagnose_all`, `MetaSellRevenueSync`); DB yo'q bo'lsa 503.
+  4. `tests/test_conversion_routes.py` qo'shildi (7 test); `docs/oisha-agency-mcp.md` real holat matritsasi va Claude/Codex/ChatGPT yo'riqnomalari bilan yangilandi.
+- **O'zgargan fayllar:** `src/api/routes/ai_analytics_pkg/conversion.py`, `tests/test_conversion_routes.py`, `docs/oisha-agency-mcp.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `tests/test_conversion_routes.py` 7 passed; `test_metasell_conversion.py` + `test_pr475_review_fixes.py` + `test_agency_mcp.py` 85+ passed; bandit toza. Production (fix oldidan): sales_report, pipeline, leads, finance, finance_transactions, sales_quality, projects ishladi; marketing `partial` (Meta kesh 2026-10-16 da to'xtagan); conversion `source_unavailable` (fix PR'da).
+- **Qolgan ish/Bloker:** (a) conversion fix PR merge + deploy + qayta tekshirish. (b) Meta: `META_AD_ACCOUNT_ID` yo'q va mavjud page token `ads_read`ga ega emas. (c) Hisobchi Google Sheet `Pul oqimi` 0 qator. (d) ChatGPT ulanishi uchun OAuth 2.1 kerak - hozir bearer-only. (e) `tasks`/`team` ataylab AI token scope'idan tashqarida.
