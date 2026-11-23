@@ -111,3 +111,23 @@ def test_api_flow_identity_from_token(client):
     r = client.post(f"/api/tasks/{t['id']}/complete", json={"evidence": {"msg_id": 5}}, headers=a)
     assert r.json()["status"] == "done"
     assert client.get("/api/tasks/missing", headers=a).status_code == 404
+
+
+def test_production_app_allows_task_registry_tokens_through_security_middleware(monkeypatch, registry):
+    from src.api_server import app
+
+    monkeypatch.setenv("TASK_REGISTRY_TOKENS", "oisha:tok-o,amina:tok-a")
+    monkeypatch.setattr(routes, "get_registry", lambda: registry)
+    prod_client = TestClient(app)
+    assert prod_client.get("/api/tasks").status_code == 401
+    assert prod_client.get("/api/tasks", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    res = prod_client.post(
+        "/api/tasks",
+        json={"title": "Handoff", "owner": "amina"},
+        headers={"Authorization": "Bearer tok-o"},
+    )
+    assert res.status_code == 200
+    assert res.json()["created_by"] == "oisha"
+    list_res = prod_client.get("/api/tasks", headers={"Authorization": "Bearer tok-a"})
+    assert list_res.status_code == 200
+    assert len(list_res.json()) == 1

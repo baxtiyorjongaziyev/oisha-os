@@ -79,6 +79,8 @@ async def test_process_task_flow():
         reply = await agent.process_task(12345, "Salom, menga logo kerak")
         
         assert reply == "Assalomu alaykum! Qanday yordam bera olaman?"
+        sent_prompt = mock_ai.await_args.kwargs["prompt"]
+        assert "System Prompt" in sent_prompt
         assert db.log_agent_action.called
         # Check if status update was planned
         executor.execute.assert_any_call("update_lead_status", {"user_id": 12345, "status_name": "Interested"}, context_user_id=12345)

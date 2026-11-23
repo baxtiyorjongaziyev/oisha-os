@@ -66,6 +66,7 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
                 sender=guest_ctx.caller_user,
                 sender_id=str(guest_ctx.caller_user),
                 channel="telegram_business",
+                persona="oisha",
             )
         except Exception as exc:
             logger.error("[TG-AI] Agent error: %s", exc)
@@ -121,6 +122,7 @@ async def process_telegram_ai_update(update: Dict[str, Any]):
                 sender_id=str(sender.get("id") or ""),
                 channel="telegram_business",
                 session=connection_id,
+                persona="oisha",
             )
         except Exception as exc:
             logger.error("[TG-AI] Business agent error: %s", exc)

@@ -19,17 +19,20 @@ from typing import Any
 from src.time_utils import get_local_now
 
 MONITORED_SYSTEMD_SERVICES: tuple[str, ...] = (
+    "oisha.service",
     "oisha-os.service",
     "oisha-watchdog.service",
+    "openclaw-gateway.service",
     "hermes-gateway.service",
     "shirinlaxza-bot.service",
     "nginx.service",
-    "actions.runner.baxtiyorjongaziyev-oisha-os.contabo-vps.service",
 )
 
 RESTARTABLE_SERVICES: frozenset[str] = frozenset({
+    "oisha.service",
     "oisha-os.service",
     "oisha-watchdog.service",
+    "openclaw-gateway.service",
     "hermes-gateway.service",
     "shirinlaxza-bot.service",
 })

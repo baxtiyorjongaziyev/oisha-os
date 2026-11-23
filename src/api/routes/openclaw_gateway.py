@@ -101,6 +101,7 @@ async def openclaw_webhook(request: Request):
             session=session,
             db=_resolve_bridge_db(),
             metadata=metadata,
+            persona="mrjon",
         )
 
         return {"reply": reply, "status": "ok"}
@@ -157,6 +158,7 @@ async def v1_chat_completions(request: Request):
             channel="webchat",
             session=session,
             db=_resolve_bridge_db(),
+            persona="mrjon",
         )
 
         return {
