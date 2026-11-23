@@ -194,6 +194,15 @@ async def _check_daily_reports(now: datetime, task: Any) -> None:
         except Exception as exc:
             logger.error("[SCHEDULE][AMOBOT_REPORT] Error: %s", exc)
 
+    # 19:05: har bir sotuvchiga kunlik qoʻngʻiroqlar hisoboti (Rich/Widget) oʻz topicʻiga
+    if _is_due(now, 19, 5) and now.weekday() != 6 and not _is_job_sent(task, f"seller_daily_calls_{today_str}"):
+        try:
+            from src.schedulers.seller_daily_calls_report import is_enabled, send_seller_daily_call_reports
+            if is_enabled():
+                await send_seller_daily_call_reports(now)
+        except Exception as exc:
+            logger.error("[SCHEDULE][SELLER_CALLS] Error: %s", exc)
+
     if _is_due(now, 19, 30):
         await _send_period_report(PeriodType.DAILY, now, task)
 
