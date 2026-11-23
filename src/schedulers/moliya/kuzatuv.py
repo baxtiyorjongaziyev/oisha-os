@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from src.schedulers.moliya.cashflow import KATEGORIYA_JADVALLARI, kategoriya_nomi
-from src.schedulers.moliya.helpers import esc, fmt, read_name_map, read_table, select_name
+from src.schedulers.moliya.helpers import esc, fmt, read_name_map, read_table_checked, select_name
 
 logger = logging.getLogger(__name__)
 
@@ -132,21 +132,39 @@ def _evaluate_today(
     return checked, right, wrong, gap_lines
 
 
+def _unverified_report(day: str, observation: dict) -> str:
+    photos = int(observation.get("photos", 0))
+    return "\n".join([
+        f"🧾 <b>Hisobchi kuzatuvi — {day}</b>",
+        "<i>Rejim: faqat kuzatish va oʻrganish, hech narsa yozilmadi.</i>\n",
+        "Airtable: maʼlumot olinmadi (manba tekshirilmadi)",
+        f"Guruhda: <b>{int(observation.get('messages', 0))}</b> ta xabar ({photos} ta rasm/chek)",
+        "Taxmin mosligi: maʼlumot yoʻq",
+        "⚠️ Airtable manbasi tekshirilmadi — yozuvlar holati nomaʼlum.",
+    ])
+
+
 async def build_kuzatuv_report(
     now: datetime,
     *,
     records: Optional[list[dict]] = None,
+    records_ok: Optional[bool] = None,
     nomlar: Optional[dict[str, str]] = None,
     observation: Optional[dict] = None,
 ) -> str:
+    day = now.strftime("%Y-%m-%d")
+    if observation is None:
+        observation = await load_observation(day)
     if records is None:
-        records = await read_table("Tranzaksiyalar")
+        records, fetched_ok = await read_table_checked("Tranzaksiyalar")
+        airtable_ok = fetched_ok if records_ok is None else bool(records_ok)
+    else:
+        airtable_ok = True if records_ok is None else bool(records_ok)
+    if not airtable_ok:
+        return _unverified_report(day, observation)
     if nomlar is None:
         nomlar = await read_name_map(*KATEGORIYA_JADVALLARI)
-    if observation is None:
-        observation = await load_observation(now.strftime("%Y-%m-%d"))
 
-    day = now.strftime("%Y-%m-%d")
     today = [r for r in records if _sana(r) == day]
     history = [r for r in records if _sana(r) and _sana(r) < day]
     rules = learn_rules(history)
@@ -222,9 +240,12 @@ async def run_kuzatuv_report(now: datetime) -> bool:
     text = await build_kuzatuv_report(now)
     try:
         from telegram import Bot
+        from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
 
+        topic_id = get_owner_topic_id("finance")
+        kwargs = {"message_thread_id": topic_id} if topic_id else {}
         await Bot(token=bot_token).send_message(
-            chat_id=owner_id, text=text[:4000], parse_mode="HTML"
+            chat_id=owner_id, text=text[:4000], parse_mode="HTML", **kwargs
         )
         logger.info("[HISOBCHI] Kuzatuv hisoboti yuborildi")
         return True

@@ -104,3 +104,44 @@ async def test_daily_report_targets_today(monkeypatch):
     monkeypatch.setattr(pr.settings, "CRM_SALES_REPORT_TOPIC_ID", None, raising=False)
     await pr._send_period_report(PeriodType.DAILY, datetime(2026, 9, 7, 19, 30), _Task(), reporter_factory=lambda: rep)
     assert rep.built == [(PeriodType.DAILY, None)]
+
+
+@pytest.mark.asyncio
+async def test_status_notify_routes_to_owner_system_topic_with_html(monkeypatch):
+    bot = _Bot()
+    monkeypatch.setattr(pr.m, "bot_runtime", bot, raising=False)
+    monkeypatch.setattr(pr.settings, "OWNER_ID", 777, raising=False)
+    monkeypatch.setenv("OWNER_TOPIC_SYSTEM", "2199294")
+    monkeypatch.setenv("STATUS_NOTIFY_OK", "1")
+
+    async def ok_probe():
+        return {"status": "ready", "checks": {"database": "ok", "amocrm": "connected", "userbot": "authorized"}, "blocking": []}
+
+    monkeypatch.setattr("src.api.routes.health.production_readiness_probe", ok_probe)
+
+    await pr._check_overdue_and_status(datetime(2026, 11, 23, 13, 0), _Task())
+
+    assert len(bot.sent) == 1
+    chat_id, text, kw = bot.sent[0]
+    assert chat_id == 777
+    assert "<b>Oisha OS: Tizim nazoratda</b>" in text
+    assert kw == {"parse_mode": "HTML", "message_thread_id": 2199294}
+
+
+@pytest.mark.asyncio
+async def test_status_notify_failure_does_not_propagate(monkeypatch):
+    class _FailingBot:
+        async def send_message(self, chat, text, **kw):
+            raise RuntimeError("Bad Request: message thread not found")
+
+    monkeypatch.setattr(pr.m, "bot_runtime", _FailingBot(), raising=False)
+    monkeypatch.setattr(pr.settings, "OWNER_ID", 777, raising=False)
+    monkeypatch.setenv("OWNER_TOPIC_SYSTEM", "2199294")
+    monkeypatch.delenv("STATUS_NOTIFY_OK", raising=False)
+
+    async def bad_probe():
+        return {"status": "not_ready", "checks": {"database": "timeout", "amocrm": "connected", "userbot": "authorized"}, "blocking": ["database_timeout"]}
+
+    monkeypatch.setattr("src.api.routes.health.production_readiness_probe", bad_probe)
+
+    await pr._check_overdue_and_status(datetime(2026, 11, 23, 13, 0), _Task())

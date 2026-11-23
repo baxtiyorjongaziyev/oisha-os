@@ -106,17 +106,29 @@ async def _check_overdue_and_status(now: datetime, task: Any) -> None:
                 include_ok=_env_enabled("STATUS_NOTIFY_OK", default=False)
             )
             if alert:
-                bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+                bot_client = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
                 owner_id = getattr(settings, "OWNER_ID", None)
                 sent = False
-                if bot_rt and owner_id:
+                if bot_client and owner_id:
                     try:
-                        await bot_rt.send_message(owner_id, alert, parse_mode="HTML")
+                        from src.services.core.telegram.telegram_ai_features import (
+                            get_owner_topic_id,
+                        )
+
+                        topic_id = get_owner_topic_id("system")
+                        kw = {
+                            "parse_mode": "HTML",
+                            **({"message_thread_id": topic_id} if topic_id else {}),
+                        }
+                        await bot_client.send_message(owner_id, alert, **kw)
                         sent = True
                     except Exception as exc:
-                        logger.warning("[SCHEDULE][STATUS] bot send failed: %s", exc)
+                        logger.error("[SCHEDULE][STATUS] Error: %s", exc)
                 if not sent and getattr(m, "client", None):
-                    await m.notify_admin(alert, m.client, parse_mode="html")
+                    try:
+                        await m.notify_admin(alert, m.client, parse_mode="html")
+                    except Exception as exc:
+                        logger.error("[SCHEDULE][STATUS] Fallback error: %s", exc)
 
 
 async def _check_morning_jobs(now: datetime, task: Any) -> None:

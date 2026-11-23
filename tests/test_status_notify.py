@@ -114,11 +114,13 @@ async def test_bg_monitor_status_notify_silent_when_ok_and_html_on_problem(monke
         return {"status": "not_ready", "checks": {"database": "unavailable", "amocrm": "connected", "userbot": "authorized"}, "blocking": ["database_unavailable"]}
 
     monkeypatch.setattr("src.api.routes.health.production_readiness_probe", bad_probe)
+    monkeypatch.setenv("OWNER_TOPIC_SYSTEM", "2199294")
     mon2 = _make_monitor()
     await mon2._job_status_notify(datetime(2026, 11, 22, 21, 0))
     mon2._notify_admin.assert_awaited_once()
     sent_text, kwargs = mon2._notify_admin.call_args[0][0], mon2._notify_admin.call_args[1]
     assert kwargs["parse_mode"] == "HTML"
+    assert kwargs["message_thread_id"] == 2199294
     assert "database_unavailable" in sent_text
     assert "**" not in sent_text
 
@@ -126,6 +128,7 @@ async def test_bg_monitor_status_notify_silent_when_ok_and_html_on_problem(monke
 @pytest.mark.asyncio
 async def test_bg_monitor_status_notify_honors_status_notify_ok_env(monkeypatch):
     monkeypatch.setenv("STATUS_NOTIFY_OK", "1")
+    monkeypatch.setenv("OWNER_TOPIC_SYSTEM", "2199294")
 
     async def ok_probe():
         return {"status": "ready", "checks": {"database": "ok", "amocrm": "connected", "userbot": "authorized"}, "blocking": []}
@@ -136,6 +139,7 @@ async def test_bg_monitor_status_notify_honors_status_notify_ok_env(monkeypatch)
     mon._notify_admin.assert_awaited_once()
     sent_text, kwargs = mon._notify_admin.call_args[0][0], mon._notify_admin.call_args[1]
     assert kwargs["parse_mode"] == "HTML"
+    assert kwargs["message_thread_id"] == 2199294
     assert "<b>Oisha OS: Tizim nazoratda</b>" in sent_text
     assert "**" not in sent_text
 

@@ -16,15 +16,22 @@ SEND_AT = (19, 30)
 
 
 def _send(text: str) -> bool:
+    from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
     from src.settings import settings
 
     token = settings.BOT_TOKEN.get_secret_value()
-    chat = os.getenv("ATTENDANCE_NOTIFY_CHAT_ID", "").strip() or str(settings.OWNER_ID or "")
+    owner_str = str(settings.OWNER_ID or "")
+    chat = os.getenv("ATTENDANCE_NOTIFY_CHAT_ID", "").strip() or owner_str
     if not token or not chat or chat == "0":
         return False
+    payload: dict[str, object] = {"chat_id": chat, "text": text, "parse_mode": "HTML"}
+    if chat == owner_str:
+        hr_topic = get_owner_topic_id("hr")
+        if hr_topic:
+            payload["message_thread_id"] = hr_topic
     try:
         r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                          json={"chat_id": chat, "text": text, "parse_mode": "HTML"}, timeout=20)
+                          json=payload, timeout=20)
         return r.status_code == 200
     except requests.RequestException:
         return False

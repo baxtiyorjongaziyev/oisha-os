@@ -89,7 +89,15 @@ class JobsCrmMixin:
                 include_ok=_env_enabled("STATUS_NOTIFY_OK", default=False)
             )
             if alert:
-                await self._notify_admin(alert, parse_mode="HTML")
+                from src.services.core.telegram.telegram_ai_features import (
+                    get_owner_topic_id,
+                )
+
+                await self._notify_admin(
+                    alert,
+                    parse_mode="HTML",
+                    message_thread_id=get_owner_topic_id("system"),
+                )
             self._mark_sent(key)
 
     async def _job_juma_notifier(self, now: datetime) -> None:

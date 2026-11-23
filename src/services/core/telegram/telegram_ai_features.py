@@ -13,7 +13,7 @@ from src.services.core.telegram.ai_features import (
     consume_draft_stopped, enrich_lead_from_personal_channel, extract_checklist_tasks_done,
     extract_guest_message_context, extract_stopped_message_generation,
     extract_write_access_allowed_context, feature_matrix_payload,
-    handle_botnews_service_update, mark_draft_stopped, rich_button_row,
+    get_owner_topic_id, handle_botnews_service_update, mark_draft_stopped, rich_button_row,
     rich_expandable_blockquote, rich_paragraph, rich_section_heading, rich_table,
     send_client_native_checklist, send_oisha_kpi_report, sync_team_member_tags,
 )
@@ -31,7 +31,8 @@ __all__ = [
     "extract_write_access_allowed_context", "classify_update",
     "build_offline_feature_status", "build_live_feature_status",
     "bootstrap_owner_private_topics", "consume_draft_stopped",
-    "enrich_lead_from_personal_channel", "handle_botnews_service_update",
+    "enrich_lead_from_personal_channel", "get_owner_topic_id",
+    "handle_botnews_service_update",
     "mark_draft_stopped", "send_client_native_checklist", "send_oisha_kpi_report",
     "sync_team_member_tags", "TelegramBotAPI10Client", "TelegramBotAPILongPoller",
 ]

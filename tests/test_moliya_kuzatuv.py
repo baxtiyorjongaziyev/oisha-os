@@ -107,6 +107,82 @@ def test_kuzatuv_runs_at_09_for_yesterday():
 
 
 @pytest.mark.asyncio
+async def test_report_does_not_warn_missing_entries_when_airtable_unavailable(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(kuzatuv, "read_table_checked", AsyncMock(return_value=([], False)))
+    report = await kuzatuv.build_kuzatuv_report(
+        NOW, nomlar={}, observation={"messages": 5, "photos": 2}
+    )
+    assert "Airtable: maʼlumot olinmadi (manba tekshirilmadi)" in report
+    assert "Airtable manbasi tekshirilmadi" in report
+    assert "Airtable yozuvi topilmadi" not in report
+    assert "Airtable: <b>0</b> ta yozuv" not in report
+
+
+@pytest.mark.asyncio
+async def test_read_table_checked_distinguishes_failure_from_verified_success(monkeypatch):
+    from types import SimpleNamespace
+    from src.schedulers.moliya import helpers
+
+    class _NoCreds:
+        def __init__(self, table_name):
+            self.api_key = ""
+            self.base_id = ""
+
+        def _current_bearer(self):
+            return ""
+
+    monkeypatch.setattr("src.services.core.airtable_sync.AirtableSync", _NoCreds)
+    assert await helpers.read_table_checked("Tranzaksiyalar") == ([], False)
+
+    class _ServerErr:
+        def __init__(self, table_name):
+            self.api_key = "tok"
+            self.base_id = "app123"
+            self.endpoint = "https://example.invalid"
+
+        def _current_bearer(self):
+            return "tok"
+
+        def _request(self, method, url, params=None):
+            return SimpleNamespace(status_code=500)
+
+    monkeypatch.setattr("src.services.core.airtable_sync.AirtableSync", _ServerErr)
+    assert await helpers.read_table_checked("Tranzaksiyalar") == ([], False)
+
+    class _PaginatedOk:
+        def __init__(self, table_name):
+            self.api_key = "tok"
+            self.base_id = "app123"
+            self.endpoint = "https://example.invalid"
+            self.calls = 0
+
+        def _current_bearer(self):
+            return "tok"
+
+        def _request(self, method, url, params=None):
+            self.calls += 1
+            if self.calls == 1:
+                assert params == {"pageSize": 100}
+                return SimpleNamespace(
+                    status_code=200,
+                    json=lambda: {"records": [{"id": "rec1"}], "offset": "p2"},
+                )
+            assert params == {"pageSize": 100, "offset": "p2"}
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {"records": [{"id": "rec2"}]},
+            )
+
+    monkeypatch.setattr("src.services.core.airtable_sync.AirtableSync", _PaginatedOk)
+    assert await helpers.read_table_checked("Tranzaksiyalar") == (
+        [{"id": "rec1"}, {"id": "rec2"}],
+        True,
+    )
+
+
+@pytest.mark.asyncio
 async def test_observe_mode_counts_finance_group_message_and_stays_silent(monkeypatch):
     from types import SimpleNamespace
 
