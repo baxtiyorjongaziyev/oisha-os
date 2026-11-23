@@ -3089,7 +3089,6 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv:** GitHub Actions CI bu PR ochilgach tekshiriladi; jonli amoCRM audit hali ISHGA TUSHIRILMAGAN, hech qanday vazifa yopilmagan. Oldingi 2026-11-20 GitHub Actions amocrm-task-cleanup dry-run: 589 ochiq vazifa, yopilgan bitimlarda 0 ta mos Oisha vazifasi. Bu barcha 589 vazifaning daromad sifatini tasdiqlamaydi.
 - **Qolgan ish/Bloker:** auditni Hetznerda faqat read-only ishga tushirish, chiqqan nomzodlarni owner bilan koʻrib chiqish, faqat tasdiqlangan IDlarni qayta tekshiruvdan keyin yopish. Sotuvchilarga shaxsiy vazifa yoʻnaltirishning oldingi Work sessiyasidagi 11 ta lokal oʻzgarishi GitHub main da mavjud emas; ular tasdiqlanmaguncha production statusi nomaʼlum.
 
-
 ## 2026-11-21 — ChatGPT — daily-priority seller ownership fail-closed
 - **Muammo:** mavjud daily_priority/gatherer.py 3 sotuvchiga deal bosqichlari bo‘yicha narxi yuqori bitimlarni round-robin taqsimlagan, bu bitta amoCRM login ishlatilayotgan paytda boshqa sotuvchining mijozini shaxsiy chatga joʻnatishi mumkin.
 - **Bajarilgan ish:** src/services/core/daily_priority/ownership.py — aniq Sotuvchi custom field yoki aniq tegdan shaxsiy egasini topadi; field/tag zid boʻlsa yoki nomaʼlum boʻlsa hech kimga biriktirmaydi. gatherer.py — round-robin oʻrniga egasi tekshirilgan bitimni faqat shu sotuvchiga yuboradi; moliya bosqichi oʻzgarmagan. tests/test_daily_priority.py fixturelari yangilandi, tests/test_daily_priority_ownership.py qoʻshildi.
@@ -3126,6 +3125,24 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - Barcha production fayllar qatʼiy `150–400` qator standartiga mos (`bot_api_extensions.py`: 226, `rich_builders.py`: 212, `workflows.py`: 248, `bot_api_client.py`: 399, `models.py`: 371, `telegram_api10.py`: 384, `webhooks.py`: 396, `messages.py`: 337).
 - **Qolgan ish / Keyingi qadam:** Jonli bot tokeni bilan production/staging muhitda `bootstrap_owner_private_topics(client, OWNER_ID)` ni bir marta ishga tushirib, Owner shaxsiy chatida 5 ta topic va sidebar ochilishini koʻzdan kechirish.
 
+## 2026-11-21 - OpenCode - Agency MCP production audit va conversion fix
+- **Maqsad:** `POST /api/agency-mcp` ni real, scoped, read-only biznes gateway sifatida tekshirish; AI uchun alohida token; ishlamayotgan manbalarni aniqlash.
+- **Bajarilgan ish:**
+  1. Production token yaratildi: `OISHA_SERVICE_TOKENS_JSON` (.env, 600) + `.secrets/agency-mcp-token` (600); `.env.bak.20261121-092709` backup. Scope: `mcp:read`, `dashboard:read`, `lead:read:all`, `marketing:read`, `call:read:all`, `finance:read`.
+  2. `oisha` restart qilindi; `/healthz/` va `/readyz/` 200; token bilan `initialize`, `tools/list`, 9 manba productionda tekshirildi.
+  3. `conversion` route'dagi eskirgan engine metodlari (`get_overview`, `get_trend`, `get_volume`, `get_seller_card`, `sync_revenue`) haqiqiy API'ga almashtirildi (`team_summary`, `conversion_trend`, `fetch_volumes`, `diagnose_all`, `MetaSellRevenueSync`); DB yo'q bo'lsa 503.
+  4. `tests/test_conversion_routes.py` qo'shildi (7 test); `docs/oisha-agency-mcp.md` real holat matritsasi va Claude/Codex/ChatGPT yo'riqnomalari bilan yangilandi.
+- **O'zgargan fayllar:** `src/api/routes/ai_analytics_pkg/conversion.py`, `tests/test_conversion_routes.py`, `docs/oisha-agency-mcp.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `tests/test_conversion_routes.py` 7 passed; `test_metasell_conversion.py` + `test_pr475_review_fixes.py` + `test_agency_mcp.py` 85+ passed; bandit toza. Production (fix oldidan): sales_report, pipeline, leads, finance, finance_transactions, sales_quality, projects ishladi; marketing `partial` (Meta kesh 2026-10-16 da to'xtagan); conversion `source_unavailable` (fix PR'da).
+- **Qolgan ish/Bloker:** (a) conversion fix PR merge + deploy + qayta tekshirish. (b) Meta: `META_AD_ACCOUNT_ID` yo'q va mavjud page token `ads_read`ga ega emas. (c) Hisobchi Google Sheet `Pul oqimi` 0 qator. (d) ChatGPT ulanishi uchun OAuth 2.1 kerak - hozir bearer-only. (e) `tasks`/`team` ataylab AI token scope'idan tashqarida.
+
+## 2026-11-21 — ChatGPT — seller routing audit 401 OAuth fix
+- **Trigger:** workflow `DailyPriority Seller Routing Audit #1` (run 44891892996) read-only `GET /api/v4/leads/custom_fields` 401 Unauthorized. Sotuvchi maydon metadata/bitimlar tekshiruvi muvaffaqiyatli bajarmagan.
+- **Root cause (source-confirmed):** `scripts/prod/probe_daily_priority_seller_routes.py::_read_get` refresh qilmaydigan `client.amo.access_token` ni toʻgʻridan-toʻgʻri GETʼga qoʻygan; `scripts/amocrm_task_cleanup.py::AmoCRMTaskCleaner._get` esa `_get_headers()` + `refresh_token()` guard va 401ʼdan keyin bitta GET retry bilan mavjud.
+- **Changes:** `_read_get` shared OAuth-aware GETʼga yoʻnaltirildi; testlar bir martalik refresh+GET retry va refresh boʻlmasa fail-closed holatini tekshiradi; release runbook 401 diagnosis va token manbalari ustuvorligini tushuntiradi.
+- **Safety:** CRM biznes maʼlumotlariga faqat GET, Telegram send yoʻq. OAuth refresh POST va maxfiy tokenning fayl/DBʼga saqlanishi mumkin; bu biznes yozuvlariga mutatsiya emas. Token yoki maxfiy identifikator logga yozilmadi.
+- **Status/next:** PR CI tekshiruvlari va merge hali yakuniy tasdiqlanishi kerak. Audit qayta ishga tushirilmaguncha 401 tuzaldi yoki seller-routing live tasdiqlandi deb boʻlmaydi. Agar yangi audit yana 401 boʻlsa, long-lived token, token fayl/env/Turso manba ziddiyatlari va rasmiy reauthorization xavfsiz tekshirilsin.
+
 ## 2026-11-22 — Antigravity — 3 bot (Oisha, Mr.Jon, Amina) shaxsiyat izolyatsiyasi, Obsidian Yadro sinxroni va Hetzner Nginx webhooklari
 - **Sabab:** Owner 3 ta bot (`Oisha`, `Mr.Jon`, `Amina`) uchun Obsidian atom yadrolarini (`90-AI/Bots/{Oisha,Mr.Jon,Amina}/Yadro.md` va `Organganlarim.md`) ochishni, `scripts/sync_agents_runtime.py` ni alohida sinxron va restartga boʻlishni hamda kod darajasidagi shaxsiyat aralashuvini (`openclaw_bridge.py`, `jamoa_ritm/guard.py`, `jamoa_ritm/texts.py`) hamda `deploy/nginx-oisha.conf` / `devops_agent.py` kamchiliklarini bartaraf etishni tasdiqladi.
 - **Bajarilgan ish:**
@@ -3145,6 +3162,16 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `bandit -r src/ -ll -q` → **0 issues** (exit 0); `python scripts/check_uzbek_text.py --staged` → **toza (0 xato)**.
 - **Qolgan ish/Bloker:** Hetzner VPS (`2.29.198.0`) da `.env` (3 ta alohida Gemini kaliti, `AMINA_BOT_TOKEN`, `MRJON_BOT_TOKEN`, `TASK_REGISTRY_TOKENS`) va Cloudflare DNS (`oisha.jonbranding.uz`, `crm.jonbranding.uz` → `2.29.198.0`) + SSL sozlash.
 
+## 2026-11-23 — Antigravity — chore(github): ideal holat, AI Studio preflight va UI yuklanish holati
+- **Maqsad:** `AI Studio <-> Antigravity Sync` preflight va xato xabarini yaxshilash, `pnpm-workspace.yaml` dagi `next` overrideʼni `16.4.6` bilan sinxronlash, va eskirgan PR #1098 dagi `isSubmittingBug` loading holatini toza `main` ustiga olib oʻtish.
+- **Oʻzgargan fayllar:** `src/services/ai_studio/pipeline.py`, `tests/test_ai_studio_bridge.py`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `apps/web/src/components/Header.tsx`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/`: `All checks passed!`.
+  - `bandit -r src/ -ll -x src/services/debug/ --quiet`: `0` issues.
+  - `SKIP_LIVE=1 python -m pytest tests/test_ai_studio_bridge.py -q --tb=short`: `9 passed in 1.38s`.
+  - `pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build`: `7 successful, 7 total` (Next.js `16.4.6`).
+- **Qolgan ish:** PR CI yashil boʻlgach squash-merge va PR #1098 ni yopish.
+
 ## 2026-11-23 — Antigravity — PR #1124 review tuzatishlari va 3-bot runtime model/SOUL moslashuvi
 - **Sabab:** PR #1124 (`5c482799`) boʻyicha Devin/Codex review topilmalarini bartaraf etish va Hetzner prod diagnostikasi asosida OpenClaw/Oisha/Hermes runtime izolyatsiyasini yakunlash.
 - **Bajarilgan ish:**
@@ -3160,5 +3187,3 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `ruff check` (oʻzgargan va test `.py` fayllar): **All checks passed** (exit 0).
   - `bandit -r src/ -ll -q`: **0 issues** (exit 0); `python scripts/check_uzbek_text.py --all --baseline`: **toza (1770 fayl)**.
 - **Keyingi qadam:** PR #1124 ni push/merge qilish va Hetzner (`2.29.198.0`) da 3 bot `.env` kalitlari hamda servislarni sinxronlab `/healthz/` va `/readyz` ni tasdiqlash.
-
-
