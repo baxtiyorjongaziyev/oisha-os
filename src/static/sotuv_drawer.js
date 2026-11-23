@@ -82,8 +82,8 @@ function renderDrawer(lead) {
 
   const callBtn = document.getElementById("drawerCallBtn");
   if (callBtn) {
-    const digits = String(lead.phone || "").replace(/[^\d]/g, "");
-    callBtn.setAttribute("href", digits ? `tel:+${digits}` : "#");
+    const digits = (String(lead.phone || "").replace(/[^\d]/g, "").match(/^\d+$/) || [""])[0];
+    callBtn.setAttribute("href", digits ? `tel:+${encodeURIComponent(digits)}` : "#");
   }
 
   const stageSelect = document.getElementById("drawerStageSelect");
@@ -128,9 +128,18 @@ function renderDrawer(lead) {
   const player = document.getElementById("drawerAudioPlayer");
   const src = document.getElementById("drawerAudioSource");
   if (audioBox && player && src) {
-    if (lead.last_audio_url && /^https?:\/\//i.test(String(lead.last_audio_url).trim())) {
+    let validAudio = "";
+    try {
+      const parsed = new URL(String(lead.last_audio_url || "").trim(), window.location.origin);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+        validAudio = `${parsed.origin}${parsed.pathname}${parsed.search}`;
+      }
+    } catch (_) {
+      validAudio = "";
+    }
+    if (validAudio) {
       audioBox.classList.remove("hidden");
-      src.setAttribute("src", String(lead.last_audio_url).trim());
+      src.src = validAudio;
       player.load();
     } else {
       audioBox.classList.add("hidden");
@@ -143,8 +152,8 @@ function triggerDrawer1ClickCall() {
   const phone = document.getElementById("drawerContactPhone")?.value || activeDrawerLead.phone;
   if (typeof trigger1ClickCall === "function") trigger1ClickCall(activeDrawerLead.id, phone);
   else {
-    const digits = String(phone || "").replace(/[^\d]/g, "");
-    if (digits) window.open(`tel:+${digits}`, "_self");
+    const digits = (String(phone || "").replace(/[^\d]/g, "").match(/^\d+$/) || [""])[0];
+    if (digits) window.open(`tel:+${encodeURIComponent(digits)}`, "_self");
   }
 }
 

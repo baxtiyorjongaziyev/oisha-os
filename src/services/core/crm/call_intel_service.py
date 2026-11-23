@@ -62,38 +62,41 @@ class CallIntelService:
         return None
 
     @staticmethod
-    def _is_safe_audio_url(audio_url: str) -> bool:
-        """Block SSRF by allowing only public http(s) URLs."""
+    def _sanitize_audio_url(audio_url: str) -> Optional[str]:
+        """Block SSRF by allowing only public http(s) URLs and returning a normalized URL."""
         import ipaddress
         import socket
         from urllib.parse import urlparse
 
         parsed = urlparse(audio_url)
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
-            return False
+            return None
         host = parsed.hostname.lower()
         if host in ("localhost", "127.0.0.1", "::1") or host.endswith(".local"):
-            return False
+            return None
         try:
             infos = socket.getaddrinfo(host, None)
         except OSError:
-            return False
+            return None
         for info in infos:
             ip = ipaddress.ip_address(info[4][0])
             if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                return False
-        return True
+                return None
+        port_part = f":{parsed.port}" if parsed.port else ""
+        query_part = f"?{parsed.query}" if parsed.query else ""
+        return f"{parsed.scheme}://{host}{port_part}{parsed.path}{query_part}"
 
     def download_audio_bytes(self, audio_url: str) -> Optional[Tuple[bytes, str]]:
         """MoiZvonki yoki to'g'ridan-to'g'ri URL orqali audio baytlarini yuklab olish."""
-        if not audio_url or not self._is_safe_audio_url(audio_url):
+        safe_url = self._sanitize_audio_url(audio_url) if audio_url else None
+        if not safe_url:
             return None
         sess = None
-        if "moizvonki" in audio_url:
+        if "moizvonki" in safe_url:
             sess = self._get_moizvonki_session()
         client = sess if sess else requests.Session()
         try:
-            resp = client.get(audio_url, timeout=40, allow_redirects=False)
+            resp = client.get(safe_url, timeout=40, allow_redirects=False)
             if resp.status_code == 200 and resp.content and len(resp.content) > 1000:
                 # 60027 baytlik soxta login sahifasi audiosini rad etish
                 if len(resp.content) == 60027:
