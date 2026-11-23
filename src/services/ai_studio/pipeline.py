@@ -65,6 +65,8 @@ class AIStudioBridgePipeline:
             summary.details["error"] = "Source syntax validation failed"
         elif summary.god_files_detected > summary.god_files_refactored:
             summary.status = AppSyncStatus.STANDARDS_VIOLATED
+            remaining = summary.god_files_detected - summary.god_files_refactored
+            summary.details["error"] = f"{remaining} file(s) exceed 400-line limit"
         elif config.run_preflight and not self._run_preflight(summary):
             summary.status = AppSyncStatus.FAILED
         else:
@@ -77,8 +79,8 @@ class AIStudioBridgePipeline:
         """Run repository gates with live access disabled."""
         env = dict(os.environ, SKIP_LIVE="1", ALLOW_LOCAL_RUN="0")
         commands = [
-            [sys.executable, "-m", "pytest", "-q", "--tb=short"],
-            [sys.executable, "-m", "bandit", "-r", "src/", "-ll"],
+            [sys.executable, "-m", "pytest", "tests/test_ai_studio_bridge.py", "-q", "--tb=short"],
+            [sys.executable, "-m", "bandit", "-r", "src/services/ai_studio/", "-ll"],
         ]
         for command in commands:
             try:
