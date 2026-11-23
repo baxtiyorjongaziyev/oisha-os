@@ -3200,7 +3200,6 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `ruff check` (oʻzgargan va test `.py` fayllar): **All checks passed** (exit 0).
   - `bandit -r src/ -ll -q` va `openclaw_bridge.py` / `sync_agents_runtime.py`: **0 issues** (exit 0); `python scripts/check_uzbek_text.py --all --baseline`: **toza (1770 fayl)**.
 - **Keyingi qadam:** PR #1124 ni push/merge qilish va Hetzner (`2.29.198.0`) da 3 bot `.env` kalitlari hamda servislarni sinxronlab `/healthz/` va `/readyz` ni tasdiqlash.
-
 ## 2026-11-23 — Antigravity — Davomat dam olish kuni, Tizim nazoratda HTML/probe va Hisobchi kuzatuv vaqti
 - **Muammo:** (1) `bot_flow.today_text()` xodim grafigi va `day_corrections` ni tekshirmay, yakshanba va ruxsatli kunlarda ham "kelmagan" yozgan, 19:30 xulosasi esa dam olish kunida ham yuborilgan; (2) `Tizim nazoratda` xabari `parse_mode=None` bilan xom `**` Markdown yuborgan va real tizim tekshiruvisiz kuniga 3 marta takrorlangan; (3) `Hisobchi kuzatuvi` 21:00 da (Dilbarning 22:00–01:30 hisobotidan oldin) ketgan va yarim tundan keyingi xabarlar keyingi kunga tushgan.
 - **Bajarilgan ish:**
