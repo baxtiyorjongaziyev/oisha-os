@@ -40,12 +40,25 @@ def _verify_amojo_signature(
     path: str = "/webhook/amocrm/chats",
     method: str = "POST",
 ) -> bool:
-    """Verify an amoJo request without ever accepting an unsigned fallback."""
+    """Verify an amoJo request without ever accepting an unsigned fallback.
+
+    amoJo outgoing hooks (webhook_url) sign only the body:
+    ``X-Signature = hex(HMAC-SHA1(body, channel_secret))`` with no Date or
+    Content-MD5. The full request-signing scheme is still accepted.
+    """
     if not channel_secret:
         return False
 
-    if not signature_header or not date_header or not content_md5_header:
-        logger.warning("[AMOCRM CHAT] Required signature headers are missing.")
+    if not signature_header:
+        logger.warning("[AMOCRM CHAT] X-Signature header is missing (not an amoJo hook?).")
+        return False
+
+    body_sig = hmac.new(channel_secret.encode("utf-8"), body_bytes, hashlib.sha1).hexdigest().lower()
+    if hmac.compare_digest(signature_header.strip().lower(), body_sig):
+        return True
+
+    if not date_header or not content_md5_header:
+        logger.warning("[AMOCRM CHAT] Body signature mismatch and no Date/Content-MD5 headers.")
         return False
 
     calculated_md5 = hashlib.md5(body_bytes, usedforsecurity=False).hexdigest().lower()
@@ -76,6 +89,7 @@ def _verify_amojo_signature(
 
 @router.post("")
 @router.post("/")
+@router.post("/{scope_id}")
 async def handle_amocrm_chat_outbound(
     request: Request,
     x_signature: Optional[str] = Header(None, alias="X-Signature"),
@@ -104,6 +118,7 @@ async def handle_amocrm_chat_outbound(
         date,
         content_md5,
         channel_secret,
+        path=request.url.path,
     ):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 

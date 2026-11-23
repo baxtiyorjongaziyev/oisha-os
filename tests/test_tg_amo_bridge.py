@@ -42,7 +42,18 @@ def test_manager_event_moves_to_receiver():
         conversation_id="42", sender_id="42", sender_name="Ali", text="x", is_manager=True, silent=True
     )
     p = ev["payload"]
-    assert "sender" not in p and p["receiver"]["id"] == "42" and p["silent"] is True
+    assert p["receiver"]["id"] == "42" and p["silent"] is True
+    assert p["sender"]["id"] != "42"  # amoJo 400s on receiver without sender
+
+
+def test_empty_message_rejected():
+    with pytest.raises(ValueError):
+        _client().build_message_event(conversation_id="1", sender_id="1", sender_name="A", text="")
+
+
+def test_source_omitted_by_default(monkeypatch):
+    monkeypatch.delenv("TG_AMO_SOURCES_ENABLED", raising=False)
+    assert not inbound._sources_enabled()
 
 
 def test_media_event_and_invalid_type():
@@ -187,7 +198,8 @@ async def test_inbound_manager_reply_silent_and_echo_skipped(monkeypatch):
     store, amojo = MessageStore(FakePool()), _amojo_mock()
     assert await inbound.handle_message(_event(out=True, msg_id=6), ACC, amojo, store)
     ev = amojo.send_event.await_args.args[0]["payload"]
-    assert ev["silent"] is True and "receiver" in ev and "sender" not in ev
+    assert ev["silent"] is True and ev["receiver"]["id"] == "42"
+    assert ev["sender"]["id"] == "oisha-tg-owner" and "source" not in ev
     await store.record("amo-x", 7, "owner", 42, "amo_out")  # sent on amoCRM's request
     amojo.send_event.reset_mock()
     assert not await inbound.handle_message(_event(out=True, msg_id=7), ACC, amojo, store)
