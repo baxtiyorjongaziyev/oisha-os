@@ -67,6 +67,14 @@ async def decide(db, *, actor: str, data: str) -> tuple[str, int | None]:
     return f"❌ {html.escape(name)} so'rovi rad etildi.", tg
 
 
+def _is_owner(telegram_id) -> bool:
+    """Owner davomat hisobotida koʻrsatilmaydi (owner qarori, 2026-11-23)."""
+    from src.settings import settings
+
+    owner = int(getattr(settings, "OWNER_ID", 0) or 0)
+    return bool(owner) and telegram_id is not None and str(telegram_id) == str(owner)
+
+
 def _local(ts: str) -> str:
     return datetime.fromisoformat(ts).astimezone(_TZ).strftime("%H:%M")
 
@@ -104,7 +112,7 @@ async def has_scheduled_or_present(db, day: date) -> bool:
         for c in await repo.day_corrections(db, iso, iso)
     }
     for r in roster:
-        if r["telegram_id"] is None:
+        if r["telegram_id"] is None or _is_owner(r["telegram_id"]):
             continue
         emp_id = int(r["id"])
         if overrides.get(emp_id) in (rules.DAY_OFF, rules.APPROVED_LEAVE):
@@ -131,6 +139,7 @@ async def today_text(db, day: date | None = None) -> str:
         for c in await repo.day_corrections(db, iso, iso)
     }
     lines = [f"📋 <b>Davomat — {iso}</b>"]
+    roster = [r for r in roster if not _is_owner(r["telegram_id"])]
     for r in roster:
         emp_id, name = int(r["id"]), str(r["name"])
         ev = by_emp.get(emp_id, {})
