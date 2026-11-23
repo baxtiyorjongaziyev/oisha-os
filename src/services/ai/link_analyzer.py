@@ -52,16 +52,20 @@ class LinkAnalyzer:
             cleaned.append(u_clean)
         return list(dict.fromkeys(cleaned))
 
+    @staticmethod
+    def _host_matches(domain: str, host: str) -> bool:
+        return domain == host or domain.endswith(f".{host}")
+
     def categorize_url(self, url: str) -> str:
         """Havola turini aniqlash."""
-        domain = urlparse(url).netloc.lower()
-        if "instagram.com" in domain:
+        domain = (urlparse(url).hostname or "").lower()
+        if self._host_matches(domain, "instagram.com"):
             return "instagram"
-        if "t.me" in domain or "telegram.me" in domain:
+        if self._host_matches(domain, "t.me") or self._host_matches(domain, "telegram.me"):
             return "telegram"
-        if any(d in domain for d in ("behance.net", "pinterest.com", "dribbble.com")):
+        if any(self._host_matches(domain, d) for d in ("behance.net", "pinterest.com", "dribbble.com")):
             return "design_ref"
-        if any(d in domain for d in ("drive.google.com", "dropbox.com", "disk.yandex")):
+        if any(self._host_matches(domain, d) for d in ("drive.google.com", "dropbox.com", "disk.yandex.ru", "disk.yandex.com")):
             return "drive"
         return "website"
 

@@ -11,8 +11,7 @@ def test_extract_urls():
     analyzer = LinkAnalyzer()
     text = "Salom, bizning saytimiz https://mybrand.uz va instagram: instagram.com/mybrand_uz."
     urls = analyzer.extract_urls(text)
-    assert "https://mybrand.uz" in urls
-    assert "https://instagram.com/mybrand_uz" in urls
+    assert urls == ["https://mybrand.uz", "https://instagram.com/mybrand_uz"]
 
 
 def test_categorize_url():

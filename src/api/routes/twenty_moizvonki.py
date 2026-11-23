@@ -231,7 +231,7 @@ async def process_moizvonki_call(
 
     # 3. Yolg'on success qaytarmaslik: note saqlanmasa xatolik qaytarish
     if not note or not isinstance(note, dict) or not note.get("id"):
-        logger.error("[moizvonki-twenty] note saqlanmadi: phone=%s person=%s", phone, person_id)
+        logger.error("[moizvonki-twenty] note saqlanmadi: person=%s", person_id)
         raise HTTPException(
             status_code=502,
             detail="Twenty CRM timeline note saqlab bo'lmadi",
@@ -252,8 +252,7 @@ async def process_moizvonki_call(
         logger.warning("[moizvonki-dialer] Could not attach to dialer store: %s", exc)
 
     logger.info(
-        "[moizvonki-twenty] call logged: phone=%s person_id=%s note_id=%s call_id=%s",
-        phone,
+        "[moizvonki-twenty] call logged: person_id=%s note_id=%s call_id=%s",
         person_id,
         note.get("id"),
         call_id,
