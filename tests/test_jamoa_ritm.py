@@ -260,20 +260,50 @@ def test_transcript_keeps_newest_lines():
 @pytest.mark.parametrize("text,reply_to,expected", [
     ("@jonairobot hisobot qachon?", None, True),
     ("Salom @JonAiRobot", None, True),
+    ("Oisha, bugungi hisobot qachon?", None, True),
+    ("Oishaxon rahmat!", None, True),
     ("@jonairobot2 bu boshqa bot", None, False),
     ("/oisha_stats@jonairobot", None, False),
     ("yozing: a@jonairobot.uz", None, False),
     ("oddiy xabar", None, False),
     ("rahmat", 999, True),
     ("rahmat", 1, False),
+    ("Amina, buni qanday qilaman?", None, False),
+    ("Amina, buni qanday qilaman?", 999, False),
+    ("Mr.Jon narx diapazoni qancha?", 999, False),
+    ("@jon_clawbot salom", 999, False),
+    ("Amina, Oishaga yozing", None, False),
+    ("Amina, Oishaga yozing", 999, False),
+    ("Mr.Jon, Oishaga yubor", 999, False),
+    ("Amina, @jonairobot ga yoz", None, True),
+    ("Oisha va Amina, eshiting", None, True),
 ])
 def test_is_addressed(text, reply_to, expected):
     assert is_addressed(text, bot_username="jonairobot", bot_id=999, reply_to_user_id=reply_to) is expected
 
 
+async def test_hamroh_brain_loads_synced_oisha_soul(tmp_path, monkeypatch):
+    from src.services.core.jamoa_ritm import texts as ritm_texts
+
+    soul_file = tmp_path / "SOUL.md"
+    soul_file.write_text("# Oisha Custom Yadro\nMaxsus sinov qoidasi.", encoding="utf-8")
+    monkeypatch.setattr(ritm_texts, "_OISHA_SOUL_PATH", soul_file)
+    seen_systems = []
+
+    async def capture(prompt, *, system, max_tokens, temperature):
+        seen_systems.append(system)
+        return "Tayyor."
+
+    brain = HamrohBrain(generate=capture, tz=TZ)
+    await brain.answer("Hisobot qachon?", [], asker="Rayxon")
+    assert "Maxsus sinov qoidasi." in seen_systems[0]
+
+
 def test_extract_question_and_limiter():
     assert extract_question("@jonairobot , hisobot qachon?", "jonairobot") == "hisobot qachon?"
     assert extract_question("@jonairobot", "jonairobot") == ""
+    assert extract_question("Oisha, hisobot qachon?", "jonairobot") == "hisobot qachon?"
+    assert extract_question("Oisha", "jonairobot") == ""
 
     now = [0.0]
     limiter = ReplyLimiter(per_user_seconds=10, max_per_window=2, window_seconds=60, clock=lambda: now[0])
@@ -281,6 +311,7 @@ def test_extract_question_and_limiter():
     assert limiter.allow(2) and not limiter.allow(3)  # daqiqalik chegara
     now[0] = 61
     assert limiter.allow(1)
+
 
 
 # ─── handler ─────────────────────────────────────────────────────────────────

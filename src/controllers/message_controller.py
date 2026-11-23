@@ -6,7 +6,7 @@ sys.path.append(os.getcwd())
 
 import logging
 from typing import Optional, Dict, Any
-from src.settings import settings, logger
+from src.settings import settings
 from src.agents.core import AgentManager
 from src.agents.sales_agent import SalesAgent
 from src.agents.pm_agent import PMAgent
@@ -81,47 +81,52 @@ class MessageController:
             self.onboarding = None
             onboarding_context = ""
 
-        # Barcha agentlar uchun Oisha (Biznes ToV) asosiy koʻrsatma boʻladi
-        base_instruction = getattr(
+        # Barcha agentlar uchun Oisha (Biznes ToV + deploy/oisha/SOUL.md) asosiy koʻrsatma boʻladi
+        self._base_instruction = getattr(
             settings, "SYSTEM_INSTRUCTION", "Siz JonBranding yordamchisisiz."
         )
-        system_instruction = (
-            f"{base_instruction}\n\n{onboarding_context}"
-            if onboarding_context
-            else base_instruction
-        )
+        self._onboarding_context = onboarding_context
+        self._soul_mtime: Optional[float] = None
+        system_instruction = self._compose_oisha_instruction()
+        self._register_all_agents(system_instruction)
 
+    def _compose_oisha_instruction(self) -> str:
+        from src.services.core.jamoa_ritm.texts import _OISHA_SOUL_PATH, load_oisha_soul
+
+        try:
+            self._soul_mtime = _OISHA_SOUL_PATH.stat().st_mtime if _OISHA_SOUL_PATH.is_file() else None
+        except OSError:
+            self._soul_mtime = None
+        parts = [p for p in (load_oisha_soul(), self._base_instruction, self._onboarding_context) if p]
+        return "\n\n".join(parts)
+
+    def _refresh_soul_if_changed(self) -> None:
+        from src.services.core.jamoa_ritm.texts import _OISHA_SOUL_PATH
+
+        try:
+            current_mtime = _OISHA_SOUL_PATH.stat().st_mtime if _OISHA_SOUL_PATH.is_file() else None
+        except OSError:
+            current_mtime = None
+        if current_mtime != self._soul_mtime:
+            self._register_all_agents(self._compose_oisha_instruction())
+
+    def _register_all_agents(self, system_instruction: str) -> None:
+        api_keys = self.api_keys
         self.agent_manager.register_agent(
             SalesAgent("sales", system_instruction, api_keys, self.executor, self.db)
         )
-
-        # PM va Researcher uchun faqat vazifa qoʻshamiz, lekin Oisha obrazini saqlaymiz
-        pm_prompt = (
-            system_instruction
-            + "\n\nSiz ayniqsa loyihalarni rejalashtirish va ularni boshqarish boʻyicha masuliyatlisiz."
+        core_defs = (
+            ("strategist", PMAgent, "\n\nSiz ayniqsa loyihalarni rejalashtirish va ularni boshqarish boʻyicha masuliyatlisiz."),
+            ("researcher", ResearcherAgent, "\n\nSiz ayniqsa bozor tahlili, OSINT yoki chuqur tadqiqotlar uchun masuliyatlisiz."),
+            ("support", SupportAgent, "\n\nSiz ayniqsa tezkor yordam va texnik savollar uchun masuliyatlisiz."),
         )
-        self.agent_manager.register_agent(
-            PMAgent("strategist", pm_prompt, api_keys, self.executor, self.db)
-        )
-
-        research_prompt = (
-            system_instruction
-            + "\n\nSiz ayniqsa bozor tahlili, OSINT yoki chuqur tadqiqotlar uchun masuliyatlisiz."
-        )
-        self.agent_manager.register_agent(
-            ResearcherAgent(
-                "researcher", research_prompt, api_keys, self.executor, self.db
+        for aid, cls, suffix in core_defs:
+            self.agent_manager.register_agent(
+                cls(aid, system_instruction + suffix, api_keys, self.executor, self.db)
             )
-        )
+        self._register_specialist_agents(system_instruction)
 
-        support_prompt = (
-            system_instruction
-            + "\n\nSiz ayniqsa tezkor yordam va texnik savollar uchun masuliyatlisiz."
-        )
-        self.agent_manager.register_agent(
-            SupportAgent("support", support_prompt, api_keys, self.executor, self.db)
-        )
-
+    def _register_specialist_agents(self, system_instruction: str) -> None:
         from src.agents.copywriter_agent import COPYWRITER_SUFFIX
         from src.agents.finance_agent import FINANCE_SUFFIX
         from src.agents.ops_agent import OPS_SUFFIX
@@ -159,7 +164,7 @@ class MessageController:
         ]
         for agent_id, AgentClass, suffix in _new_agents:
             self.agent_manager.register_agent(
-                AgentClass(agent_id, system_instruction + suffix, api_keys, self.executor, self.db)
+                AgentClass(agent_id, system_instruction + suffix, self.api_keys, self.executor, self.db)
             )
 
     def set_bot_app(self, bot_app):
@@ -187,6 +192,7 @@ class MessageController:
             user_name = context.get("user_name") or "Mijoz"
         if not message:
             return ""
+        self._refresh_soul_if_changed()
 
         # 1. CRM dan user haqida maʼlumot olish (agar tel boʻlsa va mehmon boʻlmasa)
         crm_status = "Yangi mijoz"

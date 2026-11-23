@@ -267,6 +267,9 @@ def is_protected_path(path: str) -> bool:
     # Oisha Connect MCP: route ichida shaxsiy oc_ kalit (hash) bilan autentifikatsiya.
     if normalized == "/api/connect/mcp" or normalized.startswith("/api/connect/mcp/"):
         return False
+    # Shared task registry enforces its own per-bot TASK_REGISTRY_TOKENS bearer guard.
+    if normalized == "/api/tasks" or normalized.startswith("/api/tasks/"):
+        return False
     if "/telephony/webhook" in normalized:
         return False
     if normalized == "/api/moizvonki/webhook":

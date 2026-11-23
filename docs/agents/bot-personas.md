@@ -121,16 +121,16 @@ Maqsad: bitta bot yiqilsa, qolgan ikkitasi ishlayveradi. Hech biri boshqasining 
 4. **Alohida restart:** bitta servisni qayta ishga tushirish qolganlariga tegmaydi.
 5. **Umumiy faqat:** server (Hetzner) va Owner. Server yiqilsa — Drive'dagi kunlik zaxiradan tiklanadi.
 
-### Hozirgi holat va bo'shliqlar (tekshirilishi kerak)
+### Hozirgi holat va boʻshliqlar (tekshirilishi kerak)
 - API kalitlar alohida-alohidami — serverda tekshirilmagan.
-- Drive papkalari va service account'lar hali yaratilmagan.
-- `sync_agents_runtime.py` Mr.Jon (OpenClaw) va Amina (Hermes) gateway'larini bitta skript bilan qayta ishga tushiradi (`oisha.service` ga tegmaydi) — alohida restart qoidasiga zid; bo'linishi kerak.
+- Drive papkalari va service accountʼlar hali yaratilmagan.
+- `scripts/sync_agents_runtime.py` endi `--bot oisha|mrjon|amina|all`, `--no-restart`, `--restart` va `--vault-dir` bayroqlarini qoʻllab-quvvatlaydi (har bir bot alohida sinxronlanadi va boshqasiga tegmasdan qayta ishga tushiriladi).
 
 ---
 
-## Atom modeli: har botning o'z yadrosi
+## Atom modeli: har botning oʻz yadrosi
 
-Owner'ning Obsidian ikkinchi miyasi — **quyosh**: barcha haqiqatning manbai. Har bot — alohida **atom**.
+Ownerʼning Obsidian ikkinchi miyasi — **quyosh**: barcha haqiqatning manbai. Har bot — alohida **atom**.
 
 ```
             ☀ Owner Obsidian (ikkinchi miya)
@@ -140,34 +140,34 @@ Owner'ning Obsidian ikkinchi miyasi — **quyosh**: barcha haqiqatning manbai. H
    elektronlar      elektronlar      elektronlar
 ```
 
-### Yadro (nucleus) — o'zgarmas, faqat Owner o'zgartiradi
-Botning "kim ekanligi". Yo'qolsa — bot boshqa odamga aylanadi.
+### Yadro (nucleus) — oʻzgarmas, faqat Owner oʻzgartiradi
+Botning "kim ekanligi". Yoʻqolsa — bot boshqa odamga aylanadi.
 - **Kimlik:** ism, xarakter, ovoz, kimga hisobot beradi.
 - **Qadriyatlar:** 3 ta asosiy tamoyil.
-- **Qizil chiziqlar:** taqiqlar (narx va'dasi, CRM o'chirish, shaxsiy ma'lumot...).
-- **Vakolat chegarasi:** nimaga qo'li yetadi, nimaga yo'q.
+- **Qizil chiziqlar:** taqiqlar (narx vaʼdasi, CRM oʻchirish, shaxsiy maʼlumot...).
+- **Vakolat chegarasi:** nimaga qoʻli yetadi, nimaga yoʻq.
 - **Hamkasblar xaritasi:** kim nimaga javob beradi.
 
 Joyi:
-| Bot | Vault'da (manba) | Serverda (nusxa) |
+| Bot | Vaultʼda (manba) | Serverda (nusxa) |
 |---|---|---|
-| Oisha | `90-AI/Bots/Oisha/Yadro.md` | prompt'lar (`src/`) |
+| Oisha | `90-AI/Bots/Oisha/Yadro.md` | `deploy/oisha/SOUL.md` + promptʼlar (`src/`) |
 | Mr.Jon | `90-AI/Bots/Mr.Jon/Yadro.md` | `deploy/openclaw/workspace/SOUL.md` |
 | Amina | `90-AI/Bots/Amina/Yadro.md` | `deploy/hermes/SOUL.md` |
 
-### Elektronlar — o'zgaruvchan, bot o'zi o'rganadi
-- Suhbat xotirasi, kim nima va'da qildi.
-- Yangi faktlar, takrorlangan savollar, skill'lar.
-- Joyi: botning o'z xotirasi + `90-AI/Bots/<bot>/Organganlarim.md`.
+### Elektronlar — oʻzgaruvchan, bot oʻzi oʻrganadi
+- Suhbat xotirasi, kim nima vaʼda qildi.
+- Yangi faktlar, takrorlangan savollar, skillʼlar.
+- Joyi: botning oʻz xotirasi + `90-AI/Bots/<bot>/Organganlarim.md`.
 
 ### Qoidalar
-1. **Yadro faqat Owner tasdig'i bilan o'zgaradi** (`brain_memory_proposal` → Owner "ha").
-2. **Elektron yadroga aylanishi mumkin:** bot haftalik hisobotda taklif qiladi → Owner tasdiqlaydi → yadroga ko'chadi.
-3. **Quyoshdan o'qish:** har bot Owner vault'idan o'z sohasiga tegishli qismini **o'qiydi**. Yozish — faqat `00-Inbox/` ga taklif.
-4. **Yadrolar to'qnashmaydi:** bir bot boshqasining yadrosini o'qimaydi va o'zgartirmaydi; faqat hamkasblar xaritasini biladi.
-5. **Bir yo'nalishli sinxron:** vault `Yadro.md` → server SOUL/prompt. Teskari yo'q.
+1. **Yadro faqat Owner tasdigʻi bilan oʻzgaradi** (`brain_memory_proposal` → Owner "ha").
+2. **Elektron yadroga aylanishi mumkin:** bot haftalik hisobotda taklif qiladi → Owner tasdiqlaydi → yadroga koʻchadi.
+3. **Quyoshdan oʻqish:** har bot Owner vaultʼidan oʻz sohasiga tegishli qismini **oʻqiydi**. Yozish — faqat `00-Inbox/` ga taklif.
+4. **Yadrolar toʻqnashmaydi:** bir bot boshqasining yadrosini oʻqimaydi va oʻzgartirmaydi; faqat hamkasblar xaritasini biladi.
+5. **Bir yoʻnalishli sinxron:** vault `Yadro.md` → server SOUL/prompt. Teskari yoʻq.
 
 ### Qilinadigan ishlar
-- [ ] Vault'da `90-AI/Bots/{Oisha,Mr.Jon,Amina}/Yadro.md` yaratish (Owner tasdig'i bilan).
-- [ ] `Organganlarim.md` papkalarini ochish.
-- [ ] Sync skripti: `Yadro.md` → SOUL.md (bot alohida-alohida).
+- [x] Vaultʼda `90-AI/Bots/{Oisha,Mr.Jon,Amina}/Yadro.md` yaratish (Owner tasdigʻi bilan, 2026-11-22).
+- [x] `Organganlarim.md` papkalarini ochish (`90-AI/Bots/{Oisha,Mr.Jon,Amina}/Organganlarim.md`, 2026-11-22).
+- [x] Sync skripti: `Yadro.md` → `SOUL.md` (bot alohida-alohida: `python scripts/sync_agents_runtime.py --bot oisha|mrjon|amina --vault-dir <path>`).

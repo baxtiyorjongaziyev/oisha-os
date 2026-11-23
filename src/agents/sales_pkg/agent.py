@@ -138,10 +138,11 @@ class SalesAgent(BaseAgent, SalesActionsMixin):
 
         persona = PersonaRouter.select_persona(assessment)
         prompt = PersonaRouter.build_system_prompt(persona, assessment)
+        system_prefix = f"{self.system_prompt}\n\n" if self.system_prompt else ""
 
         try:
             ai_reply = await self.call_ai_with_fallback(
-                prompt=f"{prompt}\n\nMijoz: {task_description}",
+                prompt=f"{system_prefix}{prompt}\n\nMijoz: {task_description}",
             )
         except Exception as e:
             logger.error(f"[SALES_AGENT] AI reply generation failed: {e}")
