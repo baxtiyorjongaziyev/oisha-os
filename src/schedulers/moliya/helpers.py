@@ -76,6 +76,41 @@ async def read_table(table_name: str) -> list[dict]:
         return []
 
 
+async def read_table_checked(table_name: str) -> tuple[list[dict], bool]:
+    """Airtable jadvalini oʻqib, ``(yozuvlar, muvaffaqiyatli)`` juftligini qaytaradi."""
+    from src.services.core.airtable_sync import AirtableSync
+
+    def _work() -> tuple[list[dict], bool]:
+        client = AirtableSync(table_name=table_name)
+        bearer = (
+            client._current_bearer()
+            if hasattr(client, "_current_bearer")
+            else getattr(client, "api_key", "")
+        )
+        if not bearer or not getattr(client, "base_id", ""):
+            logger.warning("[MOLIYA] '%s' uchun Airtable kaliti yoki Base ID yoʻq", table_name)
+            return [], False
+        records: list[dict] = []
+        params: dict[str, Any] = {"pageSize": 100}
+        while True:
+            response = client._request("GET", client.endpoint, params=params)
+            if response.status_code != 200:
+                logger.error("[MOLIYA] '%s' oʻqishda HTTP %s", table_name, response.status_code)
+                return [], False
+            data = response.json()
+            records.extend(data.get("records", []))
+            offset = data.get("offset")
+            if not offset:
+                return records, True
+            params = {"pageSize": 100, "offset": offset}
+
+    try:
+        return await asyncio.to_thread(_work)
+    except Exception:
+        logger.error("[MOLIYA] '%s' jadvalini tekshirilgan oʻqishda xato", table_name, exc_info=True)
+        return [], False
+
+
 _TITLE_FIELDS = ("Nomi", "Nom", "Name", "Kategoriya", "Kategoriya nomi")
 
 

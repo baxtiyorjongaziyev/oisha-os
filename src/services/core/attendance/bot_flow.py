@@ -9,7 +9,7 @@ import html
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from src.services.core.attendance import bootstrap, linking, reports, rules
+from src.services.core.attendance import bootstrap, linking, repo, reports, rules
 from src.services.core.attendance.schema import init_attendance_tables
 from src.services.core.attendance.service import AttendanceError
 
@@ -71,26 +71,73 @@ def _local(ts: str) -> str:
     return datetime.fromisoformat(ts).astimezone(_TZ).strftime("%H:%M")
 
 
+def _absent_line(
+    name: str,
+    telegram_id,
+    shift: rules.Shift,
+    day: date,
+    cal: rules.Calendar,
+    override: str | None,
+) -> str:
+    safe = html.escape(name)
+    if telegram_id is None:
+        return f"▫️ {safe} — ulanish kutilmoqda"
+    if override == rules.APPROVED_LEAVE:
+        return f"🗓️ {safe} — ruxsatli"
+    if override == rules.DAY_OFF or not rules.is_required_day(shift, day, cal):
+        return f"🌴 {safe} — dam olish kuni"
+    if override == rules.ON_TIME:
+        return f"✅ {safe} — tasdiqlangan"
+    return f"▫️ {safe} — kelmagan"
+
+
+async def has_scheduled_or_present(db, day: date) -> bool:
+    """Shu kuni kamida bitta ulangan xodimning ish kuni yoki keldi/ketdi belgisi bormi."""
+    await init_attendance_tables(db)
+    iso, cal = day.isoformat(), rules.Calendar()
+    if await repo.events_between(db, iso, iso):
+        return True
+    roster = await db.execute("SELECT id, telegram_id FROM employees WHERE is_active = 1", [])
+    shifts = await repo.shifts_for_day(db, iso)
+    overrides = {
+        int(c["employee_id"]): str(c["new_status"])
+        for c in await repo.day_corrections(db, iso, iso)
+    }
+    for r in roster:
+        if r["telegram_id"] is None:
+            continue
+        emp_id = int(r["id"])
+        if overrides.get(emp_id) in (rules.DAY_OFF, rules.APPROVED_LEAVE):
+            continue
+        if rules.is_required_day(rules.shift_from_row(shifts.get(emp_id)), day, cal):
+            return True
+    return False
+
+
 async def today_text(db, day: date | None = None) -> str:
     await init_attendance_tables(db)
     day = day or datetime.now(_TZ).date()
-    board = await reports.dashboard(db, day, rules.Calendar())
-    by_emp: dict[str, dict] = {}
+    iso, cal = day.isoformat(), rules.Calendar()
+    board = await reports.dashboard(db, day, cal)
+    by_emp: dict[int, dict] = {}
     for e in board["events"]:
-        by_emp.setdefault(e["employee_name"], {})[e["kind"]] = e
+        by_emp.setdefault(int(e["employee_id"]), {})[e["kind"]] = e
     roster = await db.execute(
-        "SELECT name, telegram_id FROM employees WHERE is_active = 1 ORDER BY name", [])
-    lines = [f"📋 <b>Davomat — {day.isoformat()}</b>"]
+        "SELECT id, name, telegram_id FROM employees WHERE is_active = 1 ORDER BY name", []
+    )
+    shifts = await repo.shifts_for_day(db, iso)
+    overrides = {
+        int(c["employee_id"]): str(c["new_status"])
+        for c in await repo.day_corrections(db, iso, iso)
+    }
+    lines = [f"📋 <b>Davomat — {iso}</b>"]
     for r in roster:
-        name = str(r["name"])
-        ev = by_emp.get(name, {})
+        emp_id, name = int(r["id"]), str(r["name"])
+        ev = by_emp.get(emp_id, {})
         cin, cout = ev.get("check_in"), ev.get("check_out")
         if cin is None:
-            # Telegram hisobi hali bogʻlanmagan xodim "kelmagan" emas: bogʻlash kutilmoqda yoki ulanmagan.
-            if r["telegram_id"] is None:
-                lines.append(f"▫️ {html.escape(name)} — ulanish kutilmoqda")
-            else:
-                lines.append(f"▫️ {html.escape(name)} — kelmagan")
+            shift = rules.shift_from_row(shifts.get(emp_id))
+            lines.append(_absent_line(name, r["telegram_id"], shift, day, cal, overrides.get(emp_id)))
             continue
         late = f", {cin['minutes_late']} daq kech" if cin["minutes_late"] else ""
         out = f", ketdi {cout['local_time']}" if cout else ", hali ishda"

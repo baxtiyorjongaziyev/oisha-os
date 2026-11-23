@@ -113,3 +113,54 @@ async def test_month_report(db):
     await bot_flow.decide(db, actor="1", data=f"{bot_flow.CB_APPROVE}{req['id']}")
     text = await bot_flow.month_text(db, date(2026, 10, 22))
     assert "Rayxona Rahimova" in text and "kun" in text
+
+
+async def test_sunday_shows_day_off_and_respects_individual_schedules(db):
+    for tg, name, wd, opt in [
+        (701, "Baxtiyorjon", [1, 2, 3, 4, 5, 6], None),
+        (702, "Ahror", [1, 2, 3, 4, 5, 6, 7], None),
+        (703, "Hasanboy", [1, 2, 3, 4, 5, 6], [7]),
+    ]:
+        req = await bot_flow.request_link(db, tg, name)
+        await bot_flow.decide(db, actor="1", data=f"{bot_flow.CB_APPROVE}{req['id']}")
+        row = db.conn.execute("SELECT id FROM employees WHERE telegram_id = ?", [tg]).fetchone()
+        await admin.set_schedule(
+            db, actor="owner", employee_id=int(row["id"]), weekdays=wd,
+            optional_weekdays=opt, valid_from="2026-10-01",
+        )
+    # Yakshanba (2026-11-22): Baxtiyorjon va Hasanboy (ixtiyoriy) dam oladi, Ahror ishlaydi
+    text = await bot_flow.today_text(db, date(2026, 11, 22))
+    assert "Baxtiyorjon — dam olish kuni" in text
+    assert "Hasanboy — dam olish kuni" in text
+    assert "Ahror — kelmagan" in text
+
+
+async def test_approved_leave_shows_ruxsatli(db):
+    req = await bot_flow.request_link(db, 704, "Rayxona")
+    await bot_flow.decide(db, actor="1", data=f"{bot_flow.CB_APPROVE}{req['id']}")
+    row = db.conn.execute("SELECT id FROM employees WHERE telegram_id = 704").fetchone()
+    await admin.apply_correction(
+        db, actor="owner", employee_id=int(row["id"]),
+        work_date="2026-11-23", new_status="APPROVED_LEAVE", reason="Shaxsiy ruxsat",
+    )
+    text = await bot_flow.today_text(db, date(2026, 11, 23))
+    assert "Rayxona — ruxsatli" in text
+    assert "kelmagan" not in text
+
+
+async def test_summary_scheduler_skips_when_nobody_scheduled_or_present(db):
+    from src.schedulers.attendance_summary_scheduler import maybe_send_daily_summary
+
+    req = await bot_flow.request_link(db, 705, "Baxtiyorjon")
+    await bot_flow.decide(db, actor="1", data=f"{bot_flow.CB_APPROVE}{req['id']}")
+    sent = []
+
+    # Yakshanba (2026-11-22) — hamma Du–Sha grafikda, hech kim kelmagan
+    assert await bot_flow.has_scheduled_or_present(db, date(2026, 11, 22)) is False
+    assert await maybe_send_daily_summary(db, date(2026, 11, 22), sender=lambda t: sent.append(t) or True) is False
+    assert sent == []
+
+    # Dushanba (2026-11-23) — ish kuni, xabar yuboriladi
+    assert await bot_flow.has_scheduled_or_present(db, date(2026, 11, 23)) is True
+    assert await maybe_send_daily_summary(db, date(2026, 11, 23), sender=lambda t: sent.append(t) or True) is True
+    assert len(sent) == 1 and "Baxtiyorjon — kelmagan" in sent[0]
