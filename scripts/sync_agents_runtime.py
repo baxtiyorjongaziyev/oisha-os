@@ -214,7 +214,7 @@ def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None
                 'openclaw config set agents.defaults.model.primary "google/gemini-3.5-flash"'
             )
             try:
-                subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False, timeout=30)
+                subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False, timeout=30)  # nosec B603
             except subprocess.TimeoutExpired:
                 logger.warning("[OpenClaw] Model config timed out for %s", owner_user)
 
@@ -338,7 +338,7 @@ def restart_oisha_service() -> bool:
     """Restart ONLY oisha.service without touching Mr.Jon or Amina."""
     if os.name == "nt":
         return True
-    res = subprocess.run(["sudo", "systemctl", "restart", "oisha.service"], check=False)
+    res = subprocess.run(["sudo", "systemctl", "restart", "oisha.service"], check=False)  # nosec B603
     if res.returncode == 0:
         logger.info("[Oisha] oisha.service qayta ishga tushirildi.")
         return True

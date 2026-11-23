@@ -10,7 +10,6 @@ OpenClaw (Mr.Jon) <-> Oisha-OS koʻprigi.
 from __future__ import annotations
 
 import hashlib
-import importlib
 import logging
 import os
 import pathlib
@@ -34,23 +33,6 @@ _CHANNEL_PREFIX: Dict[str, int] = {
     "discord": 3_000_000_000, "signal": 4_000_000_000, "imessage": 5_000_000_000,
     "teams": 6_000_000_000, "matrix": 7_000_000_000, "webchat": 8_000_000_000,
 }
-
-# Mr.Jon tashqi mijozlar bilan gaplashadigan mutaxassislar roʻyxati
-_CUSTOMER_SPECIALISTS: tuple[tuple[str, str, str, str], ...] = (
-    ("brief", "src.agents.brief_agent", "BriefAgent", "BRIEF_SUFFIX"),
-    ("welcome", "src.agents.welcome_agent", "WelcomeAgent", "WELCOME_SUFFIX"),
-    ("copywriter", "src.agents.copywriter_agent", "CopywriterAgent", "COPYWRITER_SUFFIX"),
-    ("branding_advisor", "src.agents.branding_advisor_agent", "BrandingAdvisorAgent", "BRANDING_ADVISOR_SUFFIX"),
-    ("competitor_watch", "src.agents.competitor_watch_agent", "CompetitorWatchAgent", "COMPETITOR_WATCH_SUFFIX"),
-    ("naming", "src.agents.naming_agent", "NamingAgent", "NAMING_SUFFIX"),
-    ("trademark", "src.agents.trademark_agent", "TrademarkAgent", "TRADEMARK_SUFFIX"),
-    ("packaging", "src.agents.packaging_agent", "PackagingAgent", "PACKAGING_SUFFIX"),
-    ("reels_script", "src.agents.reels_script_agent", "ReelsScriptAgent", "REELS_SCRIPT_SUFFIX"),
-    ("presentation", "src.agents.presentation_agent", "PresentationAgent", "PRESENTATION_SUFFIX"),
-    ("feedback", "src.agents.feedback_agent", "FeedbackAgent", "FEEDBACK_SUFFIX"),
-    ("upsell", "src.agents.upsell_agent", "UpsellAgent", "UPSELL_SUFFIX"),
-    ("referral", "src.agents.referral_agent", "ReferralAgent", "REFERRAL_SUFFIX"),
-)
 
 # Ichki operatsion intentlar Mr.Jon tashqi kanallarida strateg/sotuvga yoʻnaltiriladi
 _MRJON_INTENT_REMAP: Dict[str, str] = {
@@ -104,15 +86,56 @@ def _build_context(channel: str, sender: str, metadata: Dict[str, Any], *, perso
 
 def _resolve_live_controller() -> Optional[Any]:
     """Ishlab turgan MessageController ni topish."""
-    for module_path, attr_holder in (("src.api.routes.state", "api_state"), ("src.context", "app_ctx")):
-        try:
-            holder = getattr(importlib.import_module(module_path), attr_holder, None)
-            ctrl = getattr(holder, "msg_controller", None)
-            if ctrl is not None:
-                return ctrl
-        except Exception:
-            logger.debug("[OpenClawBridge] %s.msg_controller oʻqilmadi", attr_holder, exc_info=True)
+    try:
+        from src.api.routes.state import api_state
+
+        ctrl = getattr(api_state, "msg_controller", None)
+        if ctrl is not None:
+            return ctrl
+    except Exception:
+        logger.debug("[OpenClawBridge] api_state.msg_controller oʻqilmadi", exc_info=True)
+    try:
+        from src.context import app_ctx
+
+        ctrl = getattr(app_ctx, "msg_controller", None)
+        if ctrl is not None:
+            return ctrl
+    except Exception:
+        logger.debug("[OpenClawBridge] app_ctx.msg_controller oʻqilmadi", exc_info=True)
     return None
+
+
+def _customer_specialist_specs() -> tuple[tuple[str, Any, str], ...]:
+    """Mr.Jon tashqi mijozlar bilan gaplashadigan mutaxassis agent sinflari."""
+    from src.agents.branding_advisor_agent import BRANDING_ADVISOR_SUFFIX, BrandingAdvisorAgent
+    from src.agents.brief_agent import BRIEF_SUFFIX, BriefAgent
+    from src.agents.competitor_watch_agent import COMPETITOR_WATCH_SUFFIX, CompetitorWatchAgent
+    from src.agents.copywriter_agent import COPYWRITER_SUFFIX, CopywriterAgent
+    from src.agents.feedback_agent import FEEDBACK_SUFFIX, FeedbackAgent
+    from src.agents.naming_agent import NAMING_SUFFIX, NamingAgent
+    from src.agents.packaging_agent import PACKAGING_SUFFIX, PackagingAgent
+    from src.agents.presentation_agent import PRESENTATION_SUFFIX, PresentationAgent
+    from src.agents.reels_script_agent import REELS_SCRIPT_SUFFIX, ReelsScriptAgent
+    from src.agents.referral_agent import REFERRAL_SUFFIX, ReferralAgent
+    from src.agents.trademark_agent import TRADEMARK_SUFFIX, TrademarkAgent
+    from src.agents.upsell_agent import UPSELL_SUFFIX, UpsellAgent
+    from src.agents.welcome_agent import WELCOME_SUFFIX, WelcomeAgent
+
+    return (
+        ("brief", BriefAgent, BRIEF_SUFFIX),
+        ("welcome", WelcomeAgent, WELCOME_SUFFIX),
+        ("copywriter", CopywriterAgent, COPYWRITER_SUFFIX),
+        ("branding_advisor", BrandingAdvisorAgent, BRANDING_ADVISOR_SUFFIX),
+        ("competitor_watch", CompetitorWatchAgent, COMPETITOR_WATCH_SUFFIX),
+        ("naming", NamingAgent, NAMING_SUFFIX),
+        ("trademark", TrademarkAgent, TRADEMARK_SUFFIX),
+        ("packaging", PackagingAgent, PACKAGING_SUFFIX),
+        ("reels_script", ReelsScriptAgent, REELS_SCRIPT_SUFFIX),
+        ("presentation", PresentationAgent, PRESENTATION_SUFFIX),
+        ("feedback", FeedbackAgent, FEEDBACK_SUFFIX),
+        ("upsell", UpsellAgent, UPSELL_SUFFIX),
+        ("referral", ReferralAgent, REFERRAL_SUFFIX),
+    )
 
 
 def _register_core_agents(
@@ -142,10 +165,7 @@ def _register_core_agents(
     manager.register_agent(ResearcherAgent("researcher", base + "\n\nBozor tahlili va tadqiqot uchun masʼulsiz.", api_keys, executor, db))
     manager.register_agent(SupportAgent("support", base + "\n\nMijoz va hamkor savollariga tezkor javob uchun masʼulsiz.", api_keys, executor, db))
 
-    for agent_id, mod_path, cls_name, suffix_attr in _CUSTOMER_SPECIALISTS:
-        mod = importlib.import_module(mod_path)
-        cls = getattr(mod, cls_name)
-        suffix = getattr(mod, suffix_attr, "")
+    for agent_id, cls, suffix in _customer_specialist_specs():
         manager.register_agent(cls(agent_id, base + suffix, api_keys, executor, db))
 
 
