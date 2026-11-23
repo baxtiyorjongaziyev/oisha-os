@@ -85,6 +85,12 @@ async def moliya_hisobotlari_loop() -> None:
                     "moliya_kuzatuv", day, lambda t=target: run_kuzatuv_report(t)
                 )
 
+            # Airtable boʻsh maydonlarni bittama-bitta soʻrash — 10:00
+            if now.hour == 10 and now.minute < 5:
+                from src.services.core.finance.airtable_gap_filler import run_daily_gap_prompt
+
+                await run_once_per_day("airtable_gap_prompt", day, run_daily_gap_prompt)
+
             if hisobchi_active():
                 await _run_group_reports(now, day)
 

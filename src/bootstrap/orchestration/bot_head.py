@@ -146,6 +146,9 @@ async def init_aiogram_bot_head(
     register_existing_contact_signal_callbacks(
         dispatcher, msg_controller=msg_controller, owner_id=access_manager.owner_id
     )
+    from src.handlers.airtable_gap_handler import register_airtable_gap_handlers
+
+    register_airtable_gap_handlers(dispatcher, db=db)
     # Check-in reply'lari Hamroh'dan oldin: aks holda Hamroh ularni oddiy savol deb oladi.
     # Kunlik "eng muhim ish" suhbati: faqat shaxsiy chat va bugun savol ketgan aʼzo.
     register_daily_priority_handlers(dispatcher)
