@@ -235,6 +235,8 @@ def build_admin_aiogram_dispatcher(
     register_attendance_handlers(dp)
     from src.services.core.dispatcher.handlers_connect import register_connect_handlers
     register_connect_handlers(dp)
+    from src.services.core.dispatcher.handlers_welcome import register_welcome_handlers
+    register_welcome_handlers(dp, owner_id=owner_id)
     register_web_auth_handlers(dp, db=db, is_admin=is_admin)
     from src.services.core.crm.drive_delete_approvals import register_crm_drive_approval_handlers
     register_crm_drive_approval_handlers(dp, owner_id=owner_id)
