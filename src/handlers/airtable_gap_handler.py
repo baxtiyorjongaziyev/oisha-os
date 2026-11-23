@@ -102,6 +102,8 @@ async def handle_gap_text_reply(message: Any, *, db: Any) -> None:
 
 
 def register_airtable_gap_handlers(dispatcher: Any, *, db: Any) -> None:
+    if not hasattr(dispatcher, "message") or not hasattr(dispatcher, "callback_query"):
+        return
     from aiogram import F
 
     @dispatcher.message(F.text.regexp(r"(?i)^/toldir$"))
