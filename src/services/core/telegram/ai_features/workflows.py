@@ -217,17 +217,31 @@ async def handle_botnews_service_update(
 
     wa_ctx = extract_write_access_allowed_context(update)
     if wa_ctx is not None:
+        from src.services.core.dispatcher.handlers_welcome import (
+            build_owner_notice_from_dict,
+            build_welcome_text,
+            owner_id_from_env,
+        )
         chat_id = (wa_ctx.get("chat") or {}).get("id")
-        first_name = (wa_ctx.get("from_user") or {}).get("first_name") or "hamkasb"
+        user = wa_ctx.get("from_user") or {}
+        invited = bool(wa_ctx.get("inviter"))
         greeted = False
         if token and chat_id:
             try:
                 from src.services.core.telegram.ai_features.bot_api_client import TelegramBotAPI10Client
-                await TelegramBotAPI10Client(token).call(
+                client = TelegramBotAPI10Client(token)
+                await client.call(
                     "sendMessage",
-                    {"chat_id": chat_id, "text": f"Assalomu alaykum, {first_name}! Oisha-OS tizimiga xush kelibsiz."},
+                    {"chat_id": chat_id, "text": build_welcome_text(user.get("first_name"), invited=invited),
+                     "parse_mode": "HTML"},
                 )
                 greeted = True
+                owner_id = owner_id_from_env()
+                if invited and owner_id and user.get("id") != owner_id:
+                    try:
+                        await client.call("sendMessage", {"chat_id": owner_id, "text": build_owner_notice_from_dict(user)})
+                    except Exception as exc:
+                        logger.debug("[TG-AI] owner invite notice failed: %s", exc)
             except Exception as exc:
                 logger.debug("[TG-AI] write_access_allowed greeting failed: %s", exc)
         return {"ok": True, "handled": True, "update_type": "write_access_allowed", "greeted": greeted, "context": wa_ctx}
