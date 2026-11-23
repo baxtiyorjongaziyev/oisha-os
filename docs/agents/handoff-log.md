@@ -3209,3 +3209,9 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `src/schedulers/moliya/helpers.py`, `src/schedulers/moliya/kuzatuv.py`, `src/schedulers/moliya/loop.py`: `moliya_kuzatuv` 09:00 da kechagi kun uchun ishlaydi (`kuzatuv_target`), `observation_day()` 00:00–02:59 xabarlarini kechagi yopilish kuniga biriktiradi, `read_table_checked()` orqali Airtable tekshiruvi tasdiqlanganidan keyingina chek/rasm bor-yu yozuv yoʻq ogohlantirishini chiqaradi (`OWNER_TOPIC_FINANCE` va kuzatuv rejimi saqlandi).
   - Testlar: `tests/test_attendance_bot_flow.py`, `tests/test_moliya_kuzatuv.py`, `tests/test_status_notify.py`, `tests/test_crm_period_scheduler.py`.
 - **Tekshiruv:** pre-flight gateʼlar (focused + full `pytest`, `bandit`, `ruff`, `check_uzbek_text.py`) va PR CI tekshiriladi; jonli Hetzner deploy va 20-noyabrdagi Airtableʼga kiritilmagan 5 ta yozuv boʻyicha Dilbar bilan aniqlashtirish alohida operatsion ish.
+
+## 2026-11-23 — Claude — Bot API 10.5 taklif orqali kelganlarni kutib olish (PR #1128)
+- **Muammo:** `write_access_allowed` (botinvite havolasi) kelganda bot faqat umumiy salom yuborgan; `/ulanish` koʻrsatmasi va egaga xabar yoʻq edi.
+- **Bajarilgan ish:** `src/services/core/dispatcher/handlers_welcome.py` (HTML-escape qilingan matnlar); `src/services/core/telegram/ai_features/workflows.py::handle_botnews_service_update` faqat `inviter` boʻlsa onboarding matni va `OWNER_ID` ga xabar yuboradi, web app / attachment menu ruxsatlarida umumiy salom qoladi. Dispatcher handler qoʻshilmadi (polling raw middleware bu xabarni dispatcherdan oldin ushlaydi).
+- **Tekshiruv:** `tests/test_handlers_welcome.py` + ai_features testlari (28 passed), `bandit`, `check_uzbek_text.py` toza.
+- **Keyingi qadam:** jonli botinvite havolasi bilan Hetzner'da sinash.
