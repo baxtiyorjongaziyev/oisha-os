@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Oisha-OS — Enterprise AI & Automation Platform</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #111827;
+      --border: #1f2937;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --green: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 3rem 1.25rem;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.14);
+      color: var(--green);
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    h1 { font-size: 2.4rem; margin-bottom: 0.75rem; }
+    .lead { color: var(--muted); font-size: 1.1rem; margin-bottom: 2.25rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .card h2 { font-size: 1.05rem; margin-bottom: 0.45rem; color: #fff; }
+    .card p { font-size: 0.92rem; color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+    a.btn {
+      display: inline-block;
+      padding: 0.65rem 1.15rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost { border: 1px solid var(--border); color: var(--text); }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <span class="badge">Open Source • MIT License • Python 3.12 + Next.js</span>
+    <h1>Oisha-OS</h1>
+    <p class="lead">
+      Jon Branding agentligi uchun yaratilgan AI operatsion tizim: Telegram Bot API 10.5,
+      amoCRM v4, Hisobchi AI, SalesCoach AI va Marketing CAPI integratsiyalari.
+    </p>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Telegram Bot API 9.0–10.5</h2>
+        <p>Owner Private Topics & Sidebar, Native Checklists, Rich Messages va HTML Widgetlar.</p>
+      </div>
+      <div class="card">
+        <h2>Hisobchi & SalesCoach AI</h2>
+        <p>Bank SMS/kirim-chiqim tahlili, qoʻngʻiroqlar transkripsiyasi va sotuv sifati auditi.</p>
+      </div>
+      <div class="card">
+        <h2>Xavfsizlik va CI/CD</h2>
+        <p>Cheksiz GitHub Actions, CodeQL, Dependabot, Secret Scanning va Push Protection.</p>
+      </div>
+    </section>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="https://github.com/baxtiyorjongaziyev/oisha-os">GitHub Repository</a>
+      <a class="btn btn-ghost" href="https://github.com/sponsors/baxtiyorjongaziyev">GitHub Sponsors</a>
+      <a class="btn btn-ghost" href="https://github.com/baxtiyorjongaziyev/oisha-os/security">Security & CodeQL</a>
+    </div>
+  </main>
+</body>
+</html>
