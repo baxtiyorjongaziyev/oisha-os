@@ -3152,3 +3152,16 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `SKIP_LIVE=1 python -m pytest tests/test_ai_studio_bridge.py -q --tb=short`: `9 passed in 1.38s`.
   - `pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build`: `7 successful, 7 total` (Next.js `16.4.6`).
 - **Qolgan ish:** PR CI yashil boʻlgach squash-merge va PR #1098 ni yopish.
+
+## 2026-11-22 — Antigravity — fix(telegram): `rich_section_heading`, Widget→Rich fallback va 4 ta Owner hisobotini Sidebar Topiclariga yoʻnaltirish (2026-11-23 yangilandi)
+
+- **Vazifa:** Jonli Telegram Bot API 10.5 tekshiruvida aniqlangan 2 ta tafovutni tuzatish (`sendRichMessage` da `"heading"` blok turi va `sendWidget` rad etilganda `sendRichMessage` fallback), 4 ta asosiy Owner hisobotini (`Hisobchi kuzatuvi`, `CRM monitoring`, `Davomat`, `Tizim nazoratda`) shaxsiy Sidebar Topiclariga (`OWNER_TOPIC_*`) bogʻlash, hamda PR #1125 dagi merge konflikti va Codex P2 review topilmalarini hal qilish.
+- **Oʻzgargan fayllar:**
+  - `src/services/core/telegram/ai_features/models.py` (371 qator): `rich_section_heading()` endi `{"type": "heading", "text": text, "size": size}` qaytaradi.
+  - `src/services/core/telegram/ai_features/kpi_reports.py` (182 qator, yangi modul): `_KPIReportSpec`, `_build_kpi_widget_html`, `_send_rich_kpi_message`, `_send_private_kpi_widget`, va `send_oisha_kpi_report` ajratildi; `sendRichMessage` fallback va guruh hisobotlarida `progress_done`/`progress_total` saqlanadi.
+  - `src/services/core/telegram/ai_features/workflows.py` (252 qator): `get_owner_topic_id(section)` qoʻshildi; KPI funksiyalari `kpi_reports.py` ga koʻchirilib `send_oisha_kpi_report` qayta eksport qilindi.
+  - `src/services/core/telegram/ai_features/__init__.py` & `src/services/core/telegram/telegram_ai_features.py` (37 qator): `get_owner_topic_id` va `send_oisha_kpi_report` eksporti.
+  - `src/schedulers/moliya/kuzatuv.py`, `src/services/core/crm/amobot_daily_report.py`, `src/schedulers/attendance_summary_scheduler.py`, `src/schedulers/bg_monitor/helpers.py`, `src/schedulers/bg_monitor/jobs_crm.py`, `src/schedulers/main_loop/periodic_reports.py` (206 qator): Owner hisobotlari mos `OWNER_TOPIC_FINANCE/SALES/HR/SYSTEM` topiclariga va `Tizim nazoratda` raw `**` dan `<b>` HTML ga oʻtkazildi; `_check_overdue_and_status` dagi status xabari `try/except` bilan izolyatsiya qilindi.
+  - `tests/test_telegram_ai_features.py`, `tests/test_telegram_botnews_capabilities.py`, `tests/test_crm_period_scheduler.py`: `heading` strukturasi, `get_owner_topic_id`, `Widget -> sendRichMessage` progress fallback, va `status_notify` xato izolyatsiyasi testlari.
+- **Tekshiruv dalili:** `pytest` (7 ta test fayli: **78 passed**), `ruff check` (All checks passed), `bandit -ll` (0 issues), `check_uzbek_text.py --staged` (toza).
+- **Qolgan ish:** PR #1125 CI yashil boʻlgach squash-merge qilish va Hetzner deploy/`oisha.service` hamda 5 ta `OWNER_TOPIC_*` env oʻzgaruvchisini jonli muhitda yakuniy tasdiqlash.

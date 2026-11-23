@@ -80,9 +80,13 @@ class JobsCrmMixin:
     async def _job_status_notify(self, now: datetime) -> None:
         key = self._hour_key("status_notify", now)
         if not self._already_sent(key):
+            from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
+
             await self._notify_admin(
-                "👸 **Oisha OS: Tizim nazoratda**\n"
-                "AmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda."
+                "👸 <b>Oisha OS: Tizim nazoratda</b>\n"
+                "AmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.",
+                parse_mode="HTML",
+                message_thread_id=get_owner_topic_id("system"),
             )
             self._mark_sent(key)
 

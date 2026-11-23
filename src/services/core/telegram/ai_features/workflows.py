@@ -9,20 +9,19 @@ High-ROI Oisha-OS business workflows powered by Telegram Bot API 9.0–10.5:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from src.services.core.telegram.ai_features.kpi_reports import (  # noqa: F401
+    send_oisha_kpi_report,
+)
 from src.services.core.telegram.ai_features.models import (
-    build_input_rich_message,
     extract_write_access_allowed_context,
-    rich_expandable_blockquote,
-    rich_paragraph,
-    rich_section_heading,
 )
 from src.services.core.telegram.ai_features.rich_builders import (
     build_input_checklist,
     extract_checklist_tasks_done,
     extract_stopped_message_generation,
-    rich_table,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,6 +33,14 @@ OISHA_PRIVATE_TOPICS: Tuple[Tuple[str, str, int], ...] = (
     ("hr", "HR va Davomat", 13338331),             # Violet
     ("system", "Tizim va Alertlar", 16478047),     # Red
 )
+
+
+def get_owner_topic_id(section: str) -> Optional[int]:
+    """Resolve OWNER_TOPIC_<SECTION> thread ID from environment (None if unset)."""
+    raw = os.getenv(f"OWNER_TOPIC_{section.strip().upper()}", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return None
 
 INDUSTRY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
     "education": ("kurs", "akademiya", "taʼlim", "talim", "school", "ustoz", "ielts"),
@@ -172,142 +179,6 @@ async def sync_team_member_tags(
         except Exception as exc:
             failed[int(uid)] = str(exc)
     return {"chat_id": chat_id, "applied": applied, "failed": failed}
-
-
-def _format_kpi_fallback_text(
-    title: str,
-    subtitle: str,
-    kpis: Sequence[Tuple[str, Any]],
-    table_headers: Sequence[str],
-    table_rows: Sequence[Sequence[Any]],
-    progress_done: int = 0,
-    progress_total: int = 0,
-    details_text: Optional[str] = None,
-) -> str:
-    lines = [f"<b>{title}</b>", subtitle]
-    if kpis:
-        lines.append(" | ".join(f"{k}: {v}" for k, v in kpis))
-    if progress_total > 0:
-        lines.append(f"Progress: {progress_done}/{progress_total}")
-    if table_headers and table_rows:
-        lines.append(" | ".join(str(h) for h in table_headers))
-        for row in table_rows:
-            lines.append(" | ".join(str(c) for c in row))
-    if details_text:
-        lines.append(details_text)
-    return "\n".join(lines)
-
-
-async def _send_private_kpi_widget(
-    client: Any,
-    chat_id: int,
-    *,
-    title: str,
-    subtitle: str,
-    kpis: Sequence[Tuple[str, Any]],
-    table_headers: Sequence[str],
-    table_rows: Sequence[Sequence[Any]],
-    numeric_cols: Sequence[int],
-    progress_done: int,
-    progress_total: int,
-    details_text: Optional[str],
-    message_thread_id: Optional[int],
-) -> Dict[str, Any]:
-    from src.services.core.telegram.widgets import templates as wt
-    from src.services.core.telegram.widgets.client import WidgetClient
-    from src.services.core.telegram.widgets.sender import send_widget_or_text
-
-    def _build_html() -> str:
-        parts = [wt.header(title, subtitle), wt.kpi_row(kpis)]
-        if progress_total > 0:
-            parts.append(wt.progress("Progress", progress_done, progress_total))
-        if table_headers and table_rows:
-            parts.append(wt.table(table_headers, table_rows, numeric=numeric_cols))
-        parts.append(wt.action_bar([("Tasdiqlash", "ack")]))
-        return wt.render_widget(*parts, interactive=True)
-
-    fallback = _format_kpi_fallback_text(
-        title, subtitle, kpis, table_headers, table_rows, progress_done, progress_total, details_text
-    )
-    res = await send_widget_or_text(
-        client=WidgetClient(client),
-        chat_id=chat_id,
-        module="kpi_report",
-        build_html=_build_html,
-        fallback_text=fallback,
-        send_text=lambda cid, txt: client.finalize_streamed_message(
-            int(cid), txt, message_thread_id=message_thread_id
-        ),
-        caption=f"{title}: {subtitle}"[:200],
-        allow_queries=True,
-        message_thread_id=message_thread_id,
-    )
-    return {"ok": res.success, "mode": res.metadata.get("mode"), "tool": res.tool_name}
-
-
-async def send_oisha_kpi_report(
-    client: Any,
-    chat_id: int | str,
-    *,
-    title: str,
-    subtitle: str,
-    kpis: Sequence[Tuple[str, Any]],
-    table_headers: Sequence[str],
-    table_rows: Sequence[Sequence[Any]],
-    numeric_cols: Sequence[int] = (),
-    progress_done: int = 0,
-    progress_total: int = 0,
-    details_text: Optional[str] = None,
-    is_private_chat: bool = True,
-    message_thread_id: Optional[int] = None,
-) -> Dict[str, Any]:
-    """Send interactive HTML Widget (10.4) in private chat or Rich Table (10.1/10.5) in groups."""
-    if is_private_chat and isinstance(chat_id, int) and chat_id > 0:
-        return await _send_private_kpi_widget(
-            client,
-            chat_id,
-            title=title,
-            subtitle=subtitle,
-            kpis=kpis,
-            table_headers=table_headers,
-            table_rows=table_rows,
-            numeric_cols=numeric_cols,
-            progress_done=progress_done,
-            progress_total=progress_total,
-            details_text=details_text,
-            message_thread_id=message_thread_id,
-        )
-
-    blocks: List[Dict[str, Any]] = [
-        rich_section_heading(title),
-        rich_paragraph(subtitle),
-    ]
-    if kpis:
-        blocks.append(rich_paragraph(" • ".join(f"{k}: {v}" for k, v in kpis)))
-    if table_headers and table_rows:
-        blocks.append(
-            rich_table(
-                table_headers,
-                table_rows,
-                numeric_cols=numeric_cols,
-                is_bordered=True,
-                is_striped=True,
-                is_compact=True,
-            )
-        )
-    if details_text:
-        blocks.append(
-            rich_expandable_blockquote(
-                [rich_paragraph(details_text)],
-                credit="Oisha-OS",
-            )
-        )
-    rich_msg = build_input_rich_message(blocks=blocks)
-    return await client.send_rich_message(
-        chat_id,
-        rich_msg,
-        message_thread_id=message_thread_id,
-    )
 
 
 _STOPPED_DRAFTS: set[Tuple[int, int]] = set()

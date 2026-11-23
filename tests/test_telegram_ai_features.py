@@ -226,7 +226,11 @@ async def test_raw_client_send_rich_message_builds_input_rich_message():
     assert sent == {"message_id": 22}
     assert calls[0][0] == "sendRichMessage"
     assert calls[0][1]["rich_message"]["text"] == "Sarlavha"
-    assert calls[0][1]["rich_message"]["blocks"][0]["type"] == "section_heading"
+    assert calls[0][1]["rich_message"]["blocks"][0] == {
+        "type": "heading",
+        "text": "Hisobot",
+        "size": 3,
+    }
     assert calls[0][1]["message_thread_id"] == 3
     # business_connection_id and other None options stripped.
     assert "business_connection_id" not in calls[0][1]
@@ -379,7 +383,7 @@ def test_bot_api_10_5_invite_link_write_access_and_expandable_blockquote():
     assert block == {
         "type": "expandable_blockquote",
         "blocks": [
-            {"type": "section_heading", "text": "Tafsilot"},
+            {"type": "heading", "text": "Tafsilot", "size": 3},
             {"type": "paragraph", "text": "Jadval va media"},
         ],
         "credit": "Oisha-OS",
