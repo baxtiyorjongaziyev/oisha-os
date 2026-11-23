@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
 from typing import Any, Optional
 
@@ -15,6 +16,10 @@ logger = logging.getLogger("TgAmoBridge.inbound")
 # Wait for outbound.dispatch to record the tg message id of a message that
 # amoCRM itself asked us to send, so it is not echoed back as a manager reply.
 _ECHO_GRACE_SECONDS = 1.5
+
+
+def _sources_enabled() -> bool:
+    return os.getenv("TG_AMO_SOURCES_ENABLED", "0").strip().lower() in {"1", "true", "yes"}
 
 
 def _describe(message: Any) -> str:
@@ -83,9 +88,13 @@ async def handle_message(
         text=text,
         msg_id=amo_msg_id,
         phone=getattr(sender, "phone", None),
-        source_external_id=account.source_external_id,
+        # amoJo returns 400 when source.external_id is not a source created in
+        # the account (/api/v4/sources). Send it only once that source exists.
+        source_external_id=account.source_external_id if _sources_enabled() else None,
         silent=is_manager,
         is_manager=is_manager,
+        manager_id=f"oisha-tg-{account.key}",
+        manager_name=account.display_name,
     )
     result = await amojo.send_event(event_body)
     if result is None:

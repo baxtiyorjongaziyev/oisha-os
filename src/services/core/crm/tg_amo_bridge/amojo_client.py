@@ -60,7 +60,7 @@ class AmoJoClient:
             async with httpx.AsyncClient(timeout=10.0) as http:
                 resp = await http.post(f"{AMOJO_BASE}{path}", content=body, headers=headers)
             if resp.status_code >= 400:
-                logger.error("[TG-AMO] %s -> %s", path, resp.status_code)
+                logger.error("[TG-AMO] %s -> %s %s", path, resp.status_code, resp.text[:300])
                 return None
             return resp.json() if resp.content else {}
         except (httpx.HTTPError, ValueError) as exc:
@@ -95,12 +95,17 @@ class AmoJoClient:
         source_external_id: Optional[str] = None,
         silent: bool = False,
         is_manager: bool = False,
+        manager_id: Optional[str] = None,
+        manager_name: Optional[str] = None,
     ) -> dict:
         """Build a new_message event.
 
         is_manager=True: message was written by the manager in Telegram; the
-        client is moved to the receiver side so amoCRM shows it as outgoing.
+        client goes to the receiver side and the manager becomes the sender.
+        amoJo v2 rejects (HTTP 400) a payload with a receiver but no sender.
         """
+        if not (text or media_type):
+            raise ValueError("empty message")
         now = time.time()
         message: dict[str, Any] = {"type": "text", "text": text}
         if media_type:
@@ -129,6 +134,10 @@ class AmoJoClient:
             payload["source"] = {"external_id": source_external_id}
         if is_manager:
             payload["receiver"] = payload.pop("sender")
+            payload["sender"] = {
+                "id": manager_id or "oisha-tg-manager",
+                "name": manager_name or "Manager",
+            }
         return {"event_type": "new_message", "payload": payload}
 
     async def send_event(self, event: dict) -> Optional[dict]:

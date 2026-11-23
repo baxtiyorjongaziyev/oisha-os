@@ -47,6 +47,29 @@ def test_verify_amojo_signature():
     assert verified is False
 
 
+def test_verify_amojo_body_only_signature():
+    secret, body = "s3cret", b'{"message":{"text":"hi"}}'
+    sig = hmac.new(secret.encode(), body, hashlib.sha1).hexdigest()
+    assert _verify_amojo_signature(body, sig, None, None, secret)
+    assert not _verify_amojo_signature(body, "0" * 40, None, None, secret)
+    assert not _verify_amojo_signature(body, None, None, None, secret)
+
+
+def test_amocrm_chat_scope_path_body_signature(monkeypatch):
+    monkeypatch.setattr(
+        "src.api.routes.amocrm_chats.settings.AMOCRM_CHAT_CHANNEL_SECRET",
+        SecretStr("test_secret_123"),
+    )
+    body = b'{"message":{}}'
+    sig = hmac.new(b"test_secret_123", body, hashlib.sha1).hexdigest()
+    response = client.post(
+        "/webhook/amocrm/chats/scope-abc",
+        content=body,
+        headers={"Content-Type": "application/json", "X-Signature": sig},
+    )
+    assert response.status_code != 401
+
+
 def test_amocrm_chat_fails_closed_without_secret(monkeypatch):
     monkeypatch.setattr(
         "src.api.routes.amocrm_chats.settings.AMOCRM_CHAT_CHANNEL_SECRET",
