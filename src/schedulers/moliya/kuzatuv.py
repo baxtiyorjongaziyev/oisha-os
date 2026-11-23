@@ -9,8 +9,8 @@ orqali kiritadi. Hisobchi hech narsa yozmaydi va guruhga javob bermaydi:
 * yozuv sifatini tekshiradi (hujjat, kategoriya, loyiha, hisobot oyi, kurs);
 * moliya guruhidagi xabarlar sonini (``record_observation``) yozib boradi.
 
-Hisobot faqat egasiga (OWNER_ID) shaxsiy xabar sifatida, har kuni 21:00.
-Ma'lumot bo'lmasa raqam to'qilmaydi — "ma'lumot yo'q" deyiladi.
+Hisobot faqat egasiga (OWNER_ID) shaxsiy xabar sifatida, har kuni 09:00 (kechagi kun).
+Maʼlumot boʻlmasa raqam toʻqilmaydi — "maʼlumot yoʻq" deyiladi.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import logging
 import os
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from src.schedulers.moliya.cashflow import KATEGORIYA_JADVALLARI, kategoriya_nomi
@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 
 RULES_STATE_KEY = "hisobchi_kuzatuv_rules"
 OBSERVATION_STATE_PREFIX = "hisobchi_kuzatuv_obs_"
+OBSERVATION_DAY_CUTOFF_HOUR = 3
+
+
+def observation_day(now: datetime) -> str:
+    """00:00–02:59 xabarlari oldingi kun yopilish hisobotiga biriktiriladi."""
+    target = now - timedelta(days=1) if now.hour < OBSERVATION_DAY_CUTOFF_HOUR else now
+    return target.strftime("%Y-%m-%d")
 
 
 def rule_key(name: Any) -> str:
@@ -99,6 +106,32 @@ def link_names_text(value: Any) -> str:
     return str(value or "")
 
 
+def _evaluate_today(
+    today: list[dict], rules: dict[str, dict], nomlar: dict[str, str]
+) -> tuple[int, int, list[str], list[str]]:
+    checked = right = 0
+    wrong: list[str] = []
+    gap_lines: list[str] = []
+    for r in today:
+        f = r["fields"]
+        rule = rules.get(rule_key(f.get("Tranzaksiya")))
+        actual = _first_link(f.get("Kategoriya"))
+        if rule and actual:
+            checked += 1
+            if rule["kategoriya"] == actual:
+                right += 1
+            elif len(wrong) < 5:
+                wrong.append(
+                    f"• {esc(f.get('Tranzaksiya'))}: men "
+                    f"{esc(kategoriya_nomi(rule['kategoriya'], nomlar))} derdim, moliyachi "
+                    f"{esc(kategoriya_nomi(actual, nomlar))} tanladi"
+                )
+        gaps = quality_gaps(f)
+        if gaps and len(gap_lines) < 8:
+            gap_lines.append(f"• {esc(f.get('Tranzaksiya') or 'Nomsiz')}: {', '.join(gaps)}")
+    return checked, right, wrong, gap_lines
+
+
 async def build_kuzatuv_report(
     now: datetime,
     *,
@@ -123,40 +156,24 @@ async def build_kuzatuv_report(
     chiqim = sum(float((r["fields"].get("Summa UZS") or 0)) for r in today
                  if select_name(r["fields"].get("Turi")) == "Chiqim")
 
-    checked = right = 0
-    wrong: list[str] = []
-    gap_lines: list[str] = []
-    for r in today:
-        f = r["fields"]
-        rule = rules.get(rule_key(f.get("Tranzaksiya")))
-        actual = _first_link(f.get("Kategoriya"))
-        if rule and actual:
-            checked += 1
-            if rule["kategoriya"] == actual:
-                right += 1
-            elif len(wrong) < 5:
-                wrong.append(
-                    f"• {esc(f.get('Tranzaksiya'))}: men "
-                    f"{esc(kategoriya_nomi(rule['kategoriya'], nomlar))} derdim, moliyachi "
-                    f"{esc(kategoriya_nomi(actual, nomlar))} tanladi"
-                )
-        gaps = quality_gaps(f)
-        if gaps and len(gap_lines) < 8:
-            gap_lines.append(f"• {esc(f.get('Tranzaksiya') or 'Nomsiz')}: {', '.join(gaps)}")
+    checked, right, wrong, gap_lines = _evaluate_today(today, rules, nomlar)
+    photos = int(observation.get("photos", 0))
 
     lines = [
         f"🧾 <b>Hisobchi kuzatuvi — {day}</b>",
         "<i>Rejim: faqat kuzatish va o'rganish, hech narsa yozilmadi.</i>\n",
-        f"Bugun Airtable: <b>{len(today)}</b> ta yozuv "
+        f"Airtable: <b>{len(today)}</b> ta yozuv "
         f"(kirim {fmt(kirim)}, chiqim {fmt(chiqim)} so'm)",
         f"Guruhda: <b>{int(observation.get('messages', 0))}</b> ta xabar"
-        f" ({int(observation.get('photos', 0))} ta rasm/chek)",
+        f" ({photos} ta rasm/chek)",
         f"O'rganilgan qoidalar: <b>{len(rules)}</b> ta",
     ]
     if checked:
         lines.append(f"Taxmin mosligi: <b>{right}/{checked}</b> ({right * 100 // checked}%)")
     else:
         lines.append("Taxmin mosligi: ma'lumot yo'q")
+    if not today and photos > 0:
+        lines.append("⚠️ Guruhda chek/rasm bor, lekin Airtable yozuvi topilmadi — moliyachi kiritganini tekshiring.")
     if wrong:
         lines.append("\n<b>Farqlar (o'rganyapman):</b>")
         lines.extend(wrong)
@@ -166,13 +183,13 @@ async def build_kuzatuv_report(
     return "\n".join(lines)
 
 
-async def record_observation(*, has_photo: bool) -> None:
+async def record_observation(*, has_photo: bool, now: Optional[datetime] = None) -> None:
     """Moliya guruhidagi xabarni sanash — matn saqlanmaydi, faqat son."""
     try:
         from src.db import get_db
         from src.time_utils import get_local_now
 
-        key = OBSERVATION_STATE_PREFIX + get_local_now().strftime("%Y-%m-%d")
+        key = OBSERVATION_STATE_PREFIX + observation_day(now or get_local_now())
         db = get_db()
         obs = await db.get_state(key, {}) or {}
         obs["messages"] = int(obs.get("messages", 0)) + 1

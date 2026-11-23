@@ -67,7 +67,7 @@ async def test_report_measures_prediction_agreement_without_inventing_numbers():
         nomlar={"recIJARA": "Ijara", "recBOSHQA": "Boshqa"},
         observation={"messages": 4, "photos": 1},
     )
-    assert "Bugun Airtable: <b>3</b> ta yozuv" in report
+    assert "Airtable: <b>3</b> ta yozuv" in report
     assert "Guruhda: <b>4</b> ta xabar" in report
     assert "Taxmin mosligi: <b>1/2</b> (50%)" in report
     assert "Ijara" in report
@@ -76,8 +76,34 @@ async def test_report_measures_prediction_agreement_without_inventing_numbers():
 @pytest.mark.asyncio
 async def test_report_says_no_data_instead_of_fake_metrics():
     report = await kuzatuv.build_kuzatuv_report(NOW, records=[], nomlar={}, observation={})
-    assert "Bugun Airtable: <b>0</b> ta yozuv" in report
+    assert "Airtable: <b>0</b> ta yozuv" in report
     assert "Taxmin mosligi: ma'lumot yo'q" in report
+    assert "topilmadi" not in report
+
+
+def test_observation_day_buckets_late_night_into_previous_day():
+    assert kuzatuv.observation_day(datetime(2026, 11, 22, 1, 15)) == "2026-11-21"
+    assert kuzatuv.observation_day(datetime(2026, 11, 22, 2, 59)) == "2026-11-21"
+    assert kuzatuv.observation_day(datetime(2026, 11, 22, 3, 0)) == "2026-11-22"
+    assert kuzatuv.observation_day(datetime(2026, 11, 22, 21, 0)) == "2026-11-22"
+
+
+@pytest.mark.asyncio
+async def test_report_warns_when_photos_exist_without_airtable_records():
+    report = await kuzatuv.build_kuzatuv_report(
+        NOW, records=[], nomlar={}, observation={"messages": 5, "photos": 2}
+    )
+    assert "Airtable: <b>0</b> ta yozuv" in report
+    assert "Guruhda chek/rasm bor, lekin Airtable yozuvi topilmadi" in report
+
+
+def test_kuzatuv_runs_at_09_for_yesterday():
+    from src.schedulers.moliya.loop import kuzatuv_target
+
+    assert kuzatuv_target(datetime(2026, 11, 23, 9, 0)) == datetime(2026, 11, 22, 9, 0)
+    assert kuzatuv_target(datetime(2026, 11, 23, 9, 4)) == datetime(2026, 11, 22, 9, 4)
+    assert kuzatuv_target(datetime(2026, 11, 23, 9, 5)) is None
+    assert kuzatuv_target(datetime(2026, 11, 22, 21, 0)) is None
 
 
 @pytest.mark.asyncio

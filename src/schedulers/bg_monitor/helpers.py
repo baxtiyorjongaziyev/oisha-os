@@ -3,6 +3,8 @@ Helper functions and mixin for state tracking and notification dispatch in backg
 """
 from __future__ import annotations
 
+import html
+import json
 import logging
 import os
 from datetime import datetime
@@ -17,6 +19,40 @@ def _env_enabled(name: str, default: bool = True) -> bool:
     if val is None:
         return default
     return val.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+async def check_system_status_alert(
+    *, include_ok: bool = False, probe_fn: Any = None
+) -> Optional[str]:
+    """/readyz tekshiruvi asosida HTML tizim ogohlantirishi (muammosiz jim)."""
+    if probe_fn is None:
+        from src.api.routes.health import production_readiness_probe
+
+        probe_fn = production_readiness_probe
+    try:
+        resp = await probe_fn()
+        payload = resp if isinstance(resp, dict) else json.loads(resp.body.decode("utf-8"))
+    except Exception as exc:
+        return (
+            "⚠️ <b>Oisha OS: Tizim tekshiruvi xatosi</b>\n"
+            f"Holat tekshirilmadi: <code>{html.escape(type(exc).__name__)}</code>"
+        )
+    checks = payload.get("checks") or {}
+    blocking = payload.get("blocking") or []
+    summary = (
+        f"DB: {html.escape(str(checks.get('database', 'nomaʼlum')))} | "
+        f"AmoCRM: {html.escape(str(checks.get('amocrm', 'nomaʼlum')))} | "
+        f"Userbot: {html.escape(str(checks.get('userbot', 'nomaʼlum')))}"
+    )
+    if blocking:
+        issues = html.escape(", ".join(str(p) for p in blocking))
+        return (
+            "⚠️ <b>Oisha OS: Tizimda muammo aniqlandi</b>\n"
+            f"{summary}\nMuammolar: {issues}"
+        )
+    if include_ok:
+        return f"👸 <b>Oisha OS: Tizim nazoratda</b>\n{summary}"
+    return None
 
 
 class BaseMonitorHelpersMixin:

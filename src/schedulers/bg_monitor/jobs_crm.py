@@ -78,12 +78,18 @@ class JobsCrmMixin:
             self._mark_sent(key)
 
     async def _job_status_notify(self, now: datetime) -> None:
+        from src.schedulers.bg_monitor.helpers import (
+            _env_enabled,
+            check_system_status_alert,
+        )
+
         key = self._hour_key("status_notify", now)
         if not self._already_sent(key):
-            await self._notify_admin(
-                "👸 **Oisha OS: Tizim nazoratda**\n"
-                "AmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda."
+            alert = await check_system_status_alert(
+                include_ok=_env_enabled("STATUS_NOTIFY_OK", default=False)
             )
+            if alert:
+                await self._notify_admin(alert, parse_mode="HTML")
             self._mark_sent(key)
 
     async def _job_juma_notifier(self, now: datetime) -> None:

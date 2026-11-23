@@ -96,11 +96,27 @@ async def _check_overdue_and_status(now: datetime, task: Any) -> None:
 
     if any(_is_due(now, h, 0) for h in [13, 17, 21]):
         job_key = f"status_notify_{now.hour}_{today_str}"
-        if not _is_job_sent(task, job_key) and m.client:
-            await m.notify_admin(
-                "👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.",
-                m.client,
+        if not _is_job_sent(task, job_key):
+            from src.schedulers.bg_monitor.helpers import (
+                _env_enabled,
+                check_system_status_alert,
             )
+
+            alert = await check_system_status_alert(
+                include_ok=_env_enabled("STATUS_NOTIFY_OK", default=False)
+            )
+            if alert:
+                bot_rt = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+                owner_id = getattr(settings, "OWNER_ID", None)
+                sent = False
+                if bot_rt and owner_id:
+                    try:
+                        await bot_rt.send_message(owner_id, alert, parse_mode="HTML")
+                        sent = True
+                    except Exception as exc:
+                        logger.warning("[SCHEDULE][STATUS] bot send failed: %s", exc)
+                if not sent and getattr(m, "client", None):
+                    await m.notify_admin(alert, m.client, parse_mode="html")
 
 
 async def _check_morning_jobs(now: datetime, task: Any) -> None:

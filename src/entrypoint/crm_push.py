@@ -114,15 +114,19 @@ async def global_phone_lookup(phone: str, client: Optional[TelegramClient] = Non
         return None
 
 
-async def notify_admin(message: str, client: TelegramClient) -> None:
+async def notify_admin(
+    message: str, client: TelegramClient, *, parse_mode: Optional[str] = None
+) -> None:
     """Admin (baxtiyorjon) ga muhim xabar yuborish.
 
     Args:
         message: The message text to send
         client: The Telethon client instance
+        parse_mode: Optional Telegram parse mode (e.g. 'html')
     """
     try:
-        await client.send_message("me", message)
+        kwargs = {"parse_mode": parse_mode} if parse_mode else {}
+        await client.send_message("me", message, **kwargs)
     except Exception as e:
         logger.error(f"[NOTIFY ERROR] {e}")
 
