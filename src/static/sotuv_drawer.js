@@ -81,7 +81,10 @@ function renderDrawer(lead) {
   setVal("drawerContactPhone", lead.phone || "");
 
   const callBtn = document.getElementById("drawerCallBtn");
-  if (callBtn) callBtn.href = _safeTel(lead.phone);
+  if (callBtn) {
+    const digits = String(lead.phone || "").replace(/[^\d]/g, "");
+    callBtn.setAttribute("href", digits ? `tel:+${digits}` : "#");
+  }
 
   const stageSelect = document.getElementById("drawerStageSelect");
   const pipe = (crmCatalog?.pipelines || []).find((p) => p.id === lead.pipeline_id) || crmCatalog?.pipelines?.[0];
@@ -127,7 +130,7 @@ function renderDrawer(lead) {
   if (audioBox && player && src) {
     if (lead.last_audio_url && /^https?:\/\//i.test(String(lead.last_audio_url).trim())) {
       audioBox.classList.remove("hidden");
-      src.src = String(lead.last_audio_url).trim();
+      src.setAttribute("src", String(lead.last_audio_url).trim());
       player.load();
     } else {
       audioBox.classList.add("hidden");
@@ -139,7 +142,10 @@ function triggerDrawer1ClickCall() {
   if (!activeDrawerLead) return;
   const phone = document.getElementById("drawerContactPhone")?.value || activeDrawerLead.phone;
   if (typeof trigger1ClickCall === "function") trigger1ClickCall(activeDrawerLead.id, phone);
-  else window.location.href = _safeTel(phone);
+  else {
+    const digits = String(phone || "").replace(/[^\d]/g, "");
+    if (digits) window.open(`tel:+${digits}`, "_self");
+  }
 }
 
 function renderDrawerTags(tags) {

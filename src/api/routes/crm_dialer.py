@@ -382,15 +382,16 @@ async def get_crm_saas_settings() -> Dict[str, Any]:
 @router.get("/static/{filename}")
 async def serve_crm_static_asset(filename: str) -> Response:
     """Serve sotuv JS/CSS static assets reliably across local and production environments."""
-    safe_name = Path(filename).name
-    allowed = safe_name.startswith("sotuv") or safe_name.startswith("amo") or safe_name in ("manifest.json", "favicon.ico")
-    if not allowed or safe_name != filename or ".." in safe_name:
-        return Response("Not found", status_code=404)
     static_dir = (Path(__file__).resolve().parent.parent.parent / "static").resolve()
-    file_path = (static_dir / safe_name).resolve()
-    if not file_path.is_relative_to(static_dir) or not file_path.is_file():
+    allowed_files = {
+        p.name: p
+        for p in static_dir.iterdir()
+        if p.is_file() and (p.name.startswith("sotuv") or p.name.startswith("amo") or p.name in ("manifest.json", "favicon.ico"))
+    }
+    file_path = allowed_files.get(filename)
+    if file_path is None:
         return Response("Not found", status_code=404)
-    media = "text/css" if safe_name.endswith(".css") else "application/javascript" if safe_name.endswith(".js") else "application/json" if safe_name.endswith(".json") else "text/html"
+    media = "text/css" if file_path.suffix == ".css" else "application/javascript" if file_path.suffix == ".js" else "application/json" if file_path.suffix == ".json" else "text/html"
     return Response(content=file_path.read_text(encoding="utf-8"), media_type=media)
 
 @router.get("/sotuv", response_class=HTMLResponse)
