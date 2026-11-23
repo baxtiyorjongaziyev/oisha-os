@@ -159,3 +159,28 @@ def test_pipeline_run_end_to_end_mocked(tmp_path: Path):
     assert summary.commit_sha == "abc123sha"
     assert summary.files_processed == 1
     assert summary.god_files_detected == 0
+
+
+def test_pipeline_sets_descriptive_error_on_standards_violated(tmp_path: Path):
+    mock_git = MagicMock(spec=GitSyncManager)
+    mock_git.get_latest_remote_commit.return_value = "def456sha"
+    mock_git.sync_repository.return_value = True
+
+    god_file = tmp_path / "LargeView.tsx"
+    god_file.write_text("\n".join(f"export const x{i} = {i};" for i in range(420)), encoding="utf-8")
+    mock_git.list_source_files.return_value = [god_file]
+
+    config = AIStudioAppConfig(
+        app_id="app-789",
+        repo_name="test/repo",
+        target_dir="tmp_target",
+        run_preflight=False,
+    )
+
+    pipeline = AIStudioBridgePipeline(workspace_root=tmp_path, git_sync=mock_git)
+    summary = pipeline.run_pipeline(config)
+
+    assert summary.status == AppSyncStatus.STANDARDS_VIOLATED
+    assert summary.god_files_detected == 1
+    assert summary.god_files_refactored == 0
+    assert summary.details.get("error") == "1 file(s) exceed 400-line limit"

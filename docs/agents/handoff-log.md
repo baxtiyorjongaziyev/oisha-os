@@ -3142,3 +3142,13 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Changes:** `_read_get` shared OAuth-aware GETʼga yoʻnaltirildi; testlar bir martalik refresh+GET retry va refresh boʻlmasa fail-closed holatini tekshiradi; release runbook 401 diagnosis va token manbalari ustuvorligini tushuntiradi.
 - **Safety:** CRM biznes maʼlumotlariga faqat GET, Telegram send yoʻq. OAuth refresh POST va maxfiy tokenning fayl/DBʼga saqlanishi mumkin; bu biznes yozuvlariga mutatsiya emas. Token yoki maxfiy identifikator logga yozilmadi.
 - **Status/next:** PR CI tekshiruvlari va merge hali yakuniy tasdiqlanishi kerak. Audit qayta ishga tushirilmaguncha 401 tuzaldi yoki seller-routing live tasdiqlandi deb boʻlmaydi. Agar yangi audit yana 401 boʻlsa, long-lived token, token fayl/env/Turso manba ziddiyatlari va rasmiy reauthorization xavfsiz tekshirilsin.
+
+## 2026-11-23 — Antigravity — chore(github): ideal holat, AI Studio preflight va UI yuklanish holati
+- **Maqsad:** `AI Studio <-> Antigravity Sync` preflight va xato xabarini yaxshilash, `pnpm-workspace.yaml` dagi `next` overrideʼni `16.4.6` bilan sinxronlash, va eskirgan PR #1098 dagi `isSubmittingBug` loading holatini toza `main` ustiga olib oʻtish.
+- **Oʻzgargan fayllar:** `src/services/ai_studio/pipeline.py`, `tests/test_ai_studio_bridge.py`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `apps/web/src/components/Header.tsx`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/`: `All checks passed!`.
+  - `bandit -r src/ -ll -x src/services/debug/ --quiet`: `0` issues.
+  - `SKIP_LIVE=1 python -m pytest tests/test_ai_studio_bridge.py -q --tb=short`: `9 passed in 1.38s`.
+  - `pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build`: `7 successful, 7 total` (Next.js `16.4.6`).
+- **Qolgan ish:** PR CI yashil boʻlgach squash-merge va PR #1098 ni yopish.
