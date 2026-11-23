@@ -3145,3 +3145,20 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `bandit -r src/ -ll -q` → **0 issues** (exit 0); `python scripts/check_uzbek_text.py --staged` → **toza (0 xato)**.
 - **Qolgan ish/Bloker:** Hetzner VPS (`2.29.198.0`) da `.env` (3 ta alohida Gemini kaliti, `AMINA_BOT_TOKEN`, `MRJON_BOT_TOKEN`, `TASK_REGISTRY_TOKENS`) va Cloudflare DNS (`oisha.jonbranding.uz`, `crm.jonbranding.uz` → `2.29.198.0`) + SSL sozlash.
 
+## 2026-11-23 — Antigravity — PR #1124 review tuzatishlari va 3-bot runtime model/SOUL moslashuvi
+- **Sabab:** PR #1124 (`5c482799`) boʻyicha Devin/Codex review topilmalarini bartaraf etish va Hetzner prod diagnostikasi asosida OpenClaw/Oisha/Hermes runtime izolyatsiyasini yakunlash.
+- **Bajarilgan ish:**
+  1. `src/api/security.py`: `is_protected_path` dan `/api/tasks` ajratildi (per-bot `TASK_REGISTRY_TOKENS` fail-closed autentifikatsiyasi saqlanadi).
+  2. `deploy/nginx-oisha.conf`: `/capi` yoʻli Basic Auth ostida qoldirildi (`auth_basic off` roʻyxatidan chiqarildi).
+  3. `src/services/core/jamoa_ritm/guard.py`, `texts.py`, `brain.py` va `src/controllers/message_controller.py`: `Oisha` guruh vokativlari (`_leading_vocative_re` + `allow_inflections=False`) aniqlashtirildi; `load_oisha_soul()` (`deploy/oisha/SOUL.md`) `HamrohBrain` va `MessageController` ga ulandi (`_soul_mtime` yangilanishi va `logger` `F811` tuzatildi).
+  4. `src/agents/sales_pkg/agent.py`, `src/openclaw_bridge.py`, `src/api/routes/openclaw_gateway.py`, `src/services/api_server/webhooks.py`: `SalesAgent.process_task` endi `self.system_prompt` ni LLM promptiga qoʻshadi; `openclaw_bridge` da `persona="mrjon"|"oisha"` ajratildi, 13 ta mijozga yoʻnaltirilgan mutaxassis ulandi, ichki intentlar qayta xaritalandi va `_mrjon_soul_mtime` bilan yangilanish qoʻshildi.
+  5. `scripts/sync_agents_runtime.py` va `deploy/openclaw/openclaw.json`: `sync_yadro_to_deploy("all")` qisqa tutashuvi (`eager eval`) va `--bot all` ichida `sync_oisha_agent` qoʻshildi; OpenClaw modeli `google/gemini-3.5-flash` + fallback `google/gemini-3.5-flash-lite`, `google/gemini-3-flash-preview` ga yangilandi.
+- **Oʻzgargan fayllar:** `deploy/nginx-oisha.conf`, `deploy/openclaw/openclaw.json`, `scripts/sync_agents_runtime.py`, `src/agents/sales_pkg/agent.py`, `src/api/routes/openclaw_gateway.py`, `src/api/security.py`, `src/controllers/message_controller.py`, `src/openclaw_bridge.py`, `src/services/api_server/webhooks.py`, `src/services/core/jamoa_ritm/brain.py`, `src/services/core/jamoa_ritm/guard.py`, `src/services/core/jamoa_ritm/texts.py`, `tests/test_jamoa_ritm.py`, `tests/test_openclaw_gateway_bridge.py`, `tests/test_sales_agent_unit.py`, `tests/test_sync_agents_runtime.py`, `tests/test_task_registry.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:**
+  - Fokuslangan testlar (11 fayl): `101 passed` (17.47s).
+  - Toʻliq pre-flight (`SKIP_LIVE=1 python -m pytest -q --tb=short`): **4529 passed, 18 skipped, 4 subtests passed**; yagona yiqilish Windows NTFS ruxsatiga oid avvaldan mavjud POSIX testi (`tests/test_drive_oauth_onboarding.py::test_credentials_saved_privately_and_atomically`: `438 == 384`).
+  - `ruff check` (oʻzgargan va test `.py` fayllar): **All checks passed** (exit 0).
+  - `bandit -r src/ -ll -q`: **0 issues** (exit 0); `python scripts/check_uzbek_text.py --all --baseline`: **toza (1770 fayl)**.
+- **Keyingi qadam:** PR #1124 ni push/merge qilish va Hetzner (`2.29.198.0`) da 3 bot `.env` kalitlari hamda servislarni sinxronlab `/healthz/` va `/readyz` ni tasdiqlash.
+
+

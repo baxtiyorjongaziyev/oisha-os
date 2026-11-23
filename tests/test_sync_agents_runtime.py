@@ -37,8 +37,8 @@ class TestSyncAgentsRuntime(unittest.TestCase):
 
             updated = json.loads(cfg_file.read_text(encoding="utf-8"))
             self.assertEqual(updated["existing_key"], "preserved_val")
-            self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-2.5-flash")
-            self.assertIn("groq/llama-3.3-70b-versatile", updated["agents"]["defaults"]["model"]["fallbacks"])
+            self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-3.5-flash")
+            self.assertIn("google/gemini-3.5-flash-lite", updated["agents"]["defaults"]["model"]["fallbacks"])
             # Invalid models.providers apiKey dict blocks must be removed for OpenClaw schema validity
             self.assertNotIn("models", updated)
         finally:
@@ -90,7 +90,7 @@ class TestSyncAgentsRuntime(unittest.TestCase):
                 sync_agents_runtime.sync_all_openclaw_installations(base_homes=[fake_home])
                 self.assertTrue(cfg_path.is_file())
                 updated = json.loads(cfg_path.read_text(encoding="utf-8"))
-                self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-2.5-flash")
+                self.assertEqual(updated["agents"]["defaults"]["model"]["primary"], "google/gemini-3.5-flash")
         finally:
             shutil.rmtree(base_dir, ignore_errors=True)
 
@@ -154,16 +154,49 @@ class TestSyncAgentsRuntime(unittest.TestCase):
             self.assertGreaterEqual(mock_run.call_count, 5)
 
     def test_main_orchestration(self) -> None:
-        """Test main orchestrator executes all steps by default."""
+        """Test main orchestrator executes all steps by default (including Oisha sync without forced restart)."""
         with (
+            patch.object(sync_agents_runtime, "sync_oisha_agent") as m_oisha,
             patch.object(sync_agents_runtime, "sync_all_openclaw_installations") as m_oc,
             patch.object(sync_agents_runtime, "sync_hermes_agent") as m_hermes,
             patch.object(sync_agents_runtime, "restart_openclaw_gateway") as m_gw,
         ):
             sync_agents_runtime.main()
+            m_oisha.assert_called_once_with(restart=False)
             m_oc.assert_called_once()
             m_hermes.assert_called_once_with(restart=True)
             m_gw.assert_called_once()
+
+    def test_sync_yadro_to_deploy_does_not_short_circuit_when_oisha_missing(self) -> None:
+        """Test --bot all syncs Mr.Jon and Amina even if Oisha Yadro.md is absent."""
+        base_dir = Path("tmp_test_yadro_partial")
+        vault_dir = base_dir / "vault"
+        deploy_dir = base_dir / "deploy"
+        try:
+            for rel, body in (
+                (Path("90-AI/Bots/Mr.Jon/Yadro.md"), "# Mr.Jon Only\n"),
+                (Path("90-AI/Bots/Amina/Yadro.md"), "# Amina Only\n"),
+            ):
+                p = vault_dir / rel
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(body, encoding="utf-8")
+
+            with (
+                patch.object(sync_agents_runtime, "OISHA_DEPLOY_DIR", deploy_dir / "oisha"),
+                patch.object(sync_agents_runtime, "OPENCLAW_DEPLOY_DIR", deploy_dir / "openclaw"),
+                patch.object(sync_agents_runtime, "HERMES_DEPLOY_DIR", deploy_dir / "hermes"),
+            ):
+                self.assertFalse(sync_agents_runtime.sync_yadro_to_deploy("all", vault_dir=vault_dir))
+                self.assertEqual(
+                    (deploy_dir / "openclaw" / "workspace" / "SOUL.md").read_text(encoding="utf-8"),
+                    "# Mr.Jon Only\n",
+                )
+                self.assertEqual(
+                    (deploy_dir / "hermes" / "SOUL.md").read_text(encoding="utf-8"),
+                    "# Amina Only\n",
+                )
+        finally:
+            shutil.rmtree(base_dir, ignore_errors=True)
 
     def test_sync_yadro_to_deploy_strips_frontmatter_and_isolates_bot(self) -> None:
         """Test 1-way sync from Obsidian Vault Yadro.md to deploy/.../SOUL.md."""

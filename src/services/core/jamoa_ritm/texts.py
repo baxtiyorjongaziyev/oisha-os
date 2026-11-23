@@ -2,7 +2,23 @@
 from __future__ import annotations
 
 from datetime import date
+import logging
+import pathlib
 from typing import Optional
+
+_OISHA_SOUL_PATH = pathlib.Path(__file__).resolve().parents[4] / "deploy" / "oisha" / "SOUL.md"
+_texts_logger = logging.getLogger(__name__)
+
+
+def load_oisha_soul(soul_path: Optional[pathlib.Path] = None) -> str:
+    """Sinxronlangan deploy/oisha/SOUL.md faylini oʻqiydi; boʻlmasa boʻsh satr qaytaradi."""
+    target = soul_path or _OISHA_SOUL_PATH
+    try:
+        if target.is_file():
+            return target.read_text(encoding="utf-8").strip()
+    except OSError:
+        _texts_logger.debug("[OISHA-SOUL] SOUL.md oʻqilmadi: %s", target, exc_info=True)
+    return ""
 
 _GREETINGS = (
     "Xayrli tong, jamoa! ☀️",

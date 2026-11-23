@@ -5,6 +5,8 @@ Qoida (docs/agents/bot-personas.md #8):
   reply qilinsa) javob beradi.
 - Agar xabarda boshqa bot ismi ("Amina", "Mr.Jon", "@jon_clawbot") tilga olingan boʻlsa va
   shu botning oʻzi chaqirilmagan boʻlsa — jim turadi (hatto reply qilingan boʻlsa ham).
+- Agar xabar boshqa botga murojaat bilan boshlansa ("Amina, Oishaga yozing") — bu
+  Oishaga chaqiruv emas, Oisha jim turadi.
 """
 from __future__ import annotations
 
@@ -29,12 +31,21 @@ def _mention_re(bot_username: str) -> re.Pattern:
     return re.compile(rf"(?<![\w@])@{re.escape(bot_username.lstrip('@'))}\b", re.IGNORECASE)
 
 
-def _name_re(names: Iterable[str]) -> Optional[re.Pattern]:
+def _name_re(names: Iterable[str], *, allow_inflections: bool = True) -> Optional[re.Pattern]:
     cleaned = [re.escape(n.strip().lstrip("@")) for n in names if n and n.strip()]
     if not cleaned:
         return None
     joined = "|".join(cleaned)
-    return re.compile(rf"(?<![\w@])@?(?:{joined})(?:xon|jon|ga|dan|ni|ning)?\b", re.IGNORECASE)
+    suffix = "(?:xon|jon|ga|dan|ni|ning)?" if allow_inflections else "(?:xon|jon)?"
+    return re.compile(rf"(?<![\w@])@?(?:{joined}){suffix}\b", re.IGNORECASE)
+
+
+def _leading_vocative_re(names: Iterable[str]) -> Optional[re.Pattern]:
+    cleaned = [re.escape(n.strip().lstrip("@")) for n in names if n and n.strip()]
+    if not cleaned:
+        return None
+    joined = "|".join(cleaned)
+    return re.compile(rf"^\s*@?(?:{joined})(?:xon|jon)?\b(?!\s+va\b)", re.IGNORECASE)
 
 
 def is_addressed(
@@ -52,13 +63,18 @@ def is_addressed(
         return False
 
     has_self_username = bool(bot_username and _mention_re(bot_username).search(clean))
-    self_pattern = _name_re(self_names)
-    has_self_name = bool(self_pattern and self_pattern.search(clean))
-
-    if has_self_username or has_self_name:
+    if has_self_username:
         return True
 
-    other_pattern = _name_re(other_bot_names)
+    other_leading = _leading_vocative_re(other_bot_names)
+    if other_leading and other_leading.search(clean):
+        return False
+
+    self_pattern = _name_re(self_names, allow_inflections=False)
+    if self_pattern and self_pattern.search(clean):
+        return True
+
+    other_pattern = _name_re(other_bot_names, allow_inflections=True)
     if other_pattern and other_pattern.search(clean):
         return False
 

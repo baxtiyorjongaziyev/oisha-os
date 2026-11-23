@@ -15,6 +15,7 @@ from src.services.core.jamoa_ritm.texts import (
     RETRO_FALLBACK,
     RETRO_TASK,
     TAHLIL_TASK,
+    load_oisha_soul,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,8 @@ class HamrohBrain:
         self._tz = tz
 
     async def _ask(self, prompt: str, *, max_tokens: int, temperature: float) -> str:
-        system = HAMROH_SYSTEM
+        soul = load_oisha_soul()
+        system = f"[OISHA YADRO]\n{soul}\n\n{HAMROH_SYSTEM}" if soul else HAMROH_SYSTEM
         try:
             from src.services.core.adaptive_learning import get_adaptive_prompt_context
 

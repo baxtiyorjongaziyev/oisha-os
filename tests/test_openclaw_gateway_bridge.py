@@ -112,9 +112,53 @@ async def test_get_orchestrator_registers_core_agents_without_booted_controller(
     assert orchestrator.manager.get_agent("support") is not None
     assert orchestrator.manager.get_agent("strategist") is not None
     assert orchestrator.manager.get_agent("researcher") is not None
+    assert orchestrator.manager.get_agent("naming") is not None
+    assert orchestrator.manager.get_agent("branding_advisor") is not None
     # Mr.Jon bridge must use Mr.Jon SOUL.md identity, never Oisha identity
     assert "Mr.Jon" in sales_agent.system_prompt
     assert "Sen Oisha emassan va Amina emassan" in sales_agent.system_prompt
+    assert "Mr.Jon" in orchestrator.manager.get_agent("naming").system_prompt
+
+
+@pytest.mark.asyncio
+async def test_openclaw_bridge_reloads_when_soul_mtime_changes(tmp_path, monkeypatch):
+    soul_file = tmp_path / "SOUL.md"
+    soul_file.write_text("# Mr.Jon v1", encoding="utf-8")
+    monkeypatch.setattr(openclaw_bridge, "_MRJON_SOUL_PATH", soul_file)
+    monkeypatch.setattr(openclaw_bridge, "_agent_manager", None)
+    monkeypatch.setattr(openclaw_bridge, "_orchestrator", None)
+    monkeypatch.setattr(openclaw_bridge, "_mrjon_soul_mtime", None)
+
+    orch1 = await openclaw_bridge._get_orchestrator(db=None, persona="mrjon")
+    assert "# Mr.Jon v1" in orch1.manager.get_agent("sales").system_prompt
+
+    import os
+    soul_file.write_text("# Mr.Jon v2", encoding="utf-8")
+    stat = soul_file.stat()
+    os.utime(soul_file, (stat.st_atime + 5, stat.st_mtime + 5))
+
+    orch2 = await openclaw_bridge._get_orchestrator(db=None, persona="mrjon")
+    assert orch2 is not orch1
+    assert "# Mr.Jon v2" in orch2.manager.get_agent("sales").system_prompt
+
+
+@pytest.mark.asyncio
+async def test_openclaw_bridge_preserves_oisha_persona_when_requested(monkeypatch):
+    from src.api.routes.state import api_state
+
+    oisha_orch = SimpleNamespace(
+        determine_intent=AsyncMock(return_value="ops"),
+        get_agent_response=AsyncMock(return_value="Oisha javobi"),
+    )
+    oisha_ctrl = SimpleNamespace(orchestrator=oisha_orch, db="shared_db", executor="shared_executor", api_keys={})
+    monkeypatch.setattr(api_state, "msg_controller", oisha_ctrl)
+
+    reply = await openclaw_bridge.handle_openclaw_message(
+        text="Salom", sender="Mijoz", sender_id="99", channel="telegram_business", persona="oisha"
+    )
+    assert reply == "Oisha javobi"
+    assert oisha_orch.get_agent_response.await_args.kwargs["agent_id"] == "ops"
+    assert oisha_orch.get_agent_response.await_args.kwargs["context"]["persona"] == "oisha"
 
 
 @pytest.mark.asyncio

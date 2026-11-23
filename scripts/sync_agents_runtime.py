@@ -78,7 +78,8 @@ def sync_yadro_to_deploy(bot: str, vault_dir: pathlib.Path | None = None) -> boo
     """One-way sync from Obsidian Vault 90-AI/Bots/<Bot>/Yadro.md to deploy/.../SOUL.md."""
     canonical = normalize_bot_target(bot)
     if canonical == "all":
-        return all(sync_yadro_to_deploy(b, vault_dir=vault_dir) for b in ("oisha", "mrjon", "amina"))
+        results = [sync_yadro_to_deploy(b, vault_dir=vault_dir) for b in ("oisha", "mrjon", "amina")]
+        return all(results)
     resolved_vault = vault_dir or (
         pathlib.Path(os.environ["OBSIDIAN_VAULT_DIR"].strip())
         if os.environ.get("OBSIDIAN_VAULT_DIR", "").strip()
@@ -100,7 +101,7 @@ def sync_yadro_to_deploy(bot: str, vault_dir: pathlib.Path | None = None) -> boo
 
 
 def update_openclaw_config_file(config_path: pathlib.Path) -> bool:
-    """Update openclaw.json with Gemini 2.5 Flash as primary and Groq as fallback."""
+    """Update openclaw.json with Gemini 3.5 Flash as primary and 3.5 Lite / 3 Flash Preview fallbacks."""
     try:
         data: dict[str, Any] = {}
         if config_path.is_file():
@@ -110,10 +111,10 @@ def update_openclaw_config_file(config_path: pathlib.Path) -> bool:
         agents = data.setdefault("agents", {})
         defaults = agents.setdefault("defaults", {})
         defaults["model"] = {
-            "primary": "google/gemini-2.5-flash",
+            "primary": "google/gemini-3.5-flash",
             "fallbacks": [
-                "groq/llama-3.3-70b-versatile",
-                "google/gemini-2.5-flash-lite",
+                "google/gemini-3.5-flash-lite",
+                "google/gemini-3-flash-preview",
             ],
         }
 
@@ -210,7 +211,7 @@ def sync_all_openclaw_installations(base_homes: list[pathlib.Path] | None = None
                     logger.warning("[OpenClaw] Doctor repair timed out for %s", owner_user)
             cmd = (
                 "command -v openclaw >/dev/null 2>&1 && "
-                'openclaw config set agents.defaults.model.primary "google/gemini-2.5-flash"'
+                'openclaw config set agents.defaults.model.primary "google/gemini-3.5-flash"'
             )
             try:
                 subprocess.run(["sudo", "-iu", owner_user, "bash", "-c", cmd], check=False, timeout=30)
@@ -249,7 +250,7 @@ def sync_hermes_agent(hermes_dir: pathlib.Path | None = None, *, restart: bool =
     if os.name != "nt":
         for c in (
             "hermes config set model.provider gemini || true",
-            "hermes config set model.default gemini-2.5-flash || true",
+            "hermes config set model.default gemini-3.5-flash-lite || true",
         ):
             subprocess.run(["sudo", "-iu", "hermes", "bash", "-c", c], check=False)
         if restart:
@@ -375,15 +376,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     do_restart = not args.no_restart
     logger.info("=== Agent sinxronizatsiyasi boshlandi (target=%s, restart=%s) ===", target, do_restart)
     sync_yadro_to_deploy(target, vault_dir=args.vault_dir)
-    if target == "oisha":
+    if target in {"oisha", "all"}:
         sync_oisha_agent(restart=bool(args.restart and do_restart))
-    else:
-        if target in {"mrjon", "all"}:
-            sync_all_openclaw_installations()
-        if target in {"amina", "all"}:
-            sync_hermes_agent(restart=do_restart)
-        if target in {"mrjon", "all"} and do_restart:
+    if target in {"mrjon", "all"}:
+        sync_all_openclaw_installations()
+        if do_restart:
             restart_openclaw_gateway()
+    if target in {"amina", "all"}:
+        sync_hermes_agent(restart=do_restart)
     logger.info("=== Sinxronizatsiya yakunlandi (target=%s) ===", target)
 
 
