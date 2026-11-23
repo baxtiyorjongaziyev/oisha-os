@@ -137,35 +137,27 @@ _ALLOWED_LOGIN_REDIRECTS: frozenset[str] = frozenset({
 })
 
 
-_ATTENDANCE_PAGES = frozenset({"/api/attendance/app", "/api/attendance/app/admin", "/api/connect/app"})
+_ALLOWED_REDIRECTS = {
+    "/capi": "/capi",
+    "/api/marketing/capi/console": "/api/marketing/capi/console",
+    "/api/attendance/app": "/api/attendance/app",
+    "/api/attendance/app/admin": "/api/attendance/app/admin",
+    "/api/connect/app": "/api/connect/app",
+}
 
 
 def _safe_redirect_target(target: Optional[str]) -> str:
     """Return a strictly whitelisted relative redirection path with zero untrusted taint."""
     if not target or not isinstance(target, str):
         return "/"
-    cleaned = target.strip()
-    if cleaned == "/capi":
-        return "/capi"
-    if cleaned == "/api/marketing/capi/console":
-        return "/api/marketing/capi/console"
-    if cleaned in _ATTENDANCE_PAGES:
-        return cleaned
-    return "/"
+    return _ALLOWED_REDIRECTS.get(target.strip(), "/")
 
 
 def _safe_login_next(target: Optional[str]) -> str:
     """Return a strictly whitelisted next parameter or empty string."""
     if not target or not isinstance(target, str):
         return ""
-    cleaned = target.strip()
-    if cleaned == "/capi":
-        return "/capi"
-    if cleaned == "/api/marketing/capi/console":
-        return "/api/marketing/capi/console"
-    if cleaned in _ATTENDANCE_PAGES:
-        return cleaned
-    return ""
+    return _ALLOWED_REDIRECTS.get(target.strip(), "")
 
 
 @router.get("/api/auth/telegram/login")

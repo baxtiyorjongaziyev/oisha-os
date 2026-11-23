@@ -1,5 +1,8 @@
 // O'zbekcha amoCRM 1:1 — Bitim Kartochkasi Drawer va Timeline Boshqaruvi
 // Optimistic 0ms Render, Background Enrichment, Fail-Safe DOM Manipulation (<= 400 lines)
+const _esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const _safeUrl = (u) => (/^https?:\/\//i.test(String(u || "").trim()) ? _esc(String(u).trim()) : "#");
+const _safeTel = (p) => `tel:${String(p || "").replace(/[^\d+]/g, "")}`;
 
 function renderCustomFieldsForm() {
   const container = document.getElementById("drawerBantFieldsContainer");
@@ -78,7 +81,7 @@ function renderDrawer(lead) {
   setVal("drawerContactPhone", lead.phone || "");
 
   const callBtn = document.getElementById("drawerCallBtn");
-  if (callBtn) callBtn.href = `tel:${(lead.phone || "").replace(/\s+/g, "")}`;
+  if (callBtn) callBtn.href = _safeTel(lead.phone);
 
   const stageSelect = document.getElementById("drawerStageSelect");
   const pipe = (crmCatalog?.pipelines || []).find((p) => p.id === lead.pipeline_id) || crmCatalog?.pipelines?.[0];
@@ -122,9 +125,9 @@ function renderDrawer(lead) {
   const player = document.getElementById("drawerAudioPlayer");
   const src = document.getElementById("drawerAudioSource");
   if (audioBox && player && src) {
-    if (lead.last_audio_url) {
+    if (lead.last_audio_url && /^https?:\/\//i.test(String(lead.last_audio_url).trim())) {
       audioBox.classList.remove("hidden");
-      src.src = lead.last_audio_url;
+      src.src = String(lead.last_audio_url).trim();
       player.load();
     } else {
       audioBox.classList.add("hidden");
@@ -136,7 +139,7 @@ function triggerDrawer1ClickCall() {
   if (!activeDrawerLead) return;
   const phone = document.getElementById("drawerContactPhone")?.value || activeDrawerLead.phone;
   if (typeof trigger1ClickCall === "function") trigger1ClickCall(activeDrawerLead.id, phone);
-  else window.location.href = `tel:${(phone || "").replace(/\s+/g, "")}`;
+  else window.location.href = _safeTel(phone);
 }
 
 function renderDrawerTags(tags) {
@@ -144,7 +147,7 @@ function renderDrawerTags(tags) {
   if (!box) return;
   box.innerHTML = (tags || []).map((t, idx) => `
     <span class="text-[12px] bg-[#303d4b] text-[#e2e8f0] px-2.5 py-1 rounded font-semibold flex items-center gap-1.5">
-      ${t}<button onclick="removeDrawerTag(${idx})" class="text-[#9db0be] hover:text-red-400 font-bold">&times;</button>
+      ${_esc(t)}<button onclick="removeDrawerTag(${idx})" class="text-[#9db0be] hover:text-red-400 font-bold">&times;</button>
     </span>`).join("");
 }
 
@@ -175,8 +178,8 @@ function renderDrawerFiles(files) {
   }
   box.innerHTML = files.map((f) => `
     <div class="flex items-center justify-between p-2 rounded bg-white border border-[#e2e8f0] text-xs">
-      <a href="${f.url}" target="_blank" class="font-semibold text-[#1565c0] hover:underline truncate max-w-[200px]">${f.name || f.url}</a>
-      <span class="text-[10px] text-[#64748b] uppercase font-mono">${f.type || "fayl"}</span>
+      <a href="${_safeUrl(f.url)}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[#1565c0] hover:underline truncate max-w-[200px]">${_esc(f.name || f.url)}</a>
+      <span class="text-[10px] text-[#64748b] uppercase font-mono">${_esc(f.type || "fayl")}</span>
     </div>`).join("");
 }
 
@@ -204,16 +207,16 @@ function renderDrawerAiAnalysis(ai) {
     box.innerHTML = `<div class="text-[14px] text-[#64748b]">Oisha AI tahlili uchun yuqoridagi tugmani bosing.</div>`;
     return;
   }
-  const recs = (ai.recommendations || []).map((r) => `<li class="text-[14px] text-[#2e3640] leading-relaxed">${r}</li>`).join("");
+  const recs = (ai.recommendations || []).map((r) => `<li class="text-[14px] text-[#2e3640] leading-relaxed">${_esc(r)}</li>`).join("");
   box.innerHTML = `
     <div class="flex items-center justify-between border-b border-[#e5e7eb] pb-2 mb-2.5">
-      <span class="text-[14px] font-bold text-[#2e3640]">BANT: <span class="text-[#4c8bf7]">${ai.bant_score || 75}/100</span></span>
-      <span class="text-[13px] font-semibold px-2 py-0.5 rounded bg-[#ecfdf5] text-[#047857]">${ai.sentiment || "Ijobiy"}</span>
+      <span class="text-[14px] font-bold text-[#2e3640]">BANT: <span class="text-[#4c8bf7]">${_esc(ai.bant_score || 75)}/100</span></span>
+      <span class="text-[13px] font-semibold px-2 py-0.5 rounded bg-[#ecfdf5] text-[#047857]">${_esc(ai.sentiment || "Ijobiy")}</span>
     </div>
-    <p class="text-[14px] text-[#334155] mb-2 leading-relaxed"><b>Xulosa:</b> ${ai.summary}</p>
-    <p class="text-[14px] text-[#b45309] bg-[#fffbeb] p-2 rounded border border-[#fde68a] mb-2"><b>Mijoz og'rig'i:</b> ${ai.pain_point || ""}</p>
+    <p class="text-[14px] text-[#334155] mb-2 leading-relaxed"><b>Xulosa:</b> ${_esc(ai.summary)}</p>
+    <p class="text-[14px] text-[#b45309] bg-[#fffbeb] p-2 rounded border border-[#fde68a] mb-2"><b>Mijoz ogʻrigʻi:</b> ${_esc(ai.pain_point || "")}</p>
     <ul class="list-disc pl-4 space-y-1 mb-2">${recs}</ul>
-    <div class="text-[14px] font-bold text-[#15803d] bg-[#f0fdf4] p-2 rounded border border-[#bbf7d0]">Keyingi qadam: ${ai.next_best_action || ""}</div>`;
+    <div class="text-[14px] font-bold text-[#15803d] bg-[#f0fdf4] p-2 rounded border border-[#bbf7d0]">Keyingi qadam: ${_esc(ai.next_best_action || "")}</div>`;
 }
 
 async function runDrawerAiAnalysis() {
@@ -259,12 +262,12 @@ function setDrawerChatMode(mode) {
 
   if (mode === "telegram") {
     infoBox?.classList.remove("hidden");
-    if (infoText) infoText.innerHTML = `Telegram: <b>${tgTarget}</b>`;
+    if (infoText) infoText.innerHTML = `Telegram: <b>${_esc(tgTarget)}</b>`;
     if (input) input.placeholder = "Mijozga Telegram orqali xabar yozing...";
     if (sendBtn) { sendBtn.className = "bg-[#0284c7] hover:bg-[#0369a1] text-white text-sm font-bold px-4 py-2 rounded shrink-0 shadow-sm"; sendBtn.innerHTML = "<span>Yuborish</span>"; }
   } else if (mode === "instagram") {
     infoBox?.classList.remove("hidden");
-    if (infoText) infoText.innerHTML = `Instagram Direct: <b>${lead.contact_name || "Mijoz"}</b>`;
+    if (infoText) infoText.innerHTML = `Instagram Direct: <b>${_esc(lead.contact_name || "Mijoz")}</b>`;
     if (input) input.placeholder = "Mijozga Instagram Direct orqali xabar yozing...";
     if (sendBtn) { sendBtn.className = "bg-[#ec4899] hover:bg-[#db2777] text-white text-sm font-bold px-4 py-2 rounded shrink-0 shadow-sm"; sendBtn.innerHTML = "<span>Yuborish</span>"; }
   } else {

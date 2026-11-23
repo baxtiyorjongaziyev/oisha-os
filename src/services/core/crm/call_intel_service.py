@@ -61,16 +61,39 @@ class CallIntelService:
             logger.warning("[CALL-INTEL] MoiZvonki login failed: %s", e)
         return None
 
+    @staticmethod
+    def _is_safe_audio_url(audio_url: str) -> bool:
+        """Block SSRF by allowing only public http(s) URLs."""
+        import ipaddress
+        import socket
+        from urllib.parse import urlparse
+
+        parsed = urlparse(audio_url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        host = parsed.hostname.lower()
+        if host in ("localhost", "127.0.0.1", "::1") or host.endswith(".local"):
+            return False
+        try:
+            infos = socket.getaddrinfo(host, None)
+        except OSError:
+            return False
+        for info in infos:
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        return True
+
     def download_audio_bytes(self, audio_url: str) -> Optional[Tuple[bytes, str]]:
         """MoiZvonki yoki to'g'ridan-to'g'ri URL orqali audio baytlarini yuklab olish."""
-        if not audio_url or not audio_url.startswith("http"):
+        if not audio_url or not self._is_safe_audio_url(audio_url):
             return None
         sess = None
         if "moizvonki" in audio_url:
             sess = self._get_moizvonki_session()
         client = sess if sess else requests.Session()
         try:
-            resp = client.get(audio_url, timeout=40)
+            resp = client.get(audio_url, timeout=40, allow_redirects=False)
             if resp.status_code == 200 and resp.content and len(resp.content) > 1000:
                 # 60027 baytlik soxta login sahifasi audiosini rad etish
                 if len(resp.content) == 60027:

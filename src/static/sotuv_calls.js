@@ -1,5 +1,6 @@
 // Jon CRM — 1-Click MoiZvonki Callback va Interaktiv Audio Pleyer & Whisper STT Tizimi
 let currentPlayingAudio = null;
+const _escCall = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 function getCrmAuthToken() {
   try {
@@ -126,9 +127,9 @@ function buildAudioPlayerHtml(call, uniqueId) {
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-1.5">
           ${dirBadge}
-          <span class="font-bold text-[#1e293b]">${call.by || "Sotuvchi"}</span>
+          <span class="font-bold text-[#1e293b]">${_escCall(call.by || "Sotuvchi")}</span>
         </div>
-        <span class="text-[10px] text-[#64748b]">${call.time || "Bugun"}</span>
+        <span class="text-[10px] text-[#64748b]">${_escCall(call.time || "Bugun")}</span>
       </div>
 
       ${audioUrl ? `
@@ -170,10 +171,10 @@ function buildAudioPlayerHtml(call, uniqueId) {
               <span id="txt_toggle_${uniqueId}">Transkripsiya matni ▼</span>
             </button>
           </div>
-          ${ai.summary ? `<div class="text-[12px] text-[#334155] leading-relaxed"><b>Xulosa:</b> ${ai.summary}</div>` : ''}
-          ${ai.pain_point ? `<div class="text-[11px] text-[#b45309] bg-[#fffbeb] p-1.5 rounded border border-[#fde68a]"><b>Mijoz og'rig'i:</b> ${ai.pain_point}</div>` : ''}
+          ${ai.summary ? `<div class="text-[12px] text-[#334155] leading-relaxed"><b>Xulosa:</b> ${_escCall(ai.summary)}</div>` : ''}
+          ${ai.pain_point ? `<div class="text-[11px] text-[#b45309] bg-[#fffbeb] p-1.5 rounded border border-[#fde68a]"><b>Mijoz ogʻrigʻi:</b> ${_escCall(ai.pain_point)}</div>` : ''}
           <div id="transcript_box_${uniqueId}" class="hidden mt-1 p-2 bg-white rounded border border-[#e2e8f0] font-mono text-[11px] text-[#1e293b] leading-relaxed max-h-40 overflow-y-auto whitespace-pre-line custom-scrollbar">
-            ${transcript}
+            ${_escCall(transcript)}
           </div>
         </div>
       ` : audioUrl ? `
