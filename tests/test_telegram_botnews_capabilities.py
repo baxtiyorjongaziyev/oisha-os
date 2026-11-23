@@ -305,7 +305,7 @@ async def test_styled_buttons_ephemeral_10_4_and_adaptive_kpi_report(monkeypatch
     assert "Progress: 18/20" in calls[-1][1]["text"]
     assert "Ali | 25M" in calls[-1][1]["text"]
 
-    # Group chat -> sends Bot API 10.1/10.5 Rich Message with compact table & expandable blockquote
+    # Group chat -> sends Bot API 10.1/10.5 Rich Message with compact table, progress & blockquote
     await send_oisha_kpi_report(
         client,
         -100777,
@@ -315,11 +315,14 @@ async def test_styled_buttons_ephemeral_10_4_and_adaptive_kpi_report(monkeypatch
         table_headers=["Boʻlim", "Ball"],
         table_rows=[["Sotuv", 95]],
         numeric_cols=(1,),
+        progress_done=9,
+        progress_total=10,
         details_text="Qoʻshimcha tafsilotlar",
         is_private_chat=False,
     )
     assert calls[-1][0] == "sendRichMessage"
     blocks = calls[-1][1]["rich_message"]["blocks"]
+    assert any(b["type"] == "paragraph" and "Progress: 9/10" in b["text"] for b in blocks)
     assert any(b["type"] == "table" and b.get("is_compact") is True for b in blocks)
     assert any(b["type"] == "expandable_blockquote" for b in blocks)
     assert rich_button_row([ok_btn])["type"] == "buttons"
@@ -375,6 +378,8 @@ async def test_private_kpi_report_falls_back_to_rich_message_when_widget_rejecte
         table_headers=["Band", "Summa"],
         table_rows=[["Savdo", "10M"]],
         numeric_cols=(1,),
+        progress_done=18,
+        progress_total=20,
         is_private_chat=True,
         message_thread_id=2199290,
     )
@@ -384,5 +389,6 @@ async def test_private_kpi_report_falls_back_to_rich_message_when_widget_rejecte
     assert [m for m, _ in calls] == ["sendWidget", "sendRichMessage"]
     rich_blocks = calls[-1][1]["rich_message"]["blocks"]
     assert rich_blocks[0] == {"type": "heading", "text": "Moliya", "size": 3}
+    assert any(b["type"] == "paragraph" and "Progress: 18/20" in b["text"] for b in rich_blocks)
     assert calls[-1][1]["message_thread_id"] == 2199290
 

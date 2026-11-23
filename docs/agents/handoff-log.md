@@ -3089,7 +3089,6 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv:** GitHub Actions CI bu PR ochilgach tekshiriladi; jonli amoCRM audit hali ISHGA TUSHIRILMAGAN, hech qanday vazifa yopilmagan. Oldingi 2026-11-20 GitHub Actions amocrm-task-cleanup dry-run: 589 ochiq vazifa, yopilgan bitimlarda 0 ta mos Oisha vazifasi. Bu barcha 589 vazifaning daromad sifatini tasdiqlamaydi.
 - **Qolgan ish/Bloker:** auditni Hetznerda faqat read-only ishga tushirish, chiqqan nomzodlarni owner bilan koʻrib chiqish, faqat tasdiqlangan IDlarni qayta tekshiruvdan keyin yopish. Sotuvchilarga shaxsiy vazifa yoʻnaltirishning oldingi Work sessiyasidagi 11 ta lokal oʻzgarishi GitHub main da mavjud emas; ular tasdiqlanmaguncha production statusi nomaʼlum.
 
-
 ## 2026-11-21 — ChatGPT — daily-priority seller ownership fail-closed
 - **Muammo:** mavjud daily_priority/gatherer.py 3 sotuvchiga deal bosqichlari bo‘yicha narxi yuqori bitimlarni round-robin taqsimlagan, bu bitta amoCRM login ishlatilayotgan paytda boshqa sotuvchining mijozini shaxsiy chatga joʻnatishi mumkin.
 - **Bajarilgan ish:** src/services/core/daily_priority/ownership.py — aniq Sotuvchi custom field yoki aniq tegdan shaxsiy egasini topadi; field/tag zid boʻlsa yoki nomaʼlum boʻlsa hech kimga biriktirmaydi. gatherer.py — round-robin oʻrniga egasi tekshirilgan bitimni faqat shu sotuvchiga yuboradi; moliya bosqichi oʻzgarmagan. tests/test_daily_priority.py fixturelari yangilandi, tests/test_daily_priority_ownership.py qoʻshildi.
@@ -3126,15 +3125,33 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - Barcha production fayllar qatʼiy `150–400` qator standartiga mos (`bot_api_extensions.py`: 226, `rich_builders.py`: 212, `workflows.py`: 248, `bot_api_client.py`: 399, `models.py`: 371, `telegram_api10.py`: 384, `webhooks.py`: 396, `messages.py`: 337).
 - **Qolgan ish / Keyingi qadam:** Jonli bot tokeni bilan production/staging muhitda `bootstrap_owner_private_topics(client, OWNER_ID)` ni bir marta ishga tushirib, Owner shaxsiy chatida 5 ta topic va sidebar ochilishini koʻzdan kechirish.
 
+## 2026-11-21 - OpenCode - Agency MCP production audit va conversion fix
+- **Maqsad:** `POST /api/agency-mcp` ni real, scoped, read-only biznes gateway sifatida tekshirish; AI uchun alohida token; ishlamayotgan manbalarni aniqlash.
+- **Bajarilgan ish:**
+  1. Production token yaratildi: `OISHA_SERVICE_TOKENS_JSON` (.env, 600) + `.secrets/agency-mcp-token` (600); `.env.bak.20261121-092709` backup. Scope: `mcp:read`, `dashboard:read`, `lead:read:all`, `marketing:read`, `call:read:all`, `finance:read`.
+  2. `oisha` restart qilindi; `/healthz/` va `/readyz/` 200; token bilan `initialize`, `tools/list`, 9 manba productionda tekshirildi.
+  3. `conversion` route'dagi eskirgan engine metodlari (`get_overview`, `get_trend`, `get_volume`, `get_seller_card`, `sync_revenue`) haqiqiy API'ga almashtirildi (`team_summary`, `conversion_trend`, `fetch_volumes`, `diagnose_all`, `MetaSellRevenueSync`); DB yo'q bo'lsa 503.
+  4. `tests/test_conversion_routes.py` qo'shildi (7 test); `docs/oisha-agency-mcp.md` real holat matritsasi va Claude/Codex/ChatGPT yo'riqnomalari bilan yangilandi.
+- **O'zgargan fayllar:** `src/api/routes/ai_analytics_pkg/conversion.py`, `tests/test_conversion_routes.py`, `docs/oisha-agency-mcp.md`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** `tests/test_conversion_routes.py` 7 passed; `test_metasell_conversion.py` + `test_pr475_review_fixes.py` + `test_agency_mcp.py` 85+ passed; bandit toza. Production (fix oldidan): sales_report, pipeline, leads, finance, finance_transactions, sales_quality, projects ishladi; marketing `partial` (Meta kesh 2026-10-16 da to'xtagan); conversion `source_unavailable` (fix PR'da).
+- **Qolgan ish/Bloker:** (a) conversion fix PR merge + deploy + qayta tekshirish. (b) Meta: `META_AD_ACCOUNT_ID` yo'q va mavjud page token `ads_read`ga ega emas. (c) Hisobchi Google Sheet `Pul oqimi` 0 qator. (d) ChatGPT ulanishi uchun OAuth 2.1 kerak - hozir bearer-only. (e) `tasks`/`team` ataylab AI token scope'idan tashqarida.
 
-## 2026-11-22 — Antigravity — fix(telegram): `rich_section_heading`, Widget→Rich fallback va 4 ta Owner hisobotini Sidebar Topiclariga yoʻnaltirish
+## 2026-11-21 — ChatGPT — seller routing audit 401 OAuth fix
+- **Trigger:** workflow `DailyPriority Seller Routing Audit #1` (run 44891892996) read-only `GET /api/v4/leads/custom_fields` 401 Unauthorized. Sotuvchi maydon metadata/bitimlar tekshiruvi muvaffaqiyatli bajarmagan.
+- **Root cause (source-confirmed):** `scripts/prod/probe_daily_priority_seller_routes.py::_read_get` refresh qilmaydigan `client.amo.access_token` ni toʻgʻridan-toʻgʻri GETʼga qoʻygan; `scripts/amocrm_task_cleanup.py::AmoCRMTaskCleaner._get` esa `_get_headers()` + `refresh_token()` guard va 401ʼdan keyin bitta GET retry bilan mavjud.
+- **Changes:** `_read_get` shared OAuth-aware GETʼga yoʻnaltirildi; testlar bir martalik refresh+GET retry va refresh boʻlmasa fail-closed holatini tekshiradi; release runbook 401 diagnosis va token manbalari ustuvorligini tushuntiradi.
+- **Safety:** CRM biznes maʼlumotlariga faqat GET, Telegram send yoʻq. OAuth refresh POST va maxfiy tokenning fayl/DBʼga saqlanishi mumkin; bu biznes yozuvlariga mutatsiya emas. Token yoki maxfiy identifikator logga yozilmadi.
+- **Status/next:** PR CI tekshiruvlari va merge hali yakuniy tasdiqlanishi kerak. Audit qayta ishga tushirilmaguncha 401 tuzaldi yoki seller-routing live tasdiqlandi deb boʻlmaydi. Agar yangi audit yana 401 boʻlsa, long-lived token, token fayl/env/Turso manba ziddiyatlari va rasmiy reauthorization xavfsiz tekshirilsin.
 
-- **Vazifa:** Jonli Telegram Bot API 10.5 tekshiruvida aniqlangan 2 ta tafovutni tuzatish (`sendRichMessage` da `"heading"` blok turi va `sendWidget` rad etilganda `sendRichMessage` fallback) hamda 4 ta asosiy Owner hisobotini (`Hisobchi kuzatuvi`, `CRM monitoring`, `Davomat`, `Tizim nazoratda`) shaxsiy Sidebar Topiclariga (`OWNER_TOPIC_*`) bogʻlash.
+## 2026-11-22 — Antigravity — fix(telegram): `rich_section_heading`, Widget→Rich fallback va 4 ta Owner hisobotini Sidebar Topiclariga yoʻnaltirish (2026-11-23 yangilandi)
+
+- **Vazifa:** Jonli Telegram Bot API 10.5 tekshiruvida aniqlangan 2 ta tafovutni tuzatish (`sendRichMessage` da `"heading"` blok turi va `sendWidget` rad etilganda `sendRichMessage` fallback), 4 ta asosiy Owner hisobotini (`Hisobchi kuzatuvi`, `CRM monitoring`, `Davomat`, `Tizim nazoratda`) shaxsiy Sidebar Topiclariga (`OWNER_TOPIC_*`) bogʻlash, hamda PR #1125 dagi merge konflikti va Codex P2 review topilmalarini hal qilish.
 - **Oʻzgargan fayllar:**
-  - `src/services/core/telegram/ai_features/models.py`: `rich_section_heading()` endi `{"type": "heading", "text": text, "size": size}` qaytaradi.
-  - `src/services/core/telegram/ai_features/workflows.py` (390 qator): `get_owner_topic_id(section)`, `_send_rich_kpi_message()`, va `_send_private_kpi_widget()` da `WIDGETS_ENABLED=1` paytida `sendWidget` xatosidan `sendRichMessage` ga fallback.
-  - `src/services/core/telegram/ai_features/__init__.py` & `src/services/core/telegram/telegram_ai_features.py` (37 qator): `get_owner_topic_id` eksporti.
-  - `src/schedulers/moliya/kuzatuv.py`, `src/services/core/crm/amobot_daily_report.py`, `src/schedulers/attendance_summary_scheduler.py`, `src/schedulers/bg_monitor/helpers.py`, `src/schedulers/bg_monitor/jobs_crm.py`, `src/schedulers/main_loop/periodic_reports.py`: Owner hisobotlari mos `OWNER_TOPIC_FINANCE/SALES/HR/SYSTEM` topiclariga va `Tizim nazoratda` raw `**` dan `<b>` HTML ga oʻtkazildi.
-  - `tests/test_telegram_ai_features.py` & `tests/test_telegram_botnews_capabilities.py`: `heading` strukturasi, `get_owner_topic_id`, va `Widget -> sendRichMessage` fallback testlari.
-- **Tekshiruv dalili:** `pytest` (7 ta modul: 76 passed), `ruff check --select F821,F822,ASYNC210,ASYNC221` (All checks passed), `bandit -ll` (0 issues), `check_uzbek_text.py --staged` (toza).
-- **Qolgan ish:** PR merge dan keyin Hetzner `.env` ga `OWNER_TOPIC_{FINANCE,SALES,MARKETING,HR,SYSTEM}` IDlarini qoʻshish va `oisha.service` ni `active` holatda tasdiqlash.
+  - `src/services/core/telegram/ai_features/models.py` (371 qator): `rich_section_heading()` endi `{"type": "heading", "text": text, "size": size}` qaytaradi.
+  - `src/services/core/telegram/ai_features/kpi_reports.py` (182 qator, yangi modul): `_KPIReportSpec`, `_build_kpi_widget_html`, `_send_rich_kpi_message`, `_send_private_kpi_widget`, va `send_oisha_kpi_report` ajratildi; `sendRichMessage` fallback va guruh hisobotlarida `progress_done`/`progress_total` saqlanadi.
+  - `src/services/core/telegram/ai_features/workflows.py` (252 qator): `get_owner_topic_id(section)` qoʻshildi; KPI funksiyalari `kpi_reports.py` ga koʻchirilib `send_oisha_kpi_report` qayta eksport qilindi.
+  - `src/services/core/telegram/ai_features/__init__.py` & `src/services/core/telegram/telegram_ai_features.py` (37 qator): `get_owner_topic_id` va `send_oisha_kpi_report` eksporti.
+  - `src/schedulers/moliya/kuzatuv.py`, `src/services/core/crm/amobot_daily_report.py`, `src/schedulers/attendance_summary_scheduler.py`, `src/schedulers/bg_monitor/helpers.py`, `src/schedulers/bg_monitor/jobs_crm.py`, `src/schedulers/main_loop/periodic_reports.py` (206 qator): Owner hisobotlari mos `OWNER_TOPIC_FINANCE/SALES/HR/SYSTEM` topiclariga va `Tizim nazoratda` raw `**` dan `<b>` HTML ga oʻtkazildi; `_check_overdue_and_status` dagi status xabari `try/except` bilan izolyatsiya qilindi.
+  - `tests/test_telegram_ai_features.py`, `tests/test_telegram_botnews_capabilities.py`, `tests/test_crm_period_scheduler.py`: `heading` strukturasi, `get_owner_topic_id`, `Widget -> sendRichMessage` progress fallback, va `status_notify` xato izolyatsiyasi testlari.
+- **Tekshiruv dalili:** `pytest` (7 ta test fayli: **78 passed**), `ruff check` (All checks passed), `bandit -ll` (0 issues), `check_uzbek_text.py --staged` (toza).
+- **Qolgan ish:** PR #1125 CI yashil boʻlgach squash-merge qilish va Hetzner deploy/`oisha.service` hamda 5 ta `OWNER_TOPIC_*` env oʻzgaruvchisini jonli muhitda yakuniy tasdiqlash.
