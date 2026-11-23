@@ -37,9 +37,18 @@ def _send(text: str) -> bool:
         return False
 
 
+async def maybe_send_daily_summary(db, day, sender=_send) -> bool:
+    from src.services.core.attendance import bot_flow
+
+    if not await bot_flow.has_scheduled_or_present(db, day):
+        logger.info("[ATT-SUMMARY] %s dam olish kuni — yuborilmadi", day)
+        return False
+    text = await bot_flow.today_text(db, day)
+    return bool(await asyncio.to_thread(sender, text))
+
+
 async def attendance_summary_loop() -> None:
     from src.database_pool import db_pool
-    from src.services.core.attendance import bot_flow
 
     if os.getenv("ATTENDANCE_DAILY_SUMMARY", "1") != "1":
         return
@@ -47,11 +56,11 @@ async def attendance_summary_loop() -> None:
     while True:
         try:
             now = get_local_now()
-            # Faqat 19:30–19:59 oynasida: kechqurun restart bo'lsa qayta yuborilmaydi.
+            # Faqat 19:30–19:59 oynasida: kechqurun restart boʻlsa qayta yuborilmaydi.
             if now.hour == SEND_AT[0] and now.minute >= SEND_AT[1] and sent_on != now.date():
-                if await asyncio.to_thread(_send, await bot_flow.today_text(db_pool, now.date())):
+                if await maybe_send_daily_summary(db_pool, now.date()):
                     logger.info("[ATT-SUMMARY] yuborildi %s", now.date())
-                sent_on = now.date()  # xato bo'lsa ham kuniga bir marta urinadi
+                sent_on = now.date()  # xato boʻlsa ham kuniga bir marta urinadi
         except Exception as e:
             logger.error("[ATT-SUMMARY] Error: %s", e)
         await asyncio.sleep(60)

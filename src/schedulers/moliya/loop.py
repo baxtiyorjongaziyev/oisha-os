@@ -10,7 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Optional
 
 from src.schedulers.moliya.balans import run_balans_eslatmasi, run_balans_report
 from src.schedulers.moliya.cashflow import run_cashflow_report
@@ -25,15 +26,39 @@ from src.schedulers.moliya.moliyachi_skill import run_skill_update
 logger = logging.getLogger(__name__)
 
 
+KUZATUV_HOUR = 9
+
+
+def kuzatuv_target(now: datetime) -> Optional[datetime]:
+    """09:00–09:04 da kechagi toʻliq kun uchun kuzatuv hisobotini qaytaradi."""
+    if now.hour == KUZATUV_HOUR and now.minute < 5:
+        return now - timedelta(days=1)
+    return None
+
+
 def hisobchi_active() -> bool:
     """HISOBCHI_ACTIVE=1 bo'lmasa guruhga hisobot/eslatma yuborilmaydi (default: to'xtatilgan)."""
     return os.getenv("HISOBCHI_ACTIVE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+async def _run_group_reports(now: datetime, day: str) -> None:
+    """Faol Hisobchi rejimidagi guruh hisobotlari va eslatmalar."""
+    if now.weekday() == 0 and now.hour == 9 and now.minute < 5:
+        await run_once_per_day("moliya_qarzdorlik", day, run_qarzdorlik_report)
+    if now.hour == 9 and now.minute < 5:
+        await run_once_per_day("moliya_balans", day, run_balans_report)
+    if now.day == 1 and now.hour == 9 and now.minute < 5:
+        await run_once_per_day("moliya_pnl", day, lambda: run_pnl_report(now))
+    if now.hour == 19 and now.minute < 5:
+        await run_once_per_day("moliya_cashflow", day, lambda: run_cashflow_report(now))
+    if now.hour == 20 and now.minute < 5:
+        await run_once_per_day("moliya_balans_eslatma", day, run_balans_eslatmasi)
+
+
 async def moliya_hisobotlari_loop() -> None:
     from src.time_utils import get_local_now
 
-    await asyncio.sleep(120)  # bot to'liq ko'tarilishini kutamiz
+    await asyncio.sleep(120)  # bot toʻliq koʻtarilishini kutamiz
 
     logger.info("[MOLIYA] Hisobot sikli boshlandi")
 
@@ -42,10 +67,6 @@ async def moliya_hisobotlari_loop() -> None:
             now = get_local_now()
             day = now.strftime("%Y-%m-%d")
 
-            # Moliyachi ish tartibini o'rganish — 00:10 da tugagan (kechagi) kun
-            # profilga qo'shiladi; dushanba tongida (yakshanba yopilgach) skill
-            # hujjati egasiga yuboriladi. Manba o'qilmasa claim bo'shaydi va
-            # keyingi daqiqada qayta urinadi.
             if now.hour == 0 and 10 <= now.minute < 15:
                 yesterday = now - timedelta(days=1)
                 await run_once_per_day(
@@ -57,37 +78,15 @@ async def moliya_hisobotlari_loop() -> None:
             if now.day in SOLIQ_KUNLARI and now.hour == 9 and now.minute < 5:
                 await run_once_per_day("soliq_eslatma", day, lambda: run_soliq_eslatma(now))
 
-            if not hisobchi_active():
-                # Hisobchi to'xtatilgan: guruhga hisobot/eslatma yuborilmaydi,
-                # faqat egasiga kuzatuv (21:00) va skill (00:10, kechagi kun).
-                if now.hour == 21 and now.minute < 5:
-                    await run_once_per_day("moliya_kuzatuv", day, lambda: run_kuzatuv_report(now))
-                await asyncio.sleep(60)
-                continue
+            # Hisobchi kuzatuvi (moliyachi ishini oʻrganish) — egasiga, 09:00 (kechagi kun)
+            target = kuzatuv_target(now)
+            if target is not None:
+                await run_once_per_day(
+                    "moliya_kuzatuv", day, lambda t=target: run_kuzatuv_report(t)
+                )
 
-            # Qarzdorlik — dushanba 09:00
-            if now.weekday() == 0 and now.hour == 9 and now.minute < 5:
-                await run_once_per_day("moliya_qarzdorlik", day, run_qarzdorlik_report)
-
-            # Balans — har kuni 09:00
-            if now.hour == 9 and now.minute < 5:
-                await run_once_per_day("moliya_balans", day, run_balans_report)
-
-            # P&L — har oyning 1-sanasi 09:00, o'tgan oy hisoboti
-            if now.day == 1 and now.hour == 9 and now.minute < 5:
-                await run_once_per_day("moliya_pnl", day, lambda: run_pnl_report(now))
-
-            # Cashflow — har kuni 19:00
-            if now.hour == 19 and now.minute < 5:
-                await run_once_per_day("moliya_cashflow", day, lambda: run_cashflow_report(now))
-
-            # Kunlik balans eslatmasi — har kuni 20:00
-            if now.hour == 20 and now.minute < 5:
-                await run_once_per_day("moliya_balans_eslatma", day, run_balans_eslatmasi)
-
-            # Hisobchi kuzatuvi (moliyachi ishini o'rganish) — egasiga, 21:00
-            if now.hour == 21 and now.minute < 5:
-                await run_once_per_day("moliya_kuzatuv", day, lambda: run_kuzatuv_report(now))
+            if hisobchi_active():
+                await _run_group_reports(now, day)
 
         except Exception:
             logger.error("[MOLIYA] Sikl xatosi", exc_info=True)

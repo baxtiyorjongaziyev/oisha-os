@@ -78,16 +78,26 @@ class JobsCrmMixin:
             self._mark_sent(key)
 
     async def _job_status_notify(self, now: datetime) -> None:
+        from src.schedulers.bg_monitor.helpers import (
+            _env_enabled,
+            check_system_status_alert,
+        )
+
         key = self._hour_key("status_notify", now)
         if not self._already_sent(key):
-            from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
-
-            await self._notify_admin(
-                "👸 <b>Oisha OS: Tizim nazoratda</b>\n"
-                "AmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.",
-                parse_mode="HTML",
-                message_thread_id=get_owner_topic_id("system"),
+            alert = await check_system_status_alert(
+                include_ok=_env_enabled("STATUS_NOTIFY_OK", default=False)
             )
+            if alert:
+                from src.services.core.telegram.telegram_ai_features import (
+                    get_owner_topic_id,
+                )
+
+                await self._notify_admin(
+                    alert,
+                    parse_mode="HTML",
+                    message_thread_id=get_owner_topic_id("system"),
+                )
             self._mark_sent(key)
 
     async def _job_juma_notifier(self, now: datetime) -> None:

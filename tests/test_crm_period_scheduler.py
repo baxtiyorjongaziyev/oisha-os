@@ -112,6 +112,12 @@ async def test_status_notify_routes_to_owner_system_topic_with_html(monkeypatch)
     monkeypatch.setattr(pr.m, "bot_runtime", bot, raising=False)
     monkeypatch.setattr(pr.settings, "OWNER_ID", 777, raising=False)
     monkeypatch.setenv("OWNER_TOPIC_SYSTEM", "2199294")
+    monkeypatch.setenv("STATUS_NOTIFY_OK", "1")
+
+    async def ok_probe():
+        return {"status": "ready", "checks": {"database": "ok", "amocrm": "connected", "userbot": "authorized"}, "blocking": []}
+
+    monkeypatch.setattr("src.api.routes.health.production_readiness_probe", ok_probe)
 
     await pr._check_overdue_and_status(datetime(2026, 11, 23, 13, 0), _Task())
 
@@ -131,5 +137,11 @@ async def test_status_notify_failure_does_not_propagate(monkeypatch):
     monkeypatch.setattr(pr.m, "bot_runtime", _FailingBot(), raising=False)
     monkeypatch.setattr(pr.settings, "OWNER_ID", 777, raising=False)
     monkeypatch.setenv("OWNER_TOPIC_SYSTEM", "2199294")
+    monkeypatch.delenv("STATUS_NOTIFY_OK", raising=False)
+
+    async def bad_probe():
+        return {"status": "not_ready", "checks": {"database": "timeout", "amocrm": "connected", "userbot": "authorized"}, "blocking": ["database_timeout"]}
+
+    monkeypatch.setattr("src.api.routes.health.production_readiness_probe", bad_probe)
 
     await pr._check_overdue_and_status(datetime(2026, 11, 23, 13, 0), _Task())
