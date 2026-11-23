@@ -3143,6 +3143,16 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Safety:** CRM biznes maʼlumotlariga faqat GET, Telegram send yoʻq. OAuth refresh POST va maxfiy tokenning fayl/DBʼga saqlanishi mumkin; bu biznes yozuvlariga mutatsiya emas. Token yoki maxfiy identifikator logga yozilmadi.
 - **Status/next:** PR CI tekshiruvlari va merge hali yakuniy tasdiqlanishi kerak. Audit qayta ishga tushirilmaguncha 401 tuzaldi yoki seller-routing live tasdiqlandi deb boʻlmaydi. Agar yangi audit yana 401 boʻlsa, long-lived token, token fayl/env/Turso manba ziddiyatlari va rasmiy reauthorization xavfsiz tekshirilsin.
 
+## 2026-11-23 — Antigravity — chore(github): ideal holat, AI Studio preflight va UI yuklanish holati
+- **Maqsad:** `AI Studio <-> Antigravity Sync` preflight va xato xabarini yaxshilash, `pnpm-workspace.yaml` dagi `next` overrideʼni `16.4.6` bilan sinxronlash, va eskirgan PR #1098 dagi `isSubmittingBug` loading holatini toza `main` ustiga olib oʻtish.
+- **Oʻzgargan fayllar:** `src/services/ai_studio/pipeline.py`, `tests/test_ai_studio_bridge.py`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `apps/web/src/components/Header.tsx`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalili:**
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/`: `All checks passed!`.
+  - `bandit -r src/ -ll -x src/services/debug/ --quiet`: `0` issues.
+  - `SKIP_LIVE=1 python -m pytest tests/test_ai_studio_bridge.py -q --tb=short`: `9 passed in 1.38s`.
+  - `pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build`: `7 successful, 7 total` (Next.js `16.4.6`).
+- **Qolgan ish:** PR CI yashil boʻlgach squash-merge va PR #1098 ni yopish.
+
 ## 2026-11-22 — Antigravity — fix(telegram): `rich_section_heading`, Widget→Rich fallback va 4 ta Owner hisobotini Sidebar Topiclariga yoʻnaltirish (2026-11-23 yangilandi)
 
 - **Vazifa:** Jonli Telegram Bot API 10.5 tekshiruvida aniqlangan 2 ta tafovutni tuzatish (`sendRichMessage` da `"heading"` blok turi va `sendWidget` rad etilganda `sendRichMessage` fallback), 4 ta asosiy Owner hisobotini (`Hisobchi kuzatuvi`, `CRM monitoring`, `Davomat`, `Tizim nazoratda`) shaxsiy Sidebar Topiclariga (`OWNER_TOPIC_*`) bogʻlash, hamda PR #1125 dagi merge konflikti va Codex P2 review topilmalarini hal qilish.
