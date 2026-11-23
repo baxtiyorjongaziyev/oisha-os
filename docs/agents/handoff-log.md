@@ -3172,18 +3172,31 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
   - `pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build`: `7 successful, 7 total` (Next.js `16.4.6`).
 - **Qolgan ish:** PR CI yashil boʻlgach squash-merge va PR #1098 ni yopish.
 
+## 2026-11-22 — Antigravity — fix(telegram): `rich_section_heading`, Widget→Rich fallback va 4 ta Owner hisobotini Sidebar Topiclariga yoʻnaltirish (2026-11-23 yangilandi)
+
+- **Vazifa:** Jonli Telegram Bot API 10.5 tekshiruvida aniqlangan 2 ta tafovutni tuzatish (`sendRichMessage` da `"heading"` blok turi va `sendWidget` rad etilganda `sendRichMessage` fallback), 4 ta asosiy Owner hisobotini (`Hisobchi kuzatuvi`, `CRM monitoring`, `Davomat`, `Tizim nazoratda`) shaxsiy Sidebar Topiclariga (`OWNER_TOPIC_*`) bogʻlash, hamda PR #1125 dagi merge konflikti va Codex P2 review topilmalarini hal qilish.
+- **Oʻzgargan fayllar:**
+  - `src/services/core/telegram/ai_features/models.py` (371 qator): `rich_section_heading()` endi `{"type": "heading", "text": text, "size": size}` qaytaradi.
+  - `src/services/core/telegram/ai_features/kpi_reports.py` (182 qator, yangi modul): `_KPIReportSpec`, `_build_kpi_widget_html`, `_send_rich_kpi_message`, `_send_private_kpi_widget`, va `send_oisha_kpi_report` ajratildi; `sendRichMessage` fallback va guruh hisobotlarida `progress_done`/`progress_total` saqlanadi.
+  - `src/services/core/telegram/ai_features/workflows.py` (252 qator): `get_owner_topic_id(section)` qoʻshildi; KPI funksiyalari `kpi_reports.py` ga koʻchirilib `send_oisha_kpi_report` qayta eksport qilindi.
+  - `src/services/core/telegram/ai_features/__init__.py` & `src/services/core/telegram/telegram_ai_features.py` (37 qator): `get_owner_topic_id` va `send_oisha_kpi_report` eksporti.
+  - `src/schedulers/moliya/kuzatuv.py`, `src/services/core/crm/amobot_daily_report.py`, `src/schedulers/attendance_summary_scheduler.py`, `src/schedulers/bg_monitor/helpers.py`, `src/schedulers/bg_monitor/jobs_crm.py`, `src/schedulers/main_loop/periodic_reports.py` (206 qator): Owner hisobotlari mos `OWNER_TOPIC_FINANCE/SALES/HR/SYSTEM` topiclariga va `Tizim nazoratda` raw `**` dan `<b>` HTML ga oʻtkazildi; `_check_overdue_and_status` dagi status xabari `try/except` bilan izolyatsiya qilindi.
+  - `tests/test_telegram_ai_features.py`, `tests/test_telegram_botnews_capabilities.py`, `tests/test_crm_period_scheduler.py`: `heading` strukturasi, `get_owner_topic_id`, `Widget -> sendRichMessage` progress fallback, va `status_notify` xato izolyatsiyasi testlari.
+- **Tekshiruv dalili:** `pytest` (7 ta test fayli: **78 passed**), `ruff check` (All checks passed), `bandit -ll` (0 issues), `check_uzbek_text.py --staged` (toza).
+- **Qolgan ish:** PR #1125 CI yashil boʻlgach squash-merge qilish va Hetzner deploy/`oisha.service` hamda 5 ta `OWNER_TOPIC_*` env oʻzgaruvchisini jonli muhitda yakuniy tasdiqlash.
+
 ## 2026-11-23 — Antigravity — PR #1124 review tuzatishlari va 3-bot runtime model/SOUL moslashuvi
 - **Sabab:** PR #1124 (`5c482799`) boʻyicha Devin/Codex review topilmalarini bartaraf etish va Hetzner prod diagnostikasi asosida OpenClaw/Oisha/Hermes runtime izolyatsiyasini yakunlash.
 - **Bajarilgan ish:**
   1. `src/api/security.py`: `is_protected_path` dan `/api/tasks` ajratildi (per-bot `TASK_REGISTRY_TOKENS` fail-closed autentifikatsiyasi saqlanadi).
   2. `deploy/nginx-oisha.conf`: `/capi` yoʻli Basic Auth ostida qoldirildi (`auth_basic off` roʻyxatidan chiqarildi).
   3. `src/services/core/jamoa_ritm/guard.py`, `texts.py`, `brain.py` va `src/controllers/message_controller.py`: `Oisha` guruh vokativlari (`_leading_vocative_re` + `allow_inflections=False`) aniqlashtirildi; `load_oisha_soul()` (`deploy/oisha/SOUL.md`) `HamrohBrain` va `MessageController` ga ulandi (`_soul_mtime` yangilanishi va `logger` `F811` tuzatildi).
-  4. `src/agents/sales_pkg/agent.py`, `src/openclaw_bridge.py`, `src/api/routes/openclaw_gateway.py`, `src/services/api_server/webhooks.py`: `SalesAgent.process_task` endi `self.system_prompt` ni LLM promptiga qoʻshadi; `openclaw_bridge` da `persona="mrjon"|"oisha"` ajratildi, 13 ta mijozga yoʻnaltirilgan mutaxassis ulandi, ichki intentlar qayta xaritalandi va `_mrjon_soul_mtime` bilan yangilanish qoʻshildi.
-  5. `scripts/sync_agents_runtime.py` va `deploy/openclaw/openclaw.json`: `sync_yadro_to_deploy("all")` qisqa tutashuvi (`eager eval`) va `--bot all` ichida `sync_oisha_agent` qoʻshildi; OpenClaw modeli `google/gemini-3.5-flash` + fallback `google/gemini-3.5-flash-lite`, `google/gemini-3-flash-preview` ga yangilandi.
+  4. `src/agents/sales_pkg/agent.py`, `src/openclaw_bridge.py`, `src/api/routes/openclaw_gateway.py`, `src/services/api_server/webhooks.py`: `SalesAgent.process_task` endi `self.system_prompt` ni LLM promptiga qoʻshadi; `openclaw_bridge` da `persona="mrjon"|"oisha"` ajratildi, 13 ta mijozga yoʻnaltirilgan mutaxassis ulandi (`_customer_specialist_specs`), ichki intentlar qayta xaritalandi va `_mrjon_soul_mtime` bilan yangilanish qoʻshildi.
+  5. `scripts/sync_agents_runtime.py` va `deploy/openclaw/openclaw.json`: `sync_yadro_to_deploy("all")` qisqa tutashuvi (`eager eval`), `--bot all` ichida `sync_oisha_agent` hamda `Bandit_B603` tuzatildi; OpenClaw modeli `google/gemini-3.5-flash` + fallback `google/gemini-3.5-flash-lite`, `google/gemini-3-flash-preview` ga yangilandi.
 - **Oʻzgargan fayllar:** `deploy/nginx-oisha.conf`, `deploy/openclaw/openclaw.json`, `scripts/sync_agents_runtime.py`, `src/agents/sales_pkg/agent.py`, `src/api/routes/openclaw_gateway.py`, `src/api/security.py`, `src/controllers/message_controller.py`, `src/openclaw_bridge.py`, `src/services/api_server/webhooks.py`, `src/services/core/jamoa_ritm/brain.py`, `src/services/core/jamoa_ritm/guard.py`, `src/services/core/jamoa_ritm/texts.py`, `tests/test_jamoa_ritm.py`, `tests/test_openclaw_gateway_bridge.py`, `tests/test_sales_agent_unit.py`, `tests/test_sync_agents_runtime.py`, `tests/test_task_registry.py`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:**
-  - Fokuslangan testlar (11 fayl): `101 passed` (17.47s).
+  - Fokuslangan testlar (11 fayl): `101 passed` (12.96s); Opengrep/Bandit tuzatishidan keyingi 6 fayl: `36 passed` (11.95s).
   - Toʻliq pre-flight (`SKIP_LIVE=1 python -m pytest -q --tb=short`): **4529 passed, 18 skipped, 4 subtests passed**; yagona yiqilish Windows NTFS ruxsatiga oid avvaldan mavjud POSIX testi (`tests/test_drive_oauth_onboarding.py::test_credentials_saved_privately_and_atomically`: `438 == 384`).
   - `ruff check` (oʻzgargan va test `.py` fayllar): **All checks passed** (exit 0).
-  - `bandit -r src/ -ll -q`: **0 issues** (exit 0); `python scripts/check_uzbek_text.py --all --baseline`: **toza (1770 fayl)**.
+  - `bandit -r src/ -ll -q` va `openclaw_bridge.py` / `sync_agents_runtime.py`: **0 issues** (exit 0); `python scripts/check_uzbek_text.py --all --baseline`: **toza (1770 fayl)**.
 - **Keyingi qadam:** PR #1124 ni push/merge qilish va Hetzner (`2.29.198.0`) da 3 bot `.env` kalitlari hamda servislarni sinxronlab `/healthz/` va `/readyz` ni tasdiqlash.

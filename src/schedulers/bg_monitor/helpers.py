@@ -35,15 +35,22 @@ class BaseMonitorHelpersMixin:
     def _mark_sent(self, key: str) -> None:
         self._sent_jobs.add(key)
 
-    async def _notify_admin(self, message: str, parse_mode: Optional[str] = None) -> None:
+    async def _notify_admin(
+        self,
+        message: str,
+        parse_mode: Optional[str] = None,
+        message_thread_id: Optional[int] = None,
+    ) -> None:
         admin_id = getattr(self.settings, "OWNER_ID", None) or getattr(
             self.settings, "TELEGRAM_ADMIN_CHAT_ID", None
         )
         if self.bot_client and admin_id:
             try:
-                kwargs = {}
+                kwargs: dict[str, Any] = {}
                 if parse_mode:
                     kwargs["parse_mode"] = parse_mode
+                if message_thread_id:
+                    kwargs["message_thread_id"] = message_thread_id
                 await self.bot_client.send_message(admin_id, message, **kwargs)
                 return
             except Exception as exc:

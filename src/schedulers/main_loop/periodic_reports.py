@@ -96,11 +96,21 @@ async def _check_overdue_and_status(now: datetime, task: Any) -> None:
 
     if any(_is_due(now, h, 0) for h in [13, 17, 21]):
         job_key = f"status_notify_{now.hour}_{today_str}"
-        if not _is_job_sent(task, job_key) and m.client:
-            await m.notify_admin(
-                "👸 **Oisha OS: Tizim nazoratda**\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda.",
-                m.client,
-            )
+        if not _is_job_sent(task, job_key):
+            status_msg = "👸 <b>Oisha OS: Tizim nazoratda</b>\nAmoCRM, Airtable va Lead-Scraper barqaror ishlamoqda."
+            bot_client = getattr(m, "bot_runtime", None) or getattr(m, "bot_client", None)
+            owner_id = getattr(settings, "OWNER_ID", None)
+            try:
+                if bot_client and owner_id:
+                    from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
+
+                    topic_id = get_owner_topic_id("system")
+                    kw = {"parse_mode": "HTML", **({"message_thread_id": topic_id} if topic_id else {})}
+                    await bot_client.send_message(owner_id, status_msg, **kw)
+                elif getattr(m, "client", None):
+                    await m.notify_admin(status_msg, m.client)
+            except Exception as exc:
+                logger.error("[SCHEDULE][STATUS] Error: %s", exc)
 
 
 async def _check_morning_jobs(now: datetime, task: Any) -> None:

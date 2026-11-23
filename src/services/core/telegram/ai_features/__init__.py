@@ -34,15 +34,18 @@ from src.services.core.telegram.ai_features.rich_builders import (
     rich_button_row,
     rich_table,
 )
+from src.services.core.telegram.ai_features.kpi_reports import (
+    send_oisha_kpi_report,
+)
 from src.services.core.telegram.ai_features.workflows import (
     OISHA_PRIVATE_TOPICS,
     bootstrap_owner_private_topics,
     consume_draft_stopped,
     enrich_lead_from_personal_channel,
+    get_owner_topic_id,
     handle_botnews_service_update,
     mark_draft_stopped,
     send_client_native_checklist,
-    send_oisha_kpi_report,
     sync_team_member_tags,
 )
 from src.services.core.telegram.ai_features.bot_api_client import (
@@ -87,6 +90,7 @@ __all__ = [
     "bootstrap_owner_private_topics",
     "consume_draft_stopped",
     "enrich_lead_from_personal_channel",
+    "get_owner_topic_id",
     "handle_botnews_service_update",
     "mark_draft_stopped",
     "send_client_native_checklist",
