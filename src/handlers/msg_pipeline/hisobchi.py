@@ -67,45 +67,24 @@ async def process_hisobchi(
 
         _hisobchi_engine = app_ctx.hisobchi_engine or HisobchiEngine(msg_controller.db)
 
-        if not _hisobchi_ai_auto_entry_enabled():
-            # AI auto-entry (card bot, voice, receipt photo, text parsing) is
-            # paused: real kirim/chiqim now only comes through Dilbar's
-            # Airtable form. Nothing below writes a transaction while this
-            # flag is off — only count finance-group traffic for the daily
-            # kuzatuv report (schedulers/moliya/kuzatuv.py), never reply.
-            finance_group_id, kirim_topic, chiqim_topic = _get_finance_config()
-            if finance_group_id is not None and event.chat_id == finance_group_id and not event.out:
-                from src.schedulers.moliya.kuzatuv import record_observation
-                from src.schedulers.moliya.moliyachi_skill import observe_finance_message
-
-                await record_observation(has_photo=bool(getattr(event.message, "photo", None)))
-                await observe_finance_message(
-                    event, kirim_topic_id=kirim_topic, chiqim_topic_id=chiqim_topic, sender=sender
-                )
+        # Personal accounting (private DMs, card bot, owner voice) is removed:
+        # Hisobchi never handles private chats. In the finance group it always
+        # observes Dilbar (metadata only) so moliyachi_skill can learn her flow.
+        if event.is_private:
             return False
 
-        # Card bot messages handling
-        if event.is_private and not event.out and is_card_bot_sender(sender):
-            await handle_card_bot_message(event, client, _hisobchi_engine, bot_client=app_ctx.bot_client)
-            return True
+        finance_group_id, kirim_topic, chiqim_topic = _get_finance_config()
+        if finance_group_id is not None and event.chat_id == finance_group_id and not event.out:
+            from src.schedulers.moliya.kuzatuv import record_observation
+            from src.schedulers.moliya.moliyachi_skill import observe_finance_message
 
-        if not event.out and event.message.voice and voice_processor:
-            finance_group_id, _, _ = _get_finance_config()
-            is_finance_chat = (finance_group_id is not None and event.chat_id == finance_group_id)
-            is_auth_user = False
-            if event.is_private:
-                managers = getattr(settings, "SALES_MANAGER_IDS", [])
-                sender_id = getattr(sender, "id", None)
-                me = await client.get_me()
-                is_auth_user = (sender_id is not None and (sender_id in managers or sender_id == me.id))
-            if is_finance_chat or is_auth_user:
-                from src.services.core.finance.handlers import process_finance_voice_message
+            await record_observation(has_photo=bool(getattr(event.message, "photo", None)))
+            await observe_finance_message(
+                event, kirim_topic_id=kirim_topic, chiqim_topic_id=chiqim_topic, sender=sender
+            )
 
-                was_voice_hisobchi = await process_finance_voice_message(
-                    event, client, _hisobchi_engine, voice_processor
-                )
-                if was_voice_hisobchi:
-                    return True
+        if not _hisobchi_ai_auto_entry_enabled():
+            return False
 
         # Handle manual group logs (text, photos) sent directly in finance group
         finance_group_id, kirim_topic_id, chiqim_topic_id = _get_finance_config()
