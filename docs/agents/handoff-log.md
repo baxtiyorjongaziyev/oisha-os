@@ -3214,3 +3214,9 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** `src/services/core/dispatcher/handlers_welcome.py` (HTML-escape qilingan matnlar); `src/services/core/telegram/ai_features/workflows.py::handle_botnews_service_update` faqat `inviter` boʻlsa onboarding matni va `OWNER_ID` ga xabar yuboradi, web app / attachment menu ruxsatlarida umumiy salom qoladi. Dispatcher handler qoʻshilmadi (polling raw middleware bu xabarni dispatcherdan oldin ushlaydi).
 - **Tekshiruv:** `tests/test_handlers_welcome.py` + ai_features testlari (28 passed), `bandit`, `check_uzbek_text.py` toza.
 - **Keyingi qadam:** jonli botinvite havolasi bilan Hetzner'da sinash.
+
+## 2026-11-24 — Claude — Raqam -> kontakt kartasi (GET-LID oʻrnini bosadi, PR #1139)
+- **Muammo:** Admin botga raqam yuborilganda faqat matn qaytgan; kontakt kartasi uchun pullik GET-LID xizmati ishlatilgan.
+- **Bajarilgan ish:** `src/services/core/dispatcher/phone_contact_card.py` (yangi): raqam normalizatsiyasi, kartani lookupdan oldin yuborish, topilsa "Raqam topildi" + @username / profil tugmasi. `inline_search.py::PHONE_RE` raqam chegaralari (`(?<!\d)`/`(?!\d)`) va defis bilan yangilandi.
+- **Tekshiruv:** `tests/test_dispatcher_inline_search.py` (9 passed), `bandit`, `black`, `check_uzbek_text.py`.
+- **Keyingi qadam:** Hetzner deploydan keyin jonli botda kartani bosib chat ochilishini tekshirish.
