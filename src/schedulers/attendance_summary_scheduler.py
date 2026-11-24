@@ -37,9 +37,32 @@ def _send(text: str) -> bool:
         return False
 
 
+_SENT_DDL = (
+    "CREATE TABLE IF NOT EXISTS attendance_summary_sent (day TEXT PRIMARY KEY, sent_at TEXT NOT NULL)"
+)
+
+
+async def _already_sent(db, day) -> bool:
+    await db.execute(_SENT_DDL)
+    rows = await db.execute("SELECT 1 FROM attendance_summary_sent WHERE day = ?", [day.isoformat()])
+    return bool(rows)
+
+
+async def _mark_sent(db, day) -> None:
+    await db.execute(
+        "INSERT OR IGNORE INTO attendance_summary_sent (day, sent_at) VALUES (?, ?)",
+        [day.isoformat(), get_local_now().isoformat()],
+    )
+    await db.commit()
+
+
 async def maybe_send_daily_summary(db, day, sender=_send) -> bool:
+    """Kuniga bir marta: restart (deploy) boʻlsa ham qayta yuborilmaydi (DB belgisi)."""
     from src.services.core.attendance import bot_flow
 
+    if await _already_sent(db, day):
+        return False
+    await _mark_sent(db, day)
     if not await bot_flow.has_scheduled_or_present(db, day):
         logger.info("[ATT-SUMMARY] %s dam olish kuni — yuborilmadi", day)
         return False
