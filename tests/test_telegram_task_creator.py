@@ -160,6 +160,7 @@ async def test_resolve_dialog_entity_imports_and_cleans_up_temporary_contact():
     userbot_mock.get_input_entity = AsyncMock(
         side_effect=[ValueError("Could not find the input entity"), "peer"]
     )
+    userbot_mock.get_entity = AsyncMock(side_effect=ValueError("not a contact"))
     userbot_mock.return_value = SimpleNamespace(users=[SimpleNamespace(id=77)])
     creator = TelegramTaskCreator(
         amocrm=MagicMock(),

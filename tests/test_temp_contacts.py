@@ -15,10 +15,21 @@ def _names(client):
 
 
 @pytest.mark.asyncio
+async def test_import_skips_known_contact_so_name_is_not_overwritten():
+    client = AsyncMock()
+    client.get_entity = AsyncMock(return_value=SimpleNamespace(id=9))
+    user, newly_imported = await import_temp_contact(client, "998773220098")
+    assert user.id == 9
+    assert newly_imported is False
+    client.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_import_marks_existing_contact_as_not_new():
     client = AsyncMock(
         return_value=SimpleNamespace(users=[SimpleNamespace(id=5)], imported=[])
     )
+    client.get_entity = AsyncMock(side_effect=ValueError("not found"))
     user, newly_imported = await import_temp_contact(client, "+998901234567")
     assert user.id == 5
     assert newly_imported is False
@@ -31,6 +42,7 @@ async def test_import_new_contact():
             users=[SimpleNamespace(id=6)], imported=[SimpleNamespace(user_id=6)]
         )
     )
+    client.get_entity = AsyncMock(side_effect=ValueError("not found"))
     user, newly_imported = await import_temp_contact(client, "998901234567")
     assert newly_imported is True
     request = client.await_args.args[0]

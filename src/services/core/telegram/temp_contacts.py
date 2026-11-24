@@ -25,6 +25,17 @@ async def import_temp_contact(client: Any, phone: str) -> tuple[Any, bool]:
     """
     from telethon.tl import functions, types
 
+    # ImportContactsRequest OVERWRITES the saved name of an existing contact.
+    # If the number is already known, return that user and never import.
+    try:
+        existing = await client.get_entity(phone if phone.startswith("+") else "+" + phone)
+        if existing is not None:
+            return existing, False
+    except Exception as exc:
+        text = str(exc).lower()
+        if "flood" in text or "wait of" in text:
+            raise
+
     contact = types.InputPhoneContact(
         client_id=random.randrange(-(2**63), 2**63),
         phone=phone.replace("+", ""),
