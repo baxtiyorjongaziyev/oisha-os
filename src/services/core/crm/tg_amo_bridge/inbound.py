@@ -7,6 +7,7 @@ import os
 import uuid
 from typing import Any, Optional
 
+from . import media as media_mod
 from .accounts import Account
 from .amojo_client import AmoJoClient, STATUS_DELIVERED
 from .store import MessageStore
@@ -23,10 +24,15 @@ def _sources_enabled() -> bool:
 
 
 def _describe(message: Any) -> str:
-    """Text for amoCRM. Media is a placeholder until the media stage."""
+    """Caption/text, or a placeholder so media messages are not dropped."""
     text = (getattr(message, "raw_text", None) or "").strip()
     if text:
         return text
+    other = media_mod.describe_non_file(message)
+    if other:
+        return other
+    if getattr(message, "sticker", None):
+        return "[stiker]"
     if getattr(message, "voice", None):
         return "[ovozli xabar]"
     if getattr(message, "photo", None):
@@ -34,6 +40,10 @@ def _describe(message: Any) -> str:
     if getattr(message, "document", None) or getattr(message, "media", None):
         return "[fayl]"
     return ""
+
+
+def _has_file(message: Any) -> bool:
+    return media_mod.classify(message) is not None or bool(getattr(message, "sticker", None))
 
 
 async def _resolve_peer_entity(event: Any, is_manager: bool) -> Any:
@@ -102,6 +112,7 @@ async def _send_and_record(
     phone: Optional[str],
     source_ext: Optional[str],
     is_manager: bool,
+    media: Optional[media_mod.MediaRef] = None,
 ) -> bool:
     amo_msg_id = str(uuid.uuid4())
     event_body = amojo.build_message_event(
@@ -117,6 +128,10 @@ async def _send_and_record(
         manager_id=f"oisha-tg-{account.key}",
         manager_ref_id=os.getenv("AMOCRM_BRIDGE_MANAGER_REF_ID") or None,
         manager_name=account.display_name,
+        media_type=media.media_type if media else None,
+        media_url=media.url if media else None,
+        file_name=media.file_name if media else None,
+        file_size=media.file_size if media else None,
     )
     if await amojo.send_event(event_body) is None:
         logger.warning("[TG-AMO] amoCRM rejected/failed message from tg msg %s", tg_msg_id)
@@ -176,9 +191,18 @@ async def handle_message(
         is_manager=is_manager,
         source_ext=source_ext,
     )
+    media_ref = None
+    if _has_file(message):
+        caption = (getattr(message, "raw_text", None) or "").strip()
+        media_ref, fallback = await media_mod.prepare_inbound(message, peer_id)
+        if media_ref is not None:
+            text = caption
+        elif fallback:
+            text = f"{fallback}\n{caption}".strip() if caption else fallback
     return await _send_and_record(
         amojo=amojo, store=store, account=account, peer_id=peer_id, tg_msg_id=message.id,
         client_name=client_name, text=text, phone=resolved_phone, source_ext=source_ext, is_manager=is_manager,
+        media=media_ref,
     )
 
 

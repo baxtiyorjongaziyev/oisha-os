@@ -6,6 +6,7 @@ import logging
 from typing import Any, Dict, Tuple
 
 from . import accounts
+from . import media as media_mod
 from .amojo_client import AmoJoClient, STATUS_DELIVERED, STATUS_ERROR
 from .store import MessageStore
 
@@ -14,6 +15,14 @@ logger = logging.getLogger("TgAmoBridge.outbound")
 _MAX_TEXT = 4096
 _MIN_INTERVAL = 1.0  # seconds between sends per account (ban safety)
 _locks: Dict[str, asyncio.Lock] = {}
+_bg_tasks: set = set()
+
+
+async def _archive_then_cleanup(path: str, peer_id: int) -> None:
+    try:
+        await media_mod.archive_outbound(path, peer_id)
+    finally:
+        media_mod.cleanup(path)
 
 
 def _extract(data: dict) -> Tuple[str, str, str, str]:
@@ -38,9 +47,10 @@ async def dispatch(
 ) -> Tuple[int, Dict[str, Any]]:
     """Send a manager reply from amoCRM to Telegram. Returns (http_status, body)."""
     amo_msg_id, text, client_id, source = _extract(data)
+    media = media_mod.extract_outbound_media(data)
     if not client_id:
         return 200, {"status": "ok", "warning": "no_recipient"}
-    if not text or len(text) > _MAX_TEXT:
+    if (not text and media is None) or len(text) > _MAX_TEXT:
         return 400, {"error": "invalid_text"}
     try:
         tg_user_id = int(client_id)
@@ -57,15 +67,32 @@ async def dispatch(
         return 503, {"error": "account_unavailable"}
 
     lock = _locks.setdefault(account.key, asyncio.Lock())
+    path = None
     async with lock:
         try:
-            sent = await client.send_message(tg_user_id, text)
+            if media is not None:
+                path = await media_mod.fetch_to_temp(media["url"], media["name"])
+                sent = await client.send_file(
+                    tg_user_id,
+                    path,
+                    caption=text[:1024] or None,
+                    voice_note=media["type"] == "voice",
+                    force_document=media["type"] == "file",
+                )
+            else:
+                sent = await client.send_message(tg_user_id, text)
             await asyncio.sleep(_MIN_INTERVAL)
         except Exception as exc:
+            media_mod.cleanup(path)
             logger.error("[TG-AMO] send failed: %s", type(exc).__name__)
             if amo_msg_id:
                 await amojo.send_status(amo_msg_id, STATUS_ERROR, type(exc).__name__)
             return 502, {"error": "dispatch_failed"}
+
+    if path:
+        task = asyncio.create_task(_archive_then_cleanup(path, tg_user_id))
+        _bg_tasks.add(task)
+        task.add_done_callback(_bg_tasks.discard)
 
     if amo_msg_id:
         await store.record(amo_msg_id, getattr(sent, "id", None), account.key, tg_user_id, "amo_out")
