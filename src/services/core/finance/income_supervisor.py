@@ -32,7 +32,7 @@ AMOCRM_USER_TO_JAMOA: Dict[int, str] = {
 
 # Jamoa record ID -> Display Name & Telegram Handle
 JAMOA_SELLER_INFO: Dict[str, Dict[str, str]] = {
-    "rec8fmSHRpZi5Rx9N": {"name": "Shahnoza Abdijabborova", "handle": "@Shahnozzy"},
+    "rec8fmSHRpZi5Rx9N": {"name": "Shahnoza Abdijabborova", "handle": "@jonbranding_assistant"},
     "reccXjZIGIcRezKgB": {"name": "Baxtiyorjon Gaziyev", "handle": "@Baxtiyorjon_Gaziyev"},
     "recp8ClrBsXi6G0Km": {"name": "Ahrorbek", "handle": "@Ahrorbek"},
     "recfj3ExodGmnN2VW": {"name": "Oydin Ermuhammadova", "handle": "@oydin_jonbranding"},
