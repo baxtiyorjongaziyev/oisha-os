@@ -21,12 +21,12 @@ def test_same_display_name_accounts_are_merged():
         outgoing_answered=2, talk_seconds=120, solid_calls=1,
     )
     personal = RepStats(
-        account="xayrullayevna006@gmail.com", total=2, outgoing=2,
+        account="rayxona.personal@gmail.com", total=2, outgoing=2,
         outgoing_answered=1, talk_seconds=60,
     )
     names = {
         "rayxona@jonbranding.uz": "Rayxon",
-        "xayrullayevna006@gmail.com": "Rayxon",
+        "rayxona.personal@gmail.com": "Rayxon",
     }
 
     text = format_report_rop(_report([work, personal]), names)
