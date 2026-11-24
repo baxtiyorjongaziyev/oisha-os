@@ -147,6 +147,40 @@ class AmoJoClient:
                 }
         return {"event_type": "new_message", "payload": payload}
 
+    async def create_chat(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        user_name: str,
+        phone: Optional[str] = None,
+        profile_link: Optional[str] = None,
+        source_external_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Create or fetch an amoJo chat and return its internal chat_id (UUID).
+
+        Calling POST /v2/origin/custom/{scope_id}/chats before sending the first
+        message allows linking the returned chat_id to an existing amoCRM contact
+        via POST /api/v4/contacts/chats, avoiding a duplicate Telegram-only deal.
+        """
+        if not self.scope_id:
+            logger.warning("[TG-AMO] scope_id missing; call connect() first")
+            return None
+        user: dict[str, Any] = {"id": user_id, "name": user_name}
+        if phone:
+            user["profile"] = {"phone": phone}
+        if profile_link:
+            user["profile_link"] = profile_link
+        payload: dict[str, Any] = {
+            "conversation_id": conversation_id,
+            "user": user,
+        }
+        if source_external_id:
+            payload["source"] = {"external_id": source_external_id}
+        data = await self._post(f"/v2/origin/custom/{self.scope_id}/chats", payload)
+        chat_id = (data or {}).get("id")
+        return str(chat_id).strip() if chat_id else None
+
     async def send_event(self, event: dict) -> Optional[dict]:
         if not self.scope_id:
             logger.warning("[TG-AMO] scope_id missing; call connect() first")

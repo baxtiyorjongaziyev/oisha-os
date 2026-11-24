@@ -18,6 +18,31 @@ CREATE TABLE IF NOT EXISTS tg_amo_messages (
 )
 """
 _IDX = "CREATE INDEX IF NOT EXISTS idx_tg_amo_tg ON tg_amo_messages(account_key, tg_msg_id)"
+_LINKS_DDL = """
+CREATE TABLE IF NOT EXISTS tg_amo_chat_links (
+    tg_user_id INTEGER PRIMARY KEY,
+    amo_chat_id TEXT,
+    phone TEXT,
+    username TEXT,
+    linked_contact_id INTEGER,
+    linked_lead_id INTEGER,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+"""
+_LINKS_PHONE_IDX = "CREATE INDEX IF NOT EXISTS idx_tg_amo_links_phone ON tg_amo_chat_links(phone)"
+_MERGES_DDL = """
+CREATE TABLE IF NOT EXISTS tg_amo_merges (
+    source_lead_id INTEGER PRIMARY KEY,
+    target_lead_id INTEGER NOT NULL,
+    source_contact_id INTEGER,
+    target_contact_id INTEGER,
+    tg_user_id INTEGER,
+    phone TEXT,
+    status TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+"""
 
 
 class MessageStore:
@@ -38,6 +63,9 @@ class MessageStore:
         db = self._db()
         await db.execute(_DDL)
         await db.execute(_IDX)
+        await db.execute(_LINKS_DDL)
+        await db.execute(_LINKS_PHONE_IDX)
+        await db.execute(_MERGES_DDL)
         self._ready = True
 
     async def record(
@@ -83,4 +111,168 @@ class MessageStore:
         await self.ensure()
         await self._db().execute(
             "UPDATE tg_amo_messages SET status = ? WHERE amo_msg_id = ?", [status, amo_msg_id]
+        )
+
+    async def get_chat_link(self, tg_user_id: int) -> Optional[dict]:
+        await self.ensure()
+        rows = await self._db().execute(
+            "SELECT tg_user_id, amo_chat_id, phone, username, linked_contact_id, linked_lead_id "
+            "FROM tg_amo_chat_links WHERE tg_user_id = ? LIMIT 1",
+            [int(tg_user_id)],
+        )
+        if not rows:
+            return None
+        r = rows[0]
+        return {
+            "tg_user_id": r[0],
+            "amo_chat_id": r[1],
+            "phone": r[2],
+            "username": r[3],
+            "linked_contact_id": r[4],
+            "linked_lead_id": r[5],
+        }
+
+    async def upsert_chat_link(
+        self,
+        tg_user_id: int,
+        *,
+        amo_chat_id: Optional[str] = None,
+        phone: Optional[str] = None,
+        username: Optional[str] = None,
+        linked_contact_id: Optional[int] = None,
+        linked_lead_id: Optional[int] = None,
+    ) -> None:
+        await self.ensure()
+        existing = await self.get_chat_link(tg_user_id) or {}
+        await self._db().execute(
+            "INSERT OR REPLACE INTO tg_amo_chat_links "
+            "(tg_user_id, amo_chat_id, phone, username, linked_contact_id, linked_lead_id, updated_at) "
+            "VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+            [
+                int(tg_user_id),
+                amo_chat_id if amo_chat_id is not None else existing.get("amo_chat_id"),
+                phone if phone is not None else existing.get("phone"),
+                username if username is not None else existing.get("username"),
+                linked_contact_id if linked_contact_id is not None else existing.get("linked_contact_id"),
+                linked_lead_id if linked_lead_id is not None else existing.get("linked_lead_id"),
+            ],
+        )
+
+    async def list_chat_links_with_phone(self, limit: int = 200) -> list[dict]:
+        await self.ensure()
+        rows = await self._db().execute(
+            "SELECT tg_user_id, amo_chat_id, phone, username, linked_contact_id, linked_lead_id "
+            "FROM tg_amo_chat_links WHERE phone IS NOT NULL AND phone != '' "
+            "ORDER BY updated_at DESC LIMIT ?",
+            [max(1, int(limit))],
+        )
+        return [
+            {
+                "tg_user_id": r[0],
+                "amo_chat_id": r[1],
+                "phone": r[2],
+                "username": r[3],
+                "linked_contact_id": r[4],
+                "linked_lead_id": r[5],
+            }
+            for r in (rows or [])
+        ]
+
+    async def get_merge_record(self, source_lead_id: int) -> Optional[dict]:
+        await self.ensure()
+        rows = await self._db().execute(
+            "SELECT source_lead_id, target_lead_id, source_contact_id, target_contact_id, "
+            "tg_user_id, phone, status, reason FROM tg_amo_merges WHERE source_lead_id = ? LIMIT 1",
+            [int(source_lead_id)],
+        )
+        if not rows:
+            return None
+        r = rows[0]
+        return {
+            "source_lead_id": r[0],
+            "target_lead_id": r[1],
+            "source_contact_id": r[2],
+            "target_contact_id": r[3],
+            "tg_user_id": r[4],
+            "phone": r[5],
+            "status": r[6],
+            "reason": r[7],
+        }
+
+    async def try_claim_merge(
+        self,
+        *,
+        source_lead_id: int,
+        target_lead_id: int,
+        source_contact_id: Optional[int],
+        target_contact_id: Optional[int],
+        tg_user_id: Optional[int],
+        phone: str,
+        reason: str = "",
+    ) -> tuple[bool, Optional[str]]:
+        """Atomically claim a source_lead_id for merge (prevents concurrent duplicate writes)."""
+        await self.ensure()
+        sid = int(source_lead_id)
+        existing = await self.get_merge_record(sid)
+        if existing:
+            st = existing.get("status")
+            if st in {"merged", "linked_only", "conflict", "in_progress"}:
+                return False, st
+            if st == "incomplete":
+                await self._db().execute(
+                    "UPDATE tg_amo_merges SET status = 'in_progress', target_lead_id = ?, "
+                    "reason = ?, created_at = CURRENT_TIMESTAMP "
+                    "WHERE source_lead_id = ? AND status = 'incomplete'",
+                    [int(target_lead_id), str(reason or ""), sid],
+                )
+                refreshed = await self.get_merge_record(sid)
+                return (True, None) if (refreshed and refreshed.get("status") == "in_progress") else (False, (refreshed or {}).get("status"))
+        await self._db().execute(
+            "INSERT OR IGNORE INTO tg_amo_merges "
+            "(source_lead_id, target_lead_id, source_contact_id, target_contact_id, "
+            "tg_user_id, phone, status, reason, created_at) "
+            "VALUES (?,?,?,?,?,?,'in_progress',?,CURRENT_TIMESTAMP)",
+            [
+                sid,
+                int(target_lead_id),
+                int(source_contact_id) if source_contact_id else None,
+                int(target_contact_id) if target_contact_id else None,
+                int(tg_user_id) if tg_user_id else None,
+                str(phone or ""),
+                str(reason or ""),
+            ],
+        )
+        claimed = await self.get_merge_record(sid)
+        if claimed and claimed.get("status") == "in_progress" and claimed.get("target_lead_id") == int(target_lead_id):
+            return True, None
+        return False, (claimed or {}).get("status")
+
+    async def record_merge(
+        self,
+        *,
+        source_lead_id: int,
+        target_lead_id: int,
+        source_contact_id: Optional[int],
+        target_contact_id: Optional[int],
+        tg_user_id: Optional[int],
+        phone: str,
+        status: str,
+        reason: str = "",
+    ) -> None:
+        await self.ensure()
+        await self._db().execute(
+            "INSERT OR REPLACE INTO tg_amo_merges "
+            "(source_lead_id, target_lead_id, source_contact_id, target_contact_id, "
+            "tg_user_id, phone, status, reason, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+            [
+                int(source_lead_id),
+                int(target_lead_id),
+                int(source_contact_id) if source_contact_id else None,
+                int(target_contact_id) if target_contact_id else None,
+                int(tg_user_id) if tg_user_id else None,
+                str(phone or ""),
+                str(status),
+                str(reason or ""),
+            ],
         )
