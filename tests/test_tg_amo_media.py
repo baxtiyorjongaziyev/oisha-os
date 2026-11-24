@@ -330,3 +330,77 @@ def test_gdrive_oauth_onboarding_routes_are_public():
     assert is_protected_path("/api/integrations/gdrive/complete") is False
     assert is_protected_path("/tg-media/any.token") is False
     assert is_protected_path("/api/integrations/other") is True
+
+
+def test_upload_recovers_when_cached_default_root_deleted(monkeypatch, tmp_path):
+    from unittest.mock import MagicMock
+
+    f = tmp_path / "img2.jpg"
+    f.write_bytes(b"JPG")
+    monkeypatch.delenv("TG_AMO_MEDIA_FOLDER_ID", raising=False)
+    media._folder_cache.clear()
+    media._folder_cache["None/Oisha_TG_Media"] = "deleted_root"
+
+    class NotFound404(Exception):
+        status_code = 404
+
+    files_api = MagicMock()
+    files_api.list.return_value.execute.return_value = {"files": []}
+
+    def create_side_effect(**kwargs):
+        req = MagicMock()
+        body = kwargs.get("body", {})
+        if body.get("parents") == ["deleted_root"]:
+            req.execute.side_effect = NotFound404("root gone")
+        elif body.get("mimeType") == media._FOLDER_MIME:
+            req.execute.return_value = {"id": "new_root" if not body.get("parents") else "new_child"}
+        else:
+            req.execute.return_value = {"id": "uploaded_ok"}
+        return req
+
+    files_api.create.side_effect = create_side_effect
+    fake_service = MagicMock()
+    fake_service.files.return_value = files_api
+    monkeypatch.setattr(media, "_drive", lambda: SimpleNamespace(service=fake_service))
+
+    assert media._upload_sync(str(f), "img2.jpg", "image/jpeg", 88) == "uploaded_ok"
+    assert media._folder_cache["None/Oisha_TG_Media"] == "new_root"
+    assert media._folder_cache["new_root/tg_88"] == "new_child"
+
+
+@pytest.mark.asyncio
+async def test_outbound_continuation_failure_retry_skips_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(outbound, "_MIN_INTERVAL", 0)
+    p = tmp_path / "doc2.pdf"
+    p.write_bytes(b"%PDF")
+    monkeypatch.setattr(media, "fetch_to_temp", AsyncMock(return_value=str(p)))
+    monkeypatch.setattr(media, "archive_outbound", AsyncMock())
+    monkeypatch.setattr(media, "cleanup", lambda path: None)
+    tg = AsyncMock()
+    tg.send_file.return_value = SimpleNamespace(id=201)
+    tg.send_message.side_effect = [RuntimeError("net"), SimpleNamespace(id=202)]
+    acc = accounts.Account("owner", "O", "oisha-tg-owner", lambda: tg)
+    monkeypatch.setattr(accounts, "_ACCOUNTS", {"owner": acc})
+    monkeypatch.setattr(accounts, "OWNER", acc)
+    recorded = set()
+    store = MessageStore(FakePool())
+    monkeypatch.setattr(store, "has_amo_msg", AsyncMock(side_effect=lambda k: k in recorded))
+    monkeypatch.setattr(store, "record", AsyncMock(side_effect=lambda k, *a: recorded.add(k)))
+
+    data = {
+        "message": {
+            "msg_id": "m99",
+            "conversation": {"client_id": "42"},
+            "message": {
+                "type": "file",
+                "text": "B" * 1024 + "TAIL",
+                "media": "https://drive.amocrm.ru/f",
+                "file_name": "doc2.pdf",
+            },
+        }
+    }
+    amojo = AsyncMock()
+    s1, _ = await outbound.dispatch(data, amojo, store)
+    assert s1 == 502 and "m99:file" in recorded and "m99" not in recorded
+    s2, _ = await outbound.dispatch(data, amojo, store)
+    assert s2 == 200 and tg.send_file.await_count == 1 and tg.send_message.await_count == 2

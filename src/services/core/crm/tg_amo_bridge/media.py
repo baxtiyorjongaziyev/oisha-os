@@ -131,25 +131,24 @@ def _find_or_create_folder(service: Any, name: str, parent: Optional[str]) -> st
     with _folder_lock:
         if key in _folder_cache:
             return _folder_cache[key]
-    q = f"name = '{name}' and mimeType = '{_FOLDER_MIME}' and trashed = false"
-    if parent:
-        q += f" and '{parent}' in parents"
-    found = (
-        service.files()
-        .list(q=q, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True)
-        .execute()
-        .get("files", [])
-    )
-    if found:
-        folder_id = found[0]["id"]
-    else:
-        body: dict = {"name": name, "mimeType": _FOLDER_MIME}
+        q = f"name = '{name}' and mimeType = '{_FOLDER_MIME}' and trashed = false"
         if parent:
-            body["parents"] = [parent]
-        folder_id = service.files().create(body=body, fields="id", supportsAllDrives=True).execute()["id"]
-    with _folder_lock:
+            q += f" and '{parent}' in parents"
+        found = (
+            service.files()
+            .list(q=q, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True)
+            .execute()
+            .get("files", [])
+        )
+        if found:
+            folder_id = found[0]["id"]
+        else:
+            body: dict = {"name": name, "mimeType": _FOLDER_MIME}
+            if parent:
+                body["parents"] = [parent]
+            folder_id = service.files().create(body=body, fields="id", supportsAllDrives=True).execute()["id"]
         _folder_cache[key] = folder_id
-    return folder_id
+        return folder_id
 
 
 def _is_not_found(exc: Exception) -> bool:
@@ -165,10 +164,11 @@ def _upload_sync(path: str, name: str, mime: str, peer_id: int) -> str:
     custom_root = os.getenv("TG_AMO_MEDIA_FOLDER_ID", "").strip()
     peer_name = f"tg_{int(peer_id)}"
     for attempt in range(2):
-        root = custom_root or _find_or_create_folder(service, "Oisha_TG_Media", None)
-        folder = _find_or_create_folder(service, peer_name, root)
-        media_body = MediaFileUpload(path, mimetype=mime, resumable=True)
+        root: Optional[str] = None
         try:
+            root = custom_root or _find_or_create_folder(service, "Oisha_TG_Media", None)
+            folder = _find_or_create_folder(service, peer_name, root)
+            media_body = MediaFileUpload(path, mimetype=mime, resumable=True)
             created = (
                 service.files()
                 .create(body={"name": name, "parents": [folder]}, media_body=media_body, fields="id", supportsAllDrives=True)
@@ -178,7 +178,8 @@ def _upload_sync(path: str, name: str, mime: str, peer_id: int) -> str:
         except Exception as exc:
             if attempt == 0 and _is_not_found(exc):
                 with _folder_lock:
-                    _folder_cache.pop(f"{root}/{peer_name}", None)
+                    if root:
+                        _folder_cache.pop(f"{root}/{peer_name}", None)
                     if not custom_root:
                         _folder_cache.pop("None/Oisha_TG_Media", None)
                 continue

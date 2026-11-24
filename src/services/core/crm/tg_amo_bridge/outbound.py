@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 from . import accounts
@@ -66,28 +66,45 @@ def _extract(data: dict) -> Tuple[str, str, str, str]:
     return amo_msg_id, text, client_id, source or ""
 
 
-async def _send_to_telegram(
-    client: Any, tg_user_id: int, text: str, media: Optional[dict]
-) -> Tuple[List[Any], Optional[str]]:
+async def _send_and_record_parts(
+    client: Any,
+    store: MessageStore,
+    account_key: str,
+    amo_msg_id: str,
+    tg_user_id: int,
+    text: str,
+    media: Optional[dict],
+) -> Optional[str]:
+    """Send message/file (recording each tg msg_id immediately for echo suppression)."""
     if media is None:
-        return [await client.send_message(tg_user_id, text)], None
-    path = await media_mod.fetch_to_temp(media["url"], media["name"])
+        sent = await client.send_message(tg_user_id, text)
+        if amo_msg_id:
+            await store.record(amo_msg_id, getattr(sent, "id", None), account_key, tg_user_id, "amo_out")
+        return None
+    file_rec = f"{amo_msg_id}:file" if amo_msg_id else ""
     caption, rest = (text[:_MAX_CAPTION] or None), text[_MAX_CAPTION:]
-    try:
-        sent = await client.send_file(
-            tg_user_id,
-            path,
-            caption=caption,
-            voice_note=media["type"] == "voice",
-            force_document=media["type"] == "file",
-        )
-        results = [sent]
-        if rest:
-            results.append(await client.send_message(tg_user_id, rest))
-        return results, path
-    except Exception:
-        media_mod.cleanup(path)
-        raise
+    path = None
+    if not (file_rec and rest and await store.has_amo_msg(file_rec)):
+        path = await media_mod.fetch_to_temp(media["url"], media["name"])
+        try:
+            sent = await client.send_file(
+                tg_user_id,
+                path,
+                caption=caption,
+                voice_note=media["type"] == "voice",
+                force_document=media["type"] == "file",
+            )
+        except Exception:
+            media_mod.cleanup(path)
+            raise
+        if amo_msg_id:
+            rec_key = file_rec if rest else amo_msg_id
+            await store.record(rec_key, getattr(sent, "id", None), account_key, tg_user_id, "amo_out")
+    if rest:
+        cont = await client.send_message(tg_user_id, rest)
+        if amo_msg_id:
+            await store.record(amo_msg_id, getattr(cont, "id", None), account_key, tg_user_id, "amo_out")
+    return path
 
 
 async def dispatch(
@@ -117,11 +134,15 @@ async def dispatch(
         return 503, {"error": "account_unavailable"}
 
     lock = _locks.setdefault(account.key, asyncio.Lock())
+    path = None
     async with lock:
         try:
-            sent_list, path = await _send_to_telegram(client, tg_user_id, text, media)
+            path = await _send_and_record_parts(
+                client, store, account.key, amo_msg_id, tg_user_id, text, media
+            )
             await asyncio.sleep(_MIN_INTERVAL)
         except Exception as exc:
+            media_mod.cleanup(path)
             logger.error("[TG-AMO] send failed: %s", type(exc).__name__)
             if amo_msg_id:
                 await amojo.send_status(amo_msg_id, STATUS_ERROR, type(exc).__name__)
@@ -133,8 +154,5 @@ async def dispatch(
         task.add_done_callback(_bg_tasks.discard)
 
     if amo_msg_id:
-        for idx, sent in enumerate(sent_list):
-            rec_id = amo_msg_id if idx == 0 else f"{amo_msg_id}:part{idx}"
-            await store.record(rec_id, getattr(sent, "id", None), account.key, tg_user_id, "amo_out")
         await amojo.send_status(amo_msg_id, STATUS_DELIVERED)
     return 200, {"status": "ok", "msg_id": amo_msg_id}
