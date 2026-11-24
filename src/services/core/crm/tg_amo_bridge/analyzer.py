@@ -103,12 +103,24 @@ def extract_phone_from_text(text: str) -> str:
     return ""
 
 
-def is_internal_team_phone(phone: str) -> bool:
-    """Reject agency staff numbers (fail-closed if team roster cannot be loaded)."""
-    norm = normalize_uz_phone(phone)
-    if not norm:
+_CALL_NAME_PREFIXES = (
+    "call from ",
+    "call to ",
+    "входящий звонок",
+    "исходящий звонок",
+)
+_CALL_TAGS = frozenset({"incoming", "outgoing"})
+
+
+def is_internal_team_member(
+    *, phone: str = "", tg_user_id: Optional[int] = None
+) -> bool:
+    """Reject agency staff by phone or tg_user_id (fail-closed if roster fails to load)."""
+    norm = normalize_uz_phone(phone) if phone else ""
+    tail = norm[-9:] if norm else ""
+    uid = int(tg_user_id) if tg_user_id else 0
+    if not tail and uid <= 0:
         return False
-    tail = norm[-9:]
     try:
         from src.services.core.crm.team_roster import CANONICAL_STAFF, get_active_staff
 
@@ -117,13 +129,35 @@ def is_internal_team_phone(phone: str) -> bool:
         except Exception:
             members = list(CANONICAL_STAFF)
         for member in (*members, *CANONICAL_STAFF):
-            c_norm = normalize_uz_phone(getattr(member, "phone", None))
-            if c_norm and c_norm[-9:] == tail:
+            if uid > 0 and getattr(member, "tg_user_id", None) == uid:
                 return True
+            if tail:
+                c_norm = normalize_uz_phone(getattr(member, "phone", None))
+                if c_norm and c_norm[-9:] == tail:
+                    return True
         return False
     except Exception:
-        # Fail-closed: if staff roster cannot be loaded, never allow auto-merge on this phone.
         return True
+
+
+def is_internal_team_phone(phone: str) -> bool:
+    """Reject agency staff numbers (fail-closed if team roster cannot be loaded)."""
+    return is_internal_team_member(phone=phone)
+
+
+def has_call_lead_marker(name: str, tags: Sequence[str]) -> bool:
+    """Return True when a lead clearly originates from telephony (e.g. Moizvonki Call)."""
+    lower_name = str(name or "").strip().lower()
+    if any(lower_name.startswith(pref) for pref in _CALL_NAME_PREFIXES):
+        return True
+    return any(str(t or "").strip().lower() in _CALL_TAGS for t in (tags or ()))
+
+
+def count_call_notes(notes: Sequence[Dict[str, Any]]) -> int:
+    """Count call_in / call_out notes attached directly to a lead or contact."""
+    return sum(
+        1 for n in (notes or ()) if str(n.get("note_type") or "").lower() in {"call_in", "call_out"}
+    )
 
 
 def contact_phones(contact: Dict[str, Any]) -> Tuple[str, ...]:
@@ -158,7 +192,7 @@ def is_telegram_only_lead(profile: LeadProfile) -> bool:
     """Return True when a deal has deal-level Telegram provenance and no calls/price."""
     if profile.status_id in CLOSED_STATUS_IDS:
         return False
-    if profile.call_count > 0 or profile.price > 0:
+    if profile.call_count > 0 or profile.price > 0 or has_call_lead_marker(profile.name, profile.tags):
         return False
     if profile.pipeline_id == FARMER_PIPELINE_ID:
         return False

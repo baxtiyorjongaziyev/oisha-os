@@ -156,15 +156,18 @@ async def handle_message(
         return False
     client_name = _format_client_name(peer_entity, peer_id)
     client_phone = getattr(peer_entity, "phone", None)
-    if not is_manager and is_non_client is not None:
+    skip_automerge = False
+    if is_non_client is not None:
         skip, reason = await is_non_client(phone=client_phone, user_id=peer_id, name=client_name)
         if skip:
-            logger.info("[TG-AMO] skip non-client chat (%s)", reason)
-            return False
+            if not is_manager:
+                logger.info("[TG-AMO] skip non-client chat (%s)", reason)
+                return False
+            skip_automerge = True
 
     source_ext = account.source_external_id if _sources_enabled() else None
     resolved_phone = await _maybe_link_before_send(
-        merger,
+        None if skip_automerge else merger,
         peer_id=peer_id,
         client_name=client_name,
         client_phone=client_phone,

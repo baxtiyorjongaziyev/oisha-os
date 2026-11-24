@@ -11,8 +11,11 @@ from .analyzer import (
     PairDecision,
     analyze_role_split_pair,
     contact_phones,
+    count_call_notes,
     extract_phone_from_text,
     format_link_note,
+    has_call_lead_marker,
+    is_internal_team_member,
     is_internal_team_phone,
     lead_tags,
     normalize_uz_phone,
@@ -140,10 +143,13 @@ class TelegramDealAutoMerger:
         if not lead_refs:
             return []
         call_count = await self.crm.get_contact_call_notes_count(cid) if hasattr(self.crm, "get_contact_call_notes_count") else 0
-        has_chat = chat_linked if chat_linked is not None else (
-            bool(await self.crm.get_contact_chats(contact_id=cid)) if hasattr(self.crm, "get_contact_chats") else False
-        )
-        single_deal_chat = bool(has_chat and len(lead_refs) == 1)
+        chats = await self.crm.get_contact_chats(contact_id=cid) if hasattr(self.crm, "get_contact_chats") else []
+        has_chat = chat_linked if chat_linked is not None else bool(chats)
+        talk_lead_ids = {
+            int(item["entity_id"])
+            for item in (chats or [])
+            if str(item.get("entity_type") or "").lower() == "lead" and item.get("entity_id")
+        }
         profiles: List[LeadProfile] = []
         for ref in lead_refs:
             lid = int(ref.get("id") or 0)
@@ -151,14 +157,22 @@ class TelegramDealAutoMerger:
             if not lead:
                 continue
             notes = await self.crm.get_lead_notes(lid) if hasattr(self.crm, "get_lead_notes") else []
+            name = str(lead.get("name") or "")
+            tags = lead_tags(lead)
+            total_calls = call_count + count_call_notes(notes)
+            if total_calls == 0 and has_call_lead_marker(name, tags):
+                total_calls = 1
+            tg_prov = (lid in talk_lead_ids and total_calls == 0) or (
+                bool(has_chat) and len(lead_refs) == 1 and total_calls == 0
+            )
             profiles.append(
                 LeadProfile(
-                    lead_id=lid, contact_id=cid, name=str(lead.get("name") or ""),
+                    lead_id=lid, contact_id=cid, name=name,
                     status_id=int(lead.get("status_id") or 0), pipeline_id=int(lead.get("pipeline_id") or 0),
                     price=int(lead.get("price") or 0), created_at=int(lead.get("created_at") or 0),
-                    updated_at=int(lead.get("updated_at") or 0), call_count=call_count,
-                    has_chat=bool(has_chat), tg_provenance=single_deal_chat,
-                    notes_count=len(notes), tags=lead_tags(lead), phones=phones,
+                    updated_at=int(lead.get("updated_at") or 0), call_count=total_calls,
+                    has_chat=bool(has_chat), tg_provenance=tg_prov,
+                    notes_count=len(notes), tags=tags, phones=phones,
                 )
             )
         return profiles
@@ -182,14 +196,8 @@ class TelegramDealAutoMerger:
         return ordered[0] if ordered else None, None, []
 
     async def _ensure_amo_chat_id(
-        self,
-        *,
-        peer_id: int,
-        cached_chat_id: Optional[str],
-        client_name: str,
-        phone: str,
-        username: Optional[str],
-        source_external_id: Optional[str],
+        self, *, peer_id: int, cached_chat_id: Optional[str], client_name: str,
+        phone: str, username: Optional[str], source_external_id: Optional[str],
     ) -> Optional[str]:
         if cached_chat_id:
             return cached_chat_id
@@ -197,12 +205,8 @@ class TelegramDealAutoMerger:
             return None
         profile_link = f"https://t.me/{username.lstrip('@')}" if username else None
         return await self.amojo.create_chat(
-            conversation_id=str(peer_id),
-            user_id=str(peer_id),
-            user_name=client_name,
-            phone=f"+{phone}",
-            profile_link=profile_link,
-            source_external_id=source_external_id,
+            conversation_id=str(peer_id), user_id=str(peer_id), user_name=client_name,
+            phone=f"+{phone}", profile_link=profile_link, source_external_id=source_external_id,
         )
 
     async def _collect_tg_chat_profiles(
@@ -223,17 +227,9 @@ class TelegramDealAutoMerger:
         return tg_profiles
 
     async def _reconcile_existing_chat_contacts(
-        self,
-        *,
-        current_cids: set[int],
-        target_cid: int,
-        target_lid: Optional[int],
-        phone_profiles: List[LeadProfile],
-        phone: str,
-        phone_source: str,
-        amo_chat_id: Optional[str],
-        peer_id: int,
-        username: Optional[str],
+        self, *, current_cids: set[int], target_cid: int, target_lid: Optional[int],
+        phone_profiles: List[LeadProfile], phone: str, phone_source: str,
+        amo_chat_id: Optional[str], peer_id: int, username: Optional[str],
     ) -> LinkOutcome:
         tg_profiles = await self._collect_tg_chat_profiles(
             current_cids, target_cid, {p.lead_id for p in phone_profiles}
@@ -331,6 +327,8 @@ class TelegramDealAutoMerger:
         """Link chat to existing phone contact before send_event; merge if already split."""
         if not self.crm:
             return LinkOutcome("not_resolved", reason="crm_unavailable")
+        if is_internal_team_member(tg_user_id=peer_id):
+            return LinkOutcome("not_resolved", reason="internal_staff")
 
         cached = await self.store.get_chat_link(peer_id)
         phone, phone_source = await self.resolve_client_phone(
