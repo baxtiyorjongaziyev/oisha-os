@@ -129,7 +129,12 @@ async def test_phone_message_sends_contact_card_and_username_button():
     dp = _Dispatcher()
 
     async def fake_lookup(phone):
-        return {"first_name": "Diyora", "last_name": "", "username": "S_S_Diyora", "user_id": 7}
+        return {
+            "first_name": "Diyora",
+            "last_name": "",
+            "username": "S_S_Diyora",
+            "user_id": 7,
+        }
 
     register_inline_search_handlers(
         dp, is_admin=lambda uid: True, perform_global_lookup=fake_lookup, db=object()
@@ -138,7 +143,7 @@ async def test_phone_message_sends_contact_card_and_username_button():
     msg = _Message("+998930036373")
     await handler(msg)
     assert msg.contacts == [
-        {"phone_number": "+998930036373", "first_name": "Diyora", "last_name": ""}
+        {"phone_number": "+998930036373", "first_name": "+998930036373"}
     ]
     text, markup = msg.replies[-1]
     assert "Raqam topildi" in text and "+998 93 003 63 73" in text
@@ -147,10 +152,17 @@ async def test_phone_message_sends_contact_card_and_username_button():
 
 
 def test_normalize_uz_phone_variants():
-    from src.services.core.dispatcher.inline_search import normalize_uz_phone
+    from src.services.core.dispatcher.phone_contact_card import normalize_uz_phone
 
     for raw in ("974900606", "998974900606", "+998 97 490 06 06", "8 97 490-06-06"):
         assert normalize_uz_phone(raw) == "+998974900606"
+    # Mahalliy 998 bilan boshlanadigan 9 xonali raqam kod deb olinmaydi.
+    assert normalize_uz_phone("99 812 34 56") == "+998998123456"
+
+
+def test_phone_re_routing_edges():
+    assert re.search(PHONE_RE, "8 97 490-06-06")
+    assert not re.search(PHONE_RE, "89912345678")
 
 
 @pytest.mark.asyncio
