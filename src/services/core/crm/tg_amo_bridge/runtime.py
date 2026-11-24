@@ -62,6 +62,53 @@ async def resolve_amojo_id(crm_client) -> Optional[str]:
     return found
 
 
+async def resolve_manager_ref_id(crm_client) -> Optional[str]:
+    """amojo uuid of the amoCRM user that owns the API token.
+
+    Manager messages written in Telegram are echoed to amoJo with
+    sender={"ref_id": <this uuid>}. Cached in AMOCRM_BRIDGE_MANAGER_REF_ID.
+    """
+    import asyncio
+    import os
+
+    import requests
+
+    existing = os.getenv("AMOCRM_BRIDGE_MANAGER_REF_ID")
+    if existing:
+        return existing
+    if crm_client is None:
+        return None
+
+    def _fetch() -> Optional[str]:
+        try:
+            headers = crm_client._get_headers()
+            acc = requests.get(f"{crm_client.base_url}/api/v4/account", headers=headers, timeout=15)
+            user_id = (acc.json() or {}).get("current_user_id") if acc.status_code == 200 else None
+            if not user_id:
+                logger.error("[TG-AMO] current_user_id lookup HTTP %s", acc.status_code)
+                return None
+            resp = requests.get(
+                f"{crm_client.base_url}/api/v4/users/{int(user_id)}",
+                params={"with": "amojo_id"},
+                headers=headers,
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                logger.error("[TG-AMO] user amojo_id lookup HTTP %s", resp.status_code)
+                return None
+            return (resp.json() or {}).get("amojo_id")
+        except Exception as exc:
+            logger.error("[TG-AMO] manager ref lookup failed: %s", type(exc).__name__)
+            return None
+
+    found = await asyncio.to_thread(_fetch)
+    if found:
+        # pyrefly: ignore[unnecessary-type-conversion]
+        os.environ["AMOCRM_BRIDGE_MANAGER_REF_ID"] = str(found)
+        logger.info("[TG-AMO] manager amojo ref resolved from amoCRM")
+    return found
+
+
 def get_store() -> MessageStore:
     return _store
 
@@ -98,6 +145,7 @@ async def start(is_non_client=None, crm_client=None) -> bool:
     if not config.bridge_enabled():
         return False
     await resolve_amojo_id(crm_client)
+    await resolve_manager_ref_id(crm_client)
     amojo = get_amojo()
     if amojo is None:
         logger.error("[TG-AMO] enabled but AMOCRM_AMOJO_ID / channel id / secret missing")
