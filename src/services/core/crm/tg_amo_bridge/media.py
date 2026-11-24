@@ -16,6 +16,7 @@ import mimetypes
 import os
 import shutil
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
@@ -29,7 +30,8 @@ logger = logging.getLogger("TgAmoBridge.media")
 _DEFAULT_TTL = 30 * 24 * 3600  # amoCRM re-reads media when a chat is reopened
 _FOLDER_MIME = "application/vnd.google-apps.folder"
 _folder_cache: Dict[str, str] = {}
-_drive_singleton: Any = None
+_folder_lock = threading.Lock()
+_drive_local = threading.local()
 
 
 # ---------------------------------------------------------------- config
@@ -112,55 +114,77 @@ def proxy_url(file_id: str, mime: str, name: str) -> str:
 # ---------------------------------------------------------------- drive
 
 def _drive():
-    global _drive_singleton
-    if _drive_singleton is None:
+    """Return a thread-local GoogleDriveSync (httplib2 is not thread-safe)."""
+    inst = getattr(_drive_local, "sync", None)
+    if inst is None:
         from src.services.core.gdrive import GoogleDriveSync
         from src.settings import settings
 
         creds = os.getenv("TG_AMO_MEDIA_CREDS_FILE", "").strip() or settings.GSHEET_CREDS_FILE
-        _drive_singleton = GoogleDriveSync(creds)
-    return _drive_singleton
+        inst = GoogleDriveSync(creds)
+        _drive_local.sync = inst
+    return inst
 
 
 def _find_or_create_folder(service: Any, name: str, parent: Optional[str]) -> str:
     key = f"{parent}/{name}"
-    if key in _folder_cache:
-        return _folder_cache[key]
-    q = f"name = '{name}' and mimeType = '{_FOLDER_MIME}' and trashed = false"
-    if parent:
-        q += f" and '{parent}' in parents"
-    found = (
-        service.files()
-        .list(q=q, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True)
-        .execute()
-        .get("files", [])
-    )
-    if found:
-        folder_id = found[0]["id"]
-    else:
-        body: dict = {"name": name, "mimeType": _FOLDER_MIME}
+    with _folder_lock:
+        if key in _folder_cache:
+            return _folder_cache[key]
+        q = f"name = '{name}' and mimeType = '{_FOLDER_MIME}' and trashed = false"
         if parent:
-            body["parents"] = [parent]
-        folder_id = service.files().create(body=body, fields="id", supportsAllDrives=True).execute()["id"]
-    _folder_cache[key] = folder_id
-    return folder_id
+            q += f" and '{parent}' in parents"
+        found = (
+            service.files()
+            .list(q=q, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True)
+            .execute()
+            .get("files", [])
+        )
+        if found:
+            folder_id = found[0]["id"]
+        else:
+            body: dict = {"name": name, "mimeType": _FOLDER_MIME}
+            if parent:
+                body["parents"] = [parent]
+            folder_id = service.files().create(body=body, fields="id", supportsAllDrives=True).execute()["id"]
+        _folder_cache[key] = folder_id
+        return folder_id
+
+
+def _is_not_found(exc: Exception) -> bool:
+    resp = getattr(exc, "resp", None)
+    status = getattr(resp, "status", None) if resp is not None else getattr(exc, "status_code", None)
+    return status == 404
 
 
 def _upload_sync(path: str, name: str, mime: str, peer_id: int) -> str:
     from googleapiclient.http import MediaFileUpload
 
     service = _drive().service
-    root = os.getenv("TG_AMO_MEDIA_FOLDER_ID", "").strip() or _find_or_create_folder(
-        service, "Oisha_TG_Media", None
-    )
-    folder = _find_or_create_folder(service, f"tg_{int(peer_id)}", root)
-    media = MediaFileUpload(path, mimetype=mime, resumable=True)
-    created = (
-        service.files()
-        .create(body={"name": name, "parents": [folder]}, media_body=media, fields="id", supportsAllDrives=True)
-        .execute()
-    )
-    return created["id"]
+    custom_root = os.getenv("TG_AMO_MEDIA_FOLDER_ID", "").strip()
+    peer_name = f"tg_{int(peer_id)}"
+    for attempt in range(2):
+        root: Optional[str] = None
+        try:
+            root = custom_root or _find_or_create_folder(service, "Oisha_TG_Media", None)
+            folder = _find_or_create_folder(service, peer_name, root)
+            media_body = MediaFileUpload(path, mimetype=mime, resumable=True)
+            created = (
+                service.files()
+                .create(body={"name": name, "parents": [folder]}, media_body=media_body, fields="id", supportsAllDrives=True)
+                .execute()
+            )
+            return created["id"]
+        except Exception as exc:
+            if attempt == 0 and _is_not_found(exc):
+                with _folder_lock:
+                    if root:
+                        _folder_cache.pop(f"{root}/{peer_name}", None)
+                    if not custom_root:
+                        _folder_cache.pop("None/Oisha_TG_Media", None)
+                continue
+            raise
+    raise RuntimeError("drive upload exhausted retries")
 
 
 async def upload(path: str, name: str, mime: str, peer_id: int) -> str:
@@ -240,6 +264,8 @@ def describe_non_file(message: Any) -> str:
 
 def classify(message: Any) -> Optional[Tuple[str, str, str]]:
     """(amo_type, mime, default_ext) for a downloadable Telegram message, else None."""
+    if getattr(message, "web_preview", None) is not None:
+        return None  # Link previews expose .photo/.document in Telethon; keep as text
     file = getattr(message, "file", None)
     mime = (getattr(file, "mime_type", None) or "").lower()
     if getattr(message, "sticker", None):
@@ -309,7 +335,9 @@ _OUT_TYPES = {"picture", "file", "voice", "video", "sticker", "audio"}
 
 def extract_outbound_media(data: dict) -> Optional[dict]:
     """{"type","url","name","size"} for an amoJo webhook carrying a file."""
-    message = data.get("message") or {}
+    message = data.get("message")
+    if not isinstance(message, dict):
+        return None
     inner = message.get("message") if isinstance(message.get("message"), dict) else message
     mtype = str(inner.get("type") or "").lower()
     url = inner.get("media") or inner.get("media_url") or ""

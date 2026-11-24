@@ -11,7 +11,6 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from starlette.background import BackgroundTask
 
 from src.services.core.crm.tg_amo_bridge import media
 
@@ -25,6 +24,16 @@ def _remove(path: str) -> None:
         os.unlink(path)
     except OSError:
         pass
+
+
+class _CleanupFileResponse(FileResponse):
+    """FileResponse that always removes its temp file, even on 400/416 range errors."""
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            _remove(str(self.path))
 
 
 @router.get("/tg-media/{token}")
@@ -41,7 +50,7 @@ async def get_tg_media(token: str):
     mime = str(data.get("m") or "application/octet-stream")
     inline = mime.split("/")[0] in {"image", "video", "audio"}
     disposition = f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{quote(name)}"
-    return FileResponse(
+    return _CleanupFileResponse(
         path,
         media_type=mime,
         headers={
@@ -49,5 +58,4 @@ async def get_tg_media(token: str):
             "Cache-Control": "private, max-age=3600",
             "X-Content-Type-Options": "nosniff",
         },
-        background=BackgroundTask(_remove, path),
     )

@@ -54,6 +54,10 @@ _PUBLIC_PATHS = frozenset(
         "/api/auth/email/login",
         "/api/auth/airtable/login",
         "/api/auth/airtable/callback",
+        # Personal Google Drive OAuth onboarding (one-time SHA256 ticket + Google CSRF state)
+        "/api/integrations/gdrive/connect",
+        "/api/integrations/gdrive/callback",
+        "/api/integrations/gdrive/complete",
         # Web chat widget guest tokens and messaging
         "/api/chat/token",
         "/api/chat/send",
