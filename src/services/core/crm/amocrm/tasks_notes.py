@@ -140,23 +140,40 @@ class AmoCRMTasksNotesMixin:
             logger.error(f"[AMOCRM TASK ERROR] {e}")
             return False
 
-    async def get_tasks(self, is_completed: bool = False) -> List[Dict[str, Any]]:
+    async def get_tasks(self, is_completed: bool = False, max_pages: int = 40) -> List[Dict[str, Any]]:
         """AmoCRM dan vazifalarni olish."""
         if not self.access_token:
             self._load_token()
 
         url = f"{self.base_url}/api/v4/tasks"
-        params = {"filter[is_completed]": 1 if is_completed else 0}
-
-        try:
-            response = await asyncio.to_thread(requests.get, url, headers=self._get_headers(), params=params, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("_embedded", {}).get("tasks", [])
-            return []
-        except Exception as e:
-            logger.error(f"[AMOCRM GET TASKS ERROR] {e}")
-            return []
+        # Barcha sahifalarni olamiz: faqat 1-sahifa olinsa, ochiq vazifalar
+        # soni limitdan oshganda yangi vazifalar eslatmadan tushib qoladi.
+        tasks: List[Dict[str, Any]] = []
+        for page in range(1, max_pages + 1):
+            params = {
+                "filter[is_completed]": 1 if is_completed else 0,
+                "limit": 250,
+                "page": page,
+            }
+            try:
+                response = await asyncio.to_thread(
+                    requests.get, url, headers=self._get_headers(), params=params, timeout=30
+                )
+            except Exception as e:
+                logger.error(f"[AMOCRM GET TASKS ERROR] page={page}: {e}")
+                break
+            if response.status_code != 200:
+                if response.status_code != 204:
+                    logger.warning(f"[AMOCRM GET TASKS] page={page} status={response.status_code}")
+                break
+            try:
+                batch = response.json().get("_embedded", {}).get("tasks", [])
+            except ValueError:
+                break
+            tasks.extend(batch)
+            if len(batch) < 250:
+                break
+        return tasks
 
     async def get_task(self, task_id: int) -> Optional[Dict[str, Any]]:
         """AmoCRM dan bitta vazifani ID bo'yicha olish."""
