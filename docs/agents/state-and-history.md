@@ -21,12 +21,10 @@
 - **Telegram architecture decision:** userbot Telethon'da qoladi. Bot akkaunt (`BOT_TOKEN`, @jonairobot) bosqichma-bosqich Aiogram'ga ko'chiriladi. Migratsiya adapter-first bo'lsin: avval `bot_client.send_message`/callback/command yuzasi uchun compatibility adapter, keyin Hisobchi approvals, admin commands, Frog reports va boshqa bot-token flows alohida ko'chiriladi. Bir martada to'liq almashtirmang; har bosqichda test va production-safe rollback bo'lsin.
 - Telegram Bot API guruh access qayta tiklandi: `crm_group` va `team_group` `getChat` tekshiruvida `200 OK`. `scripts/prod/probe_integrations.py` bilan AmoCRM, Airtable va Telegram Bot API ham OK tasdiqlangan.
 
-### Hetzner Migration Status (2026-11-15)
-- **Active services (owner SSH tekshiruvi):** `oisha.service`, `openclaw-gateway.service` (Mr.Jon), `hermes-gateway.service` (Amina) Hetzner (`2.29.198.0`) da faol; Oisha `/readyz` `ready:true`, Telegram userbot authorized, AmoCRM connected (agentda SSH kirish mavjud emas — mustaqil SSH bilan qayta tekshirilmagan).
-- **Kutilayotgan ishlar (tasdiqlangan blockerlar):**
-  - DNS (`oisha.jonbranding.uz`, `crm.jonbranding.uz`) Cloudflare'da hali `109.199.100.137` (sobiq Contabo, hozir begona "Waffly | Admin Panel") ga qaraydi; `2.29.198.0` ga o'tkazilishi kerak.
-  - Hetzner Nginx/TLS (`2.29.198.0:80` hozir standart Nginx 404 beradi): DNS o'tgach certbot/SSL va webhook yo'llari (`/api/amocrm/*`, `/api/instagram/webhook`, `/webhook/*`, `/capi`, `/sotuv`, `/payme`) uchun `auth_basic off` sozlanishi kerak.
-  - Instagram (`META_PAGE_ACCESS_TOKEN`, `META_INSTAGRAM_USER_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`) va 3 ta alohida Gemini kaliti (Oisha, Mr.Jon/OpenClaw, Amina/Hermes) hali `.env`/runtime ga kiritilmagan (`instagram` status `degraded`).
+### Hetzner Migration Status (2026-11-24 verified)
+- **Active services (SSH va tashqi HTTPS bilan tekshirilgan):** `oisha.service`, `openclaw-gateway.service` (Mr.Jon), `hermes-gateway.service` (Amina) Hetzner (`2.29.198.0`) da faol; `https://oisha.jonbranding.uz/readyz` → `200 OK` (`ready: true`, `database: ok`, `userbot: authorized`, `amocrm: connected`, `meta_config.configured: true`).
+- **DNS va Nginx/TLS (bajarildi, 2026-11-24 tekshirilgan):** `oisha.jonbranding.uz` A-record → `2.29.198.0`; `/etc/nginx/sites-available/oisha.conf` Letʻs Encrypt ECDSA TLS (2027-02-14 gacha amal qiladi), `client_max_body_size 55m` va alohida `location ^~ /tg-media/` (`proxy_buffering off`, `proxy_read_timeout 300s`) bilan faol. `POST /webhook/amocrm/chats/{scope_id}` amoJoʻdan `200 OK` qabul qilyapti.
+- **Kutilayotgan ish:** Google Drive 5 TB shaxsiy akkaunt OAuth ruxsati (`GDRIVE_OAUTH_TOKEN_FILE=/home/deploy/oisha-os/data/gdrive_oauth_token.json`, `GDRIVE_AUTH_MODE=oauth`) hamda `TG_AMO_MEDIA_ENABLED=1` yoqilgach amoCRMʻdan menejer fayl yuborgandagi jonli webhook shaklini tekshirish.
 
 ### Done (Code Refactoring to 150–400 Lines Standard — Antigravity)
 - **20,000+ qatordan ortiq barcha yirik "God-file"lar 150–400 qatorli toza modullarga ajratildi (Facade + Mixin Pattern):**

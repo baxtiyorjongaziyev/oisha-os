@@ -43,7 +43,7 @@ def expected_email() -> str:
 def token_path() -> Path:
     return Path(_env(
         "GDRIVE_OAUTH_TOKEN_FILE",
-        "/home/ubuntu/oisha-os/data/gdrive_oauth_token.json",
+        "/home/deploy/oisha-os/data/gdrive_oauth_token.json",
     ))
 
 
