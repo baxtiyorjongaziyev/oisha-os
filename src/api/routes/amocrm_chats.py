@@ -53,31 +53,15 @@ def _verify_amojo_signature(
         logger.warning("[AMOCRM CHAT] X-Signature header is missing (not an amoJo hook?).")
         return False
 
-    body_sig = hmac.new(channel_secret.encode("utf-8"), body_bytes, hashlib.sha1).hexdigest().lower()
-    if hmac.compare_digest(signature_header.strip().lower(), body_sig):
-        return True
-
+    # amoJo signs the body without its trailing newline; accept both forms.
     got = signature_header.strip().lower()
     key = channel_secret.encode("utf-8")
-    variants = {
-        "sha1_body_stripped": hmac.new(key, body_bytes.strip(), hashlib.sha1).hexdigest(),
-        "sha1_swapped": hmac.new(body_bytes, key, hashlib.sha1).hexdigest(),
-        "sha1_plain_concat": hashlib.sha1(body_bytes + key, usedforsecurity=False).hexdigest(),
-    }
-    for name, sig in variants.items():
-        if hmac.compare_digest(got, sig):
-            logger.warning("[AMOCRM CHAT] Signature matched variant=%s", name)
+    for candidate in (body_bytes, body_bytes.rstrip()):
+        if hmac.compare_digest(got, hmac.new(key, candidate, hashlib.sha1).hexdigest()):
             return True
 
     if not date_header or not content_md5_header:
-        logger.warning(
-            "[AMOCRM CHAT] Body signature mismatch and no Date/Content-MD5 headers "
-            "(got=%s.. len=%d, expected=%s.., body_len=%d).",
-            signature_header.strip()[:8],
-            len(signature_header.strip()),
-            body_sig[:8],
-            len(body_bytes),
-        )
+        logger.warning("[AMOCRM CHAT] Body signature mismatch and no Date/Content-MD5 headers.")
         return False
 
     calculated_md5 = hashlib.md5(body_bytes, usedforsecurity=False).hexdigest().lower()
@@ -139,11 +123,6 @@ async def handle_amocrm_chat_outbound(
         channel_secret,
         path=request.url.path,
     ):
-        logger.warning(
-            "[AMOCRM CHAT] Rejected hook path=%s header_names=%s",
-            request.url.path,
-            sorted(request.headers.keys()),
-        )
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     # Parse payload
