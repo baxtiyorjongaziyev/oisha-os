@@ -4,10 +4,11 @@ Telegram dialog entity resolution and temporary contact cleanup mixin.
 from __future__ import annotations
 
 import inspect
-import random
 import re
 from typing import Any, Optional
 import structlog
+
+from src.services.core.telegram.temp_contacts import delete_temp_contact, import_temp_contact
 
 logger = structlog.get_logger()
 
@@ -48,34 +49,18 @@ class DialogResolverMixin:
             if not clean_phone:
                 raise first_error
 
-        from telethon.tl import functions, types
-
-        contact = types.InputPhoneContact(
-            client_id=random.randrange(-(2**63), 2**63),
-            phone=clean_phone,
-            first_name="Oisha Lookup",
-            last_name="",
-        )
-        imported = await self.user_client(
-            functions.contacts.ImportContactsRequest(contacts=[contact])
-        )
-        users = list(getattr(imported, "users", None) or [])
-        if not users:
+        user, newly_imported = await import_temp_contact(self.user_client, clean_phone)
+        if user is None:
             return None, None
-        user = users[0]
-        return await self.user_client.get_input_entity(user), int(user.id)
+        temp_id = int(user.id) if newly_imported else None
+        try:
+            return await self.user_client.get_input_entity(user), temp_id
+        except Exception:
+            await delete_temp_contact(self.user_client, temp_id)
+            raise
 
     async def _delete_temporary_contact(self, user_id: Optional[int]) -> None:
-        if not user_id:
-            return
-        try:
-            from telethon.tl import functions
-
-            await self.user_client(
-                functions.contacts.DeleteContactsRequest(id=[int(user_id)])
-            )
-        except Exception as exc:
-            logger.debug("[TELEGRAM_TASK] Temporary contact cleanup skipped: %s", exc)
+        await delete_temp_contact(self.user_client, user_id)
 
     async def _fetch_shared_group_messages(self, client_user_id: int, limit: int = 20) -> list:
         """Recent messages from groups where the client actively participates."""
