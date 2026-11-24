@@ -5,7 +5,7 @@ import asyncio
 import logging
 import os
 import uuid
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 from . import media as media_mod
 from .accounts import Account
@@ -142,6 +142,20 @@ async def _send_and_record(
     return True
 
 
+async def _prepare_media_payload(
+    message: Any, peer_id: int, text: str
+) -> Tuple[Optional[media_mod.MediaRef], str]:
+    if not _has_file(message):
+        return None, text
+    caption = (getattr(message, "raw_text", None) or "").strip()
+    media_ref, fallback = await media_mod.prepare_inbound(message, peer_id)
+    if media_ref is not None:
+        return media_ref, caption
+    if fallback:
+        return None, f"{fallback}\n{caption}".strip() if caption else fallback
+    return None, text
+
+
 async def handle_message(
     event: Any,
     account: Account,
@@ -181,24 +195,18 @@ async def handle_message(
             skip_automerge = True
 
     source_ext = account.source_external_id if _sources_enabled() else None
+    raw_text = (getattr(message, "raw_text", None) or "").strip()
     resolved_phone = await _maybe_link_before_send(
         None if skip_automerge else merger,
         peer_id=peer_id,
         client_name=client_name,
         client_phone=client_phone,
         client_username=getattr(peer_entity, "username", None),
-        text=text,
+        text=raw_text,
         is_manager=is_manager,
         source_ext=source_ext,
     )
-    media_ref = None
-    if _has_file(message):
-        caption = (getattr(message, "raw_text", None) or "").strip()
-        media_ref, fallback = await media_mod.prepare_inbound(message, peer_id)
-        if media_ref is not None:
-            text = caption
-        elif fallback:
-            text = f"{fallback}\n{caption}".strip() if caption else fallback
+    media_ref, text = await _prepare_media_payload(message, peer_id, text)
     return await _send_and_record(
         amojo=amojo, store=store, account=account, peer_id=peer_id, tg_msg_id=message.id,
         client_name=client_name, text=text, phone=resolved_phone, source_ext=source_ext, is_manager=is_manager,
