@@ -368,7 +368,7 @@ async def test_outgoing_manager_message_resolves_client_from_get_chat(monkeypatc
     assert await inbound.handle_message(ev, acc, amojo, store)
     payload = amojo.send_event.await_args.args[0]["payload"]
     assert payload["receiver"]["name"] == "Dilshod"
-    assert payload["receiver"]["profile"]["phone"] == "998901234567"
+    assert payload["receiver"]["profile"]["phone"] == "+998901234567"
 
 
 # ---- 6. Background reconciler scan & dry-run ----------------------------

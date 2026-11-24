@@ -270,3 +270,15 @@ def test_manager_message_uses_ref_id_sender():
     p = ev["payload"]
     assert p["sender"] == {"ref_id": "uuid-mgr"}
     assert p["receiver"]["id"] == "1"
+
+
+def test_amojo_profile_phone_gets_plus_prefix():
+    from src.services.core.crm.tg_amo_bridge.amojo_client import AmoJoClient, format_profile_phone
+
+    assert format_profile_phone("998973355900") == "+998973355900"
+    assert format_profile_phone("+998 97 335-59-00") == "+998973355900"
+    assert format_profile_phone("") is None
+    ev = AmoJoClient("a", "c", "s").build_message_event(
+        conversation_id="1", sender_id="1", sender_name="X", text="hi", phone="998973355900"
+    )
+    assert ev["payload"]["sender"]["profile"]["phone"] == "+998973355900"

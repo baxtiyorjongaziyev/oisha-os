@@ -43,6 +43,12 @@ def sign_request(secret: str, method: str, path: str, body: bytes, date: Optiona
     }
 
 
+def format_profile_phone(phone: Optional[str]) -> Optional[str]:
+    """E.164-style phone for amoJo profiles: digits with a leading "+"."""
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    return f"+{digits}" if digits else None
+
+
 class AmoJoClient:
     def __init__(self, amojo_id: str, channel_id: str, channel_secret: str, scope_id: Optional[str] = None):
         self.amojo_id = amojo_id
@@ -120,8 +126,9 @@ class AmoJoClient:
             if file_size is not None:
                 message["file_size"] = file_size
         sender: dict[str, Any] = {"id": sender_id, "name": sender_name}
-        if phone:
-            sender["profile"] = {"phone": phone}
+        profile_phone = format_profile_phone(phone)
+        if profile_phone:
+            sender["profile"] = {"phone": profile_phone}
         payload: dict[str, Any] = {
             "timestamp": int(now),
             "msec_timestamp": int(now * 1000),
@@ -167,8 +174,9 @@ class AmoJoClient:
             logger.warning("[TG-AMO] scope_id missing; call connect() first")
             return None
         user: dict[str, Any] = {"id": user_id, "name": user_name}
-        if phone:
-            user["profile"] = {"phone": phone}
+        profile_phone = format_profile_phone(phone)
+        if profile_phone:
+            user["profile"] = {"phone": profile_phone}
         if profile_link:
             user["profile_link"] = profile_link
         payload: dict[str, Any] = {
