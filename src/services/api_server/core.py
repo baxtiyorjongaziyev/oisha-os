@@ -111,6 +111,7 @@ except Exception as exc:
 # Include route modules
 from src.api.routes.ai_analytics import router as ai_router
 from src.api.routes.amocrm_chats import router as amocrm_chats_router
+from src.api.routes.tg_media import router as tg_media_router
 from src.api.routes.amocrm_integration import router as amocrm_router
 from src.api.routes.attendance_routes import pages_router as attendance_pages_router
 from src.api.routes.tg_connect_routes import pages_router as tg_connect_pages_router
@@ -165,6 +166,7 @@ app.include_router(sales_quality_router)
 app.include_router(chat_router)
 app.include_router(amocrm_router)
 app.include_router(amocrm_chats_router)
+app.include_router(tg_media_router)
 app.include_router(openclaw_router)
 app.include_router(ai_router)
 app.include_router(erp_router)
