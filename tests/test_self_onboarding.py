@@ -68,7 +68,7 @@ def test_member_lookup(tmp_path: Path):
     assert rayxon.id == "rayxon"
 
     # Email orqali
-    shahnoza = service.lookup_member("xayrullayevna006@gmail.com")
+    shahnoza = service.lookup_member("shahnoza@jonbranding.uz")
     assert shahnoza is not None
     assert shahnoza.id == "shahnoza"
 

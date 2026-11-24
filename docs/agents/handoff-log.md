@@ -1380,7 +1380,7 @@ Live update: PRs 624, 622, 608, 621 and 623 verified MERGED. Codex merged 623 no
   - `src/services/call_analytics/crm_tasks.py`: `_build_task_text` da vazifa matni, xulosa va konversiya tavsiyalariga `normalize_name_spellings` qo'llandi.
   - `src/services/call_analytics/scorer.py`: Gemini AI promptiga `IMLO VA NOMLAR STANDARTI: Hech qachon 'Rayhonajon' yoki 'Rayhona' deb yozmang — doimo 'Rayxon' deb yozilsin` qoidasi kiritildi.
   - `src/services/call_analytics/call_report_formatter.py` & `scripts/daily_sales_calls_report.py`: Rep display namelarida `normalize_name_spellings` qo'llandi.
-  - `deploy/systemd/oisha-calls-report.service`: `MOIZVONKI_REP_NAMES` da `rayxona@jonbranding.uz:Rayxon,xayrullayevna006@gmail.com:Rayxon` kiritildi.
+  - `deploy/systemd/oisha-calls-report.service`: `MOIZVONKI_REP_NAMES` da `rayxona@jonbranding.uz:Rayxon,[eski shaxsiy Gmail]:Rayxon` kiritildi.
   - `tests/test_call_conversion_tasks.py`: Imlo normalizatsiyasi bo'yicha maxsus testlar qo'shildi.
   - Jonli ma'lumotlar: AmoCRM vazifa `#49214985` va izohlar `#333069479`, `#333069495` API orqali "Rayxon"ga tuzatildi; Turso DB `call_analyses` dagi id=1644 yozuvi tozalandi.
   - Obsidian Brain: `20-Areas/SOP_Sotuvchilar_Darsligi.md` ga 6-modul sifatida kiritildi, `brain_log` qayd etildi.
@@ -2143,8 +2143,8 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
 - Tekshiruv: 33 focused test passed (`test_moizvonki_roster`, `test_unowned_lead_alert`, `test_daily_sales_calls_report`), compileall OK, bandit -ll toza. Prodda qo'lda tekshirilgan: 24 soatda `mumtozmaxal@jonbranding.uz` bo'yicha 19 qo'ng'iroq.
 - Ochiq: PR merge va keyingi deploy; `jonbranding@agency.uz` akkaunti rosterda yo'q — hisobotda alohida ko'rinadi, egasi qaror qilishi kerak.
 
-## 2026-10-29 - Tuzatish: xayrullayevna006@gmail.com — Shahnoza, Rayxon emas
-- Owner tuzatdi: `xayrullayevna006@gmail.com` — Shahnozaning shaxsiy Gmail akkaunti. Avvalgi rosterda u Rayxonga bog'langan edi (xato).
+## 2026-10-29 - Tuzatish: [eski shaxsiy Gmail] — Shahnoza, Rayxon emas
+- Owner tuzatdi: `[eski shaxsiy Gmail]` — Shahnozaning shaxsiy Gmail akkaunti. Avvalgi rosterda u Rayxonga bogʻlangan edi (xato).
 - `config/moizvonki_roster.json`: gmail endi `Shahnoza`. 30 kunlik tekshiruv: bu akkauntda 0 qo'ng'iroq, ya'ni raqamlarga ta'siri yo'q edi, lekin nomlash xato edi.
 - `src/schedulers/remote_staff_checkin_scheduler.py`: gmail Rayxonning `DEFAULT_REP_EMAILS` dan olib tashlanib Shahnozaning email ro'yxatiga qo'shildi; `scripts/dispatch_remote_checkin.py` dry-run ham yangilandi.
 - `src/services/call_analytics/call_report_formatter.py`: `_merge_reps_by_name` qo'shildi — bir xil ko'rsatiladigan ismli akkauntlar (ish + shaxsiy) bitta qatorga qo'shiladi. `REP_TG_USERNAMES` dan Farangiz olib tashlandi.
@@ -3243,3 +3243,10 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** (1) `reconciler.py`: `order[updated_at]=desc` + 3 sahifagacha pagination; (2) `chats.py`: TTL cooldown + paginated `GET /api/v4/talks` fallback + `verify_contact_linked_to_lead` read-after-write tekshiruvi; (3) `analyzer.py`/`reconciler.py`/`automerge.py`: faqat Telegram origin (`amo.ext.*`/`telegram`) Talkʻlari, aniq `bound_lead_ids` cheklovi, `deal_talk_verified`, sdelka `call_in`/`call_out` izohlari va `tg_user_id` xodim himoyasi; (4) `non_client_filter.py` & `inbound.py`: non-blocking async phone qidiruvi va outgoing check faqat `merger` faol boʻlganda; (5) `tests/test_tg_amo_automerge.py`: 8 ta Devin Review holati uchun regression testlar + CodeQL/Codacy tozaligi.
 - **Tekshiruv dalillari:** Fokuslangan testlar (`test_tg_amo_automerge.py`, `test_tg_amo_bridge.py`, `test_amocrm_chats.py`, `test_non_client_filter.py`): **62/62 passed**; `ruff`, `bandit`, `check_uzbek_text.py` va `<=400L / <=60L` tekshiruvi: **toza**.
 - **Qolgan ish:** PR #1144 CI/merge/deploydan keyin Hetznerʼda Sabina (`#54826491` -> `#54826459`) va Abdumannob juftliklari birlashganini jonli tasdiqlash.
+
+## 2026-11-24 — Antigravity — Shahnoza shaxsiy Gmail manzilini public repodan tozalash (`fix/remove-shahnoza-personal-gmail`)
+- **Sabab:** Avvalgi sessiyada lokal fayllardan olib tashlangan Shahnozaning shaxsiy Gmail manzili commit/PR qilinmagani uchun public `origin/main` (`f2a7d64a`) dagi 10 ta faylda qolib ketgan edi.
+- **Oʻzgargan fayllar:** `config/moizvonki_roster.json`, `src/services/core/crm/team_roster.py`, `src/schedulers/remote_staff_checkin_scheduler.py`, `src/services/core/onboarding/knowledge_source.py`, `scripts/share_calendar.py`, `scripts/share_calendar_auth.py`, `tests/test_call_report_merge.py`, `tests/test_self_onboarding.py`, `tests/test_team_roster.py`, `docs/agents/handoff-log.md`.
+- **Bajarilgan ish:** (1) Barcha roster, check-in, onboarding va test fayllaridan shaxsiy Gmail olib tashlandi va faqat korporativ `shahnoza@jonbranding.uz` qoldirildi; (2) `scripts/share_calendar.py` va `scripts/share_calendar_auth.py` da qattiq yozilgan shaxsiy Gmail oʻrniga `GOOGLE_CALENDAR_SHARE_EMAIL` env oʻzgaruvchisi (default `baxtiyorjongaziyev@jonbranding.uz`) qoʻyildi; (3) `docs/agents/handoff-log.md` dagi tarixiy yozuvlardagi shaxsiy Gmail `[eski shaxsiy Gmail]` ga tahrirlandi.
+- **Tekshiruv dalillari:** `git grep -i` boʻyicha 0 ta moslik; fokuslangan testlar (`test_call_report_merge`, `test_self_onboarding`, `test_team_roster`, `test_moizvonki_roster`, `test_gcalendar`, `test_gcalendar_credentials`, `test_checkin_composer`, `test_daily_sales_calls_report`, `test_unowned_lead_alert`, `test_daily_priority_ownership`): **98 passed**; `ruff`, `bandit -r src/ -ll`, `py_compile`, `check_uzbek_text.py --staged`: **toza**.
+- **Qolgan ish / Owner amali:** Google Calendar `primary` kalendaridagi `writer` ACL yozuvini Chrome (`calendar.google.com`) orqali qoʻlda yoki yangi OAuth ruxsati bilan olib tashlash (mahalliy `data/token.pickle` muddati oʻtgan/bekor qilingan).
