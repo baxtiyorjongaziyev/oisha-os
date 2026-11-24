@@ -141,6 +141,14 @@ def test_handler_skips_commands_and_respects_disable_switch(monkeypatch):
     assert asyncio.run(handler._is_daily_reply(_msg("/start"))) is False
     assert asyncio.run(handler._is_daily_reply(_msg("ha", chat_type="group"))) is False
     assert asyncio.run(handler._is_daily_reply(_msg("ha", user_id=999))) is False
+    # Javob berilgach keyingi DM team-DM'ga oʻtadi (kun boʻyi yutilmaydi).
+    asyncio.run(engine.handle_reply(1, "ha", NOW, generate=no_ai))
+    assert asyncio.run(handler._is_daily_reply(_msg("vazifalarimni ber"))) is False
+    # Kunduzgi soʻrov ketgach yana bitta javob kutiladi.
+    asyncio.run(engine.run_followup(FakeBot(), NOW.replace(hour=15, minute=0), generate=no_ai))
+    assert asyncio.run(handler._is_daily_reply(_msg("Bajarildi"))) is True
+    asyncio.run(engine.handle_reply(1, "Bajarildi", NOW, generate=no_ai))
+    assert asyncio.run(handler._is_daily_reply(_msg("rahmat"))) is False
     monkeypatch.setenv("DAILY_PRIORITY_ENABLED", "0")
     assert asyncio.run(handler._is_daily_reply(_msg("ha"))) is False
 

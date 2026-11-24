@@ -130,6 +130,18 @@ async def run_owner_summary(bot: Any, now, owner_id: Optional[int]) -> bool:
     return True
 
 
+def is_awaiting_reply(entry: Optional[dict]) -> bool:
+    """Oishaʼning kunlik savoli hali javobsizmi (ertalabki yoki kunduzgi soʻrov).
+
+    Javob olingandan keyingi DMʼlar oddiy savol — ularni team-DM handleri oladi.
+    """
+    if not entry:
+        return False
+    if not entry.get("reply"):
+        return True
+    return bool(entry.get("followup_sent")) and not entry.get("followup_reply")
+
+
 def _apply_reply(entry: dict, text: str, status: str, now) -> dict:
     entry = dict(entry)
     if entry.get("followup_sent") and entry.get("status") in (st.STATUS_ACCEPTED, st.STATUS_CHANGED):
