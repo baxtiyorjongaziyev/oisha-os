@@ -221,6 +221,13 @@ def build_admin_aiogram_dispatcher(
             is_admin=is_admin,
         )
 
+    from src.services.core.dispatcher.handlers_lead_owner import register_lead_owner_handlers
+
+    # Telefon-qidiruv handleridan oldin: "998... kimning lidi" shu yerga tushsin.
+    register_lead_owner_handlers(
+        dp, is_admin=is_admin, get_amocrm_client=get_amocrm_client, db=db
+    )
+
     if perform_global_lookup is not None:
         register_inline_search_handlers(
             dp,

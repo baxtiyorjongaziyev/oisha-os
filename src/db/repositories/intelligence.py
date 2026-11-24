@@ -196,3 +196,17 @@ class IntelligenceRepository(BaseRepository):
             logger.error(f"[DB] Error fetching call analysis for lead {lead_id}: {e}")
 
         return None
+
+    async def get_lead_calls(self, lead_id: int, limit: int = 200) -> list[Dict[str, Any]]:
+        """Return a lead's analysed calls (oldest first): who called, when, how long."""
+        if not lead_id:
+            return []
+        try:
+            return await self._fetch_all(
+                "SELECT manager_name, created_at, duration_seconds FROM call_analyses "
+                "WHERE lead_id = ? ORDER BY created_at ASC LIMIT ?",
+                (int(lead_id), int(limit)),
+            )
+        except Exception as e:
+            logger.error(f"[DB] Error fetching calls for lead {lead_id}: {e}")
+            return []
