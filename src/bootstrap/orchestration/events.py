@@ -64,13 +64,16 @@ def register_event_handlers(
             # off, card-bot / finance-group auto-entry must not run here either
             # (this handler used to bypass it). Owner slash commands stay.
             auto_entry = _hisobchi_ai_auto_entry_enabled()
-            if auto_entry and event.is_private and not event.out and is_card_bot_sender(sender):
-                await handle_card_bot_message(event, client, hisobchi_engine, bot_client=bot_runtime)
-                raise events.StopPropagation
+            # Personal accounting removed: private card-bot DMs and owner
+            # receipt photos are never turned into transactions.
             if not event.is_private and not event.out:
                 if auto_entry and await handle_finance_group_reply(
                     event, client, hisobchi_engine, bot_client=bot_runtime
                 ):
+                    # Pipeline won't see this event: observe Dilbar here.
+                    from src.handlers.msg_pipeline.hisobchi import observe_finance_group_event
+
+                    await observe_finance_group_event(event, sender)
                     raise events.StopPropagation
                 return
             if event.is_private and not event.out:
@@ -96,13 +99,6 @@ def register_event_handlers(
                     elif lowered.startswith("/kirim") or lowered.startswith("/chiqim"):
                         handled = await handle_kirim_chiqim_text(event, hisobchi_engine)
                     if handled:
-                        raise events.StopPropagation
-                if auto_entry and should_process_private_receipt_photo(
-                    is_owner=bool(is_owner),
-                    has_photo=bool(event.message.photo),
-                    text=text,
-                ):
-                    if await handle_receipt_photo(event, hisobchi_engine):
                         raise events.StopPropagation
         except events.StopPropagation:
             raise
