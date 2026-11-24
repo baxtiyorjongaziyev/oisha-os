@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import json
 import logging
-import random
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from telethon import functions, types
 
+from src.services.core.telegram.temp_contacts import delete_temp_contact, import_temp_contact
 from src.services.core.crm.enrichment.models import (
     _clip,
     _extract_role_from_history_item,
@@ -120,23 +120,12 @@ class HistoryCollectorMixin:
             if not is_authorized:
                 return {}
 
-            clean_phone = phone.replace("+", "")
-            contact = types.InputPhoneContact(
-                client_id=random.randrange(-(2**63), 2**63),
-                phone=clean_phone,
-                first_name="Oisha Lookup",
-                last_name="",
-            )
-            result = await self.user_client(
-                functions.contacts.ImportContactsRequest(contacts=[contact])
-            )
-            users = getattr(result, "users", None) or []
-            if not users:
+            user, newly_imported = await import_temp_contact(self.user_client, phone)
+            if user is None:
                 return {}
-            imported = getattr(result, "imported", None) or []
-
-            user = users[0]
             user_id = getattr(user, "id", None)
+            if newly_imported:
+                await delete_temp_contact(self.user_client, user_id)
             data = {
                 "user_id": int(user_id) if user_id is not None else None,
                 "username": getattr(user, "username", None),
@@ -144,14 +133,6 @@ class HistoryCollectorMixin:
                 "last_name": getattr(user, "last_name", None),
                 "phone": phone,
             }
-
-            if user_id is not None and imported:
-                try:
-                    await self.user_client(
-                        functions.contacts.DeleteContactsRequest(id=[int(user_id)])
-                    )
-                except Exception:
-                    logger.debug("[AMO_ENRICH] Failed to delete imported contact for user %s", user_id, exc_info=True)
             return {k: v for k, v in data.items() if v is not None}
         except Exception as exc:
             logger.warning("[AMO_ENRICH] Userbot phone lookup failed: %s", exc)

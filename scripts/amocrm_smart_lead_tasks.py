@@ -24,7 +24,6 @@ import os
 import re
 import sqlite3
 import sys
-import time
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
@@ -587,20 +586,21 @@ class SmartLeadTaskPipeline:
             pass
 
         try:
-            from telethon import functions, types
+            from src.services.core.telegram.temp_contacts import (
+                delete_temp_contact,
+                import_temp_contact,
+            )
 
             clean_phone = normalize_phone(phone).replace("+", "")
-            contact = types.InputPhoneContact(
-                client_id=int(time.time() * 1000),
-                phone=clean_phone,
-                first_name="Oisha Lookup",
-                last_name="",
-            )
-            result = await self.user_client(functions.contacts.ImportContactsRequest(contacts=[contact]))
-            users = getattr(result, "users", None) or []
-            if not users:
+            user, newly_imported = await import_temp_contact(self.user_client, clean_phone)
+            if user is None:
                 return None
-            return await self.user_client.get_input_entity(users[0])
+            try:
+                return await self.user_client.get_input_entity(user)
+            finally:
+                # Entity carries access_hash; the address-book entry is not needed.
+                if newly_imported:
+                    await delete_temp_contact(self.user_client, getattr(user, "id", None))
         except Exception:
             return None
 
