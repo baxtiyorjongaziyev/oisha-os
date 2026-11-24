@@ -257,3 +257,16 @@ async def test_start_from_app_ctx_never_raises(monkeypatch):
     monkeypatch.setenv("TG_AMO_BRIDGE_ENABLED", "1")
     monkeypatch.setattr(runtime, "start", AsyncMock(side_effect=RuntimeError("boom")))
     assert await runtime.start_from_app_ctx() is False
+
+
+def test_manager_message_uses_ref_id_sender():
+    from src.services.core.crm.tg_amo_bridge.amojo_client import AmoJoClient
+
+    c = AmoJoClient("acc", "chan", "secret", scope_id="s")
+    ev = c.build_message_event(
+        conversation_id="1", sender_id="1", sender_name="Client", text="hi",
+        is_manager=True, manager_ref_id="uuid-mgr",
+    )
+    p = ev["payload"]
+    assert p["sender"] == {"ref_id": "uuid-mgr"}
+    assert p["receiver"]["id"] == "1"

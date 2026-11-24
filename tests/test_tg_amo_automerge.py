@@ -678,6 +678,7 @@ async def test_runtime_start_wires_merger_and_background_reconciler(monkeypatch)
     monkeypatch.setattr(runtime, "_reconciler_task", None)
     monkeypatch.setattr(runtime, "_merger", None)
     monkeypatch.setattr(runtime, "resolve_amojo_id", AsyncMock(return_value="amojo-test"))
+    monkeypatch.setattr(runtime, "resolve_manager_ref_id", AsyncMock(return_value="mgr-ref"))
     monkeypatch.setattr(
         accounts, "all_accounts",
         lambda: [accounts.Account("owner", "O", "oisha-tg-owner", lambda: SimpleNamespace())],

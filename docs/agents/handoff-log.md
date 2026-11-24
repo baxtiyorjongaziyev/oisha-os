@@ -3215,19 +3215,24 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv:** `tests/test_handlers_welcome.py` + ai_features testlari (28 passed), `bandit`, `check_uzbek_text.py` toza.
 - **Keyingi qadam:** jonli botinvite havolasi bilan Hetzner'da sinash.
 
-## 2026-11-24 — Antigravity — Telegram ↔ amoCRM chat proaktiv bogʻlash va dublikat sdelka auto-merge (`feat/tg-amo-automerge`)
+## 2026-11-24 — Claude — Raqam -> kontakt kartasi (GET-LID oʻrnini bosadi, PR #1139)
+- **Muammo:** Admin botga raqam yuborilganda faqat matn qaytgan; kontakt kartasi uchun pullik GET-LID xizmati ishlatilgan.
+- **Bajarilgan ish:** `src/services/core/dispatcher/phone_contact_card.py` (yangi): raqam normalizatsiyasi, kartani lookupdan oldin yuborish, topilsa "Raqam topildi" + @username / profil tugmasi. `inline_search.py::PHONE_RE` raqam chegaralari (`(?<!\d)`/`(?!\d)`) va defis bilan yangilandi.
+- **Tekshiruv:** `tests/test_dispatcher_inline_search.py` (9 passed), `bandit`, `black`, `check_uzbek_text.py`.
+- **Keyingi qadam:** Hetzner deploydan keyin jonli botda kartani bosib chat ochilishini tekshirish.
+
+## 2026-11-24 — Antigravity — Telegram ↔ amoCRM chat proaktiv bogʻlash va dublikat sdelka auto-merge (`feat/tg-amo-automerge`, PR #1140)
 - **Muammo:** `tg_amo_bridge` Telegram xabarlarini toʻgʻridan-toʻgʻri `amojo.send_event` orqali yuborgani sababli amoCRM avval telefon orqali ochilgan kontakt/sdelkasi bor mijozlar uchun ham alohida "Telegram" sdelkasi ochib yuborayotgan edi; shuningdek, menejer outgoing xabarida `get_sender()` menejerning oʻzini qaytarib mijoz entity sifatida ishlatilgan.
 - **Bajarilgan ish:**
-  1. `src/services/core/crm/amocrm/chats.py` (177L) + `sync.py` (79L): `AmoCRMChatsMixin` — aniq 9-raqamli telefon qidiruvi (`find_contacts_by_phone_async`), `@username` qidiruvi, `POST/GET /api/v4/contacts/chats` (`link_chat_to_contact`, `get_contact_chats`), `get_contact_call_notes_count`, `link_contact_to_lead_async`, `close_duplicate_lead`, `add_lead_note_async`.
-  2. `src/services/core/crm/tg_amo_bridge/amojo_client.py` (191L): `create_chat` (`POST /v2/origin/custom/{scope_id}/chats`) — `chat_id` UUID olish.
-  3. `src/services/core/crm/tg_amo_bridge/config.py` (71L) & `store.py` (230L): `TG_AMO_AUTOMERGE_ENABLED` (default `1`), `TG_AMO_AUTOMERGE_DRY_RUN` (`0`), `TG_AMO_AUTOMERGE_INTERVAL_SECONDS` (`300`), `TG_AMO_MERGE_LOSS_REASON_ID`; `tg_amo_chat_links` va `tg_amo_merges` idempotent audit jadvallari.
-  4. `src/services/core/crm/tg_amo_bridge/analyzer.py` (300L): telefon normalizatsiyasi, xabar matnidan raqam ajratish, xodim raqami himoyasi (`is_internal_team_phone`), Telegram-only vs telefon sdelkasi tahlili va fail-closed konflikt qoidalari (ikkala sdelkada summa > 0, ikkalasida qoʻngʻiroq bor, Farmer voronkasi, yopilgan eski sdelka `link_only`).
-  5. `src/services/core/crm/tg_amo_bridge/automerge.py` (393L) & `executor.py` (192L): `send_event` dan oldin proaktiv `create_chat` + `contacts/chats` bogʻlash; allaqachon alohida Telegram sdelka ochilib qolgan boʻlsa chatni qayta bogʻlash, kontaktni asosiy sdelkaga ulash, izoh va ochiq vazifalarni koʻchirish hamda dublikat Telegram sdelkasini yopish.
-  6. `src/services/core/crm/tg_amo_bridge/reconciler.py` (201L) & `automerge_cli.py` (74L): mavjud alohida sdelkalarni har 5 daqiqada fon tekshiruvi (`automerge_loop`) hamda qoʻlda dry-run/apply CLI.
-  7. `src/services/core/crm/tg_amo_bridge/inbound.py` (201L) & `runtime.py` (147L): `is_manager=True` da `get_chat()` orqali mijozni olish, `merger` integratsiyasi va fon reconciler ishga tushirish.
-  8. `tests/test_tg_amo_automerge.py`: 14 ta yangi unit/xavfsizlik testi.
+  1. `src/services/core/crm/amocrm/chats.py` (194L) + `sync.py` (79L): `AmoCRMChatsMixin` — aniq 9-raqamli telefon qidiruvi (`find_contacts_by_phone_async`), `@username` qidiruvi, `POST/GET /api/v4/contacts/chats`, `get_contact_call_notes_count`, `link_contact_to_lead_async`, `reassign_task_to_lead` (`PATCH /api/v4/tasks/{id}`), `close_duplicate_lead`, `add_lead_note_async`, non-blocking token yuklash.
+  2. `src/services/core/crm/tg_amo_bridge/amojo_client.py`: `create_chat` (`POST /v2/origin/custom/{scope_id}/chats`) — `chat_id` UUID olish.
+  3. `src/services/core/crm/tg_amo_bridge/config.py` (71L) & `store.py` (278L): `TG_AMO_AUTOMERGE_ENABLED` (default `1`), `TG_AMO_AUTOMERGE_DRY_RUN` (`0`), `TG_AMO_AUTOMERGE_INTERVAL_SECONDS` (`300`), `TG_AMO_MERGE_LOSS_REASON_ID`; `tg_amo_chat_links` va atomik claim qoʻllovchi `tg_amo_merges` (`try_claim_merge`).
+  4. `src/services/core/crm/tg_amo_bridge/analyzer.py` (337L): telefon normalizatsiyasi, xabar matnidan raqam ajratish, real `get_active_staff`/`CANONICAL_STAFF` xodim raqami himoyasi (fail-closed), deal-level `tg_provenance` tekshiruvi, `analyze_role_split_pair` (qaytib kelgan mijoz uchun yopilgan eski sdelka `link_only`), va konflikt qoidalari.
+  5. `src/services/core/crm/tg_amo_bridge/automerge.py` (394L) & `executor.py` (234L): `send_event` dan oldin proaktiv `create_chat` + `contacts/chats` bogʻlash; allaqachon alohida Telegram sdelka ochilib qolgan boʻlsa barcha transferlar (`chat`, `contact`, `task reassign`, `note`) tasdiqlangandagina source sdelkani yopish (aks holda retry-safe `incomplete`), per-lead lock + DB claim.
+  6. `src/services/core/crm/tg_amo_bridge/reconciler.py` (198L) & `automerge_cli.py` (80L): har 5 daqiqada fon skanerlash (`automerge_loop`) + `--dry-run`/`--apply` CLI.
+  7. `src/services/core/crm/tg_amo_bridge/inbound.py` (202L) & `runtime.py`: `is_manager=True` da `get_chat()` orqali mijozni olish + `manager_ref_id` saqlandi, `merger` va fon reconciler ulandi.
+  8. `tests/test_tg_amo_automerge.py`: 20 ta unit, xavfsizlik, concurrency va regression testi.
 - **Tekshiruv dalillari:**
-  - Fokuslangan testlar (`test_tg_amo_automerge.py`, `test_tg_amo_bridge.py`, `test_amocrm_chats.py`): **38 passed**.
-  - Toʻliq `SKIP_LIVE=1 python -m pytest -q --tb=short`: **4603 passed, 18 skipped, 4 subtests passed** (yagona yiqilish Windows NTFS ruxsat testi `test_drive_oauth_onboarding.py::test_credentials_saved_privately_and_atomically`).
-  - `ruff check`, `bandit -r src/ -ll -q`, `check_uzbek_text.py` (12 fayl) va `<=400L / <=60L` tekshiruvi: **toza (0 xato)**.
-- **Qolgan ish / Cheklov:** Jonli amoCRM/Hetzner muhitda eski alohida tushgan Telegram sdelkalar uchun avval `--dry-run`, keyin `--apply` bilan tekshirish (PR merge + deploy yakunlangach).
+  - Fokuslangan testlar (`test_tg_amo_automerge.py`, `test_tg_amo_bridge.py`, `test_amocrm_chats.py`): **44+ passed** (`main` mergeʼdan keyin qayta tasdiqlanadi).
+  - `ruff check`, `bandit -r src/ -ll -q`, `check_uzbek_text.py` va `<=400L / <=60L` tekshiruvi: **toza (0 xato)**.
+- **Qolgan ish / Cheklov:** PR #1140 merge + Hetzner deploydan keyin eski alohida tushgan Telegram sdelkalar uchun avval `--dry-run`, keyin `--apply` tekshiruvi.

@@ -96,6 +96,7 @@ class AmoJoClient:
         silent: bool = False,
         is_manager: bool = False,
         manager_id: Optional[str] = None,
+        manager_ref_id: Optional[str] = None,
         manager_name: Optional[str] = None,
     ) -> dict:
         """Build a new_message event.
@@ -134,10 +135,16 @@ class AmoJoClient:
             payload["source"] = {"external_id": source_external_id}
         if is_manager:
             payload["receiver"] = payload.pop("sender")
-            payload["sender"] = {
-                "id": manager_id or "oisha-tg-manager",
-                "name": manager_name or "Manager",
-            }
+            # amoJo requires exactly one origin user: the manager side must be
+            # an amoCRM user referenced by its amojo uuid (ref_id), not an
+            # origin id; otherwise HTTP 400 sub_code 453.
+            if manager_ref_id:
+                payload["sender"] = {"ref_id": manager_ref_id}
+            else:
+                payload["sender"] = {
+                    "id": manager_id or "oisha-tg-manager",
+                    "name": manager_name or "Manager",
+                }
         return {"event_type": "new_message", "payload": payload}
 
     async def create_chat(

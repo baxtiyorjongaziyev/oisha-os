@@ -115,6 +115,7 @@ async def _send_and_record(
         silent=is_manager,
         is_manager=is_manager,
         manager_id=f"oisha-tg-{account.key}",
+        manager_ref_id=os.getenv("AMOCRM_BRIDGE_MANAGER_REF_ID") or None,
         manager_name=account.display_name,
     )
     if await amojo.send_event(event_body) is None:

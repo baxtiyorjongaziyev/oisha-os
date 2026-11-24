@@ -16,7 +16,9 @@ from typing import Any, Awaitable, Callable, Optional
 
 logger = logging.getLogger("AdminAiogramInlineSearch")
 
-PHONE_RE = r"(\+?998|8)?\s?\(?\d{2}\)?\s?\d{3}\s?\d{2}\s?\d{2}"
+PHONE_RE = (
+    r"(?<!\d)(\+?998|8)?[\s\-\(\)]*\d{2}[\s\-\)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}(?!\d)"
+)
 _STRICT_PHONE_RE = re.compile(
     r"(\+?998|8)?[\s\-\(\)]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})"
 )
@@ -110,36 +112,8 @@ def register_inline_search_handlers(
             logger.debug("[INLINE] db query failed for %r", text, exc_info=True)
         await query.answer(results, cache_time=1, is_personal=True)
 
-    @dp.message(F.text.regexp(PHONE_RE))
-    async def _phone_search(message: Any) -> None:
-        sender = getattr(message, "from_user", None)
-        sender_id = int(getattr(sender, "id", 0) or 0)
-        if not is_admin(sender_id):
-            return
-        text = (getattr(message, "text", "") or "").strip()
-        match = re.search(PHONE_RE, text)
-        if not match:
-            return
-        phone = match.group(0)
-        wait = await message.answer(f"🔍 {phone} qidirilmoqda...")
-        try:
-            data = await perform_global_lookup(phone)
-        except Exception:
-            logger.error("[INLINE] phone search failed", exc_info=True)
-            data = None
-        if data:
-            body = (
-                f"✅ Mijoz topildi\n"
-                f"👤 {data.get('first_name', '')} {data.get('last_name', '') or ''}\n"
-                f"🆔 {data.get('user_id', '')}"
-            )
-        else:
-            body = f"❌ {phone} boʻyicha hech kim topilmadi."
-        edit = getattr(wait, "edit_text", None)
-        if edit is not None:
-            try:
-                await edit(body)
-                return
-            except Exception:
-                logger.debug("[INLINE] wait edit failed", exc_info=True)
-        await message.answer(body)
+    from src.services.core.dispatcher.phone_contact_card import make_phone_search
+
+    dp.message(F.text.regexp(PHONE_RE))(
+        make_phone_search(is_admin=is_admin, perform_global_lookup=perform_global_lookup)
+    )
