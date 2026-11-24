@@ -3,14 +3,14 @@
     "name": "widget.name",
     "description": "widget.description",
     "short_description": "widget.short_description",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "interface_version": 2,
     "init_once": false,
     "locale": ["ru", "en"],
     "installation": true,
     "support": {"link": "https://jonbranding.uz", "email": "info@jonbranding.uz"}
   },
-  "locations": ["ccard-1", "lcard-1", "comcard-1", "cucard-1"],
+  "locations": ["ccard-1", "lcard-1", "comcard-1", "cucard-1", "settings"],
   "settings": {
     "country_code": {"name": "settings.country_code", "type": "text", "required": false},
     "open_mode": {"name": "settings.open_mode", "type": "text", "required": false},

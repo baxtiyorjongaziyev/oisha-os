@@ -109,20 +109,22 @@
       pending = setTimeout(function () { pending = null; try { scan(); } catch (e) {} }, 300);
     }
 
+    // amoCRM baʼzi kartochkalarda bind_actions ni chaqirmaydi: har qaysi callbackdan boshlaymiz.
+    function start() {
+      scheduleScan();
+      $(document).off('.oishaTg')
+        .on('change.oishaTg blur.oishaTg', '.control-phone input, .linked-form__field input', scheduleScan)
+        .on('click.oishaTg', '.card-tabs__item, .card-tabs__item-inner', scheduleScan);
+      if (window.MutationObserver && !observer) {
+        observer = new MutationObserver(scheduleScan);
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+    }
+
     this.callbacks = {
-      render: function () { return true; },
-      init: function () { return true; },
-      bind_actions: function () {
-        scheduleScan();
-        $(document).off('.oishaTg')
-          .on('change.oishaTg blur.oishaTg', '.control-phone input, .linked-form__field input', scheduleScan);
-        if (window.MutationObserver && !observer) {
-          var target = document.querySelector('.card-holder, #card_holder, #page_holder') || document.body;
-          observer = new MutationObserver(scheduleScan);
-          observer.observe(target, { childList: true, subtree: true });
-        }
-        return true;
-      },
+      render: function () { start(); return true; },
+      init: function () { start(); return true; },
+      bind_actions: function () { start(); return true; },
       settings: function () { return true; },
       onSave: function () { return true; },
       destroy: function () {
