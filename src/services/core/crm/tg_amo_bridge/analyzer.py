@@ -1,6 +1,7 @@
 """Pure phone/Telegram deal analysis and merge-decision logic (no I/O)."""
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -54,6 +55,7 @@ class LeadProfile:
     call_count: int = 0
     has_chat: bool = False
     tg_provenance: bool = False
+    deal_talk_verified: bool = False
     notes_count: int = 0
     tags: Tuple[str, ...] = ()
     phones: Tuple[str, ...] = ()
@@ -151,6 +153,21 @@ def has_call_lead_marker(name: str, tags: Sequence[str]) -> bool:
     if any(lower_name.startswith(pref) for pref in _CALL_NAME_PREFIXES):
         return True
     return any(str(t or "").strip().lower() in _CALL_TAGS for t in (tags or ()))
+
+
+def is_telegram_talk_origin(origin: Any) -> bool:
+    """Allow only Oisha's custom Telegram bridge (amo.ext.*) or Telegram origins.
+
+    Rejects Instagram, WhatsApp, Wazzup, VK, and other unrelated chat channels.
+    """
+    raw = str(origin or "").strip().lower()
+    if not raw:
+        return False
+    configured = os.getenv("TG_AMO_TALK_ORIGINS", "").strip()
+    if configured:
+        allowed = [part.strip().lower() for part in configured.split(",") if part.strip()]
+        return any(raw == a or raw.startswith(a) for a in allowed)
+    return raw.startswith("amo.ext.") or "telegram" in raw
 
 
 def count_call_notes(notes: Sequence[Dict[str, Any]]) -> int:
@@ -254,7 +271,7 @@ def analyze_lead_pair(target: LeadProfile, source: LeadProfile) -> PairDecision:
         )
     if not is_telegram_only_lead(source):
         return PairDecision("conflict", target.lead_id, source.lead_id, target.contact_id, source.contact_id, "low", "source_not_telegram_only")
-    if target.contact_id == source.contact_id and not has_explicit_tg_marker(source):
+    if target.contact_id == source.contact_id and not (source.deal_talk_verified or has_explicit_tg_marker(source)):
         return PairDecision(
             "conflict", target.lead_id, source.lead_id, target.contact_id, source.contact_id,
             "low", "same_contact_missing_deal_provenance",

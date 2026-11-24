@@ -14,6 +14,7 @@ from .analyzer import (
     extract_phone_from_text,
     has_call_lead_marker,
     is_internal_team_phone,
+    is_telegram_talk_origin,
     lead_tags,
     pick_best_pair,
 )
@@ -93,12 +94,14 @@ async def _fetch_recent_active_leads(crm: Any, limit: int) -> List[Dict[str, Any
 
 
 async def _fetch_talks_maps(crm: Any) -> Tuple[Dict[int, str], Dict[int, str]]:
-    """Return (lead_id -> chat_id, contact_id -> chat_id) from GET /api/v4/talks."""
+    """Return Telegram-origin (lead_id -> chat_id, contact_id -> chat_id) from /api/v4/talks."""
     if not hasattr(crm, "get_talks_async"):
         return {}, {}
     lead_talks: Dict[int, str] = {}
     contact_talks: Dict[int, str] = {}
     for talk in await crm.get_talks_async(limit=250):
+        if not is_telegram_talk_origin(talk.get("origin")):
+            continue
         chat_id = str(talk.get("chat_id") or "").strip()
         if not chat_id:
             continue
@@ -180,24 +183,24 @@ async def _hydrate_group_profiles(
 
         chat_id = lead_talks.get(lid) or contact_talks.get(cid)
         if not chat_id and hasattr(crm, "get_contact_chats"):
-            chats = await crm.get_contact_chats(contact_id=cid)
-            for item in chats:
+            for item in await crm.get_contact_chats(contact_id=cid):
+                origin = item.get("origin")
+                if origin is not None and not is_telegram_talk_origin(origin):
+                    continue
                 if str(item.get("entity_type") or "").lower() == "lead" and int(item.get("entity_id") or 0) == lid:
                     lead_talks[lid] = str(item.get("chat_id") or "")
                 if not chat_id and item.get("chat_id"):
                     chat_id = str(item["chat_id"])
         chat_by_contact[cid] = chat_id
-        has_deal_talk = lid in lead_talks
-        tg_prov = (has_deal_talk and total_calls == 0) or (
-            bool(chat_id) and open_counts.get(cid, 0) == 1 and total_calls == 0
-        )
+        deal_talk_ok = lid in lead_talks and total_calls == 0
+        tg_prov = deal_talk_ok or (bool(chat_id) and open_counts.get(cid, 0) == 1 and total_calls == 0)
         profiles.append(
             LeadProfile(
                 lead_id=lid, contact_id=cid, name=name,
                 status_id=int(lead.get("status_id") or 0), pipeline_id=int(lead.get("pipeline_id") or 0),
                 price=int(lead.get("price") or 0), created_at=int(lead.get("created_at") or 0),
                 updated_at=int(lead.get("updated_at") or 0), call_count=total_calls,
-                has_chat=bool(chat_id), tg_provenance=tg_prov,
+                has_chat=bool(chat_id), tg_provenance=tg_prov, deal_talk_verified=deal_talk_ok,
                 notes_count=len(notes), tags=tags, phones=phones,
             )
         )

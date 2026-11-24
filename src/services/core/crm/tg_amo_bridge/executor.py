@@ -128,15 +128,17 @@ async def _ensure_links(crm: Any, decision: PairDecision, amo_chat_id: Optional[
     contact_ok = True
     if decision.source_contact_id != decision.target_contact_id:
         contact_ok = bool(await crm.link_contact_to_lead_async(decision.target_lead_id, decision.source_contact_id))
+        if contact_ok and hasattr(crm, "verify_contact_linked_to_lead"):
+            contact_ok = bool(await crm.verify_contact_linked_to_lead(decision.target_lead_id, decision.source_contact_id))
     chat_ok = True
     if amo_chat_id and hasattr(crm, "link_chat_to_contact"):
         chat_ok = bool(await crm.link_chat_to_contact(decision.target_contact_id, amo_chat_id))
-        if (
-            not chat_ok
-            and getattr(crm, "_chat_channel_unlinked", False)
-            and decision.source_contact_id != decision.target_contact_id
-            and contact_ok
-        ):
+        unlinked = (
+            crm.is_chat_channel_unlinked()
+            if hasattr(crm, "is_chat_channel_unlinked")
+            else bool(getattr(crm, "_chat_channel_unlinked", False))
+        )
+        if not chat_ok and unlinked and decision.source_contact_id != decision.target_contact_id and contact_ok:
             chat_ok = True
     return chat_ok, contact_ok
 

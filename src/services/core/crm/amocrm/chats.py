@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 import requests  # type: ignore
 import structlog
 
 logger = structlog.get_logger()
+
+_CHANNEL_UNLINKED_TTL_SECONDS = 3600.0
 
 
 def _digits_tail9(value: Any) -> str:
@@ -97,14 +100,30 @@ class AmoCRMChatsMixin:
             return []
         return resp.json().get("_embedded", {}).get("contacts", []) or []
 
+    def is_chat_channel_unlinked(self) -> bool:
+        """True while /api/v4/contacts/chats is in temporary cooldown after 400 channel-unlinked."""
+        if getattr(self, "_chat_channel_unlinked", False):
+            until = float(getattr(self, "_chat_channel_unlinked_until", 0.0) or 0.0)
+            if until <= 0.0:
+                return True
+            if time.time() < until:
+                return True
+            self._chat_channel_unlinked = False
+        return False
+
+    def _mark_chat_channel_unlinked(self) -> None:
+        self._chat_channel_unlinked = True
+        self._chat_channel_unlinked_until = time.time() + _CHANNEL_UNLINKED_TTL_SECONDS
+
     async def get_talks_async(
         self,
         *,
         contact_id: Optional[int] = None,
         limit: int = 250,
+        page: int = 1,
     ) -> List[Dict[str, Any]]:
         """Read amoCRM Talks (GET /api/v4/talks), which exposes lead-level chat provenance."""
-        params: Dict[str, Any] = {"limit": min(max(int(limit), 1), 250)}
+        params: Dict[str, Any] = {"limit": min(max(int(limit), 1), 250), "page": max(1, int(page))}
         if contact_id:
             params["filter[contact_id]"] = int(contact_id)
         url = f"{self.base_url}/api/v4/talks"
@@ -117,7 +136,7 @@ class AmoCRMChatsMixin:
         """Bind an amoJo chat UUID to an amoCRM contact via POST /api/v4/contacts/chats."""
         cid = int(contact_id or 0)
         chat_uuid = str(chat_id or "").strip()
-        if cid <= 0 or not chat_uuid or getattr(self, "_chat_channel_unlinked", False):
+        if cid <= 0 or not chat_uuid or self.is_chat_channel_unlinked():
             return False
         url = f"{self.base_url}/api/v4/contacts/chats"
         payload = [{"contact_id": cid, "chat_id": chat_uuid}]
@@ -128,14 +147,25 @@ class AmoCRMChatsMixin:
         code = getattr(resp, "status_code", "err")
         body_text = str(getattr(resp, "text", "") or "").lower()
         if code == 400 and "channel must be linked" in body_text:
-            self._chat_channel_unlinked = True
+            self._mark_chat_channel_unlinked()
             logger.info(
                 "[AMOCRM CHATS] /contacts/chats unavailable (channel not linked to OAuth client); "
-                "using /talks + /leads/{id}/link fallback"
+                "using /talks + /leads/{id}/link fallback for %ds",
+                int(_CHANNEL_UNLINKED_TTL_SECONDS),
             )
             return False
         logger.warning("[AMOCRM CHATS] link_chat_to_contact failed (%s): contact=%s", code, cid)
         return False
+
+    @staticmethod
+    def _talk_to_chat_row(talk: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "contact_id": talk.get("contact_id"),
+            "chat_id": talk.get("chat_id"),
+            "entity_id": talk.get("entity_id"),
+            "entity_type": talk.get("entity_type"),
+            "origin": talk.get("origin"),
+        }
 
     async def get_contact_chats(
         self,
@@ -143,11 +173,11 @@ class AmoCRMChatsMixin:
         contact_id: Optional[int] = None,
         chat_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Query chat associations via /contacts/chats with automatic /talks API fallback."""
+        """Query chat associations via /contacts/chats with paginated /talks fallback."""
         if bool(contact_id) == bool(chat_id):
             raise ValueError("Specify exactly one of contact_id or chat_id")
 
-        if not getattr(self, "_chat_channel_unlinked", False):
+        if not self.is_chat_channel_unlinked():
             params: Dict[str, Any] = (
                 {"contact_id": int(contact_id)} if contact_id else {"chat_id": str(chat_id).strip()}
             )
@@ -157,36 +187,32 @@ class AmoCRMChatsMixin:
                 return resp.json().get("_embedded", {}).get("chats", []) or []
             body_text = str(getattr(resp, "text", "") or "").lower()
             if getattr(resp, "status_code", None) == 400 and "channel must be linked" in body_text:
-                self._chat_channel_unlinked = True
+                self._mark_chat_channel_unlinked()
 
-        # Fallback: GET /api/v4/talks works with standard OAuth tokens and returns lead entity_id.
         if contact_id:
             talks = await self.get_talks_async(contact_id=int(contact_id), limit=50)
-            return [
-                {
-                    "contact_id": t.get("contact_id"),
-                    "chat_id": t.get("chat_id"),
-                    "entity_id": t.get("entity_id"),
-                    "entity_type": t.get("entity_type"),
-                    "origin": t.get("origin"),
-                }
-                for t in talks
-                if t.get("chat_id")
-            ]
+            return [self._talk_to_chat_row(t) for t in talks if t.get("chat_id")]
 
         target_chat = str(chat_id or "").strip()
-        talks = await self.get_talks_async(limit=250)
-        return [
-            {
-                "contact_id": t.get("contact_id"),
-                "chat_id": t.get("chat_id"),
-                "entity_id": t.get("entity_id"),
-                "entity_type": t.get("entity_type"),
-                "origin": t.get("origin"),
-            }
-            for t in talks
-            if str(t.get("chat_id") or "").strip() == target_chat
-        ]
+        for page in range(1, 5):
+            talks = await self.get_talks_async(limit=250, page=page)
+            if not talks:
+                break
+            matched = [self._talk_to_chat_row(t) for t in talks if str(t.get("chat_id") or "").strip() == target_chat]
+            if matched:
+                return matched
+            if len(talks) < 250:
+                break
+        return []
+
+    async def verify_contact_linked_to_lead(self, lead_id: int, contact_id: int) -> bool:
+        """Read-after-write verification that contact_id is linked on lead_id."""
+        url = f"{self.base_url}/api/v4/leads/{int(lead_id)}"
+        resp = await self._authed_request(requests.get, url, params={"with": "contacts"}, timeout=30)
+        if resp is None or resp.status_code != 200:
+            return False
+        contacts = (resp.json().get("_embedded") or {}).get("contacts") or []
+        return any(int(c.get("id") or 0) == int(contact_id) for c in contacts)
 
     async def get_contact_call_notes_count(self, contact_id: int) -> int:
         """Count prior inbound/outbound telephony call notes on a contact."""

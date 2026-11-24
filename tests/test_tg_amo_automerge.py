@@ -343,8 +343,8 @@ async def test_reactive_automerge_when_client_shares_phone_in_telegram_chat():
     notes_before = len(crm.added_notes)
     status_again = await merger.execute_decision(
         analyze_lead_pair(
-            LeadProfile(101, 10, "Javohir", SALES_CONTACT_STATUS_ID, SALES_PIPELINE_ID, 8_000_000, 1000, 1010, 1, False, False, 0, (), ("998931234567",)),
-            LeadProfile(202, 20, "Telegram", SALES_NEW_STATUS_ID, SALES_PIPELINE_ID, 0, 2000, 2010, 0, True, True, 1, (), ()),
+            LeadProfile(101, 10, "Javohir", SALES_CONTACT_STATUS_ID, SALES_PIPELINE_ID, 8_000_000, 1000, 1010, 1, False, False, False, 0, (), ("998931234567",)),
+            LeadProfile(202, 20, "Telegram", SALES_NEW_STATUS_ID, SALES_PIPELINE_ID, 0, 2000, 2010, 0, True, True, True, 1, (), ()),
         ),
         phone="998931234567",
     )
@@ -576,8 +576,8 @@ async def test_failed_transfer_blocks_source_close_and_retry_completes_without_d
     store = MessageStore(FakePool())
     merger = TelegramDealAutoMerger(crm=crm, amojo=_amojo_mock("chat-kamol"), store=store)
     decision = analyze_lead_pair(
-        LeadProfile(101, 10, "Kamol telefon", SALES_CONTACT_STATUS_ID, SALES_PIPELINE_ID, 0, 1000, 1010, 2, False, False, 0, (), ("998905556677",)),
-        LeadProfile(202, 20, "Telegram Kamol", SALES_NEW_STATUS_ID, SALES_PIPELINE_ID, 0, 2000, 2010, 0, True, True, 0, (), ()),
+        LeadProfile(101, 10, "Kamol telefon", SALES_CONTACT_STATUS_ID, SALES_PIPELINE_ID, 0, 1000, 1010, 2, False, False, False, 0, (), ("998905556677",)),
+        LeadProfile(202, 20, "Telegram Kamol", SALES_NEW_STATUS_ID, SALES_PIPELINE_ID, 0, 2000, 2010, 0, True, True, True, 0, (), ()),
     )
 
     first = await merger.execute_decision(decision, phone="998905556677", amo_chat_id="chat-kamol")
@@ -623,8 +623,8 @@ async def test_concurrent_merge_claims_prevent_duplicate_writes():
     store = MessageStore(FakePool())
     merger = TelegramDealAutoMerger(crm=crm, amojo=_amojo_mock("chat-r"), store=store)
     decision = analyze_lead_pair(
-        LeadProfile(101, 10, "Rustam telefon", SALES_CONTACT_STATUS_ID, SALES_PIPELINE_ID, 0, 1000, 1010, 1, False, False, 0, (), ("998901119988",)),
-        LeadProfile(202, 20, "Telegram Rustam", SALES_NEW_STATUS_ID, SALES_PIPELINE_ID, 0, 2000, 2010, 0, True, True, 0, (), ()),
+        LeadProfile(101, 10, "Rustam telefon", SALES_CONTACT_STATUS_ID, SALES_PIPELINE_ID, 0, 1000, 1010, 1, False, False, False, 0, (), ("998901119988",)),
+        LeadProfile(202, 20, "Telegram Rustam", SALES_NEW_STATUS_ID, SALES_PIPELINE_ID, 0, 2000, 2010, 0, True, True, True, 0, (), ()),
     )
     r1, r2 = await asyncio.gather(
         merger.execute_decision(decision, phone="998901119988", amo_chat_id="chat-r"),
@@ -707,10 +707,12 @@ async def test_sabina_live_scenario_talks_lead_call_notes_and_unlinked_channel_f
 async def test_staff_tg_user_id_blocked_even_without_phone_in_roster():
     from src.services.core.crm.team_roster import CANONICAL_STAFF
 
-    staff_no_phone = next(m for m in CANONICAL_STAFF if m.tg_user_id and not m.phone)
+    # Canonical staff member (Dilbar) has tg_user_id set and phone=None.
+    dilbar_peer = 8611068511
+    assert any(m.tg_user_id == dilbar_peer and not m.phone for m in CANONICAL_STAFF)
     merger = TelegramDealAutoMerger(crm=FakeCRM(), amojo=_amojo_mock(), store=MessageStore(FakePool()))
     outcome = await merger.ensure_chat_linked_before_send(
-        peer_id=staff_no_phone.tg_user_id, client_name=staff_no_phone.name, sender_phone="+998777411297"
+        peer_id=dilbar_peer, client_name="Dilbar", sender_phone="+998777411297"
     )
     assert outcome.status == "not_resolved" and outcome.reason == "internal_staff"
 
@@ -719,7 +721,7 @@ async def test_staff_tg_user_id_blocked_even_without_phone_in_roster():
 async def test_chats_mixin_falls_back_to_talks_on_400_channel_unlinked():
     class DummyCRM(AmoCRMChatsMixin):
         base_url = "https://x.amocrm.ru"
-        access_token = "tok"
+
         def _load_token(self): pass
         def refresh_token(self): return False
 
@@ -746,9 +748,68 @@ async def test_chats_mixin_falls_back_to_talks_on_400_channel_unlinked():
 
     c = DummyCRM()
     rows = await c.get_contact_chats(contact_id=60562969)
-    assert getattr(c, "_chat_channel_unlinked", False) is True
+    assert c.is_chat_channel_unlinked() is True
     assert len(rows) == 1 and rows[0]["entity_id"] == 54826491 and rows[0]["chat_id"] == "28f2770c"
     assert await c.link_chat_to_contact(60562969, "28f2770c") is False  # short-circuits without spamming 400
+
+
+@pytest.mark.asyncio
+async def test_non_telegram_instagram_talk_origin_is_never_merged_as_telegram():
+    crm = FakeCRM()
+    crm.contacts[10] = _phone_contact(10, "Lola Phone", "+998901239876", [101], created_at=1000)
+    crm.leads[101] = _lead(101, "Call from +998901239876 (Answered)", contact_id=10, created_at=1000, tags=["Incoming"])
+    crm.contacts[20] = _phone_contact(20, "Lola IG", "+998901239876", [202], created_at=2000)
+    crm.leads[202] = _lead(202, "Instagram direct Lola", status_id=SALES_NEW_STATUS_ID, contact_id=20, created_at=2000)
+
+    async def fake_talks(contact_id=None, limit=250, page=1):
+        return [{"contact_id": 20, "entity_id": 202, "entity_type": "lead", "chat_id": "ig-1", "origin": "instagram"}]
+
+    crm.get_talks_async = fake_talks
+    merger = TelegramDealAutoMerger(crm=crm, amojo=_amojo_mock(), store=MessageStore(FakePool()))
+    report = await scan_and_merge_existing(merger, limit=50)
+    assert report.merged == 0
+    assert not crm.closed_leads
+
+
+@pytest.mark.asyncio
+async def test_multi_chat_contact_reconciles_only_bound_lead_id():
+    crm = FakeCRM()
+    crm.contacts[10] = _phone_contact(10, "Bobur Phone", "+998905559900", [101], created_at=1000)
+    crm.leads[101] = _lead(101, "Call from +998905559900 (Answered)", contact_id=10, created_at=1000, tags=["Incoming"])
+    crm.contacts[20] = _phone_contact(20, "Bobur TG", "", [201, 202], created_at=1500)
+    crm.leads[201] = _lead(201, "Сделка #201", status_id=SALES_NEW_STATUS_ID, contact_id=20, created_at=1500)
+    crm.leads[202] = _lead(202, "Сделка #202", status_id=SALES_NEW_STATUS_ID, contact_id=20, created_at=2500)
+    # Chat A belongs explicitly to lead 201 (older), while lead 202 belongs to another chat.
+    crm.chat_links = [
+        {"contact_id": 20, "chat_id": "chat-A", "entity_id": 201, "entity_type": "lead", "origin": "amo.ext.32681154"},
+        {"contact_id": 20, "chat_id": "chat-B", "entity_id": 202, "entity_type": "lead", "origin": "amo.ext.32681154"},
+    ]
+
+    merger = TelegramDealAutoMerger(crm=crm, amojo=_amojo_mock("chat-A"), store=MessageStore(FakePool()))
+    outcome = await merger.ensure_chat_linked_before_send(
+        peer_id=707070, client_name="Bobur", sender_phone="+998905559900"
+    )
+    assert outcome.status == "merged"
+    assert outcome.merged_source_lead_id == 201  # NOT 202
+    assert (201, None) in crm.closed_leads
+    assert (202, None) not in crm.closed_leads
+
+
+@pytest.mark.asyncio
+async def test_failed_read_after_write_contact_verification_blocks_closure():
+    crm = FakeCRM()
+    crm._chat_channel_unlinked = True
+    crm.fail_chat_link = True
+    crm.verify_contact_linked_to_lead = AsyncMock(return_value=False)
+
+    decision = analyze_lead_pair(
+        LeadProfile(101, 10, "Phone", SALES_CONTACT_STATUS_ID, SALES_PIPELINE_ID, 0, 1000, 1010, 1, False, False, False, 0, (), ("998901110022",)),
+        LeadProfile(202, 20, "TG", SALES_NEW_STATUS_ID, SALES_PIPELINE_ID, 0, 2000, 2010, 0, True, True, True, 0, (), ()),
+    )
+    merger = TelegramDealAutoMerger(crm=crm, amojo=_amojo_mock(), store=MessageStore(FakePool()))
+    status = await merger.execute_decision(decision, phone="998901110022", amo_chat_id="chat-x")
+    assert status == "incomplete"
+    assert not crm.closed_leads
 
 
 @pytest.mark.asyncio
