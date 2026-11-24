@@ -26,7 +26,7 @@ async def _is_daily_reply(message: Any) -> bool:
         if not text or text.startswith("/"):
             return False
         from src.services.core.daily_priority import state as st
-        from src.services.core.daily_priority.engine import is_enabled
+        from src.services.core.daily_priority.engine import is_awaiting_reply, is_enabled
         from src.services.core.daily_priority.team import find_member
         from src.time_utils import get_local_now
 
@@ -36,7 +36,9 @@ async def _is_daily_reply(message: Any) -> bool:
         if not member:
             return False
         day = get_local_now().strftime("%Y-%m-%d")
-        return st.get_entry(st.load(), day, member["key"]) is not None
+        # Faqat Oishaʼning savoli javobsiz turgan boʻlsa ushlaymiz; aks holda butun kun
+        # aʼzoning har qanday DMʼi (masalan "vazifalarimni ber") kunlik javob deb yutilardi.
+        return is_awaiting_reply(st.get_entry(st.load(), day, member["key"]))
     except Exception:
         logger.error("[DAILY-REPLY] Filtrda xato.", exc_info=True)
         return False
