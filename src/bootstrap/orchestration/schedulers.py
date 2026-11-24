@@ -52,6 +52,11 @@ def start_background_schedulers(bot_runtime: Any) -> None:
         instagram_weekly_report_loop(bot_runtime, settings.TEAM_GROUP_ID),
         name="instagram_weekly_report_loop",
     )
+    from src.schedulers.airtable_missing_fields_scheduler import airtable_missing_fields_loop
+    asyncio.create_task(
+        airtable_missing_fields_loop(bot_runtime, settings.TEAM_GROUP_ID),
+        name="airtable_missing_fields_loop",
+    )
     from src.schedulers.meta_health_scheduler import meta_health_check_loop
     asyncio.create_task(meta_health_check_loop(bot_runtime), name="meta_health_check_loop")
     try:
