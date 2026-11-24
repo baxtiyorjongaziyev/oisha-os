@@ -1,0 +1,14 @@
+const assert = require('assert');
+const W = require('./script.js');
+assert.strictEqual(W.normalizePhone('+998 (90) 123-45-67'), '998901234567');
+assert.strictEqual(W.normalizePhone('90 123 45 67'), '998901234567');
+assert.strictEqual(W.normalizePhone('8 901234567'), '998901234567');
+assert.strictEqual(W.normalizePhone('007 916 123 45 67'), '79161234567');
+assert.strictEqual(W.normalizePhone('123'), null);
+assert.strictEqual(W.normalizeUsername('@jon_brand'), 'jon_brand');
+assert.strictEqual(W.normalizeUsername('https://t.me/jon_brand?x=1'), 'jon_brand');
+assert.strictEqual(W.normalizeUsername('ab'), null);
+assert.strictEqual(W.buildLink('phone', '998901234567'), 'tg://resolve?phone=998901234567');
+assert.strictEqual(W.buildLink('phone', '998901234567', 'web'), 'https://t.me/+998901234567');
+assert.strictEqual(W.buildLink('username', 'jon', 'web'), 'https://t.me/jon');
+console.log('ok');
