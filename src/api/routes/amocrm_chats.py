@@ -57,6 +57,18 @@ def _verify_amojo_signature(
     if hmac.compare_digest(signature_header.strip().lower(), body_sig):
         return True
 
+    got = signature_header.strip().lower()
+    key = channel_secret.encode("utf-8")
+    variants = {
+        "sha1_body_stripped": hmac.new(key, body_bytes.strip(), hashlib.sha1).hexdigest(),
+        "sha1_swapped": hmac.new(body_bytes, key, hashlib.sha1).hexdigest(),
+        "sha1_plain_concat": hashlib.sha1(body_bytes + key, usedforsecurity=False).hexdigest(),
+    }
+    for name, sig in variants.items():
+        if hmac.compare_digest(got, sig):
+            logger.warning("[AMOCRM CHAT] Signature matched variant=%s", name)
+            return True
+
     if not date_header or not content_md5_header:
         logger.warning(
             "[AMOCRM CHAT] Body signature mismatch and no Date/Content-MD5 headers "
