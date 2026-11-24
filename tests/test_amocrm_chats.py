@@ -167,3 +167,15 @@ def test_amocrm_token_save_is_atomic_and_owner_only(tmp_path):
     if os.name != "nt":
         assert stat.S_IMODE(token_path.stat().st_mode) & 0o077 == 0
     assert not list(tmp_path.glob(".amocrm-token-*"))
+
+
+def test_amojo_signature_over_body_without_trailing_newline():
+    import hashlib
+    import hmac
+
+    from src.api.routes.amocrm_chats import _verify_amojo_signature
+
+    body = b'{"a":1}\n'
+    sig = hmac.new(b"sec", body.rstrip(), hashlib.sha1).hexdigest()
+    assert _verify_amojo_signature(body, sig, None, None, "sec")
+    assert not _verify_amojo_signature(body, "0" * 40, None, None, "sec")
