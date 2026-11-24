@@ -23,6 +23,8 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     )
     asyncio.create_task(crm_discipline_loop(), name="crm_discipline_loop")
     asyncio.create_task(crm_capacity_archiver_loop(), name="crm_capacity_archiver_loop")
+    from src.schedulers.phone_plus_fixer_scheduler import phone_plus_fixer_loop
+    asyncio.create_task(phone_plus_fixer_loop(), name="phone_plus_fixer_loop")
     if os.getenv("ENABLE_AI_AUTOPILOT", "").strip().lower() in {"1", "true", "yes", "on"}:
         from src.schedulers.ai_autopilot_scheduler import ai_autopilot_loop
         asyncio.create_task(ai_autopilot_loop(), name="ai_autopilot_loop")
