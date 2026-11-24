@@ -124,6 +124,25 @@ async def _handle_link_only(
     return final_status
 
 
+async def _ensure_links(crm: Any, decision: PairDecision, amo_chat_id: Optional[str]) -> Tuple[bool, bool]:
+    contact_ok = True
+    if decision.source_contact_id != decision.target_contact_id:
+        contact_ok = bool(await crm.link_contact_to_lead_async(decision.target_lead_id, decision.source_contact_id))
+        if contact_ok and hasattr(crm, "verify_contact_linked_to_lead"):
+            contact_ok = bool(await crm.verify_contact_linked_to_lead(decision.target_lead_id, decision.source_contact_id))
+    chat_ok = True
+    if amo_chat_id and hasattr(crm, "link_chat_to_contact"):
+        chat_ok = bool(await crm.link_chat_to_contact(decision.target_contact_id, amo_chat_id))
+        unlinked = (
+            crm.is_chat_channel_unlinked()
+            if hasattr(crm, "is_chat_channel_unlinked")
+            else bool(getattr(crm, "_chat_channel_unlinked", False))
+        )
+        if not chat_ok and unlinked and decision.source_contact_id != decision.target_contact_id and contact_ok:
+            chat_ok = True
+    return chat_ok, contact_ok
+
+
 async def _apply_merge(
     crm: Any,
     store: MessageStore,
@@ -135,12 +154,7 @@ async def _apply_merge(
     username: Optional[str],
     loss_reason_id: Optional[int],
 ) -> str:
-    chat_ok = True
-    if amo_chat_id and hasattr(crm, "link_chat_to_contact"):
-        chat_ok = bool(await crm.link_chat_to_contact(decision.target_contact_id, amo_chat_id))
-    contact_ok = True
-    if decision.source_contact_id != decision.target_contact_id:
-        contact_ok = bool(await crm.link_contact_to_lead_async(decision.target_lead_id, decision.source_contact_id))
+    chat_ok, contact_ok = await _ensure_links(crm, decision, amo_chat_id)
 
     raw_notes = await crm.get_lead_notes(decision.source_lead_id) if hasattr(crm, "get_lead_notes") else []
     source_notes = [note_text(n) for n in raw_notes if note_text(n)]

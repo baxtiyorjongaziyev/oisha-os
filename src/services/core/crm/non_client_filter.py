@@ -8,6 +8,8 @@ into CRM/chat.
 """
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
 import re
 import time
@@ -162,6 +164,24 @@ async def is_lead_marked_as_non_client(
     return False, ""
 
 
+async def _lookup_contact_by_phone(amocrm_sync: Any, phone: str) -> Optional[Dict[str, Any]]:
+    """Lookup first matching AmoCRM contact without blocking the event loop."""
+    async_finder = getattr(amocrm_sync, "find_contacts_by_phone_async", None)
+    if inspect.iscoroutinefunction(async_finder):
+        found = await async_finder(phone)
+        return found[0] if found else None
+
+    for method_name in ("get_contact_by_phone", "find_contact_by_phone"):
+        fn = getattr(amocrm_sync, method_name, None)
+        if not callable(fn):
+            continue
+        if inspect.iscoroutinefunction(fn):
+            return await fn(phone)
+        res = await asyncio.to_thread(fn, phone)
+        return await res if inspect.isawaitable(res) else res
+    return None
+
+
 async def is_sender_marked_as_non_client(
     amocrm_sync: Any,
     phone: Optional[str] = None,
@@ -196,21 +216,13 @@ async def is_sender_marked_as_non_client(
 
     if amocrm_sync and phone:
         try:
-            contact = None
-            if hasattr(amocrm_sync, "get_contact_by_phone"):
-                res = amocrm_sync.get_contact_by_phone(phone)
-                import inspect
-                contact = await res if inspect.isawaitable(res) else res
-            elif hasattr(amocrm_sync, "find_contact_by_phone"):
-                contact = amocrm_sync.find_contact_by_phone(phone)
-
-            if contact:
+            contact = await _lookup_contact_by_phone(amocrm_sync, phone)
+            if isinstance(contact, dict):
                 c_name = contact.get("name") or ""
                 matched, reason = is_text_marked_as_non_client(c_name)
                 if matched:
                     _set_cache(cache_key, True, f"amocrm_contact_name: {reason}")
                     return True, f"amocrm_contact ({reason})"
-
                 if hasattr(amocrm_sync, "get_notes"):
                     notes = await amocrm_sync.get_notes("contacts", entity_id=contact["id"], limit=10)
                     for n in notes:
