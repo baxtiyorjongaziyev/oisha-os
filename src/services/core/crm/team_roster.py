@@ -85,7 +85,7 @@ CANONICAL_STAFF: Tuple[StaffMember, ...] = (
         amocrm_user_id=13021974,
         moizvonki_emails=("shahnoza@jonbranding.uz", "xayrullayevna006@gmail.com"),
         airtable_record_id="rec8fmSHRpZi5Rx9N",
-        aliases=("shahnoza", "shaxnoza", "shahnoza xayrullayevna", "shahnozzy"),
+        aliases=("shahnoza", "shaxnoza", "shahnoza xayrullayevna"),
     ),
     StaffMember(
         slug="rayxona",
