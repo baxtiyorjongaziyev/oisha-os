@@ -164,3 +164,24 @@ async def test_summary_scheduler_skips_when_nobody_scheduled_or_present(db):
     assert await bot_flow.has_scheduled_or_present(db, date(2026, 11, 23)) is True
     assert await maybe_send_daily_summary(db, date(2026, 11, 23), sender=lambda t: sent.append(t) or True) is True
     assert len(sent) == 1 and "Baxtiyorjon — kelmagan" in sent[0]
+
+
+@pytest.mark.asyncio
+async def test_daily_summary_not_resent_after_restart(db, monkeypatch):
+    from datetime import date
+
+    from src.schedulers import attendance_summary_scheduler as sch
+
+    async def yes(_db, _day):
+        return True
+
+    async def txt(_db, _day):
+        return "x"
+
+    monkeypatch.setattr(bot_flow, "has_scheduled_or_present", yes)
+    monkeypatch.setattr(bot_flow, "today_text", txt)
+    sent = []
+    day = date(2026, 11, 23)
+    await sch.maybe_send_daily_summary(db, day, sender=sent.append)
+    assert await sch.maybe_send_daily_summary(db, day, sender=sent.append) is False
+    assert len(sent) == 1
