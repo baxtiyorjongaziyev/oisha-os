@@ -27,6 +27,7 @@ def _plain_secret(val: Any) -> str:
     return str(val) if val is not None else ""
 
 from src.services.core.crm.amocrm.auth import AmoCRMAuthMixin
+from src.services.core.crm.amocrm.chats import AmoCRMChatsMixin
 from src.services.core.crm.amocrm.leads import AmoCRMLeadsMixin
 from src.services.core.crm.amocrm.contacts import AmoCRMContactsMixin
 from src.services.core.crm.amocrm.tasks_notes import AmoCRMTasksNotesMixin
@@ -34,6 +35,7 @@ from src.services.core.crm.amocrm.files_reports import AmoCRMFilesReportsMixin
 
 class AmoCRMSync(
     AmoCRMAuthMixin,
+    AmoCRMChatsMixin,
     AmoCRMLeadsMixin,
     AmoCRMContactsMixin,
     AmoCRMTasksNotesMixin,

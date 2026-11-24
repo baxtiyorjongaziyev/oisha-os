@@ -1,17 +1,26 @@
 """Bridge lifecycle: build clients, connect channel, register Telegram handlers."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Optional
 
 from . import accounts, config, inbound
 from .amojo_client import AmoJoClient
+from .automerge import TelegramDealAutoMerger
+from .reconciler import automerge_loop
 from .store import MessageStore
 
 logger = logging.getLogger("TgAmoBridge.runtime")
 
 _amojo: Optional[AmoJoClient] = None
 _store = MessageStore()
+_merger: Optional[TelegramDealAutoMerger] = None
+_reconciler_task: Optional[asyncio.Task] = None
+
+
+def get_merger() -> Optional[TelegramDealAutoMerger]:
+    return _merger
 
 
 def get_amojo() -> Optional[AmoJoClient]:
@@ -87,14 +96,15 @@ async def start_from_app_ctx() -> bool:
                 crm_client, phone=phone, user_id=user_id, name=name, db=db
             )
 
-        return await start(is_non_client=_is_non_client, crm_client=crm_client)
+        return await start(is_non_client=_is_non_client, crm_client=crm_client, db=db)
     except Exception as exc:
         logger.error("[TG-AMO] start failed: %s", type(exc).__name__)
         return False
 
 
-async def start(is_non_client=None, crm_client=None) -> bool:
+async def start(is_non_client=None, crm_client=None, db=None) -> bool:
     """Connect channel (if scope_id unknown) and attach handlers. No-op when disabled."""
+    global _merger, _reconciler_task
     if not config.bridge_enabled():
         return False
     await resolve_amojo_id(crm_client)
@@ -106,13 +116,32 @@ async def start(is_non_client=None, crm_client=None) -> bool:
         logger.error("[TG-AMO] channel connect failed; bridge not started")
         return False
     await _store.ensure()
+    if crm_client is not None and config.automerge_enabled():
+        _merger = TelegramDealAutoMerger(
+            crm=crm_client,
+            amojo=amojo,
+            store=_store,
+            db=db,
+            dry_run=config.automerge_dry_run(),
+            loss_reason_id=config.automerge_loss_reason_id(),
+        )
+    else:
+        _merger = None
+
     started = 0
     for acc in accounts.all_accounts():
         client = acc.get_client()
         if client is None:
             logger.warning("[TG-AMO] account %s has no client; skipped", acc.key)
             continue
-        inbound.register(client, acc, amojo, _store, is_non_client=is_non_client)
+        inbound.register(
+            client, acc, amojo, _store, is_non_client=is_non_client, merger=_merger
+        )
         started += 1
-    logger.info("[TG-AMO] bridge started for %d account(s)", started)
+    if started > 0 and _merger is not None and (_reconciler_task is None or _reconciler_task.done()):
+        _reconciler_task = asyncio.create_task(
+            automerge_loop(_merger, interval_seconds=config.automerge_interval_seconds()),
+            name="tg_amo_automerge_loop",
+        )
+    logger.info("[TG-AMO] bridge started for %d account(s) (automerge=%s)", started, _merger is not None)
     return started > 0
