@@ -53,6 +53,7 @@ class LeadProfile:
     updated_at: int = 0
     call_count: int = 0
     has_chat: bool = False
+    tg_provenance: bool = False
     notes_count: int = 0
     tags: Tuple[str, ...] = ()
     phones: Tuple[str, ...] = ()
@@ -103,22 +104,26 @@ def extract_phone_from_text(text: str) -> str:
 
 
 def is_internal_team_phone(phone: str) -> bool:
-    """Reject agency staff numbers so manager phones never merge client deals."""
+    """Reject agency staff numbers (fail-closed if team roster cannot be loaded)."""
     norm = normalize_uz_phone(phone)
     if not norm:
         return False
     tail = norm[-9:]
     try:
-        from src.services.core.crm.team_roster import TEAM_MEMBERS
+        from src.services.core.crm.team_roster import CANONICAL_STAFF, get_active_staff
 
-        for member in TEAM_MEMBERS:
-            for candidate in (getattr(member, "phone", None), *(getattr(member, "phones", ()) or ())):
-                c_norm = normalize_uz_phone(candidate)
-                if c_norm and c_norm[-9:] == tail:
-                    return True
-    except Exception:
+        try:
+            members = get_active_staff(include_owner=True)
+        except Exception:
+            members = list(CANONICAL_STAFF)
+        for member in (*members, *CANONICAL_STAFF):
+            c_norm = normalize_uz_phone(getattr(member, "phone", None))
+            if c_norm and c_norm[-9:] == tail:
+                return True
         return False
-    return False
+    except Exception:
+        # Fail-closed: if staff roster cannot be loaded, never allow auto-merge on this phone.
+        return True
 
 
 def contact_phones(contact: Dict[str, Any]) -> Tuple[str, ...]:
@@ -144,18 +149,20 @@ def lead_tags(lead: Dict[str, Any]) -> Tuple[str, ...]:
     return tuple(names)
 
 
+def has_explicit_tg_marker(profile: LeadProfile) -> bool:
+    haystack = " ".join([profile.name, *profile.tags]).lower()
+    return any(marker in haystack for marker in _TG_MARKERS)
+
+
 def is_telegram_only_lead(profile: LeadProfile) -> bool:
-    """Return True when a deal looks like a standalone Telegram chat deal."""
+    """Return True when a deal has deal-level Telegram provenance and no calls/price."""
     if profile.status_id in CLOSED_STATUS_IDS:
         return False
     if profile.call_count > 0 or profile.price > 0:
         return False
     if profile.pipeline_id == FARMER_PIPELINE_ID:
         return False
-    if profile.has_chat:
-        return True
-    haystack = " ".join([profile.name, *profile.tags]).lower()
-    return any(marker in haystack for marker in _TG_MARKERS)
+    return bool(profile.tg_provenance or has_explicit_tg_marker(profile))
 
 
 def score_primary_lead(profile: LeadProfile) -> Tuple[int, List[str]]:
@@ -213,6 +220,11 @@ def analyze_lead_pair(target: LeadProfile, source: LeadProfile) -> PairDecision:
         )
     if not is_telegram_only_lead(source):
         return PairDecision("conflict", target.lead_id, source.lead_id, target.contact_id, source.contact_id, "low", "source_not_telegram_only")
+    if target.contact_id == source.contact_id and not has_explicit_tg_marker(source):
+        return PairDecision(
+            "conflict", target.lead_id, source.lead_id, target.contact_id, source.contact_id,
+            "low", "same_contact_missing_deal_provenance",
+        )
 
     target_score, target_reasons = score_primary_lead(target)
     source_score, _ = score_primary_lead(source)
@@ -237,6 +249,31 @@ def analyze_lead_pair(target: LeadProfile, source: LeadProfile) -> PairDecision:
         reason="telegram_duplicate_of_phone_deal",
         evidence=evidence,
     )
+
+
+def analyze_role_split_pair(
+    phone_profiles: Sequence[LeadProfile],
+    tg_profiles: Sequence[LeadProfile],
+) -> Optional[PairDecision]:
+    """Evaluate phone-matched deals (target role) vs bound Telegram deals (source role).
+
+    Preserves explicit roles so a returning customer's active Telegram deal is never
+    rebound off its deal when the older phone deal is closed and lower-scoring.
+    """
+    active_tg = [p for p in tg_profiles if p.status_id not in CLOSED_STATUS_IDS]
+    if not active_tg or not phone_profiles:
+        return None
+    tg_best = sorted(active_tg, key=lambda p: p.created_at or 0, reverse=True)[0]
+    active_phone = [p for p in phone_profiles if p.status_id not in CLOSED_STATUS_IDS]
+    if not active_phone:
+        closed_phone = sorted(
+            phone_profiles, key=lambda p: (p.updated_at or p.created_at or 0), reverse=True
+        )[0]
+        return analyze_lead_pair(closed_phone, tg_best)
+    phone_best = sorted(
+        active_phone, key=lambda p: (score_primary_lead(p)[0], -(p.created_at or 0)), reverse=True
+    )[0]
+    return analyze_lead_pair(phone_best, tg_best)
 
 
 def pick_best_pair(profiles: Sequence[LeadProfile]) -> Optional[PairDecision]:

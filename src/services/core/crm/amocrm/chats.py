@@ -38,7 +38,8 @@ class AmoCRMChatsMixin:
         **kwargs: Any,
     ) -> Optional[Any]:
         """Execute an HTTP request off the event loop with one 401 refresh retry."""
-        self._load_token()
+        if not getattr(self, "access_token", None):
+            await asyncio.to_thread(self._load_token)
         try:
             response = await self._request_with_auth(request_fn, url, **kwargs)
             if response.status_code == 401 and await asyncio.to_thread(self.refresh_token):
@@ -169,6 +170,22 @@ class AmoCRMChatsMixin:
             return True
         code = getattr(resp, "status_code", "err")
         logger.warning("[AMOCRM CHATS] close_duplicate_lead failed (%s): lead=%s", code, lead_id)
+        return False
+
+    async def reassign_task_to_lead(self, task_id: int, target_lead_id: int) -> bool:
+        """Move an existing open task to target_lead_id via PATCH (preserves ID & task_type_id)."""
+        tid = int(task_id or 0)
+        lid = int(target_lead_id or 0)
+        if tid <= 0 or lid <= 0:
+            return False
+        url = f"{self.base_url}/api/v4/tasks/{tid}"
+        payload = {"entity_id": lid, "entity_type": "leads"}
+        resp = await self._authed_request(requests.patch, url, json=payload, timeout=30)
+        if resp is not None and resp.status_code in (200, 204):
+            logger.info("[AMOCRM CHATS] Reassigned task %s -> lead %s", tid, lid)
+            return True
+        code = getattr(resp, "status_code", "err")
+        logger.warning("[AMOCRM CHATS] reassign_task_to_lead failed (%s): task=%s", code, tid)
         return False
 
     async def add_lead_note_async(self, lead_id: int, text: str) -> bool:

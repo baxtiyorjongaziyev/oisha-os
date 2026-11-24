@@ -33,7 +33,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="amoCRM Telegram <-> Telefon sdelkalarni tahlil qilish va birlashtirish"
     )
     parser.add_argument("--limit", type=int, default=150, help="Tekshiriladigan faol sdelkalar soni")
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Faqat tahlil va hisobot (CRM oʻzgartirilmaydi; standart rejim)",
+    )
+    mode.add_argument(
         "--apply",
         action="store_true",
         help="Haqiqiy birlashtirishni bajarish (default = dry-run)",

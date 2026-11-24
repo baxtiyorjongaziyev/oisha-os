@@ -80,11 +80,8 @@ async def _group_active_leads_by_phone(
     crm: Any, report: ScanReport, limit: int
 ) -> tuple[Dict[str, List[LeadProfile]], Dict[int, Optional[str]]]:
     leads = await crm.get_leads(limit=limit, with_contacts=True)
-    groups: Dict[str, List[LeadProfile]] = {}
-    contact_cache: Dict[int, Dict[str, Any]] = {}
-    call_cache: Dict[int, int] = {}
-    chat_id_cache: Dict[int, Optional[str]] = {}
-
+    active_rows: List[tuple[Dict[str, Any], int]] = []
+    open_counts_by_contact: Dict[int, int] = {}
     for lead in leads:
         lid = int(lead.get("id") or 0)
         sid = int(lead.get("status_id") or 0)
@@ -92,12 +89,18 @@ async def _group_active_leads_by_phone(
             continue
         report.checked_leads += 1
         c_refs = (lead.get("_embedded") or {}).get("contacts") or []
-        if not c_refs:
-            continue
-        cid = int(c_refs[0].get("id") or 0)
+        cid = int(c_refs[0].get("id") or 0) if c_refs else 0
         if cid <= 0:
             continue
+        active_rows.append((lead, cid))
+        open_counts_by_contact[cid] = open_counts_by_contact.get(cid, 0) + 1
 
+    groups: Dict[str, List[LeadProfile]] = {}
+    contact_cache: Dict[int, Dict[str, Any]] = {}
+    call_cache: Dict[int, int] = {}
+    chat_id_cache: Dict[int, Optional[str]] = {}
+
+    for lead, cid in active_rows:
         if cid not in contact_cache:
             contact_cache[cid] = await crm.get_contact_details_async(cid) or {}
             call_cache[cid] = (
@@ -112,21 +115,15 @@ async def _group_active_leads_by_phone(
         if not phones or is_internal_team_phone(phones[0]):
             continue
 
+        single_deal_chat = bool(chat_id_cache[cid] and open_counts_by_contact.get(cid, 0) == 1)
         groups.setdefault(phones[0][-9:], []).append(
             LeadProfile(
-                lead_id=lid,
-                contact_id=cid,
-                name=str(lead.get("name") or ""),
-                status_id=sid,
-                pipeline_id=int(lead.get("pipeline_id") or 0),
-                price=int(lead.get("price") or 0),
-                created_at=int(lead.get("created_at") or 0),
-                updated_at=int(lead.get("updated_at") or 0),
-                call_count=call_cache[cid],
-                has_chat=bool(chat_id_cache[cid]),
-                notes_count=0,
-                tags=lead_tags(lead),
-                phones=phones,
+                lead_id=int(lead["id"]), contact_id=cid, name=str(lead.get("name") or ""),
+                status_id=int(lead.get("status_id") or 0), pipeline_id=int(lead.get("pipeline_id") or 0),
+                price=int(lead.get("price") or 0), created_at=int(lead.get("created_at") or 0),
+                updated_at=int(lead.get("updated_at") or 0), call_count=call_cache[cid],
+                has_chat=bool(chat_id_cache[cid]), tg_provenance=single_deal_chat,
+                notes_count=0, tags=lead_tags(lead), phones=phones,
             )
         )
     return groups, chat_id_cache

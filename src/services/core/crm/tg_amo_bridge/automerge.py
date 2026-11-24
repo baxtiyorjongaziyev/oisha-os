@@ -9,6 +9,7 @@ from .amojo_client import AmoJoClient
 from .analyzer import (
     LeadProfile,
     PairDecision,
+    analyze_role_split_pair,
     contact_phones,
     extract_phone_from_text,
     format_link_note,
@@ -138,17 +139,11 @@ class TelegramDealAutoMerger:
             lead_refs = await self.crm.get_contact_linked_leads(cid)
         if not lead_refs:
             return []
-
-        call_count = (
-            await self.crm.get_contact_call_notes_count(cid)
-            if hasattr(self.crm, "get_contact_call_notes_count")
-            else 0
+        call_count = await self.crm.get_contact_call_notes_count(cid) if hasattr(self.crm, "get_contact_call_notes_count") else 0
+        has_chat = chat_linked if chat_linked is not None else (
+            bool(await self.crm.get_contact_chats(contact_id=cid)) if hasattr(self.crm, "get_contact_chats") else False
         )
-        has_chat = (
-            chat_linked
-            if chat_linked is not None
-            else (bool(await self.crm.get_contact_chats(contact_id=cid)) if hasattr(self.crm, "get_contact_chats") else False)
-        )
+        single_deal_chat = bool(has_chat and len(lead_refs) == 1)
         profiles: List[LeadProfile] = []
         for ref in lead_refs:
             lid = int(ref.get("id") or 0)
@@ -158,19 +153,12 @@ class TelegramDealAutoMerger:
             notes = await self.crm.get_lead_notes(lid) if hasattr(self.crm, "get_lead_notes") else []
             profiles.append(
                 LeadProfile(
-                    lead_id=lid,
-                    contact_id=cid,
-                    name=str(lead.get("name") or ""),
-                    status_id=int(lead.get("status_id") or 0),
-                    pipeline_id=int(lead.get("pipeline_id") or 0),
-                    price=int(lead.get("price") or 0),
-                    created_at=int(lead.get("created_at") or 0),
-                    updated_at=int(lead.get("updated_at") or 0),
-                    call_count=call_count,
-                    has_chat=bool(has_chat),
-                    notes_count=len(notes),
-                    tags=lead_tags(lead),
-                    phones=phones,
+                    lead_id=lid, contact_id=cid, name=str(lead.get("name") or ""),
+                    status_id=int(lead.get("status_id") or 0), pipeline_id=int(lead.get("pipeline_id") or 0),
+                    price=int(lead.get("price") or 0), created_at=int(lead.get("created_at") or 0),
+                    updated_at=int(lead.get("updated_at") or 0), call_count=call_count,
+                    has_chat=bool(has_chat), tg_provenance=single_deal_chat,
+                    notes_count=len(notes), tags=lead_tags(lead), phones=phones,
                 )
             )
         return profiles
@@ -205,7 +193,7 @@ class TelegramDealAutoMerger:
     ) -> Optional[str]:
         if cached_chat_id:
             return cached_chat_id
-        if not (self.amojo and hasattr(self.amojo, "create_chat")):
+        if self.dry_run or not (self.amojo and hasattr(self.amojo, "create_chat")):
             return None
         profile_link = f"https://t.me/{username.lstrip('@')}" if username else None
         return await self.amojo.create_chat(
@@ -217,11 +205,11 @@ class TelegramDealAutoMerger:
             source_external_id=source_external_id,
         )
 
-    async def _collect_split_candidates(
-        self, current_cids: set[int], target_cid: int, phone_profiles: List[LeadProfile]
+    async def _collect_tg_chat_profiles(
+        self, current_cids: set[int], target_cid: int, phone_lids: set[int]
     ) -> List[LeadProfile]:
-        candidates = list(phone_profiles)
-        seen_lids = {p.lead_id for p in candidates}
+        tg_profiles: List[LeadProfile] = []
+        seen_lids = set(phone_lids)
         for existing_cid in current_cids:
             if existing_cid == target_cid:
                 continue
@@ -230,9 +218,9 @@ class TelegramDealAutoMerger:
                 continue
             for prof in await self.build_profiles_for_contact(details, chat_linked=True):
                 if prof.lead_id not in seen_lids:
-                    candidates.append(prof)
+                    tg_profiles.append(prof)
                     seen_lids.add(prof.lead_id)
-        return candidates
+        return tg_profiles
 
     async def _reconcile_existing_chat_contacts(
         self,
@@ -247,23 +235,36 @@ class TelegramDealAutoMerger:
         peer_id: int,
         username: Optional[str],
     ) -> LinkOutcome:
-        candidates = await self._collect_split_candidates(current_cids, target_cid, phone_profiles)
-        decision = pick_best_pair(candidates)
+        tg_profiles = await self._collect_tg_chat_profiles(
+            current_cids, target_cid, {p.lead_id for p in phone_profiles}
+        )
+        decision = (
+            analyze_role_split_pair(phone_profiles, tg_profiles)
+            if tg_profiles
+            else pick_best_pair(phone_profiles)
+        )
         if decision and decision.action in {"merge", "link_only", "conflict"}:
             status = await self.execute_decision(
                 decision, phone=phone, amo_chat_id=amo_chat_id, tg_user_id=peer_id, username=username
             )
-            await self.store.upsert_chat_link(
-                peer_id, amo_chat_id=amo_chat_id, phone=phone, username=username,
-                linked_contact_id=decision.target_contact_id, linked_lead_id=decision.target_lead_id,
-            )
+            bound_cid = decision.source_contact_id if status == "linked_only" else decision.target_contact_id
+            bound_lid = decision.source_lead_id if status == "linked_only" else decision.target_lead_id
+            if status in {"merged", "linked_only"}:
+                await self.store.upsert_chat_link(
+                    peer_id, amo_chat_id=amo_chat_id, phone=phone, username=username,
+                    linked_contact_id=bound_cid, linked_lead_id=bound_lid,
+                )
             return LinkOutcome(
                 status, phone, phone_source, amo_chat_id,
-                decision.target_contact_id, decision.target_lead_id,
+                bound_cid, bound_lid,
                 decision.source_lead_id if status == "merged" else None, decision.reason,
             )
-        if target_cid not in current_cids and amo_chat_id and not self.dry_run:
-            await self.crm.link_chat_to_contact(target_cid, amo_chat_id)
+        # Never blindly rebind a chat already owned by another contact when no safe pair exists.
+        if target_cid not in current_cids:
+            return LinkOutcome(
+                "not_resolved", phone, phone_source, amo_chat_id,
+                reason="chat_bound_to_other_contact",
+            )
         await self.store.upsert_chat_link(
             peer_id, amo_chat_id=amo_chat_id, phone=phone, username=username,
             linked_contact_id=target_cid, linked_lead_id=target_lid,

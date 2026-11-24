@@ -199,6 +199,54 @@ class MessageStore:
             "reason": r[7],
         }
 
+    async def try_claim_merge(
+        self,
+        *,
+        source_lead_id: int,
+        target_lead_id: int,
+        source_contact_id: Optional[int],
+        target_contact_id: Optional[int],
+        tg_user_id: Optional[int],
+        phone: str,
+        reason: str = "",
+    ) -> tuple[bool, Optional[str]]:
+        """Atomically claim a source_lead_id for merge (prevents concurrent duplicate writes)."""
+        await self.ensure()
+        sid = int(source_lead_id)
+        existing = await self.get_merge_record(sid)
+        if existing:
+            st = existing.get("status")
+            if st in {"merged", "linked_only", "conflict", "in_progress"}:
+                return False, st
+            if st == "incomplete":
+                await self._db().execute(
+                    "UPDATE tg_amo_merges SET status = 'in_progress', target_lead_id = ?, "
+                    "reason = ?, created_at = CURRENT_TIMESTAMP "
+                    "WHERE source_lead_id = ? AND status = 'incomplete'",
+                    [int(target_lead_id), str(reason or ""), sid],
+                )
+                refreshed = await self.get_merge_record(sid)
+                return (True, None) if (refreshed and refreshed.get("status") == "in_progress") else (False, (refreshed or {}).get("status"))
+        await self._db().execute(
+            "INSERT OR IGNORE INTO tg_amo_merges "
+            "(source_lead_id, target_lead_id, source_contact_id, target_contact_id, "
+            "tg_user_id, phone, status, reason, created_at) "
+            "VALUES (?,?,?,?,?,?,'in_progress',?,CURRENT_TIMESTAMP)",
+            [
+                sid,
+                int(target_lead_id),
+                int(source_contact_id) if source_contact_id else None,
+                int(target_contact_id) if target_contact_id else None,
+                int(tg_user_id) if tg_user_id else None,
+                str(phone or ""),
+                str(reason or ""),
+            ],
+        )
+        claimed = await self.get_merge_record(sid)
+        if claimed and claimed.get("status") == "in_progress" and claimed.get("target_lead_id") == int(target_lead_id):
+            return True, None
+        return False, (claimed or {}).get("status")
+
     async def record_merge(
         self,
         *,
