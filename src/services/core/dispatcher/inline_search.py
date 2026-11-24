@@ -112,6 +112,10 @@ def register_inline_search_handlers(
 
     @dp.message(F.text.regexp(PHONE_RE))
     async def _phone_search(message: Any) -> None:
+        """Raqam -> Telegram kontakt kartasi (GET-LID analogi, limitsiz).
+
+        Kartani bir bosib mijozga yozish mumkin, saqlash shart emas.
+        """
         sender = getattr(message, "from_user", None)
         sender_id = int(getattr(sender, "id", 0) or 0)
         if not is_admin(sender_id):
@@ -120,26 +124,70 @@ def register_inline_search_handlers(
         match = re.search(PHONE_RE, text)
         if not match:
             return
-        phone = match.group(0)
-        wait = await message.answer(f"🔍 {phone} qidirilmoqda...")
+        phone = normalize_uz_phone(match.group(0))
         try:
             data = await perform_global_lookup(phone)
         except Exception:
             logger.error("[INLINE] phone search failed", exc_info=True)
             data = None
-        if data:
-            body = (
-                f"✅ Mijoz topildi\n"
-                f"👤 {data.get('first_name', '')} {data.get('last_name', '') or ''}\n"
-                f"🆔 {data.get('user_id', '')}"
+
+        first_name = (data or {}).get("first_name") or phone
+        last_name = (data or {}).get("last_name") or ""
+        try:
+            await message.answer_contact(
+                phone_number=phone, first_name=first_name, last_name=last_name
             )
-        else:
-            body = f"❌ {phone} boʻyicha hech kim topilmadi."
-        edit = getattr(wait, "edit_text", None)
-        if edit is not None:
+        except Exception:
+            logger.warning("[INLINE] contact card send failed", exc_info=True)
+
+        if not data:
+            await message.answer(
+                f"❌ {format_uz_phone(phone)} Telegramda topilmadi "
+                "yoki raqami yashirilgan."
+            )
+            return
+
+        body = f"✅ Raqam topildi\n📞 {format_uz_phone(phone)}"
+        markup = _profile_button(data)
+        if markup is not None:
             try:
-                await edit(body)
+                await message.answer(body, reply_markup=markup)
                 return
             except Exception:
-                logger.debug("[INLINE] wait edit failed", exc_info=True)
+                # tg://user?id tugmasi maxfiylik sabab rad etilishi mumkin.
+                logger.debug("[INLINE] profile button rejected", exc_info=True)
         await message.answer(body)
+
+
+def normalize_uz_phone(raw: str) -> str:
+    """Har qanday yozuvni +998XXXXXXXXX koʻrinishiga keltiradi."""
+    digits = re.sub(r"\D", "", raw or "")
+    if not digits.startswith("998"):
+        digits = "998" + digits[-9:]
+    return "+" + digits
+
+
+def format_uz_phone(phone: str) -> str:
+    """+998901234567 -> +998 90 123 45 67"""
+    d = re.sub(r"\D", "", phone)
+    if len(d) == 12 and d.startswith("998"):
+        return f"+{d[:3]} {d[3:5]} {d[5:8]} {d[8:10]} {d[10:]}"
+    return phone
+
+
+def _profile_button(data: dict) -> Any:
+    username = data.get("username")
+    user_id = data.get("user_id")
+    if username:
+        label, url = f"💬 @{username}", f"https://t.me/{username}"
+    elif user_id:
+        label, url = "💬 Profilni ochish", f"tg://user?id={user_id}"
+    else:
+        return None
+    try:
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    except Exception:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=label, url=url)]]
+    )
