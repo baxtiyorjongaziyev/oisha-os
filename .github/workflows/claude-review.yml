@@ -29,6 +29,7 @@ jobs:
         uses: anthropics/claude-code-action@4411a9e9b0283becf4b924f7bce360fd7756c78c # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             Review this pull request for real bugs, security issues and data-loss risks only.
             Skip style nits. Post findings as inline review comments; if none, post one short summary comment.
