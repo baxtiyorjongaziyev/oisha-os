@@ -119,16 +119,37 @@ async def _download_thumb(message: Any, tmpdir: str) -> Optional[Tuple[str, str,
     return path, mime, ext
 
 
-async def _run_ffmpeg_frame(ffmpeg: str, src_path: str, out_path: str, *, vp9_alpha: bool) -> bool:
-    cmd = [ffmpeg, "-y", "-loglevel", "error"]
+async def _run_ffmpeg_frame(src_path: str, out_path: str, *, vp9_alpha: bool) -> bool:
     if vp9_alpha:
-        cmd.extend(["-c:v", "libvpx-vp9"])
-    cmd.extend(["-i", src_path, "-frames:v", "1", out_path])
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-c:v",
+            "libvpx-vp9",
+            "-i",
+            src_path,
+            "-frames:v",
+            "1",
+            out_path,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+    else:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            src_path,
+            "-frames:v",
+            "1",
+            out_path,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
     try:
         await asyncio.wait_for(proc.wait(), timeout=_FFMPEG_TIMEOUT_SECONDS)
     except asyncio.TimeoutError:
@@ -141,8 +162,7 @@ async def _run_ffmpeg_frame(ffmpeg: str, src_path: str, out_path: str, *, vp9_al
 async def _extract_webm_frame(
     message: Any, tmpdir: str, max_bytes: int
 ) -> Optional[Tuple[str, str, str]]:
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
+    if not shutil.which("ffmpeg"):
         return None
     size = int(getattr(getattr(message, "file", None), "size", 0) or 0)
     if size > max_bytes:
@@ -156,9 +176,9 @@ async def _extract_webm_frame(
     ):
         return None
     out_path = os.path.join(tmpdir, "sticker_frame.png")
-    ok = await _run_ffmpeg_frame(ffmpeg, src_path, out_path, vp9_alpha=True)
+    ok = await _run_ffmpeg_frame(src_path, out_path, vp9_alpha=True)
     if not ok:
-        ok = await _run_ffmpeg_frame(ffmpeg, src_path, out_path, vp9_alpha=False)
+        ok = await _run_ffmpeg_frame(src_path, out_path, vp9_alpha=False)
     if not ok:
         return None
     detected = detect_image_format(out_path)
