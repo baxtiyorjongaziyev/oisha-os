@@ -10,6 +10,11 @@ TODAY = "2026-11-25"
 NOW = datetime(2026, 11, 25, 12, 0)
 
 
+@pytest.fixture(autouse=True)
+def _topic_set(monkeypatch):
+    monkeypatch.setattr(br, "_balance_topic_set", lambda: True)
+
+
 def _hisob(rid, nom, joriy, fakt, sana=TODAY, valyuta="UZS", faol=True):
     return {"id": rid, "fields": {
         "Hisob nomi": nom, "Valyuta": valyuta, "Faol": faol,
@@ -122,11 +127,29 @@ async def test_failed_send_releases_claim():
 
 
 @pytest.mark.asyncio
-async def test_stale_reminder_once_per_stale_date():
+async def test_stale_reminder_once_per_day():
     h = _Harness([_hisob("r2", "Bank", 0, 0, sana="2026-11-20")])
     assert await h.run() == 1
     assert "yangilanmagan" in h.group[0]
-    assert await h.run(datetime(2026, 11, 26, 12, 0)) == 0  # ertasi kuni ham takrorlanmaydi
+    assert await h.run(datetime(2026, 11, 25, 18, 0)) == 0  # shu kuni takrorlanmaydi
+
+
+@pytest.mark.asyncio
+async def test_no_stale_reminder_when_report_recent():
+    h = _Harness([
+        _hisob("r1", "Bank UZS", 0, 0, sana="2026-10-10"),
+        _hisob("r2", "P2P karta", 0, 0, sana="2026-11-24"),
+    ])
+    assert await h.run() == 0
+    assert h.group == []
+
+
+@pytest.mark.asyncio
+async def test_no_stale_reminder_without_balance_topic(monkeypatch):
+    monkeypatch.setattr(br, "_balance_topic_set", lambda: False)
+    h = _Harness([_hisob("r1", "Bank UZS", 0, 0, sana="2026-10-10")])
+    assert await h.run() == 0
+    assert h.group == []
 
 
 def test_missing_faol_checkbox_means_inactive():
@@ -182,4 +205,4 @@ async def test_stale_send_failure_releases_all_claims():
         _hisob("r2", "B", 0, 0, sana="2026-10-10"),
     ], send_ok=False)
     assert await h.run() == 0
-    assert not any(c[0].startswith(br.STALE_JOB_PREFIX) for c in h.claims)
+    assert not any(c[0] == br.STALE_DIGEST_JOB for c in h.claims)

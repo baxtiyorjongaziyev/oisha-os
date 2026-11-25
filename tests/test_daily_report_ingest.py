@@ -131,3 +131,28 @@ async def test_handler_filters_group_and_replies(monkeypatch):
     msg = SimpleNamespace(chat=SimpleNamespace(id=-1003967389019), text=SAMPLE)
     assert h.is_group_daily_report(msg)
     assert not h.is_group_daily_report(SimpleNamespace(chat=SimpleNamespace(id=-1), text=SAMPLE))
+
+
+RULE_TEXT = (
+    "📌 Qoida: moliyachi har kuni \"📊 Kunlik moliya\" hisobotini guruhga yozadi "
+    "(\"Kun oxiri pul\" boʻlimi bilan). Bot qoldiqni Airtable ga yozadi."
+)
+
+
+def test_rule_text_is_not_report():
+    assert not dri.is_daily_report(RULE_TEXT)
+    assert dri.is_daily_report(SAMPLE)
+    assert dri.is_daily_report("  \n" + SAMPLE)
+
+
+@pytest.mark.asyncio
+async def test_rule_text_gets_no_reply():
+    s = _Store()
+    assert await s.run(RULE_TEXT) is None
+    assert s.data == {}
+
+
+@pytest.mark.asyncio
+async def test_header_without_section_warns():
+    reply = await _Store().run("📊 Kunlik moliya — 24.11.2026\nKirim: 0")
+    assert reply and "Kun oxiri pul" in reply

@@ -36,6 +36,7 @@ STALE_DAYS = 2
 
 MISMATCH_JOB_PREFIX = "balance_reconcile:"
 STALE_JOB_PREFIX = "balance_stale:"
+STALE_DIGEST_JOB = "balance_stale_digest"
 
 
 @dataclass(frozen=True)
@@ -246,21 +247,41 @@ async def run_balance_reconcile(
             else:
                 await release(job, today_iso)
 
-    # Barcha eskirgan hisoblar bitta xabarga yigʻiladi (4 ta alohida xabar emas).
-    # Claim hisob+eski sana boʻyicha: yangi fakt kiritilib yana eskirsa — yangi eslatma.
-    claimed: list[tuple[StaleAccount, str, str]] = []
-    for s in find_stale(records, now.date()):
-        job = f"{STALE_JOB_PREFIX}{s.record_id}"
-        key = s.sana or "never"
-        if await _safe_claim(claim, job, key):
-            claimed.append((s, job, key))
-    if claimed:
-        if await send_group(format_stale([c[0] for c in claimed], now.date())):
-            sent += 1
-        else:
-            for _, job, key in claimed:
-                await release(job, key)
+    # Barcha eskirgan hisoblar — bitta jamlangan xabar, kuniga bir marta.
+    # Oxirgi STALE_DAYS kunda kunlik hisobot kelgan boʻlsa eslatma yoʻq.
+    stale = find_stale(records, now.date())
+    if stale and not _recent_report(records, now.date()) and _balance_topic_set():
+        if await _safe_claim(claim, STALE_DIGEST_JOB, today_iso):
+            if await send_group(format_stale(stale, now.date())):
+                sent += 1
+            else:
+                await release(STALE_DIGEST_JOB, today_iso)
     return sent
+
+
+def _recent_report(records: list[dict], today: date, days: int = STALE_DAYS) -> bool:
+    """Biror faol hisobning fakt saldosi oxirgi ``days`` kunda yangilanganmi."""
+    for r in records:
+        f = r.get("fields") or {}
+        if not _active(f):
+            continue
+        sana = str(f.get(FAKT_DATE_FIELD) or "")[:10]
+        try:
+            if sana and (today - date.fromisoformat(sana)).days <= days:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _balance_topic_set() -> bool:
+    """Topic sozlanmagan boʻlsa eslatma umumiy oqimga tushmasin."""
+    try:
+        from src.settings import settings
+
+        return bool(getattr(settings, "HISOBCHI_BALANCE_TOPIC_ID", None))
+    except Exception:
+        return False
 
 
 async def _safe_claim(claim: Callable[[str, str], Awaitable[bool]], job: str, key: str) -> bool:
