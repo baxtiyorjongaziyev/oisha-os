@@ -4,7 +4,7 @@ name: gemini-review
 # in its own Google project so prod bot quotas are untouched. Skips if unset.
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize]
+    types: [opened, reopened, ready_for_review, synchronize]
 
 concurrency:
   group: gemini-review-${{ github.event.pull_request.number }}

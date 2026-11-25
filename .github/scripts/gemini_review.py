@@ -77,12 +77,16 @@ def main() -> int:
     if data is None:
         print("::warning::Gemini review skipped: no model accepted the request (quota or availability)")
         return 0
-    text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (KeyError, IndexError):
+        print("::warning::Gemini returned no text (blocked or empty response)")
+        return 0
     body = f"{MARKER}\n### Gemini review ({model})\n\n{text}"
     if len(diff) > MAX_DIFF:
         body += "\n\n_Diff truncated; review covers the first part only._"
     existing = gh("api", f"repos/{repo}/issues/{pr}/comments", "--paginate",
-                  "--jq", f'.[] | select(.body | startswith("{MARKER}")) | .id').split()
+                  "--jq", f'.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("{MARKER}"))) | .id').split()
     post_comment(repo, pr, body, existing[-1] if existing else None)
     return 0
 
