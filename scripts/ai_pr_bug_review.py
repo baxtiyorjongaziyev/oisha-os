@@ -16,7 +16,7 @@ import urllib.request
 from pathlib import Path
 
 MARKER = "<!-- oisha-ai-bug-review -->"
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_DIFF_CHARS = 60_000
 IGNORED_SUFFIXES = (
     ".lock",
