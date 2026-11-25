@@ -107,7 +107,9 @@ class CallNormalizerMixin:
                 "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
             }
 
-        category = _normalise_category(data.get("category"))
+        category = _apply_recruitment_override(
+            _normalise_category(data.get("category")), summary, transcript,
+        )
         rubrik_amal_qiladi = _rubric_applies(category, transcript)
         if not rubrik_amal_qiladi:
             sifat_bahosi = 0

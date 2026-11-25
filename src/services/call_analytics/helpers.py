@@ -313,6 +313,27 @@ def _normalise_category(value: Any) -> str:
     return "Boshqa"
 
 
+# Ishga nomzod (HR) suhbatlarini aniqlovchi belgilar. Bunday qöngʻiroqlar
+# AmoCRMʼga tushsa ham savdo emas — "Jamoa" toifasiga ötkaziladi.
+_RECRUITMENT_PATTERN = re.compile(
+    r"head\s*hunter|\bhh\.uz\b|vakansiya|rezyume|rezume|резюме|вакансия|"
+    r"\bnomzod|ishga\s+(?:kirish|qabul|joylash|ariza|olish)|ish\s+o.rni|"
+    r"ish\s+taklif|собеседовани",
+    re.IGNORECASE,
+)
+
+
+def _apply_recruitment_override(category: str, *texts: Any) -> str:
+    """AI "Mijoz" desa ham, matnda ishga qabul (Headhunter, vakansiya,
+    rezyume, nomzod) belgilari bölsa — "Jamoa" qaytaradi."""
+    if category != "Mijoz":
+        return category
+    blob = " ".join(str(t or "") for t in texts)
+    if _RECRUITMENT_PATTERN.search(blob):
+        return "Jamoa"
+    return category
+
+
 def _normalise_mood(value: Any) -> str:
     text = str(value or "").strip().lower()
     mapping = {
@@ -350,6 +371,7 @@ def normalize_name_spellings(text: str) -> str:
 
 
 __all__ = [
+    "_apply_recruitment_override",
     "GeminiQuotaCooldownError",
     "ANALYSIS_MARKER",
     "CATEGORIES",
