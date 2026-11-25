@@ -95,11 +95,13 @@ async def moliya_hisobotlari_loop() -> None:
                     "moliya_kuzatuv", day, lambda t=target: run_kuzatuv_report(t)
                 )
 
-            # Airtable boʻsh maydonlarni bittama-bitta soʻrash — 10:00
+            # Airtable nazorati: boʻsh/xato yozuvlar — guruhga jamlangan eslatma, 10:00
             if now.hour == 10 and now.minute < 5:
-                from src.services.core.finance.airtable_gap_filler import run_daily_gap_prompt
+                from src.services.core.finance.airtable_gap_filler import run_daily_group_digest
 
-                await run_once_per_day("airtable_gap_prompt", day, run_daily_gap_prompt)
+                await run_once_per_day(
+                    "airtable_group_digest", day, lambda: run_daily_group_digest(now)
+                )
 
             # Kunlik qoldiq rekonsiliatsiyasi — har 30 daqiqada (quiet-hours ichida jim)
             slot = reconcile_slot(now)
