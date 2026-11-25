@@ -7,8 +7,8 @@ Airtable ``Hisoblar`` jadvalida har faol hisob uchun
 * Fakt saldo bugungi sana bilan kiritilgan va farq chegaradan katta boʻlsa —
   moliya guruhining balans topigiga va Ownerga qisqa ogohlantirish.
   Farq yoʻq boʻlsa — jim.
-* Fakt saldo 2 kundan ortiq yangilanmagan faol hisob boʻyicha bir martalik
-  eslatma (har bir eski sana uchun faqat bir marta).
+* Fakt saldo 2 kundan ortiq yangilanmagan faol hisoblar boʻyicha bitta umumiy
+  eslatma (har hisobning har bir eski sanasi uchun faqat bir marta).
 
 Yuborish ``claim_job_run`` orqali idempotent: hisob+kun boʻyicha bir marta,
 restartdan keyin ham. Quiet-hours (23:00–07:00 Toshkent) da hech narsa
@@ -151,11 +151,23 @@ def format_mismatch(m: Mismatch) -> str:
     )
 
 
-def format_stale(s: StaleAccount) -> str:
-    oxirgi = s.sana or "hech qachon"
+def _stale_line(s: StaleAccount, today: date) -> str:
+    nom = html.escape(s.nom)
+    if not s.sana:
+        return f"• <b>{nom}</b> — hech qachon kiritilmagan"
+    try:
+        kun = (today - date.fromisoformat(s.sana)).days
+        return f"• <b>{nom}</b> — oxirgi <code>{s.sana}</code> ({kun} kun oldin)"
+    except ValueError:
+        return f"• <b>{nom}</b> — oxirgi <code>{html.escape(s.sana)}</code>"
+
+
+def format_stale(items: list[StaleAccount], today: date) -> str:
+    """Barcha eskirgan hisoblar — bitta xabarda."""
+    lines = "\n".join(_stale_line(s, today) for s in items)
     return (
-        f"🔔 <b>{html.escape(s.nom)}</b>: fakt saldo {STALE_DAYS} kundan ortiq yangilanmagan "
-        f"(oxirgi: <code>{oxirgi}</code>). Bugungi qoldiqni kiriting."
+        f"🔔 <b>Fakt saldo {STALE_DAYS} kundan ortiq yangilanmagan:</b>\n{lines}\n\n"
+        "Bugungi qoldiqlarni kiriting."
     )
 
 
@@ -234,16 +246,20 @@ async def run_balance_reconcile(
             else:
                 await release(job, today_iso)
 
+    # Barcha eskirgan hisoblar bitta xabarga yigʻiladi (4 ta alohida xabar emas).
+    # Claim hisob+eski sana boʻyicha: yangi fakt kiritilib yana eskirsa — yangi eslatma.
+    claimed: list[tuple[StaleAccount, str, str]] = []
     for s in find_stale(records, now.date()):
-        # Har bir eski sana uchun bir marta: yangi fakt kiritilib yana eskirsa — yangi eslatma.
         job = f"{STALE_JOB_PREFIX}{s.record_id}"
         key = s.sana or "never"
-        if not await _safe_claim(claim, job, key):
-            continue
-        if await send_group(format_stale(s)):
+        if await _safe_claim(claim, job, key):
+            claimed.append((s, job, key))
+    if claimed:
+        if await send_group(format_stale([c[0] for c in claimed], now.date())):
             sent += 1
         else:
-            await release(job, key)
+            for _, job, key in claimed:
+                await release(job, key)
     return sent
 
 

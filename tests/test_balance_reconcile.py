@@ -158,3 +158,28 @@ def test_reconcile_slot_tolerates_drift():
     assert reconcile_slot(datetime(2026, 11, 25, 22, 31)) == "2026-11-25 22:30"
     assert reconcile_slot(datetime(2026, 11, 25, 22, 4)) == "2026-11-25 22:00"
     assert reconcile_slot(datetime(2026, 11, 25, 22, 10)) is None
+
+
+@pytest.mark.asyncio
+async def test_stale_accounts_grouped_into_one_message():
+    h = _Harness([
+        _hisob("r1", "Bank UZS", 0, 0, sana="2026-10-10"),
+        _hisob("r2", "P2P karta", 0, 0, sana="2026-10-10"),
+        _hisob("r3", "Naqd USD", 0, 0, sana="2026-10-11"),
+    ])
+    assert await h.run() == 1
+    assert len(h.group) == 1
+    msg = h.group[0]
+    assert "Bank UZS" in msg and "P2P karta" in msg and "Naqd USD" in msg
+    assert "46 kun oldin" in msg
+    assert await h.run() == 0
+
+
+@pytest.mark.asyncio
+async def test_stale_send_failure_releases_all_claims():
+    h = _Harness([
+        _hisob("r1", "A", 0, 0, sana="2026-10-10"),
+        _hisob("r2", "B", 0, 0, sana="2026-10-10"),
+    ], send_ok=False)
+    assert await h.run() == 0
+    assert not any(c[0].startswith(br.STALE_JOB_PREFIX) for c in h.claims)
