@@ -91,6 +91,12 @@ async def moliya_hisobotlari_loop() -> None:
 
                 await run_once_per_day("airtable_gap_prompt", day, run_daily_gap_prompt)
 
+            # Kunlik qoldiq rekonsiliatsiyasi — har 30 daqiqada (quiet-hours ichida jim)
+            if now.minute in (0, 30):
+                from src.services.core.finance.balance_reconcile import run_balance_reconcile
+
+                await run_balance_reconcile(now)
+
             if hisobchi_active():
                 await _run_group_reports(now, day)
 
