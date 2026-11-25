@@ -66,7 +66,8 @@ def main() -> int:
                 raise
             print(f"skip {model}: HTTP {exc.code}", file=sys.stderr)
     if data is None:
-        raise SystemExit("No Gemini model accepted the request (quota or availability)")
+        print("::warning::Gemini review skipped: no model accepted the request (quota or availability)")
+        return 0
     text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
     body = f"{MARKER}\n### Gemini review ({model})\n\n{text}"
     if len(diff) > MAX_DIFF:
