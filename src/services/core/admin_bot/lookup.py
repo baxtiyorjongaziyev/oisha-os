@@ -40,33 +40,26 @@ class AdminLookupMixin:
 
     async def _perform_global_lookup_import_fallback(self, clean_phone: str):
         """Fallback: contacts.importContacts (eski metod, agar resolvePhone ishlamasa)."""
-        import random
+        from src.services.core.telegram.temp_contacts import (
+            delete_temp_contact,
+            import_temp_contact,
+        )
 
+        user = None
+        newly_imported = False
         try:
-            contact = types.InputPhoneContact(
-                client_id=random.randrange(-(2**63), 2**63),
-                phone=clean_phone.lstrip("+"),
-                first_name="Lookup",
-                last_name="",
-            )
-            result = await self.user_client(
-                functions.contacts.ImportContactsRequest(contacts=[contact])
-            )
-            if result.users:
-                user = result.users[0]
-                user_data = {
-                    "user_id": user.id,
-                    "username": user.username,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                }
-                newly_added_ids = {imp.user_id for imp in (result.imported or [])}
-                if user.id in newly_added_ids:
-                    await self.user_client(
-                        functions.contacts.DeleteContactsRequest(id=[user.id])
-                    )
-                return user_data
-            return None
+            user, newly_imported = await import_temp_contact(self.user_client, clean_phone)
+            if not user:
+                return None
+            return {
+                "user_id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+            }
         except Exception as e:
             logger.error("[GLOBAL SEARCH FALLBACK ERROR] %s", e)
             return None
+        finally:
+            if newly_imported and user is not None:
+                await delete_temp_contact(self.user_client, getattr(user, "id", None))
