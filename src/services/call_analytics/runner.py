@@ -335,18 +335,9 @@ class CallRunnerMixin(NoteExtractorMixin):
 
     def _is_excluded_phone(self, phone: str) -> bool:
         """Check whether the given phone number is excluded from call analysis."""
-        if not phone:
-            return False
-        raw = getattr(self._settings, "AMOCRM_CALL_ANALYSIS_EXCLUDED_PHONES", "") or ""
-        excluded = {
-            "".join(ch for ch in p if ch.isdigit())
-            for p in raw.split(",")
-            if p.strip()
-        }
-        if not excluded:
-            return False
-        normalized_phone = "".join(ch for ch in phone if ch.isdigit())
-        return normalized_phone in excluded
+        from src.services.core.crm.phone_blacklist import is_excluded_phone
+
+        return is_excluded_phone(phone, self._settings)
 
     async def process_call_recordings_for_lead(
         self,
