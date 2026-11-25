@@ -12,3 +12,12 @@ if not hasattr(builtins, "logger"):
 
 # Make Optional globally available
 builtins.Optional = Optional
+
+# Prod userbot session faqat Hetzner prod hostida, bitta jarayonda ulanadi
+# (AuthKeyDuplicatedError himoyasi). Telethon connect global oʼraladi.
+try:
+    from .services.core.telegram.userbot_host_guard import install as _install_userbot_guard
+
+    _install_userbot_guard()
+except Exception as _guard_exc:  # pragma: no cover - import muammosi bootni toʼxtatmasin
+    _fallback_logger.warning("[USERBOT GUARD] install failed: %s", _guard_exc)
