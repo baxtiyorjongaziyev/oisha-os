@@ -10,6 +10,7 @@ code_review:
     code_review: true
 ignore_patterns:
   - "src/services/debug/**"
+  - "scripts/debug/**"
   - "**/*.lock"
   - "**/pnpm-lock.yaml"
   - "requirements-lock.txt"
