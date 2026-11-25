@@ -1,6 +1,8 @@
 import requests
 import logging
 
+from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,6 +16,7 @@ class CRMIntegration:
         if not api_token or not domain:
             return None
 
+        formatted_phone = normalize_amocrm_phone(phone)
         url = f"https://{domain}.amocrm.ru/api/v4/leads/complex"
         headers = {
             "Authorization": f"Bearer {api_token}",
@@ -28,7 +31,7 @@ class CRMIntegration:
                         {
                             "first_name": name,
                             "custom_fields_values": [
-                                {"field_code": "PHONE", "values": [{"value": phone}]}
+                                {"field_code": "PHONE", "values": [{"value": formatted_phone}]}
                             ],
                         }
                     ]

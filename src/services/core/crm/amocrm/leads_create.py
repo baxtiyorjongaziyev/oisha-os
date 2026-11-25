@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import requests
 import structlog
 from src.services.core.crm.amocrm.auth import retry_with_backoff
+from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
 from src.services.core.crm.amocrm_pipeline_config import SALES_NEW_STATUS_ID, SALES_PIPELINE_ID
 
 logger = structlog.get_logger()
@@ -101,14 +102,15 @@ class AmoCRMLeadsCreateMixin:
         custom_fields: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[int]:
         """Telefon raqam orqali kontaktni qidiradi (yoki yaratadi) va unga bitim ochadi."""
-        contact = await asyncio.to_thread(self.get_contact_by_phone, phone)
+        formatted_phone = normalize_amocrm_phone(phone)
+        contact = await asyncio.to_thread(self.get_contact_by_phone, formatted_phone)
 
         if not contact:
             contact_id = await asyncio.to_thread(
-                self.create_contact, name, phone
+                self.create_contact, name, formatted_phone
             )
             if not contact_id:
-                logger.error(f"[AMOCRM] Kontakt yaratib bo'lmadi: {phone}")
+                logger.error(f"[AMOCRM] Kontakt yaratib boʻlmadi: {formatted_phone}")
                 return None
         else:
             contact_id = contact.get("id")
@@ -116,7 +118,7 @@ class AmoCRMLeadsCreateMixin:
         return await asyncio.to_thread(
             self.create_lead_for_contact,
             contact_id=contact_id,
-            lead_name=f"{name} ({phone})",
+            lead_name=f"{name} ({formatted_phone})",
             price=price,
             pipeline_id=pipeline_id,
             status_id=status_id,

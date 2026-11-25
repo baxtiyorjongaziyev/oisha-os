@@ -10,6 +10,7 @@ logger = structlog.get_logger()
 from src.services.core.crm.amocrm.auth import (
     retry_with_backoff,
 )
+from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
 
 
 
@@ -18,6 +19,7 @@ class AmoCRMContactsMixin:
     def create_contact(self, name: str, phone: str) -> Optional[int]:
         """Yangi kontakt yaratish."""
         self._load_token()
+        formatted_phone = normalize_amocrm_phone(phone)
         url = f"{self.base_url}/api/v4/contacts"
         data = [
             {
@@ -25,7 +27,7 @@ class AmoCRMContactsMixin:
                 "custom_fields_values": [
                     {
                         "field_code": "PHONE",
-                        "values": [{"value": phone, "enum_code": "MOB"}],
+                        "values": [{"value": formatted_phone, "enum_code": "MOB"}],
                     }
                 ],
             }
@@ -303,12 +305,13 @@ class AmoCRMContactsMixin:
                     return False
 
                 contact_id = contacts[0].get("id")
+                formatted_phone = normalize_amocrm_phone(phone)
                 update_url = f"{self.base_url}/api/v4/contacts/{contact_id}"
                 data = {
                     "custom_fields_values": [
                         {
                             "field_code": "PHONE",
-                            "values": [{"value": phone, "enum_code": "MOB"}],
+                            "values": [{"value": formatted_phone, "enum_code": "MOB"}],
                         }
                     ]
                 }
