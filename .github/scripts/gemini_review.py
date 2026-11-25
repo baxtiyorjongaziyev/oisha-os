@@ -12,8 +12,17 @@ API = "https://generativelanguage.googleapis.com/v1beta"
 MAX_DIFF = 120_000
 
 
-def gh(*args: str) -> str:
-    return subprocess.run(["gh", *args], check=True, capture_output=True, text=True).stdout
+def gh(*args: str, stdin: str | None = None) -> str:
+    return subprocess.run(["gh", *args], check=True, capture_output=True, text=True, input=stdin).stdout
+
+
+def post_comment(repo: str, pr: str, body: str, comment_id: str | None) -> None:
+    """Send body via stdin JSON so untrusted text never becomes a CLI argument."""
+    payload = json.dumps({"body": body})
+    if comment_id:
+        gh("api", "-X", "PATCH", f"repos/{repo}/issues/comments/{int(comment_id)}", "--input", "-", stdin=payload)
+    else:
+        gh("api", "-X", "POST", f"repos/{repo}/issues/{int(pr)}/comments", "--input", "-", stdin=payload)
 
 
 def _call(url: str, key: str, payload=None) -> dict:
@@ -74,10 +83,7 @@ def main() -> int:
         body += "\n\n_Diff truncated; review covers the first part only._"
     existing = gh("api", f"repos/{repo}/issues/{pr}/comments", "--paginate",
                   "--jq", f'.[] | select(.body | startswith("{MARKER}")) | .id').split()
-    if existing:
-        gh("api", "-X", "PATCH", f"repos/{repo}/issues/comments/{existing[-1]}", "-f", f"body={body}")
-    else:
-        gh("pr", "comment", pr, "--repo", repo, "--body", body)
+    post_comment(repo, pr, body, existing[-1] if existing else None)
     return 0
 
 
