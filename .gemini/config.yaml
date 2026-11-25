@@ -11,5 +11,6 @@ code_review:
 ignore_patterns:
   - "src/services/debug/**"
   - "**/*.lock"
-  - "pnpm-lock.yaml"
+  - "**/pnpm-lock.yaml"
+  - "requirements-lock.txt"
   - "graphify-out/**"
