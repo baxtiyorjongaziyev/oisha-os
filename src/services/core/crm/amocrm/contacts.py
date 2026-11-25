@@ -10,6 +10,7 @@ logger = structlog.get_logger()
 from src.services.core.crm.amocrm.auth import (
     retry_with_backoff,
 )
+from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
 
 
 
@@ -18,6 +19,7 @@ class AmoCRMContactsMixin:
     def create_contact(self, name: str, phone: str) -> Optional[int]:
         """Yangi kontakt yaratish."""
         self._load_token()
+        formatted_phone = normalize_amocrm_phone(phone)
         url = f"{self.base_url}/api/v4/contacts"
         data = [
             {
@@ -25,7 +27,7 @@ class AmoCRMContactsMixin:
                 "custom_fields_values": [
                     {
                         "field_code": "PHONE",
-                        "values": [{"value": phone, "enum_code": "MOB"}],
+                        "values": [{"value": formatted_phone, "enum_code": "MOB"}],
                     }
                 ],
             }
@@ -50,8 +52,9 @@ class AmoCRMContactsMixin:
         if not phone or phone == "Raqam yo'q":
             return None
 
-        # Normalizatsiya: + olib tashlash, faqat raqamlarni qoldirish
-        clean_phone = "".join(filter(str.isdigit, phone))
+        # Normalizatsiya: + olib tashlash, faqat raqamlarni qoldirish (.0 float ham tozalanadi)
+        formatted_phone = normalize_amocrm_phone(phone)
+        clean_phone = "".join(filter(str.isdigit, formatted_phone))
         # Oxirgi 9 ta raqamni olish (O'zbekiston formatida ishonchliroq)
         short_phone = clean_phone[-9:] if len(clean_phone) >= 9 else clean_phone
 
@@ -303,12 +306,13 @@ class AmoCRMContactsMixin:
                     return False
 
                 contact_id = contacts[0].get("id")
+                formatted_phone = normalize_amocrm_phone(phone)
                 update_url = f"{self.base_url}/api/v4/contacts/{contact_id}"
                 data = {
                     "custom_fields_values": [
                         {
                             "field_code": "PHONE",
-                            "values": [{"value": phone, "enum_code": "MOB"}],
+                            "values": [{"value": formatted_phone, "enum_code": "MOB"}],
                         }
                     ]
                 }

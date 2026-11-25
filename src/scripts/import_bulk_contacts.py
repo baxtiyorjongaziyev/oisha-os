@@ -4,11 +4,11 @@ import csv
 import time
 import requests
 import logging
-import re
 
 # Setup Python path to import from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.settings import settings
 
@@ -38,21 +38,7 @@ def transliterate(text: str) -> str:
     return "".join(result)
 
 def format_phone(phone: str) -> str:
-    if not phone:
-        return ""
-    cleaned = re.sub(r'[^\d+]', '', phone)
-    digits_only = re.sub(r'\D', '', cleaned)
-    if not digits_only:
-        return phone
-    if len(digits_only) == 9:
-        return f"+998{digits_only}"
-    elif len(digits_only) == 12 and digits_only.startswith("998"):
-        return f"+{digits_only}"
-    if cleaned.startswith("+998"):
-        return cleaned
-    if digits_only.startswith("998"):
-         return f"+{digits_only}"
-    return cleaned
+    return normalize_amocrm_phone(phone)
 
 def parse_csv():
     contacts = []
