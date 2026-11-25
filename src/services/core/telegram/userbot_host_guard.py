@@ -35,6 +35,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_LOCK_FILE = str(_REPO_ROOT / "data" / ".userbot.lock")
 
 _lock_fd: Optional[int] = None
+_registered_prod_digests: set[str] = set()
 _installed = False
 
 
@@ -84,6 +85,21 @@ def prod_key_digest() -> Optional[str]:
     return _key_digest(_prod_session_string())
 
 
+def register_prod_session(session_string: str) -> None:
+    """DB/fayldan olingan prod session ham guard ostiga olinadi (auth key env dan farq qilishi mumkin)."""
+    digest = _key_digest(session_string)
+    if digest:
+        _registered_prod_digests.add(digest)
+
+
+def prod_key_digests() -> set[str]:
+    digests = set(_registered_prod_digests)
+    env_digest = prod_key_digest()
+    if env_digest:
+        digests.add(env_digest)
+    return digests
+
+
 def is_prod_host(
     marker_file: str = PROD_MARKER_FILE, hostname: Optional[str] = None
 ) -> bool:
@@ -131,10 +147,8 @@ def acquire_single_instance_lock(lock_file: Optional[str] = None) -> None:
 
 def check_client(client: Any) -> None:
     """Ulanishdan oldin chaqiriladi. Prod key boʼlsa host + lock tekshiriladi."""
-    prod = prod_key_digest()
-    if not prod:
-        return
-    if _client_key_digest(client) != prod:
+    prod = prod_key_digests()
+    if not prod or _client_key_digest(client) not in prod:
         return  # dev / MCP / boshqa session — ruxsat
     assert_mcp_session_distinct()
     if not is_prod_host():
