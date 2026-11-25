@@ -36,6 +36,16 @@ def kuzatuv_target(now: datetime) -> Optional[datetime]:
     return None
 
 
+_last_reconcile_slot: list[Optional[str]] = [None]
+
+
+def reconcile_slot(now: datetime) -> Optional[str]:
+    """Yarim soatlik slot (5 daqiqalik oyna) — sikl siljisa ham oʻtkazib yuborilmaydi."""
+    if now.minute % 30 < 5:
+        return now.strftime("%Y-%m-%d %H:") + ("00" if now.minute < 30 else "30")
+    return None
+
+
 def hisobchi_active() -> bool:
     """HISOBCHI_ACTIVE=1 bo'lmasa guruhga hisobot/eslatma yuborilmaydi (default: to'xtatilgan)."""
     return os.getenv("HISOBCHI_ACTIVE", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -92,9 +102,11 @@ async def moliya_hisobotlari_loop() -> None:
                 await run_once_per_day("airtable_gap_prompt", day, run_daily_gap_prompt)
 
             # Kunlik qoldiq rekonsiliatsiyasi — har 30 daqiqada (quiet-hours ichida jim)
-            if now.minute in (0, 30):
+            slot = reconcile_slot(now)
+            if slot is not None and slot != _last_reconcile_slot[0]:
                 from src.services.core.finance.balance_reconcile import run_balance_reconcile
 
+                _last_reconcile_slot[0] = slot
                 await run_balance_reconcile(now)
 
             if hisobchi_active():

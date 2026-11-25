@@ -93,7 +93,7 @@ class _Harness:
 async def test_run_is_idempotent_per_day():
     h = _Harness([_hisob("recP2P", "P2P karta", -10_480_000, 142_068),
                   _hisob("recOK", "Kassa", 1_000, 1_000)])
-    assert await h.run() == 1
+    assert await h.run() == 2
     assert len(h.group) == 1 and len(h.owner) == 1
     assert await h.run() == 0  # takror — jim (DB claim restartdan keyin ham saqlanadi)
     assert len(h.group) == 1
@@ -127,3 +127,33 @@ async def test_stale_reminder_once_per_stale_date():
     assert await h.run() == 1
     assert "yangilanmagan" in h.group[0]
     assert await h.run(datetime(2026, 11, 26, 12, 0)) == 0  # ertasi kuni ham takrorlanmaydi
+
+
+def test_missing_faol_checkbox_means_inactive():
+    rec = _hisob("r1", "X", 0, 50_000)
+    del rec["fields"]["Faol"]
+    assert br.find_mismatches([rec], TODAY) == []
+    assert br.find_stale([rec], date(2026, 11, 25)) == []
+
+
+@pytest.mark.asyncio
+async def test_partial_delivery_retries_only_failed_destination():
+    h = _Harness([_hisob("recP2P", "P2P karta", 0, 500_000)])
+
+    async def owner_fail(text):
+        h.owner.append(text)
+        return False
+
+    h.send_owner = owner_fail
+    assert await h.run() == 1
+    h.send_owner = _Harness.send_owner.__get__(h)
+    assert await h.run() == 1
+    assert len(h.group) == 1 and len(h.owner) == 2
+
+
+def test_reconcile_slot_tolerates_drift():
+    from src.schedulers.moliya.loop import reconcile_slot
+
+    assert reconcile_slot(datetime(2026, 11, 25, 22, 31)) == "2026-11-25 22:30"
+    assert reconcile_slot(datetime(2026, 11, 25, 22, 4)) == "2026-11-25 22:00"
+    assert reconcile_slot(datetime(2026, 11, 25, 22, 10)) is None

@@ -82,7 +82,8 @@ def threshold_for(valyuta: str) -> float:
 
 
 def _active(fields: dict) -> bool:
-    return fields.get("Faol") is not False
+    # Airtable belgilanmagan checkboxni javobdan tushirib qoldiradi — yoʻq = nofaol.
+    return bool(fields.get("Faol"))
 
 
 def find_mismatches(records: list[dict], today_iso: str) -> list[Mismatch]:
@@ -219,16 +220,16 @@ async def run_balance_reconcile(
     sent = 0
 
     for m in find_mismatches(records, today_iso):
-        job = f"{MISMATCH_JOB_PREFIX}{m.record_id}"
-        if not await _safe_claim(claim, job, today_iso):
-            continue
         text = format_mismatch(m)
-        group_ok = await send_group(text)
-        owner_ok = await send_owner(text)
-        if group_ok or owner_ok:
-            sent += 1
-        else:
-            await release(job, today_iso)
+        # Har manzil uchun alohida claim: biri xato boʻlsa faqat shu qayta urinadi.
+        for dest, sender in (("group", send_group), ("owner", send_owner)):
+            job = f"{MISMATCH_JOB_PREFIX}{dest}:{m.record_id}"
+            if not await _safe_claim(claim, job, today_iso):
+                continue
+            if await sender(text):
+                sent += 1
+            else:
+                await release(job, today_iso)
 
     for s in find_stale(records, now.date()):
         # Har bir eski sana uchun bir marta: yangi fakt kiritilib yana eskirsa — yangi eslatma.
