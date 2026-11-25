@@ -56,9 +56,17 @@ class DailyReport:
     balances: dict[str, float] = field(default_factory=dict)
 
 
+# Sarlavha xabar boshida boʻlishi shart: "📊 Kunlik moliya — DD.MM.YYYY".
+# Qoida/pin xabarlarida ibora matn ichida uchraydi — ular eʼtiborsiz qoladi.
+_HEADER_RE = re.compile(
+    r"^\W*kunlik\s+moliya\s*[—–:\-]*\s*\d{1,2}\.\d{1,2}\.\d{4}",
+    re.IGNORECASE,
+)
+
+
 def is_daily_report(text: str) -> bool:
-    low = (text or "").lower()
-    return HEADER_MARK in low and SECTION_MARK in low
+    first = (text or "").strip().splitlines()[0] if (text or "").strip() else ""
+    return bool(_HEADER_RE.match(first))
 
 
 def parse_amount(raw: str) -> Optional[float]:
