@@ -44,10 +44,14 @@ class MetaAdsClient:
 
     @property
     def access_token(self) -> str:
-        env_token = os.environ.get("META_PAGE_ACCESS_TOKEN", "").strip()
-        if env_token:
-            return env_token
-        return _secret_text(getattr(self.settings, "META_PAGE_ACCESS_TOKEN", None))
+        for env_key in ("META_ADS_ACCESS_TOKEN", "META_PAGE_ACCESS_TOKEN"):
+            env_token = os.environ.get(env_key, "").strip()
+            if env_token:
+                return env_token
+            setting_token = _secret_text(getattr(self.settings, env_key, None))
+            if setting_token:
+                return setting_token
+        return ""
 
     @property
     def configured(self) -> bool:
@@ -217,6 +221,56 @@ class MetaAdsClient:
             logger.warning("[META ADS] Creative URL olinmadi", error=str(exc))
         return None
 
+    def get_campaign_statuses(self) -> Optional[Dict[str, Any]]:
+        """Read-only campaign delivery snapshot for META_AD_ACCOUNT_ID.
+
+        Returns None when unconfigured, {"ok": False, ...} on Graph/network error,
+        or {"ok": True, "total", "active", "active_lead", "paused", "issues", ...}.
+        """
+        if not self.configured:
+            return None
+
+        url = f"https://graph.facebook.com/{self.api_version}/{self._account_path()}/campaigns"
+        params: Optional[Dict[str, Any]] = {
+            "access_token": self.access_token,
+            "fields": "id,name,status,effective_status,objective",
+            "limit": 100,
+        }
+        rows: List[Dict[str, Any]] = []
+        next_url: Optional[str] = url
+        pages_fetched = 0
+        while next_url and pages_fetched < 5:
+            try:
+                response = requests.get(next_url, params=params, timeout=20)
+                payload = response.json()
+            except requests.RequestException as exc:
+                logger.warning("[META ADS] Campaign status request failed", error=type(exc).__name__)
+                return {"ok": False, "error_code": None, "error": type(exc).__name__}
+            except ValueError:
+                logger.warning("[META ADS] Campaign status JSON parse failed", status=response.status_code)
+                return {"ok": False, "error_code": response.status_code, "error": "invalid_json"}
+
+            if not isinstance(payload, dict):
+                return {"ok": False, "error_code": response.status_code, "error": "invalid_payload"}
+            if response.status_code >= 400 or payload.get("error"):
+                error = payload.get("error") or {}
+                logger.warning(
+                    "[META ADS] Campaign status Graph error",
+                    message=error.get("message"),
+                    code=error.get("code"),
+                )
+                return {
+                    "ok": False,
+                    "error_code": error.get("code") or response.status_code,
+                    "error": str(error.get("message") or f"HTTP {response.status_code}")[:160],
+                }
+            rows.extend(payload.get("data") or [])
+            next_url = (payload.get("paging") or {}).get("next")
+            params = None
+            pages_fetched += 1
+
+        return _summarize_campaigns(rows)
+
     @staticmethod
     def extract_lead_actions(row: Dict[str, Any]) -> int:
         """`actions[]` ichidan Meta hisoblagan "lead" harakatlar sonini oladi."""
@@ -228,6 +282,49 @@ class MetaAdsClient:
                 except (TypeError, ValueError):
                     continue
         return total
+
+
+_LEAD_OBJECTIVES = {"OUTCOME_LEADS", "LEAD_GENERATION"}
+_ISSUE_STATUSES = {"WITH_ISSUES", "DISAPPROVED", "PENDING_BILLING_INFO"}
+_IGNORED_STATUSES = {"DELETED", "ARCHIVED"}
+
+
+def _summarize_campaigns(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    active, active_lead, paused, issues = 0, 0, 0, 0
+    active_names: List[str] = []
+    issue_names: List[str] = []
+    total = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        eff = str(row.get("effective_status") or row.get("status") or "").upper()
+        if eff in _IGNORED_STATUSES:
+            continue
+        total += 1
+        name = str(row.get("name") or row.get("id") or "").strip()
+        objective = str(row.get("objective") or "").upper()
+        if eff == "ACTIVE":
+            active += 1
+            if objective in _LEAD_OBJECTIVES:
+                active_lead += 1
+            if name and len(active_names) < 5:
+                active_names.append(name)
+        elif eff in _ISSUE_STATUSES:
+            issues += 1
+            if name and len(issue_names) < 5:
+                issue_names.append(name)
+        else:
+            paused += 1
+    return {
+        "ok": True,
+        "total": total,
+        "active": active,
+        "active_lead": active_lead,
+        "paused": paused,
+        "issues": issues,
+        "active_names": active_names,
+        "issue_names": issue_names,
+    }
 
 
 KNOWN_CREATIVE_URLS: Dict[str, str] = {

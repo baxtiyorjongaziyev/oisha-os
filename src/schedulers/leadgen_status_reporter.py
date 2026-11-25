@@ -9,11 +9,17 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from src.schedulers.leadgen_campaign_status import (
+    campaign_no_leads_footer,
+    fetch_campaign_status,
+    format_campaign_status_lines,
+)
 from src.services.core.instagram.leadgen_watchdog import (
     audit_leadgen_health,
     retry_pending_leadgen_deliveries,
 )
 from src.settings import settings
+from src.time_utils import get_local_now
 
 logger = logging.getLogger("LeadgenStatusReporter")
 
@@ -171,12 +177,16 @@ def _meta_lines(meta_24h: Optional[tuple[int, int]], meta_total: Optional[int]) 
     return line_24h, line_total
 
 
+def _campaign_status() -> Optional[Dict[str, Any]]:
+    return fetch_campaign_status(_meta_client)
+
+
 def build_seller_lines(days: int = 7) -> list[str]:
     """Meta lidlari bo'yicha sotuvchilar: birinchi javob vaqti (ish soatida) va yopish foizi."""
     try:
         from src.services.core.marketing.attribution_store import seller_rows
         from src.services.core.marketing.seller_metrics import aggregate, format_lines
-        today = datetime.date.today()
+        today = get_local_now().date()
         rows = seller_rows((today - datetime.timedelta(days=days)).isoformat(), today.isoformat())
     except Exception as exc:
         logger.warning("[LEADGEN REPORTER] Seller metrics xato: %s", exc)
@@ -189,7 +199,7 @@ def build_loss_lines(days: int = 7) -> list[str]:
     """Rad etilgan lidlar: reklama masalasi vs sotuv masalasi (oxirgi `days` kun)."""
     try:
         from src.services.core.marketing.attribution_store import loss_breakdown
-        today = datetime.date.today()
+        today = get_local_now().date()
         data = loss_breakdown((today - datetime.timedelta(days=days)).isoformat(), today.isoformat())
     except Exception as exc:
         logger.warning("[LEADGEN REPORTER] Loss breakdown xato: %s", exc)
@@ -236,13 +246,14 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     if summary is None:
         summary = get_creative_summary()
     stats = audit_leadgen_health()
-    now_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+    now_str = get_local_now().strftime("%d.%m.%Y %H:%M")
 
     total = stats.get("last_24h_total", 0)
     amo_ok = stats.get("last_24h_amocrm", 0)
     sheets_ok = stats.get("last_24h_sheets", 0)
     tg_ok = stats.get("last_24h_telegram", 0)
     meta_24h = _meta_24h_status()
+    campaign_status = _campaign_status()
     meta_24h_line, meta_total_line = _meta_lines(meta_24h, stats.get("meta_total_forms_leads"))
     pending = stats.get("pending_retries", 0)
     # Meta unreadable ⇒ "0 leads, 100% delivered" is unverified, not healthy.
@@ -292,10 +303,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     elif meta_missing:
         footer_note = f"🚨 <i>{meta_missing} ta Meta lidi AmoCRMʼga yetmagan.</i>"
     elif no_leads:
-        footer_note = (
-            "⚠️ <i>Oxirgi 24 soatda Meta formalaridan lid tushmadi. "
-            "Reklama kampaniyalari faolligi, byudjet va lid formasini tekshiring.</i>"
-        )
+        footer_note = campaign_no_leads_footer(campaign_status)
     elif pending:
         footer_note = f"⚠️ <i>{pending} ta lid integratsiyasi navbatda / qayta urinish jarayonida.</i>"
     else:
@@ -323,6 +331,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         *build_seller_lines(),
         "⚙️ <b>Baza va Integratsiyalar:</b>",
         meta_total_line,
+        *format_campaign_status_lines(campaign_status, no_leads=no_leads),
         "• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
         "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
@@ -369,8 +378,8 @@ async def leadgen_watchdog_and_reporter_loop() -> None:
             if recovered > 0:
                 logger.info("[LEADGEN WATCHDOG] Auto-recovered %d pending deliveries", recovered)
 
-            # 2. Daily morning report at 09:00 AM (or 21:00 PM)
-            now = datetime.datetime.now()
+            # 2. Daily report at 09:00 and 21:00 Tashkent time
+            now = get_local_now()
             today_slot = f"{now.strftime('%Y-%m-%d')}_{now.hour}"
 
             if now.hour in (9, 21) and now.minute <= 5 and last_reported_date != today_slot:
