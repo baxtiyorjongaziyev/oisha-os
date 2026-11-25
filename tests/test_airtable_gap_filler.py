@@ -27,10 +27,11 @@ def test_find_next_gap_prioritizes_stale_hisob_then_transactions():
     txs = [
         {"id": "recT1", "fields": {"Tranzaksiya": "Sharq", "Sana": "2026-11-20", "Turi": "Kirim"}},
     ]
-    p1 = gf.find_next_gap(txs, hisoblar, "2026-11-23")
+    assert gf.find_next_gap(txs, hisoblar, "2026-11-23").table == "Tranzaksiyalar"
+    p1 = gf.find_next_gap(txs, hisoblar, "2026-11-23", ask_fakt_saldo=True)
     assert p1 is not None and p1.table == "Hisoblar" and p1.field == "Fakt saldo"
 
-    p2 = gf.find_next_gap(txs, hisoblar, "2026-11-23", skipped={"recH1:Fakt saldo"})
+    p2 = gf.find_next_gap(txs, hisoblar, "2026-11-23", skipped={"recH1:Fakt saldo"}, ask_fakt_saldo=True)
     assert p2 is not None and p2.table == "Tranzaksiyalar" and p2.field == "Hisobot oyi"
     assert p2.quick_value == "2026-11"
 

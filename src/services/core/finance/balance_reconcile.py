@@ -95,6 +95,9 @@ def find_mismatches(records: list[dict], today_iso: str) -> list[Mismatch]:
             continue
         if str(f.get(FAKT_DATE_FIELD) or "")[:10] != today_iso:
             continue
+        # Guruh hisobotidan kelgan fakt — solishtirish oʻsha xabarga reply qilingan.
+        if str(f.get("Fakt saldo manbasi") or "").startswith("Moliya guruhi"):
+            continue
         joriy = _to_float(f.get(JORIY_FIELD))
         fakt = _to_float(f.get(FAKT_FIELD))
         if joriy is None or fakt is None:

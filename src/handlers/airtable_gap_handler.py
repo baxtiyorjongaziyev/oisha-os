@@ -101,6 +101,48 @@ async def handle_gap_text_reply(message: Any, *, db: Any) -> None:
         await _send_next_prompt(message, db, user.id)
 
 
+def _finance_group_id() -> int:
+    from src.settings import settings
+
+    try:
+        return int(getattr(settings, "HISOBCHI_FINANCE_GROUP_ID", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def is_group_daily_report(message: Any) -> bool:
+    from src.services.core.finance.daily_report_ingest import is_daily_report
+
+    chat = getattr(message, "chat", None)
+    gid = _finance_group_id()
+    text = str(getattr(message, "text", "") or "")
+    return bool(gid) and getattr(chat, "id", None) == gid and is_daily_report(text)
+
+
+async def handle_group_daily_report(message: Any) -> None:
+    """Guruhdagi kunlik hisobot: fakt saldo -> Airtable, solishtiruv natijasi reply."""
+    from src.services.core.finance.balance_reconcile import _send_owner
+    from src.services.core.finance.daily_report_ingest import ingest_daily_report
+
+    user = getattr(message, "from_user", None)
+    if user is None:
+        return
+    msg_date = getattr(message, "date", None)
+    day = msg_date.astimezone(get_local_now().tzinfo).date() if msg_date else get_local_now().date()
+    try:
+        reply = await ingest_daily_report(
+            str(getattr(message, "text", "") or ""),
+            sender_id=int(user.id),
+            message_date=day,
+            notify_owner=_send_owner,
+        )
+    except Exception:
+        logger.error("[DAILY-REPORT] Hisobot qayta ishlanmadi", exc_info=True)
+        return
+    if reply:
+        await message.reply(reply)
+
+
 def register_airtable_gap_handlers(dispatcher: Any, *, db: Any) -> None:
     if not hasattr(dispatcher, "message") or not hasattr(dispatcher, "callback_query"):
         return
@@ -109,6 +151,10 @@ def register_airtable_gap_handlers(dispatcher: Any, *, db: Any) -> None:
     @dispatcher.message(F.text.regexp(r"(?i)^/toldir$"))
     async def _toldir(message: Any) -> None:
         await handle_toldir_command(message, db=db)
+
+    dispatcher.message.register(handle_group_daily_report, is_group_daily_report)
+    if hasattr(dispatcher, "edited_message"):
+        dispatcher.edited_message.register(handle_group_daily_report, is_group_daily_report)
 
     @dispatcher.callback_query(F.data.startswith(CB_PREFIX))
     async def _cb(callback: Any) -> None:
