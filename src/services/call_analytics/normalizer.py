@@ -13,7 +13,7 @@ from src.services.utils.transcript import (
 )
 from src.services.call_analytics.helpers import *
 from src.services.call_analytics.helpers import _normalise_category
-from src.services.call_analytics.recruitment import apply_recruitment_override
+from src.services.call_analytics.recruitment import apply_recruitment_override, is_recruitment_call
 
 logger = structlog.get_logger()
 
@@ -128,6 +128,7 @@ class CallNormalizerMixin:
         return {
             "summary": summary or _clip(transcript, 350),
             "category": category,
+            "hr_nomzod": category == "Jamoa" and is_recruitment_call(summary),
             "client_mood": _normalise_mood(data.get("client_mood")),
             "next_steps": next_steps,
             "keyingi_kelishuv": keyingi_kelishuv,
