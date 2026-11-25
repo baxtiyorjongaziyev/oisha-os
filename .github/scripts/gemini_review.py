@@ -3,15 +3,43 @@ import json
 import os
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 MARKER = "<!-- gemini-pr-review -->"
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("GEMINI_MODEL", "")
+API = "https://generativelanguage.googleapis.com/v1beta"
 MAX_DIFF = 120_000
 
 
 def gh(*args: str) -> str:
     return subprocess.run(["gh", *args], check=True, capture_output=True, text=True).stdout
+
+
+def _call(url: str, key: str, payload=None) -> dict:
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json", "x-goog-api-key": key})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - fixed https URL
+            return json.load(resp)
+    except urllib.error.HTTPError as exc:
+        print(f"Gemini API {exc.code}: {exc.read().decode(errors='replace')[:500]}", file=sys.stderr)
+        raise
+
+
+def pick_model(key: str) -> str:
+    """Newest available Flash model that supports generateContent."""
+    if MODEL:
+        return MODEL
+    models = _call(f"{API}/models?pageSize=200", key).get("models", [])
+    names = [
+        m["name"].split("/", 1)[1] for m in models
+        if "generateContent" in m.get("supportedGenerationMethods", [])
+        and "flash" in m["name"] and not any(x in m["name"] for x in ("lite", "image", "tts", "live", "exp", "preview"))
+    ]
+    if not names:
+        raise SystemExit("No suitable Gemini Flash model available")
+    return sorted(names)[-1]
 
 
 def main() -> int:
@@ -28,15 +56,10 @@ def main() -> int:
         "(high/medium), the problem and a concrete fix. If nothing is wrong, reply exactly 'No issues found.'\n\n"
         f"Project rules:\n{guide}\n\nDiff:\n{diff[:MAX_DIFF]}"
     )
-    req = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent",
-        data=json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode(),
-        headers={"Content-Type": "application/json", "x-goog-api-key": key},
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - fixed https URL
-        data = json.load(resp)
+    model = pick_model(key)
+    data = _call(f"{API}/models/{model}:generateContent", key, {"contents": [{"parts": [{"text": prompt}]}]})
     text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    body = f"{MARKER}\n### Gemini review ({MODEL})\n\n{text}"
+    body = f"{MARKER}\n### Gemini review ({model})\n\n{text}"
     if len(diff) > MAX_DIFF:
         body += "\n\n_Diff truncated; review covers the first part only._"
     existing = gh("api", f"repos/{repo}/issues/{pr}/comments", "--paginate",
