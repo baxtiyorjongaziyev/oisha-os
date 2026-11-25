@@ -1,15 +1,15 @@
 """Userbot session keep-alive va avtomatik session string yangilash.
 
 Ushbu modul:
-1. Har N minutda Telegram'ga "jon belgisi" (ping) yuboradi — session idle o'lmasin
-2. Ulanish muvaffaqiyatli bo'lganda yangi session stringni faylga YOZADI
-3. Session string o'zgarsa, DB ga ham yozadi — keyingi restart da yangi string ishlatiladi
+1. Har N minutda Telegramʼga "jon belgisi" (ping) yuboradi — session idle oʼlmasin
+2. Ulanish muvaffaqiyatli boʼlganda yangi session stringni faylga YOZADI
+3. Session string oʼzgarsa, DB ga ham yozadi — keyingi restart da yangi string ishlatiladi
 
 Nima uchun bu kerak:
-- Telegram StringSession RAM da — server restart = session yo'q
+- Telegram StringSession RAM da — server restart = session yoʼq
 - Eski stringni ishlatsa, "401 Unauthorized" (session expired)
-- Keep-alive bo'lmasa idle session eskiradi (~24h yoki kamroq)
-- Session faylga to'g'ri saqlanmasa har deploy da login kerak bo'ladi
+- Keep-alive boʼlmasa idle session eskiradi (~24h yoki kamroq)
+- Session faylga toʼgʼri saqlanmasa har deploy da login kerak boʼladi
 """
 
 from __future__ import annotations
@@ -27,12 +27,12 @@ KEEPALIVE_INTERVAL_SECS = 300  # 5 daqiqada bir ping
 
 
 def _read_session_string_from_file(path: Optional[str] = None) -> Optional[str]:
-    """Fayldan session string o'qish.
+    """Fayldan session string oʼqish.
 
-    `path=None` bo'lsa modul darajasidagi SESSION_STRING_FILE chaqiruv paytida
-    o'qiladi. Default argument sifatida yozib bo'lmaydi: Python uni funksiya
-    e'lon qilinganda bir marta hisoblaydi, natijada yo'lni keyin o'zgartirish
-    (monkeypatch yoki runtime konfiguratsiya) e'tiborsiz qolardi.
+    `path=None` boʼlsa modul darajasidagi SESSION_STRING_FILE chaqiruv paytida
+    oʼqiladi. Default argument sifatida yozib boʼlmaydi: Python uni funksiya
+    eʼlon qilinganda bir marta hisoblaydi, natijada yoʼlni keyin oʼzgartirish
+    (monkeypatch yoki runtime konfiguratsiya) eʼtiborsiz qolardi.
     """
     if path is None:
         path = SESSION_STRING_FILE
@@ -40,17 +40,17 @@ def _read_session_string_from_file(path: Optional[str] = None) -> Optional[str]:
         if os.path.exists(path):
             data = open(path, encoding="utf-8").read().strip()
             if data:
-                logger.info("[SESSION_KEEPER] Fayldan session string o'qildi (%d b)", len(data))
+                logger.info("[SESSION_KEEPER] Fayldan session string oʼqildi (%d b)", len(data))
                 return data
     except Exception as exc:
-        logger.warning("[SESSION_KEEPER] Fayl o'qishda xato: %s", exc)
+        logger.warning("[SESSION_KEEPER] Fayl oʼqishda xato: %s", exc)
     return None
 
 
 def _write_session_string_to_file(string: str, path: Optional[str] = None) -> bool:
     """Session string ni faylga yozish.
 
-    `path=None` bo'lsa SESSION_STRING_FILE chaqiruv paytida o'qiladi
+    `path=None` boʼlsa SESSION_STRING_FILE chaqiruv paytida oʼqiladi
     (sababi _read_session_string_from_file izohida).
     """
     if path is None:
@@ -67,11 +67,21 @@ def _write_session_string_to_file(string: str, path: Optional[str] = None) -> bo
 
 
 def get_best_session_string(env_var: str = "USERBOT_SESSION_STRING") -> Optional[str]:
+    """Prod userbot session (DB > fayl > env). Natija host guard ga prod deb belgilanadi."""
+    value = _get_best_session_string(env_var)
+    if value:
+        from src.services.core.telegram.userbot_host_guard import register_prod_session
+
+        register_prod_session(value)
+    return value
+
+
+def _get_best_session_string(env_var: str = "USERBOT_SESSION_STRING") -> Optional[str]:
     """Eng yaxshi session string — Turso DB > fayl > env var tartibida.
 
-    Turso DB birinchi, chunki u restart'ga chidamli yagona manba: fayl
-    (``data/``) efemer bo'lishi mumkin, ENV esa restart'lar orasida eskiradi.
-    DB har reconnect'da yangilanadi.
+    Turso DB birinchi, chunki u restartʼga chidamli yagona manba: fayl
+    (``data/``) efemer boʼlishi mumkin, ENV esa restartʼlar orasida eskiradi.
+    DB har reconnectʼda yangilanadi.
     """
     # 1. Turso DB (eng ishonchli — restart-proof)
     try:
@@ -79,12 +89,12 @@ def get_best_session_string(env_var: str = "USERBOT_SESSION_STRING") -> Optional
 
         from_db = load_session_string_from_db()
         if from_db:
-            logger.info("[SESSION_KEEPER] Turso DB'dan session string olindi (%d b)", len(from_db))
+            logger.info("[SESSION_KEEPER] Turso DBʼdan session string olindi (%d b)", len(from_db))
             return from_db
     except Exception as exc:
-        logger.warning("[SESSION_KEEPER] DB session o'qish xatosi: %s", type(exc).__name__)
+        logger.warning("[SESSION_KEEPER] DB session oʼqish xatosi: %s", type(exc).__name__)
 
-    # 2. Fayldan o'qish
+    # 2. Fayldan oʼqish
     from_file = _read_session_string_from_file()
     if from_file:
         return from_file
@@ -92,14 +102,14 @@ def get_best_session_string(env_var: str = "USERBOT_SESSION_STRING") -> Optional
     # 3. Env var dan
     from_env = os.environ.get(env_var, "").strip()
     if from_env:
-        logger.info("[SESSION_KEEPER] Env var'dan session string olinmoqda")
+        logger.info("[SESSION_KEEPER] Env varʼdan session string olinmoqda")
         return from_env
 
     return None
 
 
 async def save_current_session_string(client: Any) -> Optional[str]:
-    """Hozirgi Telethon client'dan session string olib faylga saqlash.
+    """Hozirgi Telethon clientʼdan session string olib faylga saqlash.
 
     Bu metod muvaffaqiyatli ulanishdan keyin chaqirilishi kerak.
     """
@@ -120,7 +130,7 @@ async def save_current_session_string(client: Any) -> Optional[str]:
             # Telethon 1.x API
             string = StringSession.save(client.session)  # type: ignore[arg-type]
         else:
-            # SQLite session → string ga o'tkazamiz
+            # SQLite session → string ga oʼtkazamiz
             temp = StringSession()
             temp.set_dc(
                 getattr(session_obj, "dc_id", 0),
@@ -134,9 +144,9 @@ async def save_current_session_string(client: Any) -> Optional[str]:
 
         if string and len(string) > 50:
             _write_session_string_to_file(string)
-            # ENV ga ham qo'yish (shu runtime uchun)
+            # ENV ga ham qoʼyish (shu runtime uchun)
             os.environ["USERBOT_SESSION_STRING"] = string
-            # Turso DB'ga ham — restart-proof yagona manba
+            # Turso DBʼga ham — restart-proof yagona manba
             try:
                 from src.services.core.telegram.session_store import save_session_string_to_db
 
@@ -146,7 +156,7 @@ async def save_current_session_string(client: Any) -> Optional[str]:
             logger.info("[SESSION_KEEPER] Session string saqlandi (fayl+ENV+DB, %d b)", len(string))
             return string
         else:
-            logger.warning("[SESSION_KEEPER] Session string juda qisqa yoki bo'sh: %r", string)
+            logger.warning("[SESSION_KEEPER] Session string juda qisqa yoki boʼsh: %r", string)
     except Exception as exc:
         logger.error("[SESSION_KEEPER] Session string saqlashda xato: %s", exc)
     return None
@@ -162,11 +172,11 @@ async def session_keepalive_loop(
 ) -> None:
     """Session keep-alive va periodic session saving.
 
-    - Har `interval_secs` da `get_me()` chaqirib session'ni tirik ushlaydi
+    - Har `interval_secs` da `get_me()` chaqirib sessionʼni tirik ushlaydi
     - Har `interval_secs * save_interval_multiplier` da session string yangilab faylga yozadi
-    - Disconnect bo'lsa log qiladi, reconnect manager o'z ishini qiladi
+    - Disconnect boʼlsa log qiladi, reconnect manager oʼz ishini qiladi
     """
-    await asyncio.sleep(30)  # Avval connect bo'lsin
+    await asyncio.sleep(30)  # Avval connect boʼlsin
     logger.info("[SESSION_KEEPER] Keep-alive loop boshlandi (interval=%ds)", interval_secs)
 
     iteration = 0
@@ -184,10 +194,10 @@ async def session_keepalive_loop(
                 break
 
             if client is None:
-                logger.debug("[SESSION_KEEPER] Client yo'q, keep-alive saklab o'tildi")
+                logger.debug("[SESSION_KEEPER] Client yoʼq, keep-alive saklab oʼtildi")
                 continue
 
-            # Ping — session'ni tirik ushlash
+            # Ping — sessionʼni tirik ushlash
             try:
                 me = await asyncio.wait_for(client.get_me(), timeout=20)
                 if me:
@@ -203,7 +213,7 @@ async def session_keepalive_loop(
             except Exception as exc:
                 error_str = f"{type(exc).__name__}:{exc}".upper()
                 if "AUTH_KEY" in error_str or "UNAUTHORIZED" in error_str:
-                    logger.critical("[SESSION_KEEPER] ❌ Auth xatosi ping'da: %s", exc)
+                    logger.critical("[SESSION_KEEPER] ❌ Auth xatosi pingʼda: %s", exc)
                     if notify_callback:
                         try:
                             await notify_callback(
@@ -232,7 +242,7 @@ async def session_keepalive_loop(
             logger.error("[SESSION_KEEPER] Keep-alive loop xatosi: %s", exc)
             await asyncio.sleep(30)
 
-    logger.info("[SESSION_KEEPER] Keep-alive loop to'xtatildi")
+    logger.info("[SESSION_KEEPER] Keep-alive loop toʼxtatildi")
 
 
 def start_session_keepalive(
