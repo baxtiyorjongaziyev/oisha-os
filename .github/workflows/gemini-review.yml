@@ -28,6 +28,8 @@ jobs:
       - if: steps.key.outputs.present == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Run the trusted script from the base branch, never PR-controlled code with secrets.
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - if: steps.key.outputs.present == 'true'
         run: python .github/scripts/gemini_review.py
