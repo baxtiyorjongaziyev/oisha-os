@@ -151,3 +151,12 @@ def test_report_green_when_meta_ok(monkeypatch):
     text = _report(monkeypatch, (3, 0))
     assert "24/7 FAOL" in text
     assert "100% toʻliq yetkazildi" in text
+
+
+def test_report_warns_when_no_leads_at_all(monkeypatch):
+    text = _report(monkeypatch, (0, 0))
+    assert "24/7 FAOL" not in text
+    assert "100% toʻliq yetkazildi" not in text
+    assert "0/0 (100%" not in text
+    assert "birorta lid kelmadi" in text
+    assert "reklama holatini tekshiring" in text

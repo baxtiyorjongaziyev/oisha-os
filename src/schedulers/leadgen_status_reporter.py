@@ -160,6 +160,8 @@ def _meta_lines(meta_24h: Optional[tuple[int, int]], meta_total: Optional[int]) 
         count, missing = meta_24h
         if missing:
             line_24h = f"• 🔴 <b>Meta'ga kelgan (24 soat):</b> {count} ta — <b>{missing} ta AmoCRM'ga yetmagan</b>"
+        elif count == 0:
+            line_24h = "• 🟡 <b>Metaʼga kelgan (24 soat):</b> 0 ta — reklama holatini tekshiring"
         else:
             line_24h = f"• 🟢 <b>Meta'ga kelgan (24 soat):</b> {count} ta"
     if meta_total is None:
@@ -247,17 +249,26 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     meta_blind = meta_24h is None
     meta_missing = meta_24h[1] if meta_24h else 0
 
-    amo_pct = int((amo_ok / total) * 100) if total > 0 else 100
-    sheets_pct = int((sheets_ok / total) * 100) if total > 0 else 100
-    tg_pct = int((tg_ok / total) * 100) if total > 0 else 100
+    # No leads at all ⇒ delivery rate is undefined, not "100%"; the flow itself is suspect.
+    no_leads = total == 0 and not meta_blind and not (meta_24h and meta_24h[0])
 
-    amo_icon = "🟢" if amo_ok >= total else "🟡"
-    sheets_icon = "🟢" if sheets_ok >= total else "🟡"
-    tg_icon = "🟢" if tg_ok >= total else "🟡"
+    def _pct(ok: int) -> str:
+        return f"{int(ok * 100 / total)}%" if total > 0 else "—"
+
+    amo_pct, sheets_pct, tg_pct = _pct(amo_ok), _pct(sheets_ok), _pct(tg_ok)
+
+    def _icon(ok: int) -> str:
+        if total == 0:
+            return "⚪️"
+        return "🟢" if ok >= total else "🟡"
+
+    amo_icon, sheets_icon, tg_icon = _icon(amo_ok), _icon(sheets_ok), _icon(tg_ok)
     if meta_blind:
         status_icon = "🔴 META TEKSHIRILMADI — lidlar tasdiqlanmagan"
     elif meta_missing:
         status_icon = "🔴 Lidlar AmoCRMʼga yetmayapti"
+    elif no_leads:
+        status_icon = "🟡 24 soatda birorta lid kelmadi"
     elif pending:
         status_icon = "🟠 Qayta tiklanmoqda"
     else:
@@ -280,6 +291,11 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         )
     elif meta_missing:
         footer_note = f"🚨 <i>{meta_missing} ta Meta lidi AmoCRMʼga yetmagan.</i>"
+    elif no_leads:
+        footer_note = (
+            "⚠️ <i>Oxirgi 24 soatda Meta formalaridan lid tushmadi. "
+            "Reklama kampaniyalari faolligi, byudjet va lid formasini tekshiring.</i>"
+        )
     elif pending:
         footer_note = f"⚠️ <i>{pending} ta lid integratsiyasi navbatda / qayta urinish jarayonida.</i>"
     else:
@@ -296,9 +312,9 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         "📊 <b>Oxirgi 24 soatdagi lidlar oqimi:</b>",
         meta_24h_line,
         f"• Tizimga kelib tushgan lidlar: <b>{total} ta</b>",
-        f"• {amo_icon} <b>AmoCRM:</b> {amo_ok}/{total} ({amo_pct}% 'Sotuv/UTC -> Yangi')",
-        f"• {sheets_icon} <b>Google Sheets:</b> {sheets_ok}/{total} ({sheets_pct}% kiritilgan)",
-        f"• {tg_icon} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({tg_pct}% xabar yuborilgan)",
+        f"• {amo_icon} <b>AmoCRM:</b> {amo_ok}/{total} ({amo_pct} 'Sotuv/UTC -> Yangi')",
+        f"• {sheets_icon} <b>Google Sheets:</b> {sheets_ok}/{total} ({sheets_pct} kiritilgan)",
+        f"• {tg_icon} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({tg_pct} xabar yuborilgan)",
         "",
         "🎬 <b>Kreativlar samaradorligi (24 soat):</b>",
         *creative_lines,
