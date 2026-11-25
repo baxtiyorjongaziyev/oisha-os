@@ -9,11 +9,17 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from src.schedulers.leadgen_campaign_status import (
+    fetch_campaign_status,
+    format_campaign_status_lines,
+    resolve_report_status_and_footer,
+)
 from src.services.core.instagram.leadgen_watchdog import (
     audit_leadgen_health,
     retry_pending_leadgen_deliveries,
 )
 from src.settings import settings
+from src.time_utils import get_local_now
 
 logger = logging.getLogger("LeadgenStatusReporter")
 
@@ -171,12 +177,16 @@ def _meta_lines(meta_24h: Optional[tuple[int, int]], meta_total: Optional[int]) 
     return line_24h, line_total
 
 
+def _campaign_status() -> Optional[Dict[str, Any]]:
+    return fetch_campaign_status(_meta_client)
+
+
 def build_seller_lines(days: int = 7) -> list[str]:
     """Meta lidlari bo'yicha sotuvchilar: birinchi javob vaqti (ish soatida) va yopish foizi."""
     try:
         from src.services.core.marketing.attribution_store import seller_rows
         from src.services.core.marketing.seller_metrics import aggregate, format_lines
-        today = datetime.date.today()
+        today = get_local_now().date()
         rows = seller_rows((today - datetime.timedelta(days=days)).isoformat(), today.isoformat())
     except Exception as exc:
         logger.warning("[LEADGEN REPORTER] Seller metrics xato: %s", exc)
@@ -189,7 +199,7 @@ def build_loss_lines(days: int = 7) -> list[str]:
     """Rad etilgan lidlar: reklama masalasi vs sotuv masalasi (oxirgi `days` kun)."""
     try:
         from src.services.core.marketing.attribution_store import loss_breakdown
-        today = datetime.date.today()
+        today = get_local_now().date()
         data = loss_breakdown((today - datetime.timedelta(days=days)).isoformat(), today.isoformat())
     except Exception as exc:
         logger.warning("[LEADGEN REPORTER] Loss breakdown xato: %s", exc)
@@ -231,49 +241,7 @@ def _capi_telemetry_lines() -> list[str]:
         return []
 
 
-def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
-    """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
-    if summary is None:
-        summary = get_creative_summary()
-    stats = audit_leadgen_health()
-    now_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-
-    total = stats.get("last_24h_total", 0)
-    amo_ok = stats.get("last_24h_amocrm", 0)
-    sheets_ok = stats.get("last_24h_sheets", 0)
-    tg_ok = stats.get("last_24h_telegram", 0)
-    meta_24h = _meta_24h_status()
-    meta_24h_line, meta_total_line = _meta_lines(meta_24h, stats.get("meta_total_forms_leads"))
-    pending = stats.get("pending_retries", 0)
-    # Meta unreadable ⇒ "0 leads, 100% delivered" is unverified, not healthy.
-    meta_blind = meta_24h is None
-    meta_missing = meta_24h[1] if meta_24h else 0
-
-    # No leads at all ⇒ delivery rate is undefined, not "100%"; the flow itself is suspect.
-    no_leads = total == 0 and not meta_blind and not (meta_24h and meta_24h[0])
-
-    def _pct(ok: int) -> str:
-        return f"{int(ok * 100 / total)}%" if total > 0 else "—"
-
-    amo_pct, sheets_pct, tg_pct = _pct(amo_ok), _pct(sheets_ok), _pct(tg_ok)
-
-    def _icon(ok: int) -> str:
-        if total == 0:
-            return "⚪️"
-        return "🟢" if ok >= total else "🟡"
-
-    amo_icon, sheets_icon, tg_icon = _icon(amo_ok), _icon(sheets_ok), _icon(tg_ok)
-    if meta_blind:
-        status_icon = "🔴 META TEKSHIRILMADI — lidlar tasdiqlanmagan"
-    elif meta_missing:
-        status_icon = "🔴 Lidlar AmoCRMʼga yetmayapti"
-    elif no_leads:
-        status_icon = "🟡 24 soatda birorta lid kelmadi"
-    elif pending:
-        status_icon = "🟠 Qayta tiklanmoqda"
-    else:
-        status_icon = "🟢 24/7 FAOL (Oʻlmas rejim)"
-
+def _format_creative_lines(summary: list[tuple[str, int, float, str]]) -> list[str]:
     creative_lines = []
     for c_name, c_count, c_pct, ad_id in summary:
         url = _resolve_ad_url(ad_id)
@@ -281,27 +249,37 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
             creative_lines.append(f'• <a href="{url}"><b>{c_name}</b></a>: {c_count} ta lid ({c_pct}%)')
         else:
             creative_lines.append(f"• <b>{c_name}:</b> {c_count} ta lid ({c_pct}%)")
-    if not creative_lines:
-        creative_lines.append("• Oxirgi 24 soatda kreativ bo'yicha lid yo'q")
+    return creative_lines or ["• Oxirgi 24 soatda kreativ boʻyicha lid yoʻq"]
 
-    if meta_blind:
-        footer_note = (
-            "🚨 <i>Meta tekshiruvi bajarilmadi — yuqoridagi raqamlar tasdiqlanmagan. "
-            "META_PAGE_ACCESS_TOKEN va loglarni tekshiring.</i>"
-        )
-    elif meta_missing:
-        footer_note = f"🚨 <i>{meta_missing} ta Meta lidi AmoCRMʼga yetmagan.</i>"
-    elif no_leads:
-        footer_note = (
-            "⚠️ <i>Oxirgi 24 soatda Meta formalaridan lid tushmadi. "
-            "Reklama kampaniyalari faolligi, byudjet va lid formasini tekshiring.</i>"
-        )
-    elif pending:
-        footer_note = f"⚠️ <i>{pending} ta lid integratsiyasi navbatda / qayta urinish jarayonida.</i>"
-    else:
-        footer_note = (
-            "✅ <i>Barcha lidlar avtomatik tarzda 3 ta tizimga (AmoCRM, Sheets, Telegram) 100% toʻliq yetkazildi.</i>"
-        )
+
+def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
+    """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
+    if summary is None:
+        summary = get_creative_summary()
+    stats = audit_leadgen_health()
+    now_str = get_local_now().strftime("%d.%m.%Y %H:%M")
+
+    total = stats.get("last_24h_total", 0)
+    amo_ok = stats.get("last_24h_amocrm", 0)
+    sheets_ok = stats.get("last_24h_sheets", 0)
+    tg_ok = stats.get("last_24h_telegram", 0)
+    meta_24h = _meta_24h_status()
+    campaign_status = _campaign_status()
+    meta_24h_line, meta_total_line = _meta_lines(meta_24h, stats.get("meta_total_forms_leads"))
+    pending = stats.get("pending_retries", 0)
+    meta_blind = meta_24h is None
+    meta_missing = meta_24h[1] if meta_24h else 0
+    no_leads = total == 0 and not meta_blind and not (meta_24h and meta_24h[0])
+
+    pct = lambda ok: f"{int(ok * 100 / total)}%" if total > 0 else "—"  # noqa: E731
+    icon = lambda ok: "⚪️" if total == 0 else ("🟢" if ok >= total else "🟡")  # noqa: E731
+    status_icon, footer_note = resolve_report_status_and_footer(
+        meta_blind=meta_blind,
+        meta_missing=meta_missing,
+        no_leads=no_leads,
+        pending=pending,
+        campaign_status=campaign_status,
+    )
 
     lines = [
         "🛡 <b>OISHA-OS: 24/7 AVTOMATLASHTIRISH HOLAT HISOBOTI</b>",
@@ -312,19 +290,20 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         "📊 <b>Oxirgi 24 soatdagi lidlar oqimi:</b>",
         meta_24h_line,
         f"• Tizimga kelib tushgan lidlar: <b>{total} ta</b>",
-        f"• {amo_icon} <b>AmoCRM:</b> {amo_ok}/{total} ({amo_pct} 'Sotuv/UTC -> Yangi')",
-        f"• {sheets_icon} <b>Google Sheets:</b> {sheets_ok}/{total} ({sheets_pct} kiritilgan)",
-        f"• {tg_icon} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({tg_pct} xabar yuborilgan)",
+        f"• {icon(amo_ok)} <b>AmoCRM:</b> {amo_ok}/{total} ({pct(amo_ok)} 'Sotuv/UTC -> Yangi')",
+        f"• {icon(sheets_ok)} <b>Google Sheets:</b> {sheets_ok}/{total} ({pct(sheets_ok)} kiritilgan)",
+        f"• {icon(tg_ok)} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({pct(tg_ok)} xabar yuborilgan)",
         "",
         "🎬 <b>Kreativlar samaradorligi (24 soat):</b>",
-        *creative_lines,
+        *_format_creative_lines(summary),
         "",
         *build_loss_lines(),
         *build_seller_lines(),
         "⚙️ <b>Baza va Integratsiyalar:</b>",
         meta_total_line,
+        *format_campaign_status_lines(campaign_status, no_leads=no_leads),
         "• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
-        "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
+        "• AmoCRM voronkalari: <code>Sotuv Boʻlimi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
         *_capi_telemetry_lines(),
         "━━━━━━━━━━━━━━━━━━━━",
@@ -369,8 +348,8 @@ async def leadgen_watchdog_and_reporter_loop() -> None:
             if recovered > 0:
                 logger.info("[LEADGEN WATCHDOG] Auto-recovered %d pending deliveries", recovered)
 
-            # 2. Daily morning report at 09:00 AM (or 21:00 PM)
-            now = datetime.datetime.now()
+            # 2. Daily report at 09:00 and 21:00 Tashkent time
+            now = get_local_now()
             today_slot = f"{now.strftime('%Y-%m-%d')}_{now.hour}"
 
             if now.hour in (9, 21) and now.minute <= 5 and last_reported_date != today_slot:

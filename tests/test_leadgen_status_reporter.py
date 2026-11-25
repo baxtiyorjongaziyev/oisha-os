@@ -124,10 +124,11 @@ def test_meta_24h_status_none_without_token(monkeypatch):
     assert rep._meta_24h_status() is None
 
 
-def _report(monkeypatch, meta_24h, pending=0):
+def _report(monkeypatch, meta_24h, pending=0, campaign_status=None):
     stats = {"last_24h_total": 0, "pending_retries": pending, "meta_total_forms_leads": None}
     monkeypatch.setattr(rep, "audit_leadgen_health", lambda: stats)
     monkeypatch.setattr(rep, "_meta_24h_status", lambda: meta_24h)
+    monkeypatch.setattr(rep, "_campaign_status", lambda: campaign_status)
     monkeypatch.setattr(rep, "build_loss_lines", lambda: [])
     monkeypatch.setattr(rep, "build_seller_lines", lambda: [])
     monkeypatch.setattr(rep, "_capi_telemetry_lines", lambda: [])
@@ -160,3 +161,45 @@ def test_report_warns_when_no_leads_at_all(monkeypatch):
     assert "0/0 (100%" not in text
     assert "birorta lid kelmadi" in text
     assert "reklama holatini tekshiring" in text
+    assert "META_AD_ACCOUNT_ID" in text
+
+
+def test_report_uses_tashkent_local_now(monkeypatch):
+    tz = timezone(timedelta(hours=5))
+    fixed = datetime(2026, 11, 25, 9, 2, tzinfo=tz)
+    monkeypatch.setattr(rep, "get_local_now", lambda: fixed)
+    text = _report(monkeypatch, (3, 0))
+    assert "25.11.2026 09:02" in text
+    assert "META_AD_ACCOUNT_ID" not in text
+
+
+def test_report_shows_paused_campaigns_when_zero_active(monkeypatch):
+    status = {"ok": True, "total": 3, "active": 0, "active_lead": 0, "paused": 2, "issues": 1}
+    text = _report(monkeypatch, (0, 0), campaign_status=status)
+    assert "0 ta faol" in text
+    assert "2 ta pauza" in text
+    assert "1 ta xato" in text
+    assert "Ads Managerʼda faol kampaniya yoʻq" in text
+
+
+def test_report_warns_when_active_campaigns_have_no_lead_campaign(monkeypatch):
+    status = {"ok": True, "total": 4, "active": 2, "active_lead": 0, "paused": 2, "issues": 0}
+    text = _report(monkeypatch, (0, 0), campaign_status=status)
+    assert "2 ta faol" in text
+    assert "2 ta pauza" in text
+    assert "lid maqsadli faol kampaniya yoʻq" in text
+    assert "lid maqsadli kampaniya faol emas" in text
+
+
+def test_report_marks_partial_campaign_snapshot(monkeypatch):
+    status = {"ok": True, "total": 500, "active": 0, "active_lead": 0, "paused": 500, "issues": 0, "truncated": True}
+    text = _report(monkeypatch, (0, 0), campaign_status=status)
+    assert "(qisman)" in text
+    assert "Ads Managerʼda faol kampaniya yoʻq" not in text
+
+
+def test_report_shows_campaign_api_error_when_permission_denied(monkeypatch):
+    status = {"ok": False, "error_code": 200, "error": "ads_read missing"}
+    text = _report(monkeypatch, (0, 0), campaign_status=status)
+    assert "API tekshirib boʻlmadi" in text
+    assert "ads_read" in text
