@@ -10,9 +10,9 @@ from typing import Any, Dict, Optional
 import requests
 
 from src.schedulers.leadgen_campaign_status import (
-    campaign_no_leads_footer,
     fetch_campaign_status,
     format_campaign_status_lines,
+    resolve_report_status_and_footer,
 )
 from src.services.core.instagram.leadgen_watchdog import (
     audit_leadgen_health,
@@ -241,6 +241,17 @@ def _capi_telemetry_lines() -> list[str]:
         return []
 
 
+def _format_creative_lines(summary: list[tuple[str, int, float, str]]) -> list[str]:
+    creative_lines = []
+    for c_name, c_count, c_pct, ad_id in summary:
+        url = _resolve_ad_url(ad_id)
+        if url:
+            creative_lines.append(f'• <a href="{url}"><b>{c_name}</b></a>: {c_count} ta lid ({c_pct}%)')
+        else:
+            creative_lines.append(f"• <b>{c_name}:</b> {c_count} ta lid ({c_pct}%)")
+    return creative_lines or ["• Oxirgi 24 soatda kreativ boʻyicha lid yoʻq"]
+
+
 def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]] = None) -> str:
     """Compile executive 24/7 status report across Meta, AmoCRM, Sheets, and Telegram."""
     if summary is None:
@@ -256,60 +267,19 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
     campaign_status = _campaign_status()
     meta_24h_line, meta_total_line = _meta_lines(meta_24h, stats.get("meta_total_forms_leads"))
     pending = stats.get("pending_retries", 0)
-    # Meta unreadable ⇒ "0 leads, 100% delivered" is unverified, not healthy.
     meta_blind = meta_24h is None
     meta_missing = meta_24h[1] if meta_24h else 0
-
-    # No leads at all ⇒ delivery rate is undefined, not "100%"; the flow itself is suspect.
     no_leads = total == 0 and not meta_blind and not (meta_24h and meta_24h[0])
 
-    def _pct(ok: int) -> str:
-        return f"{int(ok * 100 / total)}%" if total > 0 else "—"
-
-    amo_pct, sheets_pct, tg_pct = _pct(amo_ok), _pct(sheets_ok), _pct(tg_ok)
-
-    def _icon(ok: int) -> str:
-        if total == 0:
-            return "⚪️"
-        return "🟢" if ok >= total else "🟡"
-
-    amo_icon, sheets_icon, tg_icon = _icon(amo_ok), _icon(sheets_ok), _icon(tg_ok)
-    if meta_blind:
-        status_icon = "🔴 META TEKSHIRILMADI — lidlar tasdiqlanmagan"
-    elif meta_missing:
-        status_icon = "🔴 Lidlar AmoCRMʼga yetmayapti"
-    elif no_leads:
-        status_icon = "🟡 24 soatda birorta lid kelmadi"
-    elif pending:
-        status_icon = "🟠 Qayta tiklanmoqda"
-    else:
-        status_icon = "🟢 24/7 FAOL (Oʻlmas rejim)"
-
-    creative_lines = []
-    for c_name, c_count, c_pct, ad_id in summary:
-        url = _resolve_ad_url(ad_id)
-        if url:
-            creative_lines.append(f'• <a href="{url}"><b>{c_name}</b></a>: {c_count} ta lid ({c_pct}%)')
-        else:
-            creative_lines.append(f"• <b>{c_name}:</b> {c_count} ta lid ({c_pct}%)")
-    if not creative_lines:
-        creative_lines.append("• Oxirgi 24 soatda kreativ bo'yicha lid yo'q")
-
-    if meta_blind:
-        footer_note = (
-            "🚨 <i>Meta tekshiruvi bajarilmadi — yuqoridagi raqamlar tasdiqlanmagan. "
-            "META_PAGE_ACCESS_TOKEN va loglarni tekshiring.</i>"
-        )
-    elif meta_missing:
-        footer_note = f"🚨 <i>{meta_missing} ta Meta lidi AmoCRMʼga yetmagan.</i>"
-    elif no_leads:
-        footer_note = campaign_no_leads_footer(campaign_status)
-    elif pending:
-        footer_note = f"⚠️ <i>{pending} ta lid integratsiyasi navbatda / qayta urinish jarayonida.</i>"
-    else:
-        footer_note = (
-            "✅ <i>Barcha lidlar avtomatik tarzda 3 ta tizimga (AmoCRM, Sheets, Telegram) 100% toʻliq yetkazildi.</i>"
-        )
+    pct = lambda ok: f"{int(ok * 100 / total)}%" if total > 0 else "—"  # noqa: E731
+    icon = lambda ok: "⚪️" if total == 0 else ("🟢" if ok >= total else "🟡")  # noqa: E731
+    status_icon, footer_note = resolve_report_status_and_footer(
+        meta_blind=meta_blind,
+        meta_missing=meta_missing,
+        no_leads=no_leads,
+        pending=pending,
+        campaign_status=campaign_status,
+    )
 
     lines = [
         "🛡 <b>OISHA-OS: 24/7 AVTOMATLASHTIRISH HOLAT HISOBOTI</b>",
@@ -320,12 +290,12 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         "📊 <b>Oxirgi 24 soatdagi lidlar oqimi:</b>",
         meta_24h_line,
         f"• Tizimga kelib tushgan lidlar: <b>{total} ta</b>",
-        f"• {amo_icon} <b>AmoCRM:</b> {amo_ok}/{total} ({amo_pct} 'Sotuv/UTC -> Yangi')",
-        f"• {sheets_icon} <b>Google Sheets:</b> {sheets_ok}/{total} ({sheets_pct} kiritilgan)",
-        f"• {tg_icon} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({tg_pct} xabar yuborilgan)",
+        f"• {icon(amo_ok)} <b>AmoCRM:</b> {amo_ok}/{total} ({pct(amo_ok)} 'Sotuv/UTC -> Yangi')",
+        f"• {icon(sheets_ok)} <b>Google Sheets:</b> {sheets_ok}/{total} ({pct(sheets_ok)} kiritilgan)",
+        f"• {icon(tg_ok)} <b>Telegram Guruhi:</b> {tg_ok}/{total} ({pct(tg_ok)} xabar yuborilgan)",
         "",
         "🎬 <b>Kreativlar samaradorligi (24 soat):</b>",
-        *creative_lines,
+        *_format_creative_lines(summary),
         "",
         *build_loss_lines(),
         *build_seller_lines(),
@@ -333,7 +303,7 @@ def build_status_report_text(summary: Optional[list[tuple[str, int, float, str]]
         meta_total_line,
         *format_campaign_status_lines(campaign_status, no_leads=no_leads),
         "• Google Sheets jadvallari: <code>UTC Outsource & Inhouse</code>",
-        "• AmoCRM voronkalari: <code>Sotuv Bo'limi (#11162698) & UTC (#11322658)</code>",
+        "• AmoCRM voronkalari: <code>Sotuv Boʻlimi (#11162698) & UTC (#11322658)</code>",
         f"• Kutilayotgan/xatoli lidlar: <b>{pending} ta</b>",
         *_capi_telemetry_lines(),
         "━━━━━━━━━━━━━━━━━━━━",

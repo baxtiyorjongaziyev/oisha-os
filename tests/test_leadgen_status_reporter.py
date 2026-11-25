@@ -183,11 +183,19 @@ def test_report_shows_paused_campaigns_when_zero_active(monkeypatch):
 
 
 def test_report_warns_when_active_campaigns_have_no_lead_campaign(monkeypatch):
-    status = {"ok": True, "total": 2, "active": 2, "active_lead": 0, "paused": 0, "issues": 0}
+    status = {"ok": True, "total": 4, "active": 2, "active_lead": 0, "paused": 2, "issues": 0}
     text = _report(monkeypatch, (0, 0), campaign_status=status)
     assert "2 ta faol" in text
-    assert "faol Lead Ads kampaniyasi yoʻq" in text
-    assert "Lead Ads kampaniyasi faol emas" in text
+    assert "2 ta pauza" in text
+    assert "lid maqsadli faol kampaniya yoʻq" in text
+    assert "lid maqsadli kampaniya faol emas" in text
+
+
+def test_report_marks_partial_campaign_snapshot(monkeypatch):
+    status = {"ok": True, "total": 500, "active": 0, "active_lead": 0, "paused": 500, "issues": 0, "truncated": True}
+    text = _report(monkeypatch, (0, 0), campaign_status=status)
+    assert "(qisman)" in text
+    assert "Ads Managerʼda faol kampaniya yoʻq" not in text
 
 
 def test_report_shows_campaign_api_error_when_permission_denied(monkeypatch):

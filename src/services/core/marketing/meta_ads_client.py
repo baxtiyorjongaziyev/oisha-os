@@ -269,7 +269,7 @@ class MetaAdsClient:
             params = None
             pages_fetched += 1
 
-        return _summarize_campaigns(rows)
+        return _summarize_campaigns(rows, truncated=bool(next_url))
 
     @staticmethod
     def extract_lead_actions(row: Dict[str, Any]) -> int:
@@ -289,7 +289,7 @@ _ISSUE_STATUSES = {"WITH_ISSUES", "DISAPPROVED", "PENDING_BILLING_INFO"}
 _IGNORED_STATUSES = {"DELETED", "ARCHIVED"}
 
 
-def _summarize_campaigns(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _summarize_campaigns(rows: List[Dict[str, Any]], *, truncated: bool = False) -> Dict[str, Any]:
     active, active_lead, paused, issues = 0, 0, 0, 0
     active_names: List[str] = []
     issue_names: List[str] = []
@@ -324,6 +324,7 @@ def _summarize_campaigns(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "issues": issues,
         "active_names": active_names,
         "issue_names": issue_names,
+        "truncated": truncated,
     }
 
 
