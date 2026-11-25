@@ -17,7 +17,7 @@ from typing import Any, Awaitable, Callable, Optional, Tuple
 
 logger = logging.getLogger("TgAmoBridge.sticker_preview")
 
-_SKIP_THUMB_TYPES = frozenset({"PhotoPathSize", "PhotoSizeEmpty", "VideoSize"})
+_SUPPORTED_THUMB_TYPES = frozenset({"PhotoSize", "PhotoCachedSize", "PhotoStrippedSize"})
 _FFMPEG_TIMEOUT_SECONDS = 10.0
 
 
@@ -67,11 +67,12 @@ def detect_image_format(path: str) -> Optional[Tuple[str, str]]:
 
 
 def select_raster_thumb(message: Any) -> Any:
-    """Pick the largest static raster thumb object, ``-1`` if absent, or ``None``.
+    """Pick the largest Telethon-downloadable raster thumb, ``-1`` if absent, or ``None``.
 
-    When ``document.thumbs`` is a non-empty list containing only non-raster
-    entries (e.g. ``PhotoPathSize`` SVG outlines or ``VideoSize``), returns
-    ``None`` so we avoid Telethon's ``IndexError`` and skip wasted downloads.
+    Telethon's ``_download_document`` only accepts ``PhotoSize``, ``PhotoCachedSize``
+    and ``PhotoStrippedSize`` objects (rejecting ``PhotoSizeProgressive`` and
+    stripping ``PhotoPathSize``). Skipping unsupported entries avoids ``IndexError``
+    and prevents progressive/video thumbs from displacing downloadable rasters.
     """
     thumbs = None
     for doc in _sticker_docs(message):
@@ -84,13 +85,10 @@ def select_raster_thumb(message: Any) -> Any:
     best: Any = None
     best_size = -1
     for thumb in thumbs:
-        if type(thumb).__name__ in _SKIP_THUMB_TYPES:
+        if type(thumb).__name__ not in _SUPPORTED_THUMB_TYPES:
             continue
-        sizes = getattr(thumb, "sizes", None)
         raw_bytes = getattr(thumb, "bytes", None)
-        if isinstance(sizes, (list, tuple)) and sizes:
-            size = int(max(sizes))
-        elif isinstance(getattr(thumb, "size", None), int):
+        if isinstance(getattr(thumb, "size", None), int):
             size = int(thumb.size)
         elif isinstance(raw_bytes, (bytes, bytearray)):
             size = len(raw_bytes)
@@ -121,6 +119,25 @@ async def _download_thumb(message: Any, tmpdir: str) -> Optional[Tuple[str, str,
     return path, mime, ext
 
 
+async def _run_ffmpeg_frame(ffmpeg: str, src_path: str, out_path: str, *, vp9_alpha: bool) -> bool:
+    cmd = [ffmpeg, "-y", "-loglevel", "error"]
+    if vp9_alpha:
+        cmd.extend(["-c:v", "libvpx-vp9"])
+    cmd.extend(["-i", src_path, "-frames:v", "1", out_path])
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=_FFMPEG_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return False
+    return proc.returncode == 0 and os.path.isfile(out_path)
+
+
 async def _extract_webm_frame(
     message: Any, tmpdir: str, max_bytes: int
 ) -> Optional[Tuple[str, str, str]]:
@@ -139,26 +156,10 @@ async def _extract_webm_frame(
     ):
         return None
     out_path = os.path.join(tmpdir, "sticker_frame.png")
-    proc = await asyncio.create_subprocess_exec(
-        ffmpeg,
-        "-y",
-        "-loglevel",
-        "error",
-        "-i",
-        src_path,
-        "-frames:v",
-        "1",
-        out_path,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
-    try:
-        await asyncio.wait_for(proc.wait(), timeout=_FFMPEG_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.wait()
-        return None
-    if proc.returncode != 0 or not os.path.isfile(out_path):
+    ok = await _run_ffmpeg_frame(ffmpeg, src_path, out_path, vp9_alpha=True)
+    if not ok:
+        ok = await _run_ffmpeg_frame(ffmpeg, src_path, out_path, vp9_alpha=False)
+    if not ok:
         return None
     detected = detect_image_format(out_path)
     if detected is None:

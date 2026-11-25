@@ -39,6 +39,11 @@ class PhotoStrippedSize:
         self.bytes = data
 
 
+class PhotoSizeProgressive:
+    def __init__(self, sizes=(1024, 32768)):
+        self.sizes = list(sizes)
+
+
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
     monkeypatch.setenv("TG_AMO_MEDIA_SECRET", "k3y")
@@ -96,14 +101,23 @@ def test_detect_image_format_magic_bytes(tmp_path):
         assert sticker_preview.detect_image_format(str(p)) == expected
 
 
-def test_select_raster_thumb_skips_svg_and_video():
+def test_select_raster_thumb_skips_svg_video_and_progressive():
     small_photo = PhotoSize(1024)
     big_photo = PhotoSize(8192)
-    msg = _sticker_msg(thumbs=[PhotoPathSize(), small_photo, VideoSize(50000), big_photo, PhotoSizeEmpty()])
+    msg = _sticker_msg(
+        thumbs=[
+            PhotoPathSize(),
+            small_photo,
+            VideoSize(50000),
+            PhotoSizeProgressive((2048, 99999)),
+            big_photo,
+            PhotoSizeEmpty(),
+        ]
+    )
     assert sticker_preview.select_raster_thumb(msg) is big_photo
 
-    svg_only = _sticker_msg(thumbs=[PhotoPathSize(), VideoSize(10000)])
-    assert sticker_preview.select_raster_thumb(svg_only) is None
+    unsupported_only = _sticker_msg(thumbs=[PhotoPathSize(), VideoSize(10000), PhotoSizeProgressive()])
+    assert sticker_preview.select_raster_thumb(unsupported_only) is None
 
     no_meta = _sticker_msg(thumbs=None)
     assert sticker_preview.select_raster_thumb(no_meta) == -1
@@ -185,7 +199,10 @@ async def test_webm_sticker_extracts_first_frame_when_thumb_missing(monkeypatch)
         def kill(self):
             pass
 
+    invoked = []
+
     async def fake_exec(*args, **kwargs):
+        invoked.append(args)
         out_path = args[-1]
         with open(out_path, "wb") as fh:
             fh.write(_PNG_BYTES)
@@ -207,6 +224,47 @@ async def test_webm_sticker_extracts_first_frame_when_thumb_missing(monkeypatch)
     assert ref.media_type == "picture"
     assert ref.file_name == "tg_901_sticker.png"
     assert media.upload.await_args.args[2] == "image/png"
+    assert len(invoked) == 1
+    assert invoked[0].index("libvpx-vp9") < invoked[0].index("-i")
+
+
+@pytest.mark.asyncio
+async def test_webm_sticker_falls_back_from_libvpx_to_default_decoder(monkeypatch):
+    async def fake_download(*, file, thumb=None):
+        if thumb is not None:
+            return None
+        with open(file, "wb") as fh:
+            fh.write(b"\x1a\x45\xdf\xa3vp8-webm")
+        return file
+
+    invoked = []
+
+    class FakeProc:
+        def __init__(self, rc):
+            self.returncode = rc
+
+        async def wait(self):
+            return self.returncode
+
+        def kill(self):
+            pass
+
+    async def fake_exec(*args, **kwargs):
+        invoked.append(args)
+        if "libvpx-vp9" in args:
+            return FakeProc(1)
+        with open(args[-1], "wb") as fh:
+            fh.write(_PNG_BYTES)
+        return FakeProc(0)
+
+    monkeypatch.setattr(sticker_preview.shutil, "which", lambda cmd: "/usr/bin/ffmpeg")
+    monkeypatch.setattr(sticker_preview.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(media, "upload", AsyncMock(return_value="DRV_WEBM_2"))
+
+    msg = _sticker_msg(msg_id=902, mime="video/webm", thumbs=[PhotoPathSize()], download_media=fake_download)
+    ref, fallback = await media.prepare_inbound(msg, 55)
+    assert ref is not None and fallback == "" and len(invoked) == 2
+    assert "libvpx-vp9" in invoked[0] and "libvpx-vp9" not in invoked[1]
 
 
 @pytest.mark.asyncio
