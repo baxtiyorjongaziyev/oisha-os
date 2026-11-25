@@ -72,10 +72,16 @@ def find_next_gap(
     hisob_records: list[dict],
     today_iso: str,
     skipped: set[str] | None = None,
+    ask_fakt_saldo: bool = False,
 ) -> Optional[GapPrompt]:
-    """Navbatdagi 1 ta boʻsh maydonni topadi: avval Hisoblar fakt saldosi, keyin Tranzaksiyalar."""
+    """Navbatdagi 1 ta boʻsh maydonni topadi (Tranzaksiyalar).
+
+    Hisoblar fakt saldosi endi moliya guruhidagi kunlik hisobotdan olinadi
+    (``daily_report_ingest``), shuning uchun shaxsiy chatda soʻralmaydi.
+    ``ask_fakt_saldo=True`` faqat qoʻlda /toldir uchun eski xulq.
+    """
     skip = skipped or set()
-    for r in hisob_records:
+    for r in (hisob_records if ask_fakt_saldo else []):
         f = r.get("fields") or {}
         if f.get("Faol") is False:
             continue
