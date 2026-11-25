@@ -72,33 +72,23 @@ class TelegramHistoryMixin:
         # 2. Try to resolve via phone number
         norm_phone = normalize_phone(phone)
         if norm_phone:
+            from src.services.core.telegram.temp_contacts import (
+                delete_temp_contact,
+                import_temp_contact,
+            )
+
+            user = None
+            newly_imported = False
             try:
-                clean_phone = norm_phone.replace("+", "")
-                contact = types.InputPhoneContact(
-                    client_id=random.randrange(-(2**63), 2**63),
-                    phone=clean_phone,
-                    first_name="Oisha Audit",
-                    last_name="",
-                )
-                result = await self.tg_client(
-                    functions.contacts.ImportContactsRequest(contacts=[contact])
-                )
-                users = getattr(result, "users", None) or []
-                if users:
-                    user = users[0]
+                user, newly_imported = await import_temp_contact(self.tg_client, norm_phone)
+                if user:
                     telegram_user_id = getattr(user, "id", None)
                     resolved_username = getattr(user, "username", resolved_username) or resolved_username
-                    
-                    # Clean contact immediately to prevent contacts list cluttering
-                    if telegram_user_id:
-                        try:
-                            await self.tg_client(
-                                functions.contacts.DeleteContactsRequest(id=[int(telegram_user_id)])
-                            )
-                        except Exception:
-                            logger.debug("[CRM_AUDIT] Failed to clean up imported contact after phone lookup", exc_info=True)
             except Exception as e:
                 logger.warning("[AUDITOR] Phone lookup failed for %s: %s", norm_phone, e)
+            finally:
+                if newly_imported and user is not None:
+                    await delete_temp_contact(self.tg_client, getattr(user, "id", None))
 
         return telegram_user_id, resolved_username
 
