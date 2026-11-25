@@ -12,6 +12,10 @@ from src.services.utils.transcript import (
     has_timestamps,
 )
 from src.services.call_analytics.helpers import *
+from src.services.call_analytics.helpers import (  # noqa: F401
+    _apply_recruitment_override,
+    _normalise_category,
+)
 
 logger = structlog.get_logger()
 
