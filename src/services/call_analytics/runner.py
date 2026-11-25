@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from src.services.call_analytics.recruitment import route_call_crm
 from src.services.call_analytics.helpers import (
     ANALYSIS_MARKER,
     _clip,
@@ -18,7 +19,6 @@ from src.services.call_analytics.normalizer import (
     _normalise_mood,
 )
 from src.services.core.call_events import CallEventLog
-from src.services.call_analytics.crm_automation_hook import run_crm_automation
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
             conversion_advice=analysis.get("konversiya_tavsiyalari"),
         )
-        await run_crm_automation(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
+        await route_call_crm(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
         try:
             await self.approval_service.send_for_approval(
                 lead_id=lead_id, lead_name=lead_name, phone=phone, call_id=call_id,
@@ -210,7 +210,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
             conversion_advice=analysis.get("konversiya_tavsiyalari"),
         )
-        await run_crm_automation(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
+        await route_call_crm(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
         await self._log_call_analysis(
             call_id=call_id, lead_id=lead_id, category=category, summary=summary,
             client_mood=client_mood, next_steps=next_steps, transcript=transcript,
