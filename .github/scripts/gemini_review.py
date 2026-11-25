@@ -23,14 +23,14 @@ def _call(url: str, key: str, payload=None) -> dict:
         with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - fixed https URL
             return json.load(resp)
     except urllib.error.HTTPError as exc:
-        print(f"Gemini API {exc.code}: {exc.read().decode(errors='replace')[:500]}", file=sys.stderr)
+        print(f"Gemini API {exc.code}: {exc.read().decode(errors='replace')[:300]}", file=sys.stderr)
         raise
 
 
-def pick_model(key: str) -> str:
-    """Newest available Flash model that supports generateContent."""
+def candidate_models(key: str) -> list[str]:
+    """Flash models supporting generateContent, newest first (or GEMINI_MODEL if set)."""
     if MODEL:
-        return MODEL
+        return [MODEL]
     models = _call(f"{API}/models?pageSize=200", key).get("models", [])
     names = [
         m["name"].split("/", 1)[1] for m in models
@@ -39,7 +39,7 @@ def pick_model(key: str) -> str:
     ]
     if not names:
         raise SystemExit("No suitable Gemini Flash model available")
-    return sorted(names)[-1]
+    return sorted(names, reverse=True)
 
 
 def main() -> int:
@@ -56,8 +56,17 @@ def main() -> int:
         "(high/medium), the problem and a concrete fix. If nothing is wrong, reply exactly 'No issues found.'\n\n"
         f"Project rules:\n{guide}\n\nDiff:\n{diff[:MAX_DIFF]}"
     )
-    model = pick_model(key)
-    data = _call(f"{API}/models/{model}:generateContent", key, {"contents": [{"parts": [{"text": prompt}]}]})
+    data, model = None, ""
+    for model in candidate_models(key):
+        try:
+            data = _call(f"{API}/models/{model}:generateContent", key, {"contents": [{"parts": [{"text": prompt}]}]})
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (404, 429):
+                raise
+            print(f"skip {model}: HTTP {exc.code}", file=sys.stderr)
+    if data is None:
+        raise SystemExit("No Gemini model accepted the request (quota or availability)")
     text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
     body = f"{MARKER}\n### Gemini review ({model})\n\n{text}"
     if len(diff) > MAX_DIFF:
