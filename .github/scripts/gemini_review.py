@@ -9,7 +9,7 @@ import urllib.request
 MARKER = "<!-- gemini-pr-review -->"
 MODEL = os.environ.get("GEMINI_MODEL", "")
 API = "https://generativelanguage.googleapis.com/v1beta"
-MAX_DIFF = 120_000
+MAX_DIFF = int(os.environ.get("MAX_DIFF", "40000"))
 
 
 def gh(*args: str, stdin: str | None = None) -> str:
