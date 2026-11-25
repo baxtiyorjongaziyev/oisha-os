@@ -19,7 +19,7 @@ async def _maybe_await(value: Any) -> Any:
 _RECRUITMENT_PATTERN = re.compile(
     r"\bhead\s*hunter\b|\bhh\.uz\b|\bvakansiya\w*|\brezyume\w*|\brezume\w*|"
     r"\bрезюме|\bвакансия|\bnomzod\w*|"
-    r"\bishga\s+(?:kirish|qabul|joylash|ariza)\w*|\bсобеседовани",
+    r"\bishga\s+(?:kirish|qabul|joylash|ariza)\w*|\bсобеседовани|\bинтервью|\bintervyu\w*",
     re.IGNORECASE,
 )
 

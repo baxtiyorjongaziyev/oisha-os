@@ -63,3 +63,7 @@ def test_already_in_hr_or_not_candidate_untouched():
     amo2 = _FakeAmo(pipeline_id=1)
     assert not asyncio.run(move_candidate_to_hr(amo2, 1, {"hr_nomzod": False}))
     assert amo.moved is None and amo2.moved is None
+
+
+def test_interview_terms():
+    assert apply_recruitment_override("Mijoz", "intervyu belgilandi") == "Jamoa"

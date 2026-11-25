@@ -112,6 +112,10 @@ class CallNormalizerMixin:
         category = apply_recruitment_override(
             _normalise_category(data.get("category")), summary,
         )
+        hr_nomzod = category == "Jamoa" and is_recruitment_call(summary)
+        if hr_nomzod:
+            # Nomzod suhbati: savdo tavsiyasi va lid bahosi mazmunsiz.
+            tavsiyalar = []
         rubrik_amal_qiladi = _rubric_applies(category, transcript)
         if not rubrik_amal_qiladi:
             sifat_bahosi = 0
@@ -128,7 +132,7 @@ class CallNormalizerMixin:
         return {
             "summary": summary or _clip(transcript, 350),
             "category": category,
-            "hr_nomzod": category == "Jamoa" and is_recruitment_call(summary),
+            "hr_nomzod": hr_nomzod,
             "client_mood": _normalise_mood(data.get("client_mood")),
             "next_steps": next_steps,
             "keyingi_kelishuv": keyingi_kelishuv,
@@ -140,7 +144,7 @@ class CallNormalizerMixin:
             "rubrik_amal_qiladi": rubrik_amal_qiladi,
             # MetaSell-like extended fields
             "sifat_bahosi": sifat_bahosi,
-            "lead_bahosi": _clamp_score(data.get("lead_bahosi", 0)),
+            "lead_bahosi": 0 if hr_nomzod else _clamp_score(data.get("lead_bahosi", 0)),
             "suhbat_oilasi": str(data.get("suhbat_oilasi") or "Boshqa"),
             "suhbat_domeni": str(data.get("suhbat_domeni") or "Boshqa"),
             "baholash_rejimi": str(data.get("baholash_rejimi") or "Savdo playbook boyicha baholanadi"),
@@ -209,7 +213,7 @@ class CallNormalizerMixin:
         )
 
         if any(word in lowered for word in client_words):
-            category = "Mijoz"
+            category = apply_recruitment_override("Mijoz", transcript)
         elif any(word in lowered for word in team_words):
             category = "Jamoa"
         elif any(word in lowered for word in family_words):
