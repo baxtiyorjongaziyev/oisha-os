@@ -113,13 +113,19 @@ def call_gemini(diff_text: str, api_key: str, model: str = DEFAULT_MODEL) -> str
     last_exc: Exception | None = None
     for attempt in range(3):
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
+            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310
                 body = json.loads(resp.read().decode("utf-8"))
                 break
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:300]
             last_exc = RuntimeError(f"Gemini API HTTP {exc.code}: {detail}")
             if exc.code in RETRYABLE_HTTP_CODES and attempt < 2:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise last_exc from exc
+        except (TimeoutError, urllib.error.URLError) as exc:
+            last_exc = RuntimeError(f"Gemini API transient network/timeout: {exc}")
+            if attempt < 2:
                 time.sleep(2 ** (attempt + 1))
                 continue
             raise last_exc from exc
@@ -180,7 +186,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             review = call_gemini(filtered, api_key=api_key, model=args.model)
         except RuntimeError as exc:
-            if any(f"HTTP {code}" in str(exc) for code in RETRYABLE_HTTP_CODES):
+            msg = str(exc)
+            if "transient network/timeout" in msg or any(
+                f"HTTP {code}" in msg for code in RETRYABLE_HTTP_CODES
+            ):
                 print(f"Gemini API vaqtincha band, review oʻtkazib yuborildi: {exc}", file=sys.stderr)
                 return 0
             raise
