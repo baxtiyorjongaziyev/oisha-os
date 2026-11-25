@@ -144,9 +144,10 @@ async def test_partial_delivery_retries_only_failed_destination():
         h.owner.append(text)
         return False
 
+    original = h.send_owner
     h.send_owner = owner_fail
     assert await h.run() == 1
-    h.send_owner = _Harness.send_owner.__get__(h)
+    h.send_owner = original
     assert await h.run() == 1
     assert len(h.group) == 1 and len(h.owner) == 2
 
