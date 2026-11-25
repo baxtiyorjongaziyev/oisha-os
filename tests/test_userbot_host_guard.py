@@ -100,3 +100,24 @@ def test_error_messages_never_contain_session():
         guard.check_client(_FakeClient(PROD))
     except guard.UserbotHostGuardError as exc:
         assert PROD not in str(exc)
+
+
+def test_db_loaded_prod_session_blocked_even_if_env_differs(monkeypatch):
+    """Prod sessiya Turso DB/fayldan kelsa (env dagidan boshqa key) ham bloklanadi."""
+    db_session = _session_string(3)
+    monkeypatch.setattr(guard, "_registered_prod_digests", set())
+    monkeypatch.setattr(guard, "is_prod_host", lambda *a, **k: False)
+    guard.check_client(_FakeClient(db_session))  # hali roʼyxatda emas
+    guard.register_prod_session(db_session)
+    with pytest.raises(guard.UserbotHostGuardError):
+        guard.check_client(_FakeClient(db_session))
+
+
+def test_get_best_session_string_registers_prod(monkeypatch):
+    from src.services.core import session_keeper
+
+    db_session = _session_string(4)
+    monkeypatch.setattr(guard, "_registered_prod_digests", set())
+    monkeypatch.setattr(session_keeper, "_get_best_session_string", lambda env_var="x": db_session)
+    assert session_keeper.get_best_session_string() == db_session
+    assert guard._key_digest(db_session) in guard.prod_key_digests()
