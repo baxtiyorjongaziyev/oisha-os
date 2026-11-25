@@ -13,6 +13,10 @@ from src.services.core.crm.amocrm_chat import AmoCRMChatClient
 from src.services.core.crm.amocrm_sync import AmoCRMSync
 from src.services.core.crm.crm_integration import CRMIntegration
 from src.services.core.crm.tg_amo_bridge.amojo_client import format_profile_phone
+from src.services.core.crm.tg_amo_bridge.analyzer import (
+    extract_phone_from_text,
+    normalize_uz_phone as bridge_normalize_uz_phone,
+)
 
 
 class _Response:
@@ -33,13 +37,12 @@ class _Response:
         ("998 97 335-59-00", "+998973355900"),
         ("+998 91 602 22 60", "+998916022260"),
         ("+998(88)4742222", "+998884742222"),
+        ("(+998) 90 123 45 67", "+998901234567"),
         ("901796388", "+998901796388"),
         ("97-777-11-98", "+998977771198"),
         ("33 770 93 94", "+998337709394"),
         ("871234567", "+998871234567"),
         ("920103030", "+998920103030"),
-        ("8 90 123 45 67", "+998901234567"),
-        ("0901234567", "+998901234567"),
         ("0998973355900", "+998973355900"),
         ("8998973355900", "+998973355900"),
         ("00998973355900", "+998973355900"),
@@ -57,12 +60,15 @@ def test_normalize_uz_variants(raw, expected):
     ("raw", "expected"),
     [
         ("+77086892557", "+77086892557"),
-        ("+7 (708) 689-25-57", "+77086892557"),
+        ("+7 (708) 689-25-57", "+7 (708) 689-25-57"),
+        ("+44 (0)20 7946 0958", "+44 (0)20 7946 0958"),
         ("+18184791600", "+18184791600"),
         ("+992927330086", "+992927330086"),
         ("+996555620504", "+996555620504"),
         ("+8615591801525", "+8615591801525"),
         ("77086892557", "77086892557"),
+        ("861 234 56 78", "861 234 56 78"),
+        ("0901234567", "0901234567"),
     ],
 )
 def test_preserves_foreign_numbers(raw, expected):
@@ -202,3 +208,26 @@ async def test_amocrm_chat_send_message_normalizes_phone(monkeypatch):
     ok = await chat.send_message_to_amocrm(1, 2, "Salom", "Hasan", phone="998973355900")
     assert ok is True
     assert sent["payload"]["message"]["sender"]["profile"]["phone"] == "+998973355900"
+
+
+@pytest.mark.asyncio
+async def test_ensure_lead_normalizes_dot_zero_before_lookup(monkeypatch):
+    monkeypatch.setenv("AMOCRM_ACCESS_TOKEN", "test-long-lived-token")
+    amo = AmoCRMSync("jonbranding", "cid", "csec", "https://example.test/cb")
+    seen = []
+
+    def fake_find_active(phone):
+        seen.append(phone)
+        return {"id": 888}
+
+    monkeypatch.setattr(amo, "find_active_lead_by_phone", fake_find_active)
+    lead_id = await amo.ensure_lead("Ali", "998974077229.0")
+    assert lead_id == 888
+    assert seen == ["+998974077229"]
+
+
+def test_tg_amo_analyzer_recognizes_new_87_and_92_prefixes():
+    assert bridge_normalize_uz_phone("871234567") == "998871234567"
+    assert bridge_normalize_uz_phone("+998920103030") == "998920103030"
+    assert extract_phone_from_text("Raqamim 87 123 45 67") == "998871234567"
+    assert extract_phone_from_text("Tel: +998 92 010 30 30") == "998920103030"

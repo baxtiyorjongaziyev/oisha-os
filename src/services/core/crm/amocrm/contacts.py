@@ -52,8 +52,9 @@ class AmoCRMContactsMixin:
         if not phone or phone == "Raqam yo'q":
             return None
 
-        # Normalizatsiya: + olib tashlash, faqat raqamlarni qoldirish
-        clean_phone = "".join(filter(str.isdigit, phone))
+        # Normalizatsiya: + olib tashlash, faqat raqamlarni qoldirish (.0 float ham tozalanadi)
+        formatted_phone = normalize_amocrm_phone(phone)
+        clean_phone = "".join(filter(str.isdigit, formatted_phone))
         # Oxirgi 9 ta raqamni olish (O'zbekiston formatida ishonchliroq)
         short_phone = clean_phone[-9:] if len(clean_phone) >= 9 else clean_phone
 

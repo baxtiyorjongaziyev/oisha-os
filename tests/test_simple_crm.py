@@ -152,6 +152,22 @@ def test_create_lead_goes_to_sales_new(monkeypatch, amo):
     assert "logo kerak" in amo.notes[0][1]
 
 
+def test_create_lead_strips_spreadsheet_dot_zero_and_preserves_foreign(monkeypatch, amo):
+    r1 = _client(monkeypatch).post(
+        "/api/simple-crm/leads",
+        json={"name": "Ali", "phone": "998901234567.0"},
+    )
+    assert r1.status_code == 200
+    assert amo.created[0]["phone"] == "+998901234567"
+
+    r2 = _client(monkeypatch).post(
+        "/api/simple-crm/leads",
+        json={"name": "Ivan", "phone": "861 234 56 78"},
+    )
+    assert r2.status_code == 200
+    assert amo.created[1]["phone"] == "8612345678"
+
+
 def test_create_lead_reports_lost_note(monkeypatch, amo):
     amo.note_result = False
     r = _client(monkeypatch).post(

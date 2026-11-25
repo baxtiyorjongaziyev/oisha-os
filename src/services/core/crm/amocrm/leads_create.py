@@ -221,9 +221,10 @@ class AmoCRMLeadsCreateMixin:
         status_id: Optional[int] = None,
         custom_fields: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[int]:
-        """Mavjud aktiv bitimni qidiradi, bo'lmasa yangisini ochadi."""
+        """Mavjud aktiv bitimni qidiradi, boʻlmasa yangisini ochadi."""
+        formatted_phone = normalize_amocrm_phone(phone)
         existing_lead = await asyncio.to_thread(
-            self.find_active_lead_by_phone, phone
+            self.find_active_lead_by_phone, formatted_phone
         )
         if existing_lead:
             lead_id = existing_lead.get("id")
@@ -236,7 +237,7 @@ class AmoCRMLeadsCreateMixin:
 
         lead_id = await self.create_lead(
             name=name,
-            phone=phone,
+            phone=formatted_phone,
             pipeline_id=pipeline_id or SALES_PIPELINE_ID,
             status_id=status_id or SALES_NEW_STATUS_ID,
             custom_fields=custom_fields,

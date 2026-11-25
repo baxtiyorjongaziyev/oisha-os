@@ -15,18 +15,18 @@ UZ_PHONE_PREFIXES = frozenset(
 )
 
 _FLOAT_ZERO_RE = re.compile(r"^(\+?\d+)\.0+$")
-_PHONE_CHARS_RE = re.compile(r"^\+?[\d\s\-().]+$")
+_PHONE_CHARS_RE = re.compile(r"^\(?\+?[\d\s\-().]+$")
 
 
 def normalize_amocrm_phone(phone: Any) -> str:
     """Normalize Uzbekistan phone numbers to E.164 ``+998XXXXXXXXX`` format.
 
-    - Handles 9-digit local numbers (``901234567``), 10-digit ``0``/``8``-prefixed
-      local numbers, 12-digit ``998...`` without ``+``, formatted ``+998 ...``,
-      ``0998...``/``8998...``/``00998...`` variants, and Excel float strings
-      (``998974077229.0``).
+    - Handles 9-digit local numbers (``901234567``), 12-digit ``998...`` without
+      ``+``, formatted ``+998 ...`` or ``(+998) ...``, ``0998``/``8998``/``00998``
+      variants, and Excel float strings (``998974077229.0``).
     - Preserves foreign international numbers (e.g. ``+7...``, ``+1...``,
-      ``+992...``) without ever prepending ``+998``.
+      ``+44 (0)20 7946 0958``, ``+992...``) and ambiguous national formats
+      (such as 10-digit ``8...``/``0...``) verbatim without ever corrupting them.
     - Returns empty string for blank inputs and preserves non-phone/ambiguous
       strings verbatim so nothing is silently corrupted.
     """
@@ -45,19 +45,12 @@ def normalize_amocrm_phone(phone: Any) -> str:
     if not digits:
         return raw
 
-    has_plus = candidate.startswith("+")
+    has_plus = candidate.lstrip("(").startswith("+")
 
     if len(digits) == 12 and digits.startswith("998") and digits[3:5] in UZ_PHONE_PREFIXES:
         return f"+{digits}"
     if len(digits) == 9 and not has_plus and digits[:2] in UZ_PHONE_PREFIXES:
         return f"+998{digits}"
-    if (
-        len(digits) == 10
-        and not has_plus
-        and digits[0] in ("0", "8")
-        and digits[1:3] in UZ_PHONE_PREFIXES
-    ):
-        return f"+998{digits[1:]}"
     if (
         len(digits) == 13
         and digits[:4] in ("0998", "8998")
@@ -71,9 +64,5 @@ def normalize_amocrm_phone(phone: Any) -> str:
         and digits[5:7] in UZ_PHONE_PREFIXES
     ):
         return f"+{digits[2:]}"
-
-    # Keep valid non-Uzbek international numbers clean without prepending +998.
-    if has_plus and 10 <= len(digits) <= 15 and not digits.startswith("998"):
-        return f"+{digits}"
 
     return raw
