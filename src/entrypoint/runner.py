@@ -72,11 +72,13 @@ async def _connect_user_client(telegram_client: TelegramClient) -> bool:
         await telegram_client.start()
         if await telegram_client.is_user_authorized():
             # Export session string for the user convenient copy-pasting
-            new_string = telegram_client.session.save()
-            print("\n" + "=" * 50)
-            print("🚀 [SUCCESS] NEW SESSION STRING GENERATED:")
-            print(new_string)
-            print("=" * 50 + "\n")
+            # Session string hech qachon stdout/logga chiqarilmaydi.
+            out_path = os.path.join("data", "new_userbot_session.txt")
+            os.makedirs("data", exist_ok=True)
+            fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(telegram_client.session.save())
+            logger.info("[AUTH] New session string saved to %s (0600)", out_path)
             return True
 
     logger.error(
