@@ -12,10 +12,8 @@ from src.services.utils.transcript import (
     has_timestamps,
 )
 from src.services.call_analytics.helpers import *
-from src.services.call_analytics.helpers import (  # noqa: F401
-    _apply_recruitment_override,
-    _normalise_category,
-)
+from src.services.call_analytics.helpers import _normalise_category
+from src.services.call_analytics.recruitment import apply_recruitment_override
 
 logger = structlog.get_logger()
 
@@ -111,8 +109,8 @@ class CallNormalizerMixin:
                 "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
             }
 
-        category = _apply_recruitment_override(
-            _normalise_category(data.get("category")), summary, transcript,
+        category = apply_recruitment_override(
+            _normalise_category(data.get("category")), summary,
         )
         rubrik_amal_qiladi = _rubric_applies(category, transcript)
         if not rubrik_amal_qiladi:
