@@ -59,12 +59,11 @@ def target_sales_user_id() -> Optional[int]:
 
 
 def is_authorized_filler(user_id: int) -> bool:
+    """/toldir faqat egasi uchun: moliyachiga DM yuborilmaydi (guruh-yordamchi rejimi)."""
     from src.settings import settings
 
     owner = int(getattr(settings, "OWNER_ID", 0) or 0)
-    moliyachi = int(os.getenv("MOLIYACHI_TELEGRAM_ID", "0") or 0)
-    managers = {int(x) for x in (getattr(settings, "SALES_MANAGER_IDS", None) or []) if int(x or 0) > 0}
-    return user_id > 0 and user_id in ({owner, moliyachi} | managers)
+    return owner > 0 and user_id == owner
 
 
 def find_next_gap(
@@ -72,10 +71,16 @@ def find_next_gap(
     hisob_records: list[dict],
     today_iso: str,
     skipped: set[str] | None = None,
+    ask_fakt_saldo: bool = False,
 ) -> Optional[GapPrompt]:
-    """Navbatdagi 1 ta boʻsh maydonni topadi: avval Hisoblar fakt saldosi, keyin Tranzaksiyalar."""
+    """Navbatdagi 1 ta boʻsh maydonni topadi (Tranzaksiyalar).
+
+    Hisoblar fakt saldosi endi moliya guruhidagi kunlik hisobotdan olinadi
+    (``daily_report_ingest``), shuning uchun shaxsiy chatda soʻralmaydi.
+    ``ask_fakt_saldo=True`` faqat qoʻlda /toldir uchun eski xulq.
+    """
     skip = skipped or set()
-    for r in hisob_records:
+    for r in (hisob_records if ask_fakt_saldo else []):
         f = r.get("fields") or {}
         if f.get("Faol") is False:
             continue
@@ -216,34 +221,183 @@ async def next_gap_for_user(db: Any, user_id: int, today_iso: str) -> Optional[G
     return find_next_gap(tx_records if tx_ok else [], hisob_records if hisob_ok else [], today_iso, skipped)
 
 
-async def run_daily_gap_prompt() -> bool:
-    """Har kuni 10:00 da masʼulga navbatdagi 1 ta boʻsh maydonni yuboradi."""
-    from src.db import get_db
+# ---------------------------------------------------------------------------
+# Guruh-yordamchi rejimi: Oisha hech narsa yozmaydi, faqat guruhda eslatadi.
+# ---------------------------------------------------------------------------
+
+DEFAULT_BASE_ID = "app8xoyx1XCumYFXV"
+TX_TABLE_ID = "tblrqxqIzyrvg7XpQ"
+ERROR_LOOKBACK_DAYS = 3
+ALERT_JOB_PREFIX = "at_group_alert:"
+TRANSFER_HINTS = (
+    "kartaga tushir",
+    "konvert",
+    "naqdga",
+    "naqd pulga",
+    "yechib ol",
+    "hisobga oʻtkaz",
+)
+
+
+@dataclass(frozen=True)
+class DigestItem:
+    record_id: str
+    title: str
+    sana: str
+    detail: str
+    kind: str  # "gap" | "error"
+
+
+def record_link(record_id: str) -> str:
     from src.settings import settings
-    from src.time_utils import get_local_now
 
-    uid = target_finance_user_id()
-    bot_token = os.environ.get("BOT_TOKEN") or getattr(settings, "BOT_TOKEN", None)
-    if hasattr(bot_token, "get_secret_value"):
-        bot_token = bot_token.get_secret_value()
-    if not uid or not bot_token:
-        return False
-    db = get_db()
-    today_iso = get_local_now().strftime("%Y-%m-%d")
-    prompt = await next_gap_for_user(db, uid, today_iso)
-    if prompt is None:
-        return True
-    await db.set_state(f"{SESSION_KEY_PREFIX}{uid}", prompt.__dict__)
-    try:
-        from telegram import Bot
+    base = str(getattr(settings, "AIRTABLE_BASE_ID", None) or DEFAULT_BASE_ID)
+    return f"https://airtable.com/{base}/{TX_TABLE_ID}/{record_id}"
 
-        await Bot(token=bot_token).send_message(
-            chat_id=uid,
-            text=prompt.question,
-            parse_mode="HTML",
-            reply_markup=build_prompt_markup(prompt),
+
+def collect_gaps(tx_records: list[dict]) -> list[DigestItem]:
+    """Tranzaksiyalardagi toʻldirilishi kerak kataklar (Hisoblar/Fakt saldo kirmaydi)."""
+    out: list[DigestItem] = []
+    for r in tx_records:
+        f = r.get("fields") or {}
+        if select_name(f.get("Holat")) == "Bekor qilingan":
+            continue
+        rid = str(r.get("id") or "")
+        if not rid:
+            continue
+        title = str(f.get("Tranzaksiya") or "Nomsiz tranzaksiya")
+        sana = str(f.get("Sana") or "")[:10]
+        if not f.get("Hisobot oyi"):
+            out.append(DigestItem(rid, title, sana, "Hisobot oyi", "gap"))
+        if not f.get("Loyiha") and select_name(f.get("Turi")) == "Kirim":
+            out.append(DigestItem(rid, title, sana, "Loyiha", "gap"))
+    return out
+
+
+def _has_any(f: dict, prefix: str) -> bool:
+    return any(k.startswith(prefix) and f.get(k) not in (None, "", [], 0) for k in f)
+
+
+def fail_reasons(f: dict) -> list[str]:
+    """Nazorat holati formulasidagi FAIL qoidalaridan sababni chiqaradi."""
+    reasons: list[str] = []
+    turi = select_name(f.get("Turi"))
+    missing = [k for k in ("Sana", "Turi", "Summa", "Hisob") if not f.get(k)]
+    if missing:
+        reasons.append("majburiy maydon boʻsh: " + ", ".join(missing))
+    if select_name(f.get("Valyuta")) == "USD" and not _has_any(f, "Kurs"):
+        reasons.append("USD tranzaksiya kurssiz (Kurs boʻsh)")
+    if turi == "Transfer" and not (_has_any(f, "Qabul hisob") and _has_any(f, "Qabul summa")):
+        reasons.append("Transfer: qabul hisobi yoki qabul summasi boʻsh")
+    if turi == "Chiqim":
+        text = " ".join(str(f.get(k) or "") for k in ("Tranzaksiya", "Izoh", "Tavsif")).lower()
+        if any(h in text for h in TRANSFER_HINTS):
+            reasons.append(
+                "hisoblar orasidagi koʻchishga oʻxshaydi — Turi «Transfer» boʻlishi kerak, «Chiqim» emas"
+            )
+    pnl = str(f.get("P&L — Hisob nazorati") or "")
+    if pnl.startswith("XATO:") and not reasons:
+        reasons.append(f"P&L — Hisob nazorati: {pnl}")
+    if not reasons:
+        reasons.append("Nazorat holati = FAIL")
+    return reasons
+
+
+def collect_errors(tx_records: list[dict], today_iso: str) -> list[DigestItem]:
+    """Oxirgi 3 kundagi FAIL yoki "XATO:" yozuvlar."""
+    from datetime import date, timedelta
+
+    cutoff = (date.fromisoformat(today_iso) - timedelta(days=ERROR_LOOKBACK_DAYS)).isoformat()
+    out: list[DigestItem] = []
+    for r in tx_records:
+        f = r.get("fields") or {}
+        rid = str(r.get("id") or "")
+        sana = str(f.get("Sana") or "")[:10]
+        if not rid or not sana or sana < cutoff:
+            continue
+        holat = str(f.get("Nazorat holati") or "")
+        pnl = str(f.get("P&L — Hisob nazorati") or "")
+        if holat != "FAIL" and not pnl.startswith("XATO:"):
+            continue
+        title = str(f.get("Tranzaksiya") or "Nomsiz tranzaksiya")
+        out.append(DigestItem(rid, title, sana, "; ".join(fail_reasons(f)), "error"))
+    return out
+
+
+def format_digest(gaps: list[DigestItem], errors: list[DigestItem]) -> str:
+    def _line(it: DigestItem) -> str:
+        return (
+            f"• <a href=\"{record_link(it.record_id)}\">{html.escape(it.title)}</a> "
+            f"({it.sana or 'sanasiz'}) — {html.escape(it.detail)}"
         )
-        return True
-    except Exception:
-        logger.error("[AIRTABLE-GAP] Kunlik soʻrov yuborilmadi", exc_info=True)
+
+    parts = ["🧾 <b>Airtable nazorati</b> (Tranzaksiyalar)"]
+    if errors:
+        parts.append("\n❗ <b>Tuzatish kerak</b> (ustun: <i>Nazorat holati</i> = FAIL):")
+        parts.extend(_line(e) for e in errors)
+    if gaps:
+        parts.append("\n✏️ <b>Toʻldirilishi kerak:</b>")
+        parts.extend(_line(g) for g in gaps)
+    return "\n".join(parts)
+
+
+def alert_key(it: DigestItem) -> str:
+    return f"{ALERT_JOB_PREFIX}{it.kind}:{it.record_id}:{it.detail}"[:250]
+
+
+async def run_daily_group_digest(
+    now: Any = None,
+    *,
+    read_records: Any = None,
+    send_group: Any = None,
+    claim: Any = None,
+    release: Any = None,
+) -> bool:
+    """Kuniga bir marta moliya guruhining balans topigiga jamlangan eslatma.
+
+    Har bir ogohlantirish (yozuv + sabab) DB claim bilan faqat bir marta
+    yuboriladi. Airtableʼga hech narsa yozilmaydi. Quiet-hours da jim.
+    """
+    from src.time_utils import get_local_now, is_quiet_hours
+
+    now = now or get_local_now()
+    if is_quiet_hours(now):
         return False
+    if read_records is None:
+        async def read_records() -> tuple[list[dict], bool]:
+            return await read_table_checked("Tranzaksiyalar")
+    if send_group is None:
+        from src.schedulers.moliya.helpers import send
+
+        async def send_group(text: str) -> bool:
+            return await send(text, "HISOBCHI_BALANCE_TOPIC_ID")
+    if claim is None or release is None:
+        from src.db import get_db
+
+        db = get_db()
+        claim = claim or db.claim_job_run
+        release = release or db.release_job_run
+
+    records, ok = await read_records()
+    if not ok:
+        return False
+    today_iso = now.strftime("%Y-%m-%d")
+    fresh: list[DigestItem] = []
+    for it in collect_errors(records, today_iso) + collect_gaps(records):
+        try:
+            if await claim(alert_key(it), "once"):
+                fresh.append(it)
+        except Exception:
+            logger.warning("[AIRTABLE-GAP] claim ishlamadi", exc_info=True)
+    if not fresh:
+        return True
+    errors = [i for i in fresh if i.kind == "error"]
+    gaps = [i for i in fresh if i.kind == "gap"]
+    if await send_group(format_digest(gaps, errors)):
+        return True
+    for it in fresh:
+        try:
+            await release(alert_key(it), "once")
+        except Exception:
+            logger.warning("[AIRTABLE-GAP] release ishlamadi", exc_info=True)
+    return False

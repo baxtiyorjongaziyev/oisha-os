@@ -3273,6 +3273,12 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Tekshiruv dalillari:** Fokuslangan testlar (`test_leadgen_status_reporter.py`, `test_leadgen_created_at_and_campaigns.py`, `test_lead_campaign_attribution.py`, `test_leadgen_status_report_routing.py`, `test_leadgen_capi_recovery.py`, `test_meta_capi.py`, `test_seller_metrics.py`, `test_loss_reasons.py`), `ruff`, `bandit -r src/ -ll`, `check_uzbek_text.py`, PR #1160 GitHub Actions CI.
 - **Qolgan ish / Bloker:** Hetzner `.env` da `META_CAPI_DATASET_ID=1134785364752294`, `META_CAPI_ACCESS_TOKEN`, `META_CAPI_ENABLED`, `META_AD_ACCOUNT_ID` va `ads_read` huquqli `META_ADS_ACCESS_TOKEN` (owner tasdigʻi/kaliti bilan) tiklanishi kerak.
 
+## 2026-11-25 — Claude: userbot single-host guard (fix/userbot-single-host-lock)
+- Ish: `src/services/core/telegram/userbot_host_guard.py` — Telethon `connect` global o'raladi (`src/__init__.py` da install). Prod USERBOT session auth key faqat `/etc/oisha-prod-host` marker + hostname `jon-ai-prod-01` da ulanadi (`ALLOW_LOCAL_RUN=1` ham chetlab o'tolmaydi); prodda `data/.userbot.lock` flock — ikkinchi jarayon ulanmaydi. MCP==USERBOT session start'da rad. Interaktiv auth session string'ni stdout'ga chiqarmaydi (data/new_userbot_session.txt, 0600).
+- Fayllar: userbot_host_guard.py, src/__init__.py, src/entrypoint/runner.py, tests/test_userbot_host_guard.py, deploy/systemd/oisha.service.d/prod-host-marker.conf, .gitignore.
+- Prod: drop-in o'rnatildi, marker yaratildi.
+- Qolgan: `src` import qilmaydigan eski skriptlar (scripts/prod/*, login skriptlari) guarddan tashqarida — ular `scripts/telethon_guard.py` ga tayanadi.
+
 ## 2026-11-25 — Antigravity — Hetzner 5 TB Drive OAuth (`In production`) va animatsiyali/video stiker preview (`fix/tg-amo-animated-sticker-preview`)
 - **Sabab:** (1) Hetznerʻda PR #1155 (`TG_AMO_MEDIA_*`) uchun shaxsiy 5 TB Google Drive OAuth tokeni yoʻq edi; (2) jonli amoCRM chatida (`#54856479`, 12:20–12:23) statik `.webp` stiker va ovozli xabar/rasm ishlagan, lekin animatsiyali `.tgs` (`application/x-tgsticker`) stiker `media.py` da `None` qaytargani uchun faqat `[stiker 😀]` matni boʻlib tushgan.
 - **Jonli infra amallari (Hetzner `2.29.198.0` va Google Cloud):**
