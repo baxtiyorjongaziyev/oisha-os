@@ -11,12 +11,14 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 MARKER = "<!-- oisha-ai-bug-review -->"
 DEFAULT_MODEL = "gemini-3.8-flash"
+RETRYABLE_HTTP_CODES = {429, 500, 502, 503, 504}
 MAX_DIFF_CHARS = 60_000
 IGNORED_SUFFIXES = (
     ".lock",
@@ -107,12 +109,22 @@ def call_gemini(diff_text: str, api_key: str, model: str = DEFAULT_MODEL) -> str
         },
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
-            body = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:300]
-        raise RuntimeError(f"Gemini API HTTP {exc.code}: {detail}") from exc
+    body = None
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
+                body = json.loads(resp.read().decode("utf-8"))
+                break
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:300]
+            last_exc = RuntimeError(f"Gemini API HTTP {exc.code}: {detail}")
+            if exc.code in RETRYABLE_HTTP_CODES and attempt < 2:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise last_exc from exc
+    if body is None:
+        raise last_exc or RuntimeError("Gemini API request failed")
 
     candidates = body.get("candidates") or []
     if not candidates:
@@ -165,7 +177,13 @@ def main(argv: list[str] | None = None) -> int:
             args.model,
         )
     else:
-        review = call_gemini(filtered, api_key=api_key, model=args.model)
+        try:
+            review = call_gemini(filtered, api_key=api_key, model=args.model)
+        except RuntimeError as exc:
+            if any(f"HTTP {code}" in str(exc) for code in RETRYABLE_HTTP_CODES):
+                print(f"Gemini API vaqtincha band, review oʻtkazib yuborildi: {exc}", file=sys.stderr)
+                return 0
+            raise
         report = format_comment(review, args.model)
 
     if args.output_file:
