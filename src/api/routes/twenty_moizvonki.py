@@ -292,7 +292,7 @@ async def moizvonki_webhook(
     call_id = str(body.get("call_id") or evt.get("call_id") or "")
 
     # 1. Agar call.start bo'lsa -> Real-time Caller ID pop-upini faollashtirish
-    if action == "call.start" or (body.get("direction") in ("in", 0, "incoming") and int(body.get("duration") or 0) == 0):
+    if action == "call.start" or (action != "call.finish" and body.get("direction") in ("in", 0, "incoming") and int(body.get("duration") or 0) == 0):
         try:
             from src.services.core.crm.caller_id_service import CallerIdHub
             ring_ev = CallerIdHub().process_incoming_ring(phone=phone, account=account, call_id=call_id)
@@ -300,7 +300,7 @@ async def moizvonki_webhook(
         except Exception as ring_err:
             logger.warning("[moizvonki-caller-id] Ring dispatch error: %s", ring_err)
 
-    # 2. Call finish bo'lsa -> Caller ID pop-upni yopish va Twenty CRM ga log qilish
+    # 2. Call finish boʻlsa -> Caller ID pop-upni yopish, auto-SMS va Twenty CRM ga log qilish
     try:
         from src.services.core.crm.caller_id_service import CallerIdHub, resolve_rep
         rep_slug = resolve_rep(account)["slug"]
@@ -320,6 +320,17 @@ async def moizvonki_webhook(
         call_id=call_id,
         start_time=str(body.get("start_time") or ""),
     )
+
+    try:
+        from src.services.telephony.moizvonki_sms import MissedCallAutoSms
+        await MissedCallAutoSms().handle_call_finish(
+            phone=payload.phone or "",
+            status=payload.status or "",
+            duration=payload.duration or 0,
+            user_account=payload.user_account or "",
+        )
+    except Exception as sms_err:
+        logger.warning("[moizvonki-sms] Auto-SMS hook error: %s", sms_err)
 
     try:
         twenty_client = TwentyClient()

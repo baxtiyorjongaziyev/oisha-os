@@ -155,6 +155,8 @@ class AppSettings(BaseSettings):
     MOIZVONKI_PASSWORD: Optional[SecretStr] = None
     MOIZVONKI_API_KEY: Optional[SecretStr] = None
     MOIZVONKI_DOMAIN: str = "jonbrandingagency.moizvonki.ru"
+    MOIZVONKI_AUTO_SMS_ENABLED: bool = True
+    MOIZVONKI_AUTO_SMS_COOLDOWN_HOURS: int = 24
     AIRTABLE_API_KEY: Optional[SecretStr] = None
     AIRTABLE_BASE_ID: Optional[str] = None
     # Airtable OAuth 2.0 (API key o'rniga to'g'ridan-to'g'ri OAuth token)
