@@ -32,6 +32,7 @@ from src.services.core.crm.amocrm.leads import AmoCRMLeadsMixin
 from src.services.core.crm.amocrm.contacts import AmoCRMContactsMixin
 from src.services.core.crm.amocrm.tasks_notes import AmoCRMTasksNotesMixin
 from src.services.core.crm.amocrm.files_reports import AmoCRMFilesReportsMixin
+from src.services.core.crm.amocrm.customers import AmoCRMCustomersMixin
 
 class AmoCRMSync(
     AmoCRMAuthMixin,
@@ -40,6 +41,7 @@ class AmoCRMSync(
     AmoCRMContactsMixin,
     AmoCRMTasksNotesMixin,
     AmoCRMFilesReportsMixin,
+    AmoCRMCustomersMixin,
 ):
     """
     AmoCRM integratsiyasining markaziy klassi.
