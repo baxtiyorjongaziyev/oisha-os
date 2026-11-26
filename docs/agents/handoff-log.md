@@ -3101,3 +3101,9 @@ Owner requested immediate full comparison. Read12 Meta forms/795 submissions,281
 - Airtable read-back unavailable: codex_apps MCP handshake/HTTP transport failure; latest/current ledger and liquidity status unknown. Prior Nov22 snapshot may be stale.
 - Telegram legacy connector key error; archive connector MCP startup failure; no delta/checkpoint advance.
 - Obsidian evidence appended/read back; brain_log written. No external mutation. Owner action: restore app connector availability.
+
+
+## 2026-11-26 — ChatGPT: agent harness workflow
+- Branch: `feat/agent-harness-workflow`. Added `.agents/skills/agent-harness-workflow/SKILL.md` and linked it from `docs/agents/three-agent-workflow.md`.
+- Adapted ECC verification, Superpowers test-first/debugging, and GStack planning/review/QA as a native workflow; no upstream package, hooks, telemetry, runtime changes or external business mutations.
+- GitHub confirmed the two file commits. Required local pre-flight and independent agent review NOT RUN: this connector session cannot execute repository tests. Branch-only; no PR, merge or deployment. Next: read back branch diff, run repository pre-flight in an authorized checkout, and obtain independent review before opening a PR.
