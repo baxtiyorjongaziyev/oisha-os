@@ -30,14 +30,14 @@ def _to_int(raw) -> int | None:
 
 
 def resolve_group_id(fallback=None) -> int | None:
-    """AIRTABLE_GAPS_GROUP_ID > settings.PROJECTS_GROUP_ID > DEFAULT_PROJECTS_GROUP_ID."""
+    """AIRTABLE_GAPS_GROUP_ID > config.PROJECTS_GROUP_ID (CRM toʻqnashuvi himoyali) > DEFAULT_PROJECTS_GROUP_ID."""
     override = _to_int(os.getenv("AIRTABLE_GAPS_GROUP_ID", ""))
     if override:
         return override
     try:
-        from src.settings import settings
+        from src import config
 
-        projects = _to_int(getattr(settings, "PROJECTS_GROUP_ID", None))
+        projects = _to_int(getattr(config, "PROJECTS_GROUP_ID", None))
     except Exception:
         projects = None
     return projects or DEFAULT_PROJECTS_GROUP_ID or fallback
