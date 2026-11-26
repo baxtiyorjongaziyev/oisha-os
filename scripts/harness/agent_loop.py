@@ -167,22 +167,23 @@ def execute_audit(target: Optional[str] = None) -> Tuple[int, str]:
     return res.returncode, res.stdout
 
 
-def format_handoff_entry(agent_name: str, task_summary: str, files_changed: list[str]) -> str:
+def format_handoff_entry(agent_name: str, task_summary: str, files_changed: list[str], target: Optional[str] = None) -> str:
     """Formats standardized handoff log entry compliant with AGENTS.md rule 6."""
     from datetime import datetime
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     files_str = ", ".join(f"`{f}`" for f in files_changed) if files_changed else "None"
+    scope = f"focused pytest target: {target}" if target else "full pytest suite"
     return (
         f"\n### {now_str} — {agent_name} [harness-loop]\n"
         f"- **Vazifa / Ish**: {task_summary}\n"
         f"- **O'zgargan fayllar**: {files_str}\n"
-        f"- **Tekshiruv dalili**: Harness loop 100% GREEN (standards, bandit, pytest)\n"
+        f"- **Tekshiruv dalili**: Local harness PASS (standards, bandit, Ruff, branch text, skill mirror, {scope})\n"
         f"- **Holat / Keyingi qadam**: Tayyor, PR yoki keyingi vazifaga o'tish mumkin.\n"
     )
 
 
-def record_successful_handoff(task_summary: str, agent_name: str, base_head: str = "HEAD") -> None:
+def record_successful_handoff(task_summary: str, agent_name: str, base_head: str = "HEAD", target: Optional[str] = None) -> None:
     """Appends verified handoff evidence; skipped when nothing changed since base_head."""
     try:
         diff_files = current_changed_files(base_head)
@@ -192,7 +193,7 @@ def record_successful_handoff(task_summary: str, agent_name: str, base_head: str
     if not diff_files:
         return
 
-    entry = format_handoff_entry(agent_name, task_summary, diff_files)
+    entry = format_handoff_entry(agent_name, task_summary, diff_files, target)
     if HANDOFF_FILE.exists():
         with open(HANDOFF_FILE, "a", encoding="utf-8") as f:
             f.write(entry)
@@ -225,10 +226,10 @@ def run_autonomous_loop(config: LoopConfig) -> int:
         print(f"\n--- [Iteration {iteration}/{config.max_iterations}] Running Audit ---")
         code, _ = execute_audit(config.test_target)
         if code == 0:
-            print("\n🎉 [HARNESS GREEN] All verification gates passed!")
+            print("\n🎉 [HARNESS GREEN] Local audit gates passed; release gates are separate.")
             if FEEDBACK_FILE.exists():
                 FEEDBACK_FILE.unlink()
-            record_successful_handoff("Autonomous Harness Verification & Healing Loop", config.agent_name, base_head)
+            record_successful_handoff("Autonomous Harness Verification & Healing Loop", config.agent_name, base_head, config.test_target)
             return 0
 
         print(f"❌ [HARNESS RED] Iteration {iteration} failed.")
