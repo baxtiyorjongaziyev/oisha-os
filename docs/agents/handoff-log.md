@@ -3107,3 +3107,8 @@ Owner requested immediate full comparison. Read12 Meta forms/795 submissions,281
 - Branch: `feat/agent-harness-workflow`. Added `.agents/skills/agent-harness-workflow/SKILL.md` and linked it from `docs/agents/three-agent-workflow.md`.
 - Adapted ECC verification, Superpowers test-first/debugging, and GStack planning/review/QA as a native workflow; no upstream package, hooks, telemetry, runtime changes or external business mutations.
 - GitHub confirmed the two file commits. Required local pre-flight and independent agent review NOT RUN: this connector session cannot execute repository tests. Branch-only; no PR, merge or deployment. Next: read back branch diff, run repository pre-flight in an authorized checkout, and obtain independent review before opening a PR.
+
+## 2026-11-26 — ChatGPT: Harness Loop v2 follow-up
+- Historical update: PR #1195 was opened, then merged; its CodeQL and CI reported success, but the prior local preflight and independent review evidence were incomplete. Sourcery and Devin subsequently identified the missing canonical skill and incomplete gates. Check live PR status before acting.
+- Branch: `fix/harness-loop-v2`. Restored `.claude/skills/agent-harness-workflow/SKILL.md` and synchronized its `.agents/skills` mirror; linked mandatory lifecycle; added Ruff, branch/staged text and mirror gates to the runner; clarified local versus release evidence and added regression tests.
+- See `docs/agents/harness-v2-walkthrough.md` for verification and rollback. GitHub file writes confirmed; full preflight, actual pytest execution, independent review and deployment NOT RUN in this connector-only session. Do not mark ready or merge until mandatory gates pass.
