@@ -1,4 +1,4 @@
-"""Ish kunlari 10:00 (Toshkent) da Airtable boʼshliqlarini jamoa guruhiga yuboradi.
+"""Ish kunlari 10:00 (Toshkent) da Airtable boʼshliqlarini loyihalar guruhiga yuboradi.
 
 PMʼlar ismi bilan belgilanadi. ``AIRTABLE_GAPS_ENABLED=0`` bilan oʼchiriladi.
 Kuniga bir marta: restartdan keyin 10:00–10:29 oynasidan tashqarida yuborilmaydi.
@@ -16,6 +16,15 @@ logger = logging.getLogger(__name__)
 SEND_HOUR = 10
 WINDOW_MINUTES = 30
 WORKDAYS = frozenset({0, 1, 2, 3, 4})
+# Loyihalar guruhi (egasi tanlagan). AIRTABLE_GAPS_GROUP_ID bilan almashtiriladi.
+PROJECTS_GROUP_ID = -1003114662117
+
+
+def resolve_group_id(fallback=None) -> int | None:
+    raw = os.getenv("AIRTABLE_GAPS_GROUP_ID", "").strip()
+    if raw.lstrip("-").isdigit():
+        return int(raw)
+    return PROJECTS_GROUP_ID or fallback
 
 
 def should_send(now, sent_on) -> bool:
@@ -44,6 +53,7 @@ async def send_missing_fields_report(bot_client, team_group_id, today) -> bool:
 
 
 async def airtable_missing_fields_loop(bot_client, team_group_id) -> None:
+    team_group_id = resolve_group_id(team_group_id)
     if os.getenv("AIRTABLE_GAPS_ENABLED", "1") != "1" or not bot_client or not team_group_id:
         logger.info("[AT-GAPS] Oʻchirilgan yoki guruh sozlanmagan")
         return
