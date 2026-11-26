@@ -1,0 +1,77 @@
+name: gemini-review
+
+# Gemini PR review via Gemini API, budgeted for the $10/month Google Developer credit.
+# - Auto review once per PR (opened / reopened / ready_for_review), not on every push.
+# - Re-review on demand: comment "/gemini review" on the PR (repo members only).
+# - Hard cap: MONTHLY_REVIEW_CAP reviews per calendar month (~$0.005-0.012 each).
+# Uses a dedicated key (GEMINI_REVIEW_API_KEY) in its own Google project. Skips if unset.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: gemini-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+env:
+  MONTHLY_REVIEW_CAP: "300"
+  MAX_DIFF: "40000"
+
+jobs:
+  review:
+    if: >-
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/gemini review') &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - id: key
+        env:
+          KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.key.outputs.present == 'true'
+        id: cap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          since=$(date -u +%Y-%m-01)
+          used=$(gh api "repos/$REPO/actions/workflows/gemini-review.yml/runs?created=>=$since&status=success&per_page=1" --jq '.total_count')
+          echo "Reviews this month: $used / $MONTHLY_REVIEW_CAP"
+          if [ "$used" -ge "$MONTHLY_REVIEW_CAP" ]; then
+            echo "::warning::Monthly Gemini review cap reached ($used); skipping."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.key.outputs.present == 'true' && steps.cap.outputs.ok == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Always run the trusted script from the default branch, never PR-controlled code with secrets.
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - if: steps.key.outputs.present == 'true' && steps.cap.outputs.ok == 'true'
+        run: |
+          if [ ! -f .github/scripts/gemini_review.py ]; then
+            echo "::notice::Review script not on default branch yet (first rollout); skipping."
+            exit 0
+          fi
+          python .github/scripts/gemini_review.py
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_REVIEW_API_KEY }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+          REPO: ${{ github.repository }}
