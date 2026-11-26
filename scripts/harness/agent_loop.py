@@ -178,7 +178,7 @@ def format_handoff_entry(agent_name: str, task_summary: str, files_changed: list
         f"\n### {now_str} — {agent_name} [harness-loop]\n"
         f"- **Vazifa / Ish**: {task_summary}\n"
         f"- **O'zgargan fayllar**: {files_str}\n"
-        f"- **Tekshiruv dalili**: Local harness PASS (standards, bandit, Ruff, branch text, skill mirror, {scope})\n"
+        f"- **Tekshiruv dalili**: Local harness PASS (standards, bandit, Ruff, branch and staged text, skill mirror, {scope})\n"
         f"- **Holat / Keyingi qadam**: Independent review, full-suite gate (if focused), CI and deployment evidence are separate.\n"
     )
 
