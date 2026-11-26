@@ -18,6 +18,10 @@ WINDOW_MINUTES = 30
 WORKDAYS = frozenset({0, 1, 2, 3, 4})
 
 
+# Loyihalar guruhi: sozlama boʻsh qolsa ham shu yerga boradi.
+DEFAULT_PROJECTS_GROUP_ID = -1003114662117
+
+
 def _to_int(raw) -> int | None:
     try:
         return int(str(raw).strip())
@@ -26,7 +30,7 @@ def _to_int(raw) -> int | None:
 
 
 def resolve_group_id(fallback=None) -> int | None:
-    """AIRTABLE_GAPS_GROUP_ID > settings.PROJECTS_GROUP_ID (loyihalar guruhi) > fallback."""
+    """AIRTABLE_GAPS_GROUP_ID > settings.PROJECTS_GROUP_ID > DEFAULT_PROJECTS_GROUP_ID."""
     override = _to_int(os.getenv("AIRTABLE_GAPS_GROUP_ID", ""))
     if override:
         return override
@@ -36,7 +40,7 @@ def resolve_group_id(fallback=None) -> int | None:
         projects = _to_int(getattr(settings, "PROJECTS_GROUP_ID", None))
     except Exception:
         projects = None
-    return projects or fallback
+    return projects or DEFAULT_PROJECTS_GROUP_ID or fallback
 
 
 def resolve_topic_id() -> int | None:

@@ -87,3 +87,12 @@ def test_resolve_group_id_override_and_malformed(monkeypatch):
     assert resolve_group_id(-1) == -100555
     monkeypatch.setenv("AIRTABLE_GAPS_GROUP_ID", "--5")
     assert resolve_group_id(-1) != -5
+
+
+def test_resolve_group_id_default_when_settings_none(monkeypatch):
+    from src.schedulers.airtable_missing_fields_scheduler import resolve_group_id
+    from src.settings import settings
+
+    monkeypatch.delenv("AIRTABLE_GAPS_GROUP_ID", raising=False)
+    monkeypatch.setattr(settings, "PROJECTS_GROUP_ID", None, raising=False)
+    assert resolve_group_id(-999) == -1003114662117
