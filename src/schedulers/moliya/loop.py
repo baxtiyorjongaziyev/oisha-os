@@ -15,6 +15,7 @@ from typing import Optional
 
 from src.schedulers.moliya.balans import run_balans_eslatmasi, run_balans_report
 from src.schedulers.moliya.cashflow import run_cashflow_report
+from src.schedulers.moliya.haftalik import haftalik_target, run_haftalik_report
 from src.schedulers.moliya.helpers import run_once_per_day
 from src.schedulers.moliya.kuzatuv import run_kuzatuv_report
 from src.schedulers.moliya.pnl import run_pnl_report
@@ -93,6 +94,13 @@ async def moliya_hisobotlari_loop() -> None:
             if target is not None:
                 await run_once_per_day(
                     "moliya_kuzatuv", day, lambda t=target: run_kuzatuv_report(t)
+                )
+
+            # Haftalik moliya nazorati — egasiga, dushanba 09:00 (oʻtgan hafta)
+            week_start = haftalik_target(now)
+            if week_start is not None:
+                await run_once_per_day(
+                    "moliya_haftalik", day, lambda w=week_start: run_haftalik_report(w)
                 )
 
             # Airtable nazorati: boʻsh/xato yozuvlar — guruhga jamlangan eslatma, 10:00
