@@ -24,33 +24,33 @@ def load_script(name):
 
 
 class HarnessTests(unittest.TestCase):
-    def run_harness(self, args, test_code=0):
+    def run_harness(self, args, test_code=0, gate_failure=None):
         runner = load_script("run_harness")
         with tempfile.TemporaryDirectory() as directory:
             feedback = Path(directory) / "feedback.md"
             with patch.object(runner, "FEEDBACK_FILE", feedback), patch.object(
-                runner, "run_cmd", side_effect=[(0, ""), (0, ""), (test_code, "test output")]
+                runner, "run_cmd", side_effect=[(int(gate_failure == i), "gate output") for i in range(5)] + [(test_code, "test output")]
             ) as command, patch("sys.argv", ["run_harness.py", *args]), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit) as result:
                     runner.main()
-                return command.call_args_list[-1], result.exception.code, feedback.exists()
+                return command.call_args_list, result.exception.code, feedback.exists()
 
     def test_default_runs_full_pytest_discovery(self):
         call, code, _ = self.run_harness([])
-        self.assertEqual(call.args[0][1:], ["-m", "pytest", "-q", "--tb=short"])
-        self.assertEqual(call.kwargs["env"], {"SKIP_LIVE": "1", "ALLOW_LOCAL_RUN": "0"})
+        self.assertEqual(call[-1].args[0][1:], ["-m", "pytest", "-q", "--tb=short"])
+        self.assertEqual(call[-1].kwargs["env"], {"SKIP_LIVE": "1", "ALLOW_LOCAL_RUN": "0"})
         self.assertEqual(code, 0)
 
     def test_explicit_target_is_preserved(self):
         call, _, _ = self.run_harness(["tests/test_ai.py"])
-        self.assertEqual(call.args[0][3], "tests/test_ai.py")
+        self.assertEqual(call[-1].args[0][3], "tests/test_ai.py")
 
     def test_file_size_gate_is_not_disabled(self):
         runner = load_script("run_harness")
         with tempfile.TemporaryDirectory() as directory:
             feedback = Path(directory) / "feedback.md"
             with patch.object(runner, "FEEDBACK_FILE", feedback), patch.object(
-                runner, "run_cmd", side_effect=[(1, "FILE_TOO_LONG"), (0, ""), (0, "")]
+                runner, "run_cmd", side_effect=[(1, "FILE_TOO_LONG")] + [(0, "")] * 5
             ) as command, patch("sys.argv", ["run_harness.py"]), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit) as result:
                     runner.main()
@@ -61,6 +61,20 @@ class HarnessTests(unittest.TestCase):
         _, code, feedback_exists = self.run_harness([], test_code=1)
         self.assertEqual(code, 1)
         self.assertTrue(feedback_exists)
+
+    def test_additional_mandatory_gates_run(self):
+        calls, code, _ = self.run_harness([])
+        self.assertEqual(code, 0)
+        self.assertEqual(calls[2].args[0][1:4], ["-m", "ruff", "check"])
+        self.assertEqual(calls[3].args[0][1:], ["scripts/check_uzbek_text.py", "--base", "origin/main"])
+        self.assertEqual(calls[4].args[0][1:], ["scripts/sync_agent_skills.py", "--check"])
+
+    def test_each_additional_gate_blocks_success(self):
+        for gate in (2, 3, 4):
+            with self.subTest(gate=gate):
+                _, code, feedback_exists = self.run_harness([], gate_failure=gate)
+                self.assertEqual(code, 1)
+                self.assertTrue(feedback_exists)
 
     def test_wrapper_defaults_to_full_suite(self):
         wrapper = (ROOT / "scripts/harness/harness.ps1").read_text(encoding="utf-8")
