@@ -14,7 +14,7 @@ for stream in (sys.stdout, sys.stderr):
         reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-PYTHON_EXE = ROOT / ".venv" / "Scripts" / "python.exe"
+PYTHON_EXE = Path(sys.executable)
 FEEDBACK_FILE = ROOT / "HARNESS_FEEDBACK.md"
 
 
@@ -44,7 +44,7 @@ def main():
     has_failure = False
 
     # Stage 1: Standards Check (Max 400 lines)
-    print("\n[1/3] 📏 Checking Modular Code Standards (400-line limit)...")
+    print("\n[1/6] 📏 Checking Modular Code Standards (400-line limit)...")
     code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown", "--warn-legacy-functions"])
     if code == 0:
         print("  ✅ Standards Check: PASSED")
@@ -55,7 +55,7 @@ def main():
         has_failure = True
 
     # Stage 2: Security Audit (Bandit)
-    print("\n[2/3] 🛡️ Running Security Scan (bandit -r src/ -ll)...")
+    print("\n[2/6] 🛡️ Running Security Scan (bandit -r src/ -ll)...")
     code, out = run_cmd([str(PYTHON_EXE), "-m", "bandit", "-r", "src/", "-ll"])
     if code == 0:
         print("  ✅ Security Audit: PASSED (0 high/medium issues)")
@@ -65,8 +65,23 @@ def main():
         stages.append(("Security Audit", False, out))
         has_failure = True
 
-    # Stage 3: Test Suite (Pytest)
-    print("\n[3/3] 🧪 Running Pytest Suite (full suite by default)...")
+    # Additional mandatory gates; all must pass, even for focused test targets.
+    extra_gates = [
+        ("Ruff", ["-m", "ruff", "check", "--select", "F821,F822,ASYNC210,ASYNC221",
+                  "--per-file-ignores", "src/config.py:F822", "src/"]),
+        ("Uzbek branch text", ["scripts/check_uzbek_text.py", "--base", "origin/main"]),
+        ("Skill mirror", ["scripts/sync_agent_skills.py", "--check"]),
+    ]
+    for index, (name, args) in enumerate(extra_gates, start=3):
+        print(f"\n[{index}/6] {name}...")
+        code, out = run_cmd([str(PYTHON_EXE), *args])
+        passed = code == 0
+        stages.append((name, passed, out))
+        has_failure = has_failure or not passed
+        print(f"  {name}: {'PASSED' if passed else 'FAILED'}")
+
+    # Stage 6: Test Suite (Pytest)
+    print("\n[6/6] 🧪 Running Pytest Suite (full suite by default)...")
     test_args = []
     test_label = "full suite"
     for arg in sys.argv[1:]:
@@ -108,7 +123,7 @@ def main():
     else:
         print("\n" + "=" * 60)
         print("🎉 ALL HARNESS CHECKS PASSED: 100% GREEN!")
-        print("Ready for safe git commit & PR.")
+        print("Local audit passed. Full suite, independent review and CI remain required for release." if test_args else "Local full-suite audit passed; independent review and CI remain required for release.")
         print("=" * 60)
         if FEEDBACK_FILE.exists():
             FEEDBACK_FILE.unlink()
