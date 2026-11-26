@@ -228,6 +228,15 @@ async def load_observation(day: str) -> dict:
 
 
 async def run_kuzatuv_report(now: datetime) -> bool:
+    text = await build_kuzatuv_report(now)
+    ok = await send_owner_finance(text)
+    if ok:
+        logger.info("[HISOBCHI] Kuzatuv hisoboti yuborildi")
+    return ok
+
+
+async def send_owner_finance(text: str) -> bool:
+    """Egasiga shaxsiy xabar (finance topigi boʻlsa oʻsha yerga)."""
     from src.settings import settings
 
     owner_id = getattr(settings, "OWNER_ID", None)
@@ -235,9 +244,8 @@ async def run_kuzatuv_report(now: datetime) -> bool:
     if hasattr(bot_token, "get_secret_value"):
         bot_token = bot_token.get_secret_value()
     if not owner_id or not bot_token:
-        logger.warning("[HISOBCHI] OWNER_ID yoki BOT_TOKEN yo'q — kuzatuv yuborilmadi")
+        logger.warning("[HISOBCHI] OWNER_ID yoki BOT_TOKEN yoʻq — yuborilmadi")
         return False
-    text = await build_kuzatuv_report(now)
     try:
         from telegram import Bot
         from src.services.core.telegram.telegram_ai_features import get_owner_topic_id
@@ -247,8 +255,7 @@ async def run_kuzatuv_report(now: datetime) -> bool:
         await Bot(token=bot_token).send_message(
             chat_id=owner_id, text=text[:4000], parse_mode="HTML", **kwargs
         )
-        logger.info("[HISOBCHI] Kuzatuv hisoboti yuborildi")
         return True
     except Exception:
-        logger.error("[HISOBCHI] Kuzatuv hisobotini yuborishda xato", exc_info=True)
+        logger.error("[HISOBCHI] Egasiga yuborishda xato", exc_info=True)
         return False
