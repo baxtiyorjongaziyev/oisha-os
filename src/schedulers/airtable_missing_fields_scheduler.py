@@ -1,4 +1,4 @@
-"""Ish kunlari 10:00 (Toshkent) da Airtable boʼshliqlarini loyihalar guruhiga yuboradi.
+"""Ish kunlari 10:00 (Toshkent) da Airtable boʻshliqlarini loyihalar guruhiga yuboradi.
 
 PMʼlar ismi bilan belgilanadi. ``AIRTABLE_GAPS_ENABLED=0`` bilan oʼchiriladi.
 Kuniga bir marta: restartdan keyin 10:00–10:29 oynasidan tashqarida yuborilmaydi.
@@ -16,15 +16,39 @@ logger = logging.getLogger(__name__)
 SEND_HOUR = 10
 WINDOW_MINUTES = 30
 WORKDAYS = frozenset({0, 1, 2, 3, 4})
-# Loyihalar guruhi (egasi tanlagan). AIRTABLE_GAPS_GROUP_ID bilan almashtiriladi.
-PROJECTS_GROUP_ID = -1003114662117
+
+
+def _to_int(raw) -> int | None:
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def resolve_group_id(fallback=None) -> int | None:
-    raw = os.getenv("AIRTABLE_GAPS_GROUP_ID", "").strip()
-    if raw.lstrip("-").isdigit():
-        return int(raw)
-    return PROJECTS_GROUP_ID or fallback
+    """AIRTABLE_GAPS_GROUP_ID > settings.PROJECTS_GROUP_ID (loyihalar guruhi) > fallback."""
+    override = _to_int(os.getenv("AIRTABLE_GAPS_GROUP_ID", ""))
+    if override:
+        return override
+    try:
+        from src.settings import settings
+
+        projects = _to_int(getattr(settings, "PROJECTS_GROUP_ID", None))
+    except Exception:
+        projects = None
+    return projects or fallback
+
+
+def resolve_topic_id() -> int | None:
+    """Topic faqat guruh AIRTABLE_GAPS_GROUP_ID bilan aniq berilganda qoʻllanadi.
+
+    Aks holda eski guruh topigi yangi guruhga tushib xabarni buzmasligi uchun
+    General (thread yoʻq) ishlatiladi.
+    """
+    if not _to_int(os.getenv("AIRTABLE_GAPS_GROUP_ID", "")):
+        return None
+    topic = _to_int(os.getenv("AIRTABLE_GAPS_TOPIC_ID", ""))
+    return topic if topic and topic > 1 else None
 
 
 def should_send(now, sent_on) -> bool:
@@ -44,9 +68,9 @@ async def send_missing_fields_report(bot_client, team_group_id, today) -> bool:
         logger.info("[AT-GAPS] Boʻshliq yoʻq yoki maʼlumot olinmadi — yuborilmadi")
         return False
     kwargs = {"parse_mode": "html", "disable_web_page_preview": True}
-    topic = os.getenv("AIRTABLE_GAPS_TOPIC_ID", "").strip()
-    if topic.isdigit():
-        kwargs["message_thread_id"] = int(topic)
+    topic = resolve_topic_id()
+    if topic:
+        kwargs["message_thread_id"] = topic
     await bot_client.send_message(team_group_id, text, **kwargs)
     logger.info("[AT-GAPS] Hisobot yuborildi")
     return True
