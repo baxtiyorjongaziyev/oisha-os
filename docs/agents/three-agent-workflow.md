@@ -42,4 +42,4 @@ Rasmiy extensionlar: openai.chatgpt, anthropic.claude-code, google.google-antigr
 
 ## Agent harness overlay
 
-For software planning, implementation, debugging, review and release QA, all three roles should read `.agents/skills/agent-harness-workflow/SKILL.md` before work. It adds selective ECC, Superpowers and GStack engineering practices while preserving the existing role boundaries, locks, approval policy and pre-flight gates. This is a native workflow, not an installed third-party plugin.
+For software planning, implementation, debugging, review and release QA, all three roles must first read `.agents/skills/harness-loop/SKILL.md` (mandatory lifecycle), then `.agents/skills/agent-harness-workflow/SKILL.md` (engineering overlay). Claude Code uses the identical canonical files under `.claude/skills/`. Fetch `origin/main` before the local gate, check both staged and committed changes, and rerun after committing the final patch. It adds selective ECC, Superpowers and GStack engineering practices while preserving the existing role boundaries, locks, approval policy and pre-flight gates. This is a native workflow, not an installed third-party plugin.
