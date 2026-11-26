@@ -29,7 +29,7 @@ class HarnessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             feedback = Path(directory) / "feedback.md"
             with patch.object(runner, "FEEDBACK_FILE", feedback), patch.object(
-                runner, "run_cmd", side_effect=[(int(gate_failure == i), "gate output") for i in range(5)] + [(test_code, "test output")]
+                runner, "run_cmd", side_effect=[(int(gate_failure == i), "gate output") for i in range(6)] + [(test_code, "test output")]
             ) as command, patch("sys.argv", ["run_harness.py", *args]), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit) as result:
                     runner.main()
@@ -50,7 +50,7 @@ class HarnessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             feedback = Path(directory) / "feedback.md"
             with patch.object(runner, "FEEDBACK_FILE", feedback), patch.object(
-                runner, "run_cmd", side_effect=[(1, "FILE_TOO_LONG")] + [(0, "")] * 5
+                runner, "run_cmd", side_effect=[(1, "FILE_TOO_LONG")] + [(0, "")] * 6
             ) as command, patch("sys.argv", ["run_harness.py"]), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit) as result:
                     runner.main()
@@ -67,10 +67,11 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(calls[2].args[0][1:4], ["-m", "ruff", "check"])
         self.assertEqual(calls[3].args[0][1:], ["scripts/check_uzbek_text.py", "--base", "origin/main"])
-        self.assertEqual(calls[4].args[0][1:], ["scripts/sync_agent_skills.py", "--check"])
+        self.assertEqual(calls[4].args[0][1:], ["scripts/check_uzbek_text.py", "--staged"])
+        self.assertEqual(calls[5].args[0][1:], ["scripts/sync_agent_skills.py", "--check"])
 
     def test_each_additional_gate_blocks_success(self):
-        for gate in (2, 3, 4):
+        for gate in (2, 3, 4, 5):
             with self.subTest(gate=gate):
                 _, code, feedback_exists = self.run_harness([], gate_failure=gate)
                 self.assertEqual(code, 1)
