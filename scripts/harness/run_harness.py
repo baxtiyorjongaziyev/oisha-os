@@ -44,7 +44,7 @@ def main():
     has_failure = False
 
     # Stage 1: Standards Check (Max 400 lines)
-    print("\n[1/6] 📏 Checking Modular Code Standards (400-line limit)...")
+    print("\n[1/7] 📏 Checking Modular Code Standards (400-line limit)...")
     code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown", "--warn-legacy-functions"])
     if code == 0:
         print("  ✅ Standards Check: PASSED")
@@ -55,7 +55,7 @@ def main():
         has_failure = True
 
     # Stage 2: Security Audit (Bandit)
-    print("\n[2/6] 🛡️ Running Security Scan (bandit -r src/ -ll)...")
+    print("\n[2/7] 🛡️ Running Security Scan (bandit -r src/ -ll)...")
     code, out = run_cmd([str(PYTHON_EXE), "-m", "bandit", "-r", "src/", "-ll"])
     if code == 0:
         print("  ✅ Security Audit: PASSED (0 high/medium issues)")
@@ -70,18 +70,19 @@ def main():
         ("Ruff", ["-m", "ruff", "check", "--select", "F821,F822,ASYNC210,ASYNC221",
                   "--per-file-ignores", "src/config.py:F822", "src/"]),
         ("Uzbek branch text", ["scripts/check_uzbek_text.py", "--base", "origin/main"]),
+        ("Uzbek staged text", ["scripts/check_uzbek_text.py", "--staged"]),
         ("Skill mirror", ["scripts/sync_agent_skills.py", "--check"]),
     ]
     for index, (name, args) in enumerate(extra_gates, start=3):
-        print(f"\n[{index}/6] {name}...")
+        print(f"\n[{index}/7] {name}...")
         code, out = run_cmd([str(PYTHON_EXE), *args])
         passed = code == 0
         stages.append((name, passed, out))
         has_failure = has_failure or not passed
         print(f"  {name}: {'PASSED' if passed else 'FAILED'}")
 
-    # Stage 6: Test Suite (Pytest)
-    print("\n[6/6] 🧪 Running Pytest Suite (full suite by default)...")
+    # Stage 7: Test Suite (Pytest)
+    print("\n[7/7] 🧪 Running Pytest Suite (full suite by default)...")
     test_args = []
     test_label = "full suite"
     for arg in sys.argv[1:]:
