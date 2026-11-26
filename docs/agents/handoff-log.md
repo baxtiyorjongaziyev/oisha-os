@@ -3288,3 +3288,8 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Bajarilgan ish:** (1) `sticker_preview.py`: `.tgs` va `.webm` stikerlardan faqat Telethon qoʻllaydigan rastr thumbnailni (`PhotoSize`/`PhotoCachedSize`/`PhotoStrippedSize`; `PhotoPathSize`, `PhotoSizeProgressive` va `VideoSize` ni chetlab) yuklaydi va magic baytlar orqali haqiqiy MIME/kengaytmani aniqlab `type="picture"` sifatida Drive + imzoli proksi orqali amoCRM ga uzatadi; (2) `.webm` da thumb yoʻq boʻlsa Hetznerʻdagi `/usr/bin/ffmpeg` (`libvpx-vp9` alpha-saqlovchi dekoder + default fallback) orqali 1-kadr PNG olinadi; (3) rasm olinmasa `[stiker <emoji>]` matn fallbacki saqlanadi.
 - **Tekshiruv dalillari:** Fokuslangan testlar (`test_tg_amo_media`, `test_tg_amo_sticker_preview`, `test_tg_amo_bridge`, `test_tg_amo_automerge`): **73 passed**; PR #1163 Linux `pull-request-tests`, `CodeQL`, `Codacy`, `bandit -r src/ -ll`, `ruff`, `check_uzbek_text.py`, fayl/funksiya hajmi (`<=400L / <=60L`): **toza**.
 - **Qolgan ish:** PR CI yashil boʻlgach squash-merge, Hetzner deploy (`/readyz`) va jonli animatsiyali stiker tekshiruvi.
+
+## 2026-11-26 — Claude: Airtable boʻshliqlar hisoboti loyihalar guruhiga (#1188, #1189)
+- Oʻzgarish: scheduler `AIRTABLE_GAPS_GROUP_ID` > `PROJECTS_GROUP_ID` > -1003114662117; topic faqat override guruh bilan.
+- Tekshiruv: `SKIP_LIVE=1 pytest tests/test_airtable_missing_fields.py` oʻtdi.
+- Qolgan: deploydan keyin ish kuni 10:00 da guruhga tushganini koʻrish.
