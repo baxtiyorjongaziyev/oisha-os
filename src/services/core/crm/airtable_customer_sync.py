@@ -74,7 +74,7 @@ def _build_customer_note(
             p_service = _as_text(pf.get("Xizmat turi")) or "—"
             p_stage = _as_text(pf.get("Loyiha bosqichi")) or "—"
             p_price = _as_number(pf.get("Jami loyiha narxi (UZS)"))
-            p_paid = _as_number(pf.get("Jami toʻlangan (UZS)"))
+            p_paid = _as_number(pf.get("Jami to\x27langan (UZS)"))
             p_debt = _as_number(pf.get("Qoldiq to‘lov (UZS)"))
             p_start = _as_text(pf.get("Start sana")) or "—"
             p_end = _as_text(pf.get("END sana")) or "—"
@@ -128,7 +128,7 @@ class AirtableAmoCRMCustomerSync:
         added = 0
         for proj in linked_projects:
             pf = proj.get("fields", {})
-            paid = int(_as_number(pf.get("Jami toʻlangan (UZS)")))
+            paid = int(_as_number(pf.get("Jami to\x27langan (UZS)")))
             if paid <= 0:
                 continue
             p_name = _as_text(pf.get("Loyiha nomi")) or proj.get("id", "Loyiha")
