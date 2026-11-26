@@ -320,6 +320,14 @@ class AppSettings(BaseSettings):
         "Fotimamni Dadalari",
         "Zuhraxon Hamroliyeva",
     ]
+    EXCLUDED_PHONES: list[str] = [
+        "+998701641197",
+        "+998977373717",
+        "+998905632360",
+        "+998977781004",
+        "+998502007276",
+        "+998905372258",
+    ]
     EXCLUDED_ROLES: list[str] = [
         "Designer",
         "Dizayner",

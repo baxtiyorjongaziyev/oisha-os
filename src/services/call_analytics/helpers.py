@@ -333,20 +333,7 @@ def _normalise_mood(value: Any) -> str:
 
 
 
-def normalize_name_spellings(text: str) -> str:
-    """Owner standarti (2026-10-09): 'Rayhonajon' demasin, 'Rayxon' desin."""
-    if not text:
-        return text
-    subs = [
-        (r"(?<!@)\bRayhonajon('?)(ning|ga|da|dan|ni|si|miz)?\b(?!@)", r"Rayxon\1\2"),
-        (r"(?<!@)\bRayhonaxon('?)(ning|ga|da|dan|ni|si|miz)?\b(?!@)", r"Rayxon\1\2"),
-        (r"(?<!@)\bRayhon('?)(ning|ga|da|dan|ni|si|miz)?\b(?!@)", r"Rayxon\1\2"),
-        (r"(?<!@)\bRayhona('?)(ning|ga|da|dan|ni|si|miz)?\b(?!@)", r"Rayxon\1\2"),
-        (r"(?<!@)\bRayxona('?)(ning|ga|da|dan|ni|si|miz)?\b(?!@)", r"Rayxon\1\2"),
-    ]
-    for pattern, repl in subs:
-        text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
-    return text
+from src.services.call_analytics.stt_vocabulary import normalize_name_spellings
 
 
 __all__ = [

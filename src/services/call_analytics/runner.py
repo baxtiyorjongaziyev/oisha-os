@@ -92,7 +92,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         return call_notes, (notes or [])
 
     async def _handle_audio_pipeline(
-        self, audio_url: str, duration: int, phone: str, lead_id: int, call_id: str
+        self, audio_url: str, duration: int, phone: str, lead_id: int, call_id: str, manager_name: str = ""
     ) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
         fetch_result = await self._fetch_audio_bytes(audio_url)
         if not fetch_result:
@@ -105,7 +105,7 @@ class CallRunnerMixin(NoteExtractorMixin):
 
         self._queue_salescoach_voice(audio_bytes, phone, mime_type)
 
-        transcript = await self._transcribe_inline(audio_bytes, mime_type)
+        transcript = await self._transcribe_inline(audio_bytes, mime_type, caller_phone=phone, manager_name=manager_name)
         if not transcript or _transcript_impossible_for_duration(transcript, duration):
             return None, None
 
@@ -299,7 +299,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         if min_call_duration_seconds and duration and duration < min_call_duration_seconds:
             return False
 
-        transcript, analysis = await self._handle_audio_pipeline(audio_url, duration, phone, lead_id, call_id)
+        transcript, analysis = await self._handle_audio_pipeline(audio_url, duration, phone, lead_id, call_id, manager_name=manager_name)
         if not transcript or not analysis:
             return False
 
@@ -335,18 +335,9 @@ class CallRunnerMixin(NoteExtractorMixin):
 
     def _is_excluded_phone(self, phone: str) -> bool:
         """Check whether the given phone number is excluded from call analysis."""
-        if not phone:
-            return False
-        raw = getattr(self._settings, "AMOCRM_CALL_ANALYSIS_EXCLUDED_PHONES", "") or ""
-        excluded = {
-            "".join(ch for ch in p if ch.isdigit())
-            for p in raw.split(",")
-            if p.strip()
-        }
-        if not excluded:
-            return False
-        normalized_phone = "".join(ch for ch in phone if ch.isdigit())
-        return normalized_phone in excluded
+        from src.services.core.crm.phone_blacklist import is_excluded_phone
+
+        return is_excluded_phone(phone, self._settings)
 
     async def process_call_recordings_for_lead(
         self,

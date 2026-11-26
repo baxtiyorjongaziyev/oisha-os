@@ -68,50 +68,42 @@ async def global_phone_lookup(phone: str, client: Optional[TelegramClient] = Non
         if len(clean_phone) == 9:
             clean_phone = "998" + clean_phone
 
+    from src.services.core.telegram.temp_contacts import (
+        delete_temp_contact,
+        import_temp_contact,
+    )
+
+    user = None
+    newly_imported = False
     try:
-        # 1. Vaqtinchalik kontakt yaratish
-        contact = types.InputPhoneContact(
-            client_id=random.randrange(-(2**63), 2**63),
-            phone=clean_phone,
-            first_name="Oisha Search",
-            last_name="",
-        )
+        user, newly_imported = await import_temp_contact(client, clean_phone)
+        if not user:
+            return None
 
-        # 2. Import so'rovi
-        result = await client(
-            functions.contacts.ImportContactsRequest(contacts=[contact])
-        )
+        user_data = {
+            "user_id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        }
 
-        if result.users:
-            user = result.users[0]
-            user_data = {
-                "user_id": user.id,
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-            }
+        # Bazaga saqlab qoʻyamiz (Keyingi safar tekin boʻlishi uchun)
+        if app_ctx.msg_controller:
+            await app_ctx.msg_controller.db.upsert_user(
+                user_id=user.id,
+                first_name=user.first_name,
+                username=user.username,
+                phone=clean_phone,
+                last_name=user.last_name,
+            )
 
-            # 3. Bazaga saqlab qo'yamiz (Keyingi safar tekin bo'lishi uchun)
-            if app_ctx.msg_controller:
-                await app_ctx.msg_controller.db.upsert_user(
-                    user_id=user.id,
-                    first_name=user.first_name,
-                    username=user.username,
-                    phone=clean_phone,
-                    last_name=user.last_name,
-                )
-
-            # 4. Kontaktni darhol o'chirib tashlaymiz
-            try:
-                await client(functions.contacts.DeleteContactsRequest(id=[user.id]))
-            except Exception as exc:
-                logger.debug("[GLOBAL SEARCH] Contact delete failed: %s", exc)
-            return user_data
-
-        return None
+        return user_data
     except Exception as e:
         logger.error(f"[GLOBAL SEARCH ERROR] {e}")
         return None
+    finally:
+        if newly_imported and user is not None:
+            await delete_temp_contact(client, getattr(user, "id", None))
 
 
 async def notify_admin(

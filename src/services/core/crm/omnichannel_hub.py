@@ -157,17 +157,24 @@ class OmnichannelHub:
                 # Agar telefon raqam bo'lsa va + bo'lsa
                 clean_phone = clean_target.replace(" ", "").replace("-", "")
                 if clean_phone.startswith("+") or (clean_phone.isdigit() and len(clean_phone) >= 9):
+                    from src.services.core.telegram.temp_contacts import (
+                        delete_temp_contact,
+                        import_temp_contact,
+                    )
+
+                    temp_user = None
+                    newly_imported = False
                     try:
-                        from telethon.tl.functions.contacts import ImportContactsRequest
-                        from telethon.tl.types import InputPhoneContact
-                        c_req = InputPhoneContact(client_id=0, phone=clean_phone, first_name="Mijoz", last_name="")
-                        res = await client(ImportContactsRequest([c_req]))
-                        if res.users:
-                            await client.send_message(res.users[0], text)
+                        temp_user, newly_imported = await import_temp_contact(client, clean_phone)
+                        if temp_user:
+                            await client.send_message(temp_user, text)
                             logger.info("[OMNICHANNEL] Telegram sent via Userbot to contact: %s", clean_phone)
                             return True
                     except Exception as c_err:
                         logger.debug("[OMNICHANNEL] Userbot contact import fallback: %s", c_err)
+                    finally:
+                        if newly_imported and temp_user is not None:
+                            await delete_temp_contact(client, getattr(temp_user, "id", None))
 
                 target = int(clean_target) if clean_target.lstrip("-").isdigit() else clean_target
                 await client.send_message(target, text)

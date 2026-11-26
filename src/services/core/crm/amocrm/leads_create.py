@@ -102,6 +102,12 @@ class AmoCRMLeadsCreateMixin:
         custom_fields: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[int]:
         """Telefon raqam orqali kontaktni qidiradi (yoki yaratadi) va unga bitim ochadi."""
+        from src.services.core.crm.phone_blacklist import is_excluded_phone
+
+        if is_excluded_phone(phone):
+            logger.info("[AMOCRM] Skipping lead creation for blacklisted phone: %s", phone)
+            return None
+
         formatted_phone = normalize_amocrm_phone(phone)
         contact = await asyncio.to_thread(self.get_contact_by_phone, formatted_phone)
 

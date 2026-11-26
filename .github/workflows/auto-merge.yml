@@ -1,0 +1,27 @@
+name: auto-merge
+
+# Enable GitHub native auto-merge on every PR to main. GitHub merges only
+# after all required status checks on main pass (branch protection).
+# Opt out per PR with the "no-automerge" label.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'no-automerge')
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr merge "$PR" --auto --squash --repo "$REPO"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
