@@ -2,10 +2,17 @@ name: auto-merge
 
 # Enable GitHub native auto-merge on every PR to main. GitHub merges only
 # after all required status checks on main pass (branch protection).
-# Opt out per PR with the "no-automerge" label.
+# Opt out per PR with the "no-automerge" label (adding it later disables a
+# pending auto-merge).
+#
+# pull_request_target: the workflow file always comes from main, so a PR can
+# not alter it to read secrets. It never checks out PR code.
+# REPO_ADMIN_PAT: a merge performed with GITHUB_TOKEN does not trigger push
+# workflows (production deploy). Enabling auto-merge with a PAT makes the merge
+# run as that user, so oracle-deploy.yml fires on the merge commit.
 on:
-  pull_request:
-    types: [opened, reopened, ready_for_review, unlabeled]
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, labeled, unlabeled]
     branches: [main]
 
 permissions:
@@ -22,6 +29,16 @@ jobs:
     steps:
       - run: gh pr merge "$PR" --auto --squash --repo "$REPO"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_PAT || secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+
+  disable:
+    if: github.event.action == 'labeled' && github.event.label.name == 'no-automerge'
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr merge "$PR" --disable-auto --repo "$REPO" || true
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_PAT || secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}

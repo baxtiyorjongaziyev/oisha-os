@@ -80,7 +80,11 @@ jobs:
 
   pull-request-tests:
     needs: changes
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.changes.outputs.python == 'true'
+    # Run when Python files changed, and also when change detection itself
+    # failed/timed out (fail closed: never let a broken filter skip tests).
+    if: >-
+      always() && github.event_name == 'pull_request' && github.event.pull_request.draft == false &&
+      (needs.changes.result != 'success' || needs.changes.outputs.python == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:

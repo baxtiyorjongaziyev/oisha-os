@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import Any, Dict, Optional, Tuple
 
@@ -274,8 +275,13 @@ async def execute_pair_decision(
     if decision.action not in {"merge", "link_only", "conflict"}:
         return "skipped"
 
-    lock = _LEAD_LOCKS.setdefault(int(decision.source_lead_id), asyncio.Lock())
-    async with lock:
+    # Lock source AND target (sorted, deduped) so two duplicates merging into the
+    # same target cannot race on the fill-only field transfer.
+    lead_ids = sorted({int(decision.source_lead_id), int(decision.target_lead_id)})
+    locks = [_LEAD_LOCKS.setdefault(lid, asyncio.Lock()) for lid in lead_ids]
+    async with contextlib.AsyncExitStack() as stack:
+        for lead_lock in locks:
+            await stack.enter_async_context(lead_lock)
         if dry_run:
             prev = await store.get_merge_record(decision.source_lead_id)
             if prev and prev.get("status") in {"merged", "linked_only", "conflict"}:
