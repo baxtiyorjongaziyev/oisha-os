@@ -7,7 +7,7 @@ import urllib.error
 import urllib.request
 
 MARKER = "<!-- gemini-pr-review -->"
-MODEL = os.environ.get("GEMINI_MODEL", "")
+PREFERRED = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 API = "https://generativelanguage.googleapis.com/v1beta"
 MAX_DIFF = int(os.environ.get("MAX_DIFF", "40000"))
 
@@ -38,8 +38,6 @@ def _call(url: str, key: str, payload=None) -> dict:
 
 def candidate_models(key: str) -> list[str]:
     """Flash models supporting generateContent, newest first (or GEMINI_MODEL if set)."""
-    if MODEL:
-        return [MODEL]
     models = _call(f"{API}/models?pageSize=200", key).get("models", [])
     names = [
         m["name"].split("/", 1)[1] for m in models
@@ -48,7 +46,8 @@ def candidate_models(key: str) -> list[str]:
     ]
     if not names:
         raise SystemExit("No suitable Gemini Flash model available")
-    return sorted(names, reverse=True)
+    ordered = sorted(names, reverse=True)
+    return [PREFERRED] + [n for n in ordered if n != PREFERRED]
 
 
 def main() -> int:
@@ -72,7 +71,7 @@ def main() -> int:
             data = _call(f"{API}/models/{model}:generateContent", key, {"contents": [{"parts": [{"text": prompt}]}]})
             break
         except urllib.error.HTTPError as exc:
-            if exc.code not in (404, 429):
+            if exc.code not in (400, 404, 429):
                 raise
             print(f"skip {model}: HTTP {exc.code}", file=sys.stderr)
     if data is None:
