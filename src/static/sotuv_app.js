@@ -18,10 +18,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   setupKeyboardShortcuts();
   if (typeof startCallerIdPolling === "function") startCallerIdPolling();
   const urlParams = new URLSearchParams(window.location.search);
+  const allowedViews = ["dashboard", "kanban", "list", "focus", "inbox", "tasks", "aibots", "directory", "mail", "analytics", "settings"];
   const viewParam = urlParams.get("view");
-  if (viewParam) setViewMode(viewParam);
-  const leadParam = urlParams.get("lead_id");
-  if (leadParam) setTimeout(() => openDealDrawer(leadParam), 150);
+  if (viewParam && allowedViews.includes(viewParam)) setViewMode(viewParam);
+  const parsedLeadId = Number.parseInt(urlParams.get("lead_id") || "", 10);
+  if (Number.isInteger(parsedLeadId) && parsedLeadId > 0) setTimeout(() => openDealDrawer(parsedLeadId), 150);
 });
 
 async function fetchBootstrap() {

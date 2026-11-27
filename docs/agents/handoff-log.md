@@ -3144,3 +3144,13 @@ Owner requested immediate full comparison. Read12 Meta forms/795 submissions,281
 - Fayllar: src/services/core/leads/assignment.py, tests/test_lead_assignment.py.
 - Tekshiruv: tests/test_lead_assignment.py 20 passed; uzbek-text guard toza.
 - Ochiq: 'kim birinchi javob bersa o'shaniki' qoidasi kodda hali joriy etilmagan (SOP 10-MODUL faqat hujjat); avtomatik biriktirish o'zgarmagan.
+
+## 2026-11-27 — Antigravity — CodeQL qolgan 4 ta xavfsizlik alertini ildizidan bartaraf etish (`fix/codeql-zero-alerts`)
+- **Sabab:** PR #1204 dan keyin CodeQL da qolgan 4 ta real alertni (`#127` `py/full-ssrf`, `#128` `py/incomplete-url-substring-sanitization`, `#77` va `#70` `js/xss`) va 400 qator modul chegarasini ildizidan hal qilish.
+- **Bajarilgan ish:**
+  1. **SSRF + DNS Rebinding + 302 Redirect himoyasi (`#127`):** `src/services/core/crm/tg_amo_bridge/outbound_media.py` submoduli ajratildi (`media.py` 423 qatordan <=355 qatorga tushirildi). Qatʼiy HTTPS + amoCRM/Kommo/CDN host allowlist, asinxron `socket.getaddrinfo` orqali global/public IP tekshiruvi, 3 qadamgacha xavfsiz 301/302/303/307/308 redirect validatsiyasi hamda doimiy lugʻat orqali kanonik URL tiklash joriy qilindi.
+  2. **DOM XSS manba va sink himoyasi (`#70`, `#77`):** `sotuv_app.js` da `window.location.search` dagi `view` allowlist va `lead_id` `Number.parseInt` bilan filtrlandi; `sotuv_drawer.js` va `sotuv_calls.js` da barcha `leadId`, `uniqueId`, `bantScore`, `ai.sentiment`, teglar va maydonlar toʻliq sanitizatsiya qilindi hamda inline `onclick` ichidagi URL string interpolyatsiyasi `data-audio-url` atributiga oʻtkazildi (`sotuv_drawer.js` <=400 qatorga keltirildi).
+  3. **Airtable URL validatsiyasi (`#128`):** `tests/test_airtable_gap_filler.py` da substring tekshiruvi `urllib.parse.urlparse` orqali aniq `scheme == "https"` va `hostname == "airtable.com"` tekshiruviga almashtirildi.
+- **Oʻzgargan fayllar:** `src/services/core/crm/tg_amo_bridge/outbound_media.py`, `src/services/core/crm/tg_amo_bridge/media.py`, `src/static/sotuv_app.js`, `src/static/sotuv_drawer.js`, `src/static/sotuv_calls.js`, `tests/test_airtable_gap_filler.py`, `tests/test_tg_amo_outbound_ssrf.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** fokus va SSRF regression testlar, `ruff`, `bandit -r src/ -ll`, `check_uzbek_text.py` va fayl/funksiya hajmi standartlari tekshirildi.
+- **Qolgan ish/Bloker:** PR merge boʻlgach `main` dagi CodeQL tahlili 0 ta ochiq alert koʻrsatishini va Hetzner deploy holatini tasdiqlash.

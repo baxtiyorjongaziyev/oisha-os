@@ -10,29 +10,23 @@ import asyncio
 import base64
 import hashlib
 import hmac
-import ipaddress
 import json
 import logging
-import mimetypes
 import os
 import shutil
-import socket
 import tempfile
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
-from urllib.parse import urlparse
+from typing import Any
 
-import httpx
-
-from . import config, sticker_preview
+from . import config, outbound_media, sticker_preview
 
 logger = logging.getLogger("TgAmoBridge.media")
 
 _DEFAULT_TTL = 30 * 24 * 3600  # amoCRM re-reads media when a chat is reopened
 _FOLDER_MIME = "application/vnd.google-apps.folder"
-_folder_cache: Dict[str, str] = {}
+_folder_cache: dict[str, str] = {}
 _folder_lock = threading.Lock()
 _drive_local = threading.local()
 
@@ -79,7 +73,7 @@ def _unb64(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
 
 
-def make_token(file_id: str, mime: str, name: str, *, ttl: Optional[int] = None) -> str:
+def make_token(file_id: str, mime: str, name: str, *, ttl: int | None = None) -> str:
     key = _signing_key()
     if not key:
         raise RuntimeError("media signing key missing")
@@ -92,7 +86,7 @@ def make_token(file_id: str, mime: str, name: str, *, ttl: Optional[int] = None)
     return f"{body}.{sig}"
 
 
-def verify_token(token: str) -> Optional[dict]:
+def verify_token(token: str) -> dict | None:
     """Return {"f","m","n","e"} for a valid, unexpired token, else None."""
     key = _signing_key()
     if not key or not token or token.count(".") != 1:
@@ -129,7 +123,7 @@ def _drive():
     return inst
 
 
-def _find_or_create_folder(service: Any, name: str, parent: Optional[str]) -> str:
+def _find_or_create_folder(service: Any, name: str, parent: str | None) -> str:
     key = f"{parent}/{name}"
     with _folder_lock:
         if key in _folder_cache:
@@ -167,7 +161,7 @@ def _upload_sync(path: str, name: str, mime: str, peer_id: int) -> str:
     custom_root = os.getenv("TG_AMO_MEDIA_FOLDER_ID", "").strip()
     peer_name = f"tg_{int(peer_id)}"
     for attempt in range(2):
-        root: Optional[str] = None
+        root: str | None = None
         try:
             root = custom_root or _find_or_create_folder(service, "Oisha_TG_Media", None)
             folder = _find_or_create_folder(service, peer_name, root)
@@ -259,7 +253,7 @@ def describe_non_file(message: Any) -> str:
     return ""
 
 
-def classify(message: Any) -> Optional[Tuple[str, str, str]]:
+def classify(message: Any) -> tuple[str, str, str] | None:
     """(amo_type, mime, default_ext) for a downloadable Telegram message, else None."""
     if getattr(message, "web_preview", None) is not None:
         return None  # Link previews expose .photo/.document in Telethon; keep as text
@@ -289,7 +283,7 @@ def _file_name(message: Any, ext: str) -> str:
     return f"tg_{getattr(message, 'id', 'x')}{ext}"
 
 
-async def prepare_inbound(message: Any, peer_id: int) -> Tuple[Optional[MediaRef], str]:
+async def prepare_inbound(message: Any, peer_id: int) -> tuple[MediaRef | None, str]:
     """Download a Telegram media message to Drive.
 
     Returns (MediaRef or None, fallback_text). fallback_text is used when the
@@ -334,90 +328,16 @@ async def prepare_inbound(message: Any, peer_id: int) -> Tuple[Optional[MediaRef
 
 # ---------------------------------------------------------------- outbound
 
-_OUT_TYPES = {"picture", "file", "voice", "video", "sticker", "audio"}
+extract_outbound_media = outbound_media.extract_outbound_media
+_validate_outbound_url = outbound_media.validate_outbound_url
+cleanup = outbound_media.cleanup
 
 
-def extract_outbound_media(data: dict) -> Optional[dict]:
-    """{"type","url","name","size"} for an amoJo webhook carrying a file."""
-    message = data.get("message")
-    if not isinstance(message, dict):
-        return None
-    inner = message.get("message") if isinstance(message.get("message"), dict) else message
-    mtype = str(inner.get("type") or "").lower()
-    url = inner.get("media") or inner.get("media_url") or ""
-    if mtype not in _OUT_TYPES or not isinstance(url, str) or not url.startswith("https://"):
-        return None
-    name = os.path.basename(str(inner.get("file_name") or "")) or None
-    size = inner.get("file_size")
-    return {"type": mtype, "url": url, "name": name, "size": int(size) if str(size or "").isdigit() else 0}
-
-
-def _validate_outbound_url(url: str) -> str:
-    """Validate that an outbound media URL is public HTTPS (SSRF protection)."""
-    parsed = urlparse(url)
-    host = (parsed.hostname or "").strip().lower()
-    if parsed.scheme != "https" or not host:
-        raise ValueError("invalid outbound media URL")
-    if host in {"localhost", "localhost.localdomain"} or host.endswith((".local", ".internal")):
-        raise ValueError("blocked outbound host")
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except OSError as exc:
-        raise ValueError("unresolvable outbound host") from exc
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            raise ValueError("blocked non-public outbound IP")
-    return url
-
-
-async def fetch_to_temp(url: str, name: Optional[str]) -> str:
-    """Stream an amoCRM media URL into a temp dir; returns the file path."""
-    import re
-
-    safe_url = _validate_outbound_url(url)
-    limit = max_bytes()
-    tmpdir = os.path.abspath(tempfile.mkdtemp(prefix="amoout_"))
-    suffix = os.path.splitext(name or "")[1] or mimetypes.guess_extension("application/octet-stream") or ""
-    raw_name = os.path.basename(name or f"file{suffix}")
-    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", raw_name) or f"file{suffix}"
-    if safe_name in {".", ".."}:
-        safe_name = f"file{suffix}"
-    path = os.path.abspath(os.path.join(tmpdir, safe_name))
-    if not path.startswith(tmpdir + os.sep):
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        raise ValueError("invalid media path")
-    total = 0
-    try:
-        async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
-            async with client.stream("GET", safe_url) as resp:
-                resp.raise_for_status()
-                with open(path, "wb") as fh:
-                    async for chunk in resp.aiter_bytes():
-                        total += len(chunk)
-                        if total > limit:
-                            raise ValueError("media too large")
-                        fh.write(chunk)
-    except Exception:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        raise
-    return path
-
-
-def cleanup(path: Optional[str]) -> None:
-    if path:
-        tmpdir = os.path.abspath(os.path.dirname(path))
-        if os.path.basename(tmpdir).startswith("amoout_"):
-            shutil.rmtree(tmpdir, ignore_errors=True)
+async def fetch_to_temp(url: str, name: str | None) -> str:
+    """Stream a validated amoCRM media URL into a temp dir; returns the file path."""
+    return await outbound_media.fetch_to_temp(url, name, limit_bytes=max_bytes())
 
 
 async def archive_outbound(path: str, peer_id: int) -> None:
     """Best-effort copy of a manager-sent file into Drive."""
-    if not media_enabled():
-        return
-    try:
-        name = os.path.basename(path)
-        mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
-        await upload(path, name, mime, peer_id)
-    except Exception as exc:
-        logger.warning("[TG-AMO] drive archive failed: %s", type(exc).__name__)
+    await outbound_media.archive_outbound(path, peer_id, enabled=media_enabled(), uploader=upload)
