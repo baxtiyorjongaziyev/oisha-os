@@ -89,8 +89,12 @@ async def process_elite_intake(
 
     lead_mode = getattr(_settings, "AUTO_LEAD_MODE", "balanced")
 
-    lead_data = await auto_lead_agent.extract_lead_info(
-        message_text, {"id": sender.id, "first_name": sender_name}
+    lead_data = (
+        await auto_lead_agent.extract_lead_info(
+            message_text, {"id": sender.id, "first_name": sender_name}
+        )
+        if auto_lead_agent is not None
+        else None
     )
 
     # strict rejimda AI javobisiz davom etmaymiz. balanced/all rejimda AI
