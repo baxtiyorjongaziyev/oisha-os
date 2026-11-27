@@ -16,6 +16,7 @@ from src.services.core.admin_aiogram_dispatcher import (
     register_salescoach_aiogram_callbacks,
 )
 from src.handlers.jamoa_hamroh import register_jamoa_hamroh_handlers
+from src.handlers.group_lead_assign import register_group_lead_assign_handlers
 from src.handlers.daily_priority_reply import register_daily_priority_handlers
 from src.handlers.seller_reply import register_seller_reply_handlers
 from src.handlers.team_dm_reply import register_team_dm_handlers
@@ -156,14 +157,12 @@ async def init_aiogram_bot_head(
     register_team_dm_handlers(
         dispatcher, msg_controller=msg_controller, is_admin=access_manager.is_admin
     )
-    from src.handlers.group_lead_assign import register_group_lead_assign_handlers
-
     register_group_lead_assign_handlers(
         dispatcher,
         is_admin=access_manager.is_admin,
         get_amocrm_client=_get_amocrm_client,
     )
-    # Hamroh legacy catch-all'dan oldin ulanadi, aks holda guruh mention'lari unga yetmaydi.
+    # Hamroh legacy catch-allʼdan oldin ulanadi, aks holda guruh mentionʼlari unga yetmaydi.
     register_jamoa_hamroh_handlers(dispatcher)
 
     legacy_bot_compat.attach()

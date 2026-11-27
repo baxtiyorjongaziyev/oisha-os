@@ -2,7 +2,7 @@
 
 Ensures Amina never free-responds to unaddressed chatter in Sotuv Bolim or other
 team groups while still passively observing context and responding to @mentions,
-replies, or explicit "Amina" wake-words.
+replies, or explicit "Amina" / "Aminа" / "Амина" wake-words.
 """
 from __future__ import annotations
 
@@ -19,8 +19,32 @@ HERMES_TELEGRAM_GUARD_VARS: dict[str, str] = {
     "TELEGRAM_REQUIRE_MENTION": "true",
     "TELEGRAM_BOTS_REQUIRE_MENTION": "true",
     "TELEGRAM_OBSERVE_UNMENTIONED_GROUP_MESSAGES": "true",
-    "TELEGRAM_MENTION_PATTERNS": '["(?i)(?<![\\\\w@])(?:amina|амина)(?:xon|jon)?\\\\b"]',
+    "TELEGRAM_MENTION_PATTERNS": '["(?i)(?<![\\\\w@])(?:amin[aа]|амин[aа])(?:xon|jon)?\\\\b"]',
 }
+
+AMINA_SOUL_GUARD_LINES: tuple[str, ...] = (
+    '- Hech qachon guruhga "(Jim turadi)", "[jim]" kabi sahna izohlarini yozma.',
+    "- Guruhga tashlangan kontakt kartalarini yangi xodim deb tabriklama — sotuv/ishchi guruhidagi kontaktlar odatda mijoz yoki lid boʻladi.",
+)
+
+
+def ensure_amina_soul_guards(soul_path: pathlib.Path) -> bool:
+    """Append Amina anti-noise guard rules to SOUL.md if missing after vault sync."""
+    if not soul_path.is_file():
+        return False
+    try:
+        body = soul_path.read_text(encoding="utf-8")
+        if "## Qachon javob berasan" not in body:
+            return True
+        missing = [line for line in AMINA_SOUL_GUARD_LINES if line not in body]
+        if not missing:
+            return True
+        suffix = "" if body.endswith("\n") else "\n"
+        soul_path.write_text(body + suffix + "\n".join(missing) + "\n", encoding="utf-8")
+        return True
+    except OSError as exc:
+        logger.warning("[Hermes] SOUL.md guard qoʻshilmadi (%s): %s", soul_path, exc)
+        return False
 
 
 def enforce_hermes_telegram_guards(

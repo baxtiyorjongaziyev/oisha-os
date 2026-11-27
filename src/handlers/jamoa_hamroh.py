@@ -139,7 +139,7 @@ def register_jamoa_hamroh_handlers(
 ) -> Optional[HamrohService]:
     """Legacy catch-all (``AiogramTelethonCompatClient.attach``) dan OLDIN chaqirilishi kerak."""
     cfg = config_loader()
-    if not cfg.hamroh_active:
+    if not cfg.hamroh_active or getattr(dispatcher, "message", None) is None:
         logger.info("[HAMROH] O'chiq (JAMOA_GROUP_ID yo'q yoki JAMOA_HAMROH_ENABLED=0).")
         return None
     service = HamrohService(cfg, store or JamoaStore(), brain or HamrohBrain())

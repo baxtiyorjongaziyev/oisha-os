@@ -126,8 +126,13 @@ class AmoCRMLeadEnricher(HistoryCollectorMixin, AiSynthesizerMixin):
                 from src.services.core.crm.crm_contacts_auditor import CRMContactsAuditor
                 auditor = CRMContactsAuditor(
                     amocrm=self.amocrm,
-                    telegram_client=self.user_client,
+                    db=self.db,
+                    tg_client=self.user_client,
+                    model_name=self.model_name,
                 )
+                if self.genai_client is not None and auditor.genai_client is None:
+                    auditor.genai_client = self.genai_client
+                await auditor.init_db()
                 category = await auditor.audit_lead_by_data(lead_data, force=force)
                 if category and category != "skipped":
                     tags_added.append(category)
