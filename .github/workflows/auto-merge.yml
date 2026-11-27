@@ -12,33 +12,51 @@ name: auto-merge
 # run as that user, so oracle-deploy.yml fires on the merge commit.
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review, labeled, unlabeled]
+    types: [opened, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, synchronize]
     branches: [main]
 
 permissions:
   contents: write
   pull-requests: write
 
-jobs:
-  enable:
-    if: >-
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      !contains(github.event.pull_request.labels.*.name, 'no-automerge')
-    runs-on: ubuntu-latest
-    steps:
-      - run: gh pr merge "$PR" --auto --squash --repo "$REPO"
-        env:
-          GH_TOKEN: ${{ secrets.REPO_ADMIN_PAT || secrets.GITHUB_TOKEN }}
-          PR: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
+concurrency:
+  group: auto-merge-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 
-  disable:
-    if: github.event.action == 'labeled' && github.event.label.name == 'no-automerge'
+jobs:
+  reconcile:
     runs-on: ubuntu-latest
     steps:
-      - run: gh pr merge "$PR" --disable-auto --repo "$REPO" || true
+      - name: Reconcile current PR state
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=$(gh pr view "$PR" --repo "$REPO" \
+            --json state,isDraft,isCrossRepository,labels,autoMergeRequest,headRefOid)
+          if [[ $(jq -r '.state' <<< "$state") != OPEN ]]; then
+            exit 0
+          fi
+          eligible=$(jq -r '(.isDraft == false) and (.isCrossRepository == false) and
+            ([.labels[].name] | index("no-automerge") | not)' <<< "$state")
+          pending=$(jq -r '.autoMergeRequest != null' <<< "$state")
+          if [[ "$eligible" != true ]]; then
+            if [[ "$pending" == true ]]; then
+              gh pr merge "$PR" --disable-auto --repo "$REPO"
+              test "$(gh pr view "$PR" --repo "$REPO" --json autoMergeRequest \
+                --jq '.autoMergeRequest == null')" = true
+            fi
+            exit 0
+          fi
+          # Fail closed: GITHUB_TOKEN merges do not trigger production deploy.
+          test -n "$MERGE_TOKEN" || { echo '::error::REPO_ADMIN_PAT is required for auto-merge'; exit 1; }
+          if [[ "$pending" != true ]]; then
+            GH_TOKEN="$MERGE_TOKEN" gh pr merge "$PR" --auto --squash --repo "$REPO" \
+              --match-head-commit "$(jq -r '.headRefOid' <<< "$state")"
+            test "$(gh pr view "$PR" --repo "$REPO" --json state,autoMergeRequest \
+              --jq '.state == "MERGED" or .autoMergeRequest != null')" = true
+          fi
         env:
           GH_TOKEN: ${{ secrets.REPO_ADMIN_PAT || secrets.GITHUB_TOKEN }}
+          MERGE_TOKEN: ${{ secrets.REPO_ADMIN_PAT }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}

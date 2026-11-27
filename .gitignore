@@ -185,4 +185,5 @@ data/telegram_history_digest.md
 
 # userbot host guard
 data/.userbot.lock
+data/tg-amo-merge-locks/
 data/new_userbot_session.txt
