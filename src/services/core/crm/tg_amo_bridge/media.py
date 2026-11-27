@@ -10,16 +10,19 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import mimetypes
 import os
 import shutil
+import socket
 import tempfile
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlparse
 
 import httpx
 
@@ -350,23 +353,21 @@ def extract_outbound_media(data: dict) -> Optional[dict]:
 
 
 def _validate_outbound_url(url: str) -> str:
-    """Validate that an outbound media URL is public HTTPS (SSRF guard)."""
-    from urllib.parse import urlparse
-    import ipaddress
-
+    """Validate that an outbound media URL is public HTTPS (SSRF protection)."""
     parsed = urlparse(url)
     host = (parsed.hostname or "").strip().lower()
     if parsed.scheme != "https" or not host:
-        raise ValueError("invalid outbound media url")
+        raise ValueError("invalid outbound media URL")
     if host in {"localhost", "localhost.localdomain"} or host.endswith((".local", ".internal")):
-        raise ValueError("blocked internal host")
+        raise ValueError("blocked outbound host")
     try:
-        ip = ipaddress.ip_address(host)
+        infos = socket.getaddrinfo(host, None)
+    except OSError as exc:
+        raise ValueError("unresolvable outbound host") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            raise ValueError("blocked non-public ip")
-    except ValueError as exc:
-        if "blocked" in str(exc):
-            raise
+            raise ValueError("blocked non-public outbound IP")
     return url
 
 

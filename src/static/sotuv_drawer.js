@@ -298,8 +298,10 @@ function renderDrawerTimeline(lead) {
   if (!timeline) return;
   const items = [`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1 flex-wrap"><span class="text-[#92989b]">Bugun</span><strong class="text-[#2e3640]">amoCRM</strong><span>Bitim #${lead.id} ochildi</span>${(lead.tags || []).map((t) => `<span class="bg-[#dce1e7] text-[#475569] text-[11px] px-2 py-0.5 rounded font-semibold">${t}</span>`).join("")}</div>`];
 
+  const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
   (lead.call_logs || []).forEach((log) => {
-    items.push(`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1"><span class="text-[#92989b]">${(log.created_at || "Bugun").slice(11, 16) || "14:15"}</span><strong class="text-[#2e3640]">${log.seller_name || "Sotuvchi"}</strong><span>Yangi bosqich:</span><span class="bg-[#dbeafe] text-[#1d4ed8] text-[12px] font-semibold px-2 py-0.5 rounded">${log.new_status}</span></div>`);
+    items.push(`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1"><span class="text-[#92989b]">${esc((log.created_at || "Bugun").slice(11, 16) || "14:15")}</span><strong class="text-[#2e3640]">${esc(log.seller_name || "Sotuvchi")}</strong><span>Yangi bosqich:</span><span class="bg-[#dbeafe] text-[#1d4ed8] text-[12px] font-semibold px-2 py-0.5 rounded">${esc(log.new_status)}</span></div>`);
   });
 
   (lead.notes || []).slice().reverse().forEach((n, idx) => {
