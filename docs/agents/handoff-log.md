@@ -3102,6 +3102,12 @@ Owner requested immediate full comparison. Read12 Meta forms/795 submissions,281
 - Telegram legacy connector key error; archive connector MCP startup failure; no delta/checkpoint advance.
 - Obsidian evidence appended/read back; brain_log written. No external mutation. Owner action: restore app connector availability.
 
+
+## 2026-11-26 — ChatGPT: agent harness workflow
+- Branch: `feat/agent-harness-workflow`. Added `.agents/skills/agent-harness-workflow/SKILL.md` and linked it from `docs/agents/three-agent-workflow.md`.
+- Adapted ECC verification, Superpowers test-first/debugging, and GStack planning/review/QA as a native workflow; no upstream package, hooks, telemetry, runtime changes or external business mutations.
+- GitHub confirmed the two file commits. Required local pre-flight and independent agent review NOT RUN: this connector session cannot execute repository tests. Branch-only; no PR, merge or deployment. Next: read back branch diff, run repository pre-flight in an authorized checkout, and obtain independent review before opening a PR.
+
 ## 2026-11-27 — Codex: PR #1190 unresolved review fixes
 - Source: live GitHub review threads (12 unresolved), PR head `91c3406679af16eb64e31743b141684929522c38`, branch `fix/codex-review-followups`. Isolated implementation: `.worktrees/pr1190-review`, local branch `fix/pr1190-review`; original dirty checkout was not edited.
 - Auto-merge: one serialized per-PR reconciler reads current state, labels, draft, fork and pending status; disables ineligible pending requests with read-back, surfaces failures, requires PAT for enabling, pins the observed head, and verifies enable outcome. Converted-to-draft and synchronize events reconcile too. GITHUB_TOKEN remains allowed only for reading/disabling; it cannot enable a merge.
