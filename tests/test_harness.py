@@ -50,11 +50,11 @@ class HarnessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             feedback = Path(directory) / "feedback.md"
             with patch.object(runner, "FEEDBACK_FILE", feedback), patch.object(
-                runner, "run_cmd", side_effect=[(1, "FILE_TOO_LONG")] + [(0, "")] * 6
+                runner, "run_cmd", side_effect=[(0, "src/foo.py"), (1, "FILE_TOO_LONG")] + [(0, "")] * 6
             ) as command, patch("sys.argv", ["run_harness.py"]), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit) as result:
                     runner.main()
-                self.assertNotIn("--warn-legacy-files", command.call_args_list[0].args[0])
+                self.assertNotIn("--warn-legacy-files", command.call_args_list[1].args[0])
                 self.assertEqual(result.exception.code, 1)
 
     def test_test_failure_fails_harness_and_writes_feedback(self):

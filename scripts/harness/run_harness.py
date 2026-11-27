@@ -45,14 +45,20 @@ def main():
 
     # Stage 1: Standards Check (Max 400 lines)
     print("\n[1/7] 📏 Checking Modular Code Standards (400-line limit)...")
-    code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown", "--warn-legacy-functions"])
-    if code == 0:
-        print("  ✅ Standards Check: PASSED")
-        stages.append(("Code Standards", True, out))
+    diff_code, diff_out = run_cmd(["git", "diff", "--name-only", "origin/main...HEAD", "--", "src/"])
+    changed_src = [f for f in diff_out.splitlines() if f.strip().endswith(".py")]
+    if diff_code == 0 and not changed_src:
+        print("  ✅ Standards Check: PASSED (no changed src/*.py files)")
+        stages.append(("Code Standards", True, "No changed src/*.py files."))
     else:
-        print("  ❌ Standards Check: FAILED")
-        stages.append(("Code Standards", False, out))
-        has_failure = True
+        code, out = run_cmd([str(PYTHON_EXE), "scripts/harness/verify_standards.py", "--markdown", "--warn-legacy-functions"])
+        if code == 0:
+            print("  ✅ Standards Check: PASSED")
+            stages.append(("Code Standards", True, out))
+        else:
+            print("  ❌ Standards Check: FAILED")
+            stages.append(("Code Standards", False, out))
+            has_failure = True
 
     # Stage 2: Security Audit (Bandit)
     print("\n[2/7] 🛡️ Running Security Scan (bandit -r src/ -ll)...")
