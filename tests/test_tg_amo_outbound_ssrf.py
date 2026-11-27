@@ -1,7 +1,7 @@
 import os
-from pathlib import Path
 import socket
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
