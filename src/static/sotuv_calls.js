@@ -1,6 +1,7 @@
 // Jon CRM — 1-Click MoiZvonki Callback va Interaktiv Audio Pleyer & Whisper STT Tizimi
 let currentPlayingAudio = null;
 const _escCall = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const _posCallInt = (v) => { const s = String(v ?? "").trim(); const n = /^\d+$/.test(s) ? Number(s) : 0; return Number.isSafeInteger(n) && n > 0 ? n : 0; };
 
 function getCrmAuthToken() {
   try {
@@ -54,8 +55,8 @@ async function trigger1ClickCall(leadId, clientPhone) {
         window.location.href = String(data.tel_url);
       }
       if (typeof loadLeadCallHistory === "function") {
-        const safeCallbackLeadId = Number.parseInt(leadId, 10);
-        if (Number.isInteger(safeCallbackLeadId) && safeCallbackLeadId > 0) {
+        const safeCallbackLeadId = _posCallInt(leadId);
+        if (safeCallbackLeadId) {
           setTimeout(() => loadLeadCallHistory(safeCallbackLeadId), 1500);
         }
       }
@@ -72,8 +73,8 @@ async function trigger1ClickCall(leadId, clientPhone) {
 
 async function loadLeadCallHistory(leadId) {
   const container = document.getElementById("drawerCallsHistoryBox");
-  const safeLeadId = Number.parseInt(leadId, 10);
-  if (!container || !Number.isInteger(safeLeadId) || safeLeadId <= 0) return;
+  const safeLeadId = _posCallInt(leadId);
+  if (!container || !safeLeadId) return;
 
   try {
     const token = getCrmAuthToken();

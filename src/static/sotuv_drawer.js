@@ -2,27 +2,29 @@
 // Optimistic 0ms Render, Background Enrichment, Fail-Safe DOM Manipulation (<= 400 lines)
 const _esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const _safeUrl = (u) => (/^https?:\/\//i.test(String(u || "").trim()) ? _esc(String(u).trim()) : "#");
-const _safeTel = (p) => `tel:${String(p || "").replace(/[^\d+]/g, "")}`;
+const _posInt = (v) => { const s = String(v ?? "").trim(); const n = /^\d+$/.test(s) ? Number(s) : 0; return Number.isSafeInteger(n) && n > 0 ? n : 0; };
 
 function renderCustomFieldsForm() {
   const container = document.getElementById("drawerBantFieldsContainer");
   if (!container || !crmCatalog) return;
-  container.innerHTML = "";
+  container.replaceChildren();
   (crmCatalog.custom_fields_schema || []).forEach((f) => {
-    const row = document.createElement("div");
-    row.className = "amo-field-row";
-    const key = _esc(f.key);
-    const label = _esc(f.label);
-    let inputHtml = "";
+    const row = document.createElement("div"); row.className = "amo-field-row";
+    const lbl = document.createElement("div"); lbl.className = "amo-field-label"; lbl.title = String(f.label || ""); lbl.textContent = String(f.label || "");
+    const valBox = document.createElement("div"); valBox.className = "amo-field-val";
+    let ctrl;
     if (f.type === "select") {
-      const opts = [`<option value="">Tanlash</option>`].concat((f.options || []).map((o) => `<option value="${_esc(o)}">${_esc(o)}</option>`)).join("");
-      inputHtml = `<select data-cf-key="${key}" class="cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] focus:outline-none focus:bg-[#f8fafc] rounded py-1">${opts}</select>`;
+      ctrl = document.createElement("select");
+      ctrl.className = "cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] focus:outline-none focus:bg-[#f8fafc] rounded py-1";
+      ["", ...(f.options || [])].forEach((o, idx) => { const opt = document.createElement("option"); opt.value = idx === 0 ? "" : String(o); opt.textContent = idx === 0 ? "Tanlash" : String(o); ctrl.appendChild(opt); });
     } else {
-      const itype = f.type === "number" ? "number" : f.type === "date" ? "date" : "text";
-      inputHtml = `<input type="${itype}" data-cf-key="${key}" placeholder="..." class="cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] placeholder-[#b0b8c0] focus:outline-none border-b border-transparent focus:border-[#4c8bf7]">`;
+      ctrl = document.createElement("input");
+      ctrl.type = f.type === "number" ? "number" : f.type === "date" ? "date" : "text";
+      ctrl.placeholder = "...";
+      ctrl.className = "cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] placeholder-[#b0b8c0] focus:outline-none border-b border-transparent focus:border-[#4c8bf7]";
     }
-    row.innerHTML = `<div class="amo-field-label" title="${label}">${label}</div><div class="amo-field-val">${inputHtml}</div>`;
-    container.appendChild(row);
+    ctrl.dataset.cfKey = String(f.key || "");
+    valBox.appendChild(ctrl); row.append(lbl, valBox); container.appendChild(row);
   });
 }
 
@@ -41,12 +43,11 @@ function getAuthHeaders() {
 
 async function openDealDrawer(leadIdOrObj) {
   const isObj = typeof leadIdOrObj === "object" && leadIdOrObj !== null;
-  const leadId = Number.parseInt(isObj ? leadIdOrObj.id : leadIdOrObj, 10);
-  if (!Number.isInteger(leadId) || leadId <= 0) return;
+  const leadId = _posInt(isObj ? leadIdOrObj.id : leadIdOrObj);
+  if (!leadId) return;
   document.getElementById("dealDrawer")?.classList.remove("hidden");
-
+  activeDrawerLead = isObj ? { ...leadIdOrObj, id: leadId } : { id: leadId };
   if (isObj) {
-    activeDrawerLead = { ...leadIdOrObj, id: leadId };
     try { renderDrawer(activeDrawerLead); } catch (e) { console.warn("Drawer render warning:", e); }
   }
 
@@ -54,8 +55,8 @@ async function openDealDrawer(leadIdOrObj) {
     const res = await fetch(`/api/crm/dialer/lead/${leadId}`, { headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
-      if (data?.lead) {
-        activeDrawerLead = { ...(activeDrawerLead || {}), ...data.lead };
+      if (data?.lead && activeDrawerLead && _posInt(activeDrawerLead.id) === leadId) {
+        activeDrawerLead = { ...activeDrawerLead, ...data.lead, id: leadId };
         renderDrawer(activeDrawerLead);
         if (typeof loadLeadCallHistory === "function") loadLeadCallHistory(leadId);
       }
@@ -89,7 +90,7 @@ function renderDrawer(lead) {
   const stageSelect = document.getElementById("drawerStageSelect");
   const pipe = (crmCatalog?.pipelines || []).find((p) => p.id === lead.pipeline_id) || crmCatalog?.pipelines?.[0];
   if (pipe && stageSelect) {
-    stageSelect.innerHTML = (pipe.statuses || []).map((st) => `<option value="${_esc(st.slug)}">${_esc(st.title)}</option>`).join("");
+    stageSelect.replaceChildren(...(pipe.statuses || []).map((st) => { const o = document.createElement("option"); o.value = String(st.slug || ""); o.textContent = String(st.title || ""); return o; }));
     stageSelect.value = lead.status_slug || pipe.statuses?.[0]?.slug || "";
     const stIdx = Math.max(0, (pipe.statuses || []).findIndex((s) => s.slug === stageSelect.value));
     const pct = Math.min(100, Math.max(15, Math.round(((stIdx + 1) / Math.max(pipe.statuses.length, 1)) * 100)));
@@ -361,15 +362,16 @@ async function saveDrawerLeadChanges(closeAfter = true) {
 async function submitDrawerChat() {
   const input = document.getElementById("drawerChatInput");
   const text = (input?.value || "").trim();
-  if (!text || !activeDrawerLead) return;
+  const targetId = _posInt(activeDrawerLead?.id);
+  if (!text || !targetId) return;
   const chan = currentDrawerChatMode === "telegram" ? "Telegram" : currentDrawerChatMode === "instagram" ? "Instagram Direct" : "note";
   input.value = "";
   const res = await fetch("/api/crm/dialer/inbox/send", {
     method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ lead_id: activeDrawerLead.id, text, channel: chan, sender_name: "Shahnoza Abdijabborova" }),
+    body: JSON.stringify({ lead_id: targetId, text, channel: chan, sender_name: "Shahnoza Abdijabborova" }),
   });
   const data = await res.json();
-  if (data?.lead) { activeDrawerLead = data.lead; renderDrawerTimeline(activeDrawerLead); }
+  if (data?.lead && _posInt(activeDrawerLead?.id) === targetId) { activeDrawerLead = data.lead; renderDrawerTimeline(activeDrawerLead); }
   if (typeof showToast === "function") showToast(chan === "Telegram" ? "Xabar mijozning Telegramiga yuborildi!" : chan === "Instagram Direct" ? "Xabar mijozning Instagramiga yuborildi!" : "Ichki izoh lentaga qoʻshildi");
 }
 

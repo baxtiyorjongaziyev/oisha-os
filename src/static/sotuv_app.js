@@ -21,8 +21,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   const allowedViews = ["dashboard", "kanban", "list", "focus", "inbox", "tasks", "aibots", "directory", "mail", "analytics", "settings"];
   const viewParam = urlParams.get("view");
   if (viewParam && allowedViews.includes(viewParam)) setViewMode(viewParam);
-  const parsedLeadId = Number.parseInt(urlParams.get("lead_id") || "", 10);
-  if (Number.isInteger(parsedLeadId) && parsedLeadId > 0) setTimeout(() => openDealDrawer(parsedLeadId), 150);
+  const rawLead = (urlParams.get("lead_id") || "").trim();
+  const parsedLeadId = /^\d+$/.test(rawLead) ? Number(rawLead) : 0;
+  if (Number.isSafeInteger(parsedLeadId) && parsedLeadId > 0) setTimeout(() => openDealDrawer(parsedLeadId), 150);
 });
 
 async function fetchBootstrap() {
