@@ -114,12 +114,14 @@ async def process_elite_intake(
     crm_client = getattr(getattr(msg_controller, "crm", None), "amocrm", None) if msg_controller else None
     db_instance = getattr(msg_controller, "db", None) if msg_controller else None
     sender_phone = lead_data.get("phone") or getattr(sender, "phone", None)
+    sender_username = getattr(sender, "username", None)
     is_nc, nc_reason = await is_sender_marked_as_non_client(
         crm_client,
         phone=sender_phone,
         user_id=getattr(sender, "id", None),
         name=sender_name,
         db=db_instance,
+        username=sender_username,
     )
     if is_nc:
         logger.info(

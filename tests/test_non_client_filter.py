@@ -196,3 +196,30 @@ async def test_is_sender_marked_by_name_or_contact():
     matched, reason = await is_sender_marked_as_non_client(sync, phone="+998901234567")
     assert matched is True
     assert "amocrm_contact" in reason
+
+
+@pytest.mark.asyncio
+async def test_is_sender_marked_for_internal_team_staff():
+    sync = MagicMock()
+    clear_non_client_cache()
+
+    # Shahnoza by phone
+    matched, reason = await is_sender_marked_as_non_client(sync, phone="+998773220042")
+    assert matched is True
+    assert "team_staff" in reason
+    assert "shahnoza" in reason
+
+    # Shahnoza by username
+    clear_non_client_cache()
+    matched, reason = await is_sender_marked_as_non_client(sync, username="jonbranding_assistant")
+    assert matched is True
+    assert "team_staff" in reason
+    assert "shahnoza" in reason
+
+    # Shahnoza by user_id
+    clear_non_client_cache()
+    matched, reason = await is_sender_marked_as_non_client(sync, user_id=8802892610)
+    assert matched is True
+    assert "team_staff" in reason
+    assert "shahnoza" in reason
+
