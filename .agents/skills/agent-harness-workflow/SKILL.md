@@ -7,7 +7,7 @@ description: Use for software changes in Oisha-OS that require planning, debuggi
 
 ## 1. Scope
 
-This is a native Oisha-OS adaptation of engineering methods from ECC, Superpowers and GStack, not an upstream package installation. Existing AGENTS.md, CLAUDE.md, code-mode, owner approval rules and three-agent workflow take precedence. Do not use this skill to authorize live business actions or replace the runtime agent architecture.
+This is a native Oisha-OS adaptation of engineering methods from ECC, Superpowers and GStack, not an upstream package installation. The mandatory `.agents/skills/harness-loop/SKILL.md`, AGENTS.md, CLAUDE.md, code-mode and owner approval rules take precedence. This overlay is for planning, implementation and review; it does not replace the mandatory lifecycle. The canonical skill lives under `.claude/skills/`; keep its `.agents/skills/` mirror byte-identical using `python scripts/sync_agent_skills.py --check`. Do not use this skill to authorize live business actions or replace the runtime agent architecture.
 
 ## 2. Inputs
 
@@ -34,15 +34,18 @@ Read AGENTS.md, CLAUDE.md, docs/agents/three-agent-workflow.md and subsystem-spe
 ### Verify and QA (ECC-style evidence gate, GStack-style journey review)
 - Run focused tests and relevant lint, typecheck, build and coverage checks for the changed subsystem. Use mocks, fixtures or isolated test environments; no production writes.
 - For changes with UI/API journeys, verify expected behavior and failure paths with safe fixtures or an authorized test environment. Do not claim browser/API QA if it was not performed.
-- Before PR, run the repository pre-flight from AGENTS.md:
+- Before every push and PR, follow the mandatory harness-loop gate (and AGENTS.md):
   - `SKIP_LIVE=1 python -m pytest -q --tb=short` (set environment variable using shell-appropriate syntax)
   - `bandit -r src/ -ll`
-  - `python scripts/check_uzbek_text.py --staged`
+  - `ruff check --select F821,F822,ASYNC210,ASYNC221 --per-file-ignores "src/config.py:F822" src/`
+  - `python scripts/check_uzbek_text.py --base origin/main` (fetch the base first; also use `--staged` for staged edits)
+  - `python scripts/sync_agent_skills.py --check`
+- Run `python scripts/harness/run_harness.py` for the local audit; a focused target is not a full-suite pass. The local audit does not replace independent review, CI or post-merge verification.
 - For TypeScript changes, run applicable package-scoped checks plus relevant workspace lint, typecheck, test and build commands from CLAUDE.md. Record exit status and scope; do not hide failures using truncated pipelines.
-- Fix findings and rerun affected gates. No PR when required pre-flight is failing or unavailable. No merge without required green CI, conflict checks and existing repository authorization.
+- Fix findings and rerun affected gates. No ready PR when required pre-flight is failing or unavailable. Only an explicitly owner-authorized draft may be opened for visibility while gates remain NOT RUN or FAIL; never mark it ready or merge until the mandatory gates pass. Verify the latest commit, required CI, review threads and branch state before merge; verify main and deployment separately after merge.
 
 ### Handoff and learning
-- Append evidence to docs/agents/handoff-log.md: task, branch, files, reviewer status, commands and results, remaining blockers.
+- Append evidence to `docs/agents/handoff-log.md`: task, branch, files, reviewer status, commands and results, remaining blockers. Coordinate one writer for the shared log; reconcile both entries if concurrent appends conflict. Record PR URL/status as a dated checkpoint, and re-read live GitHub state before acting; never assume a handoff is current.
 - Record only reusable, verified lessons through skill-evolution; omit secrets, customer details and raw transcripts. Do not create automatic memory collection or new external integrations.
 
 ## 4. Troubleshooting and safeguards
@@ -64,7 +67,7 @@ Use a compact handoff:
 
 ## References
 
-Original project methods (reviewed 2026-11-26; links are references, not installed dependencies):
+Method inspirations (reference links, not installed dependencies or evidence of an upstream audit):
 - ECC verification loop: https://github.com/affaan-m/ECC/blob/main/skills/verification-loop/SKILL.md
 - Superpowers testing and debugging: https://github.com/obra/superpowers/tree/main/skills
 - GStack product review and QA: https://github.com/garrytan/gstack/blob/main/docs/skills.md

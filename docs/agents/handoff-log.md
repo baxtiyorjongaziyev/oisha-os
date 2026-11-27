@@ -2378,7 +2378,8 @@ Linux CI exposed a stale legacy CAPI snapshot re-enqueueing a dispatch completed
   2. **13 ta Dependabot zaifligi hal etildi:**
      - 
 ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach-ai/ dagi 16.3.8 pinlari xavfsiz 16.4.3 versiyasiga yangilandi.
-     - ollow-redirects (Alert #356 - high): 1.16.1 dan xavfsiz ^1.16.2 ga koʻtarildi.
+     - 
+ollow-redirects (Alert #356 - high): 1.16.1 dan xavfsiz ^1.16.2 ga koʻtarildi.
      - ody-parser (Alert #329 - high): 1.20.8 dan xavfsiz 1.20.9 va 2.4.0 versiyalariga yangilandi (ody-parser@<1.20.9: '>=1.20.9 <2').
      - qs (Alerts #349, #354 - medium): 6.16.0 dan xavfsiz ^6.16.1 ga koʻtarildi.
      - glob (Alerts #357, #363 - medium): 13.0.6 dan xavfsiz ^14.0.3 ga koʻtarildi (glob@>=9: ^14.0.3).
@@ -3122,6 +3123,13 @@ Owner requested immediate full comparison. Read12 Meta forms/795 submissions,281
 
 - Follow-up (2026-11-27): Ubuntu 3.12 preflight on the staged PR snapshot passed (4923 passed, 14 skipped). The Windows permission failure passed on native Linux. Current base introduced an unmatched agent-harness-workflow skill mirror; copied the existing main blob to both skill trees and verified sync and OAuth together on Ubuntu (9 passed). Publishing to the existing PR branch.
 
+## 2026-11-26 — ChatGPT: Harness Loop v2 follow-up
+- Historical update: PR #1195 was opened, then merged; its CodeQL and CI reported success, but the prior local preflight and independent review evidence were incomplete. Sourcery and Devin subsequently identified the missing canonical skill and incomplete gates. Check live PR status before acting.
+- Branch: `fix/harness-loop-v2`. Restored `.claude/skills/agent-harness-workflow/SKILL.md` and synchronized its `.agents/skills` mirror; linked mandatory lifecycle; added Ruff, branch/staged text and mirror gates to the runner; clarified local versus release evidence and added regression tests.
+- See `docs/agents/harness-v2-walkthrough.md` for verification and rollback. GitHub file writes confirmed; full preflight, actual pytest execution, independent review and deployment NOT RUN in this connector-only session. Do not mark ready or merge until mandatory gates pass.
+
+## 2026-11-27 — ChatGPT: PR #1196 conflict reconciliation
+- Reconciled concurrent canonical skill addition and shared handoff append with current main, retaining both sets of changes. Required execution and independent review remain NOT RUN at this checkpoint.
 ## 2026-11-27 — Antigravity — Sotuv Bolim guruh lid-biriktirish handleri, Amina mention guard va 04:47 crash tuzatishlari
 - **Sabab:** `Sotuv Bolim` (`-1003854308552`) guruhida rahbar `Odiljon TN7 Gr` (`+998909197680`) kontaktini ulashib sotuv menejeriga biriktirishni soʻraganda: (1) Amina AI (`hermes-gateway.service`) `.env` da eskirgan `TELEGRAM_FREE_RESPONSE_TOPICS=-1003854308552:1` qolib ketgani sababli har bir xabarga suqilib yangi xodim deb tabriklagan va `(Jim turadi)` yuborgan; (2) Oisha (`oisha.service`) da `JAMOA_GROUP_ID` berilmagani sababli `Hamroh` oʻchiq qolgan va guruhdan kontakt/lid biriktirish handleri boʻlmagan; (3) `04:47` UTC logda `process_elite_intake` (`app_ctx.auto_lead_agent=None`) va `AmoCRMLeadEnricher` (`CRMContactsAuditor` notoʻgʻri `db`/`tg_client` kwarglari) xatolari aniqlangan.
 - **Bajarilgan ish:**
