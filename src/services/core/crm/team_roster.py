@@ -132,6 +132,7 @@ CANONICAL_STAFF: Tuple[StaffMember, ...] = (
         role="specialist",
         title="Loyiha menejeri (PM)",
         tg_user_id=5748052638,
+        phone="+998701641197",
         aliases=("ifora",),
     ),
     StaffMember(
@@ -158,6 +159,7 @@ CANONICAL_STAFF: Tuple[StaffMember, ...] = (
         title="Moliyachi (Hisobchi)",
         tg_user_id=8611068511,
         tg_username="@jonbranding_finansist",
+        phone="+998777411297",
         aliases=("dilbar", "dilbar akbarovna", "jonbranding_finansist"),
     ),
 )
