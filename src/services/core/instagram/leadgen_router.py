@@ -60,6 +60,7 @@ from src.services.core.instagram.leadgen_parser import (  # noqa: F401
     _pick_phone,
     _pick,
     _excluded_leadgen_keys,
+    resolve_lead_created_at,
 )
 
 
@@ -258,7 +259,7 @@ async def _route_leadgen_event(value: Dict[str, Any], access_token: Optional[str
         str(merged_payload.get("campaign_name") or ""),
         str(merged_payload.get("ad_id") or ""),
         str(merged_payload.get("form_id") or ""),
-        get_local_now().isoformat(),
+        resolve_lead_created_at(merged_payload),
     )
 
     if not checkpoint:

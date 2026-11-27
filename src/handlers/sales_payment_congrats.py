@@ -28,6 +28,11 @@ try:
 except ImportError:
     schedule_won_check = None  # type: ignore[assignment]
 
+try:
+    from src.handlers.non_crm_payment_intake import handle_non_crm_client_info_reply
+except ImportError:
+    handle_non_crm_client_info_reply = None  # type: ignore[assignment]
+
 logger = structlog.get_logger()
 
 _FIELD_RE = re.compile(r"^[^\w]*(?P<label>[^:\n]+?)\s*:\s*(?P<value>.*?)\s*$")
@@ -133,18 +138,18 @@ def build_mrjon_message(seller: str, card: Dict[str, Optional[str]]) -> str:
     return random.choice(MRJON_TEMPLATES).format(seller=seller, project=project, amount=card["amount"])
 
 
-async def _send_as_oisha(chat_id: int, reply_to: int, text: str) -> None:
+async def _send_as_oisha(chat_id: int, reply_to: int, text: str) -> Optional[int]:
     """Oisha nomidan xabar yuborish: bot_client (ConnectionError da reconnect), soʻng userbot fallback."""
     bot_client = getattr(app_ctx, "bot_client", None)
     if bot_client:
         try:
-            await bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
-            return
+            sent = await bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+            return getattr(sent, "id", None)
         except ConnectionError:
             try:
                 await bot_client.connect()
-                await bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
-                return
+                sent = await bot_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+                return getattr(sent, "id", None)
             except Exception as reconnect_exc:
                 logger.warning(
                     f"[SALES_CONGRATS] bot_client reconnect muvaffaqiyatsiz ({type(reconnect_exc).__name__}), userbot fallback..."
@@ -155,9 +160,9 @@ async def _send_as_oisha(chat_id: int, reply_to: int, text: str) -> None:
             )
     user_client = getattr(app_ctx, "client", None)
     if user_client:
-        await user_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
-    else:
-        raise RuntimeError("Neither bot_client nor userbot client available")
+        sent = await user_client.send_message(chat_id, text, reply_to=reply_to, link_preview=False)
+        return getattr(sent, "id", None)
+    raise RuntimeError("Neither bot_client nor userbot client available")
 
 
 def _topic_id(message: Any) -> Optional[int]:
@@ -254,6 +259,8 @@ async def sales_payment_congrats_handler(event: Any) -> None:
     text = getattr(event.message, "message", None) or ""
     card = parse_payment_card(text)
     if not card:
+        if handle_non_crm_client_info_reply is not None:
+            await handle_non_crm_client_info_reply(event, _send_as_oisha)
         return
 
     sender = await event.get_sender()
@@ -284,5 +291,5 @@ async def sales_payment_congrats_handler(event: Any) -> None:
     if schedule_won_check is not None:
         schedule_won_check(
             _send_as_oisha, chat_id, message_id, seller,
-            sender_id=getattr(sender, "id", None), card_seller=card.get("seller"), db=db,
+            sender_id=getattr(sender, "id", None), card_seller=card.get("seller"), db=db, card=card,
         )

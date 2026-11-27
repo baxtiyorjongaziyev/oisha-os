@@ -2,8 +2,8 @@
 
 Owner qoidasi (2026-10-26):
 - Yangi lidlar (reklama, DM, qo'ng'iroq) → Mumtozmaxal, Rayxona.
-- Networking (biznes trening, tanishuv) lidlar → avval Shahnoza, keyin Mumtozmaxal/Rayxona.
-  Shahnoza yangi lid olmaydi: o'qishda bo'lishi mumkin, networking bilan munosabat quradi.
+- Networking (biznes trening, tanishuv) lidlar → ham Mumtozmaxal, Rayxona (owner, 2026-11-27:
+  networking lidlar avval Shahnozaga ketmaydi). Shahnoza yangi lid olmaydi: oʻqishda boʻlishi mumkin.
 
 "Hozir ishda" = davomat tizimida bugun oxirgi belgisi `check_in` (ketmagan).
 Bir guruh ichida bugun eng kam lid olgan sotuvchiga beriladi.
@@ -28,7 +28,8 @@ NEW, NETWORKING = "new", "networking"
 # kind -> (asosiy guruh, zaxira guruh). Ismlar davomatdagi `employees.name` boshlanishi.
 ROUTES = {
     NEW: (["mumtoz", "rayxon", "rayhon"], []),
-    NETWORKING: (["shahnoz"], ["mumtoz", "rayxon", "rayhon"]),
+    # Owner (2026-11-27): networking lidlar avval Shahnozaga ketmaydi; yangi lid bilan bir xil.
+    NETWORKING: (["mumtoz", "rayxon", "rayhon"], []),
 }
 NETWORKING_SOURCES = {"telegram_group_tn5", "networking", "tez_natija"}
 REMIND_AFTER_SECONDS = 30 * 60

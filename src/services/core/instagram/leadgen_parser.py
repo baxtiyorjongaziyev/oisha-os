@@ -3,10 +3,12 @@ Leadgen form field parsing and extraction utilities.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import re
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, Optional
 
 from src.services.core.instagram.leadgen_formatter import clean_form_key
+from src.time_utils import get_local_now, get_local_timezone
 
 NAME_KEYS = {
     "full_name", "name", "first_name", "last_name", "ismingizni_yozing",
@@ -98,3 +100,38 @@ def _pick(fields: Dict[str, str], keys: set[str]) -> str:
 
 def _excluded_leadgen_keys(fields: Dict[str, str]) -> set[str]:
     return {k for k in fields if _is_name_field(k) or _is_phone_field(k) or _is_email_field(k)}
+
+
+def resolve_lead_created_at(payload: Dict[str, Any], fallback: Optional[datetime] = None) -> str:
+    """Return Meta lead created_time as local ISO-8601 (+05:00), SQLite-safe."""
+    local_tz = get_local_timezone()
+    raw = (payload or {}).get("created_time")
+    parsed: Optional[datetime] = None
+
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        if raw > 0:
+            try:
+                parsed = datetime.fromtimestamp(float(raw), tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                parsed = None
+    elif isinstance(raw, str):
+        text = raw.strip()
+        if text.isdigit():
+            try:
+                parsed = datetime.fromtimestamp(int(text), tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                parsed = None
+        elif text:
+            normalized = text[:-1] + "+00:00" if text.endswith("Z") else text
+            try:
+                parsed = datetime.fromisoformat(normalized)
+            except ValueError:
+                parsed = None
+
+    if parsed is None:
+        base = fallback or get_local_now()
+        return base.astimezone(local_tz).isoformat() if base.tzinfo else base.replace(tzinfo=local_tz).isoformat()
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(local_tz).isoformat()

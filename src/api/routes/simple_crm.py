@@ -27,6 +27,7 @@ from src.api.rbac import (
     require_permissions,
 )
 from src.api.routes.state import api_state
+from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
 from src.services.core.crm.amocrm_pipeline_config import (
     SALES_CLOSING_STATUS_ID,
     SALES_CONTACT_STATUS_ID,
@@ -98,11 +99,11 @@ def _who(principal: Principal) -> str:
 
 
 def _normalize_phone(raw: str) -> str:
-    phone = raw.strip()
+    phone = normalize_amocrm_phone(raw)
     digits = _NON_DIGIT.sub("", phone)
     if not 9 <= len(digits) <= 15:
-        raise HTTPException(status_code=422, detail="Telefon raqam noto'g'ri")
-    return ("+" if phone.startswith("+") else "") + digits
+        raise HTTPException(status_code=422, detail="Telefon raqam notoʻgʻri")
+    return phone if phone.startswith("+") else digits
 
 
 async def _fetch_stage(

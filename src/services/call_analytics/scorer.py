@@ -77,7 +77,8 @@ class CallScorerMixin:
                 "TOIFALAR (faqat bittasini tanlang):\n"
                 "- Shaxsiy: shaxsiy, biznesga aloqasi yo'q suhbat.\n"
                 "- Oila: oila a'zolari, uy ishlari, bolalar yoki qarindoshlar haqida.\n"
-                "- Jamoa: xodimlar, ichki ishlar, vazifa, deadline, operatsion muhokama.\n"
+                "- Jamoa: xodimlar, ichki ishlar, vazifa, deadline, operatsion muhokama, "
+                "shuningdek ishga nomzodlar bilan suhbat (Headhunter/hh.uz arizasi, vakansiya, rezyume, ishga qabul).\n"
                 "- Mijoz: brending, dizayn, SMM, sayt, loyiha, narx, savdo yoki mijoz muzokarasi.\n"
                 "- Boshqa: aralash, spam yoki yuqoridagilarga aniq kirmaydigan qo'ng'iroq.\n\n"
                 "GAPIRISH NISBATI (hisoblangan):\n"
@@ -110,7 +111,8 @@ class CallScorerMixin:
                 '  "biznes_mosligi": "Biznesga mos|Qisman mos|Mos emas",\n'
                 '  "servis_yonalishi": "Brending|Dizayn|SMM|Sayt|Biznes transformatsiya|Reklama|Boshqa",\n'
                 '  "mijoz_lavozimi": "lavozim yoki N/A",\n'
-                '  "mijoz_kompaniya": "kompaniya nomi yoki N/A",\n'
+                '  "mijoz_kompaniya": "kompaniya yoki brend nomi (faqat transkripsiyada aniq aytilgan bo\'lsa, aks holda N/A)",\n'
+                '  "mijoz_kompaniya_ishonch": "mijoz_kompaniya aniqligiga ishonch, 0.0-1.0 son (faqat aniq aytilgan bo\'lsa 1.0, taxmin bo\'lsa 0.5 dan past)",\n'
                 '  "qaror_qabul_qiluvchi": "Ha|Yoq|Noaniq",\n'
                 '  "joylashuv": "shahar/viloyat yoki N/A",\n'
                 '  "mijoz_malumotlari": ["mijoz haqida muhim ma\'lumot 1", "muhim ma\'lumot 2"],\n'
@@ -207,7 +209,8 @@ class CallScorerMixin:
             f"Hozirgi sana va vaqt (Toshkent): {now_local.strftime('%Y-%m-%d %H:%M')}\n"
             f"{crm_block}"
             f"{tg_block}\n"
-            "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
+            "Toifalar: Shaxsiy, Oila, Jamoa, Mijoz, Boshqa. "
+            "Ishga nomzod bilan suhbat (Headhunter, vakansiya, rezyume, intervyu) = Jamoa.\n"
             "Kayfiyat: Ijobiy, Neytral, Salbiy, Noaniq.\n"
             "JSON schema: summary, category, client_mood, next_steps, keyingi_kelishuv, "
             "konversiya_tavsiyalari (array of 1-3 actionable advice), "
@@ -267,7 +270,8 @@ class CallScorerMixin:
             f"{crm_block}"
             f"{tg_block}\n"
             "TOIFALAR (faqat bittasini tanlang): Shaxsiy, Oila, Jamoa, Mijoz, Boshqa.\n"
-            "Mijoz = brending, dizayn, SMM, sayt, loyiha, narx, savdo yoki mijoz muzokarasi.\n\n"
+            "Mijoz = brending, dizayn, SMM, sayt, loyiha, narx, savdo yoki mijoz muzokarasi.\n"
+            "Jamoa = xodimlar, ichki ishlar va ishga nomzodlar (Headhunter, vakansiya, rezyume) bilan suhbat.\n\n"
             f"{rubric_prompt_uz()}\n"
             f"{outcome_prompt_uz()}\n"
             "Rubrik faqat Mijoz toifasiga taalluqli. Boshqa toifalarda "

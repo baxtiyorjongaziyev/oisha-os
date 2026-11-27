@@ -12,6 +12,8 @@ from src.services.utils.transcript import (
     has_timestamps,
 )
 from src.services.call_analytics.helpers import *
+from src.services.call_analytics.helpers import _normalise_category
+from src.services.call_analytics.recruitment import apply_recruitment_override, is_recruitment_call
 
 logger = structlog.get_logger()
 
@@ -107,7 +109,13 @@ class CallNormalizerMixin:
                 "etirozlar": 0, "yakunlash": 0, "muloqot_sifati": 0,
             }
 
-        category = _normalise_category(data.get("category"))
+        category = apply_recruitment_override(
+            _normalise_category(data.get("category")), summary,
+        )
+        hr_nomzod = category == "Jamoa" and is_recruitment_call(summary)
+        if hr_nomzod:
+            # Nomzod suhbati: savdo tavsiyasi va lid bahosi mazmunsiz.
+            tavsiyalar = []
         rubrik_amal_qiladi = _rubric_applies(category, transcript)
         if not rubrik_amal_qiladi:
             sifat_bahosi = 0
@@ -124,6 +132,7 @@ class CallNormalizerMixin:
         return {
             "summary": summary or _clip(transcript, 350),
             "category": category,
+            "hr_nomzod": hr_nomzod,
             "client_mood": _normalise_mood(data.get("client_mood")),
             "next_steps": next_steps,
             "keyingi_kelishuv": keyingi_kelishuv,
@@ -135,7 +144,7 @@ class CallNormalizerMixin:
             "rubrik_amal_qiladi": rubrik_amal_qiladi,
             # MetaSell-like extended fields
             "sifat_bahosi": sifat_bahosi,
-            "lead_bahosi": _clamp_score(data.get("lead_bahosi", 0)),
+            "lead_bahosi": 0 if hr_nomzod else _clamp_score(data.get("lead_bahosi", 0)),
             "suhbat_oilasi": str(data.get("suhbat_oilasi") or "Boshqa"),
             "suhbat_domeni": str(data.get("suhbat_domeni") or "Boshqa"),
             "baholash_rejimi": str(data.get("baholash_rejimi") or "Savdo playbook boyicha baholanadi"),
@@ -143,6 +152,7 @@ class CallNormalizerMixin:
             "servis_yonalishi": str(data.get("servis_yonalishi") or "Boshqa"),
             "mijoz_lavozimi": str(data.get("mijoz_lavozimi") or "N/A"),
             "mijoz_kompaniya": normalize_name_spellings(str(data.get("mijoz_kompaniya") or "N/A")),
+            "mijoz_kompaniya_ishonch": _normalise_outcome_confidence(data.get("mijoz_kompaniya_ishonch")),
             "qaror_qabul_qiluvchi": str(data.get("qaror_qabul_qiluvchi") or "Noaniq"),
             "joylashuv": str(data.get("joylashuv") or "N/A"),
             "mijoz_malumotlari": list(mijoz_info),
@@ -204,7 +214,7 @@ class CallNormalizerMixin:
         )
 
         if any(word in lowered for word in client_words):
-            category = "Mijoz"
+            category = apply_recruitment_override("Mijoz", transcript)
         elif any(word in lowered for word in team_words):
             category = "Jamoa"
         elif any(word in lowered for word in family_words):

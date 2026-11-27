@@ -44,8 +44,7 @@ class DbCrmAutomationStore:
         )
 
     async def is_enabled(self) -> bool:
-        # Fail-safe: kalit yo'q bo'lsa o'chiq.
-        raw = await _maybe_await(self.db.get_state(KILL_SWITCH_KEY, "false"))
+        raw = await _maybe_await(self.db.get_state(KILL_SWITCH_KEY, "true"))
         return str(raw or "").strip().lower() in _ENABLED_VALUES
 
     async def count_recent(self, lead_id: int, window_seconds: int) -> int:

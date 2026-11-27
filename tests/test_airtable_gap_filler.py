@@ -27,10 +27,11 @@ def test_find_next_gap_prioritizes_stale_hisob_then_transactions():
     txs = [
         {"id": "recT1", "fields": {"Tranzaksiya": "Sharq", "Sana": "2026-11-20", "Turi": "Kirim"}},
     ]
-    p1 = gf.find_next_gap(txs, hisoblar, "2026-11-23")
+    assert gf.find_next_gap(txs, hisoblar, "2026-11-23").table == "Tranzaksiyalar"
+    p1 = gf.find_next_gap(txs, hisoblar, "2026-11-23", ask_fakt_saldo=True)
     assert p1 is not None and p1.table == "Hisoblar" and p1.field == "Fakt saldo"
 
-    p2 = gf.find_next_gap(txs, hisoblar, "2026-11-23", skipped={"recH1:Fakt saldo"})
+    p2 = gf.find_next_gap(txs, hisoblar, "2026-11-23", skipped={"recH1:Fakt saldo"}, ask_fakt_saldo=True)
     assert p2 is not None and p2.table == "Tranzaksiyalar" and p2.field == "Hisobot oyi"
     assert p2.quick_value == "2026-11"
 
@@ -109,3 +110,97 @@ async def test_toldir_command_and_text_reply_flow(monkeypatch):
     _Msg.text = "9000000"
     await handler.handle_gap_text_reply(_Msg(), db=db)
     assert answers == ["Saldoni yozing:", "✅ Saqlandi", "🎉 Barcha tekshirilgan boʻsh maydonlar toʻldirildi!"]
+
+
+def test_toldir_is_owner_only(monkeypatch):
+    from src.settings import settings
+
+    monkeypatch.setattr(settings, "OWNER_ID", 150074828, raising=False)
+    monkeypatch.setenv("MOLIYACHI_TELEGRAM_ID", "8611068511")
+    assert gf.is_authorized_filler(150074828) is True
+    assert gf.is_authorized_filler(8611068511) is False
+
+
+def test_collect_errors_reasons_and_lookback():
+    txs = [
+        {"id": "recA", "fields": {"Tranzaksiya": "900$ kartaga tushirildi", "Sana": "2026-11-24",
+                                  "Turi": "Chiqim", "Summa": 900, "Hisob": ["h"], "Nazorat holati": "FAIL"}},
+        {"id": "recB", "fields": {"Tranzaksiya": "USD tolov", "Sana": "2026-11-23", "Turi": "Kirim",
+                                  "Summa": 5, "Hisob": ["h"], "Valyuta": "USD", "Nazorat holati": "FAIL"}},
+        {"id": "recC", "fields": {"Tranzaksiya": "Transfer", "Sana": "2026-11-25", "Turi": "Transfer",
+                                  "Hisob": ["h"], "P&L — Hisob nazorati": "XATO: moliya maydoni"}},
+        {"id": "recOld", "fields": {"Tranzaksiya": "Eski", "Sana": "2026-08-01", "Nazorat holati": "FAIL"}},
+        {"id": "recOk", "fields": {"Tranzaksiya": "OK", "Sana": "2026-11-25", "Nazorat holati": "OK"}},
+    ]
+    errs = {e.record_id: e.detail for e in gf.collect_errors(txs, "2026-11-25")}
+    assert set(errs) == {"recA", "recB", "recC"}
+    assert "Transfer" in errs["recA"]
+    assert "kurssiz" in errs["recB"]
+    assert "Summa" in errs["recC"] and "qabul" in errs["recC"]
+
+
+@pytest.mark.asyncio
+async def test_group_digest_sends_once_and_skips_hisoblar(monkeypatch):
+    from datetime import datetime
+
+    txs = [
+        {"id": "recT1", "fields": {"Tranzaksiya": "Sharq", "Sana": "2026-11-20", "Turi": "Kirim"}},
+        {"id": "recT2", "fields": {"Tranzaksiya": "Done", "Sana": "2026-11-20", "Turi": "Chiqim",
+                                   "Hisobot oyi": "2026-11"}},
+    ]
+    claimed: set = set()
+    sent: list = []
+
+    async def read():
+        return txs, True
+
+    async def send_group(text):
+        sent.append(text)
+        return True
+
+    async def claim(key, day):
+        if (key, day) in claimed:
+            return False
+        claimed.add((key, day))
+        return True
+
+    async def release(key, day):
+        claimed.discard((key, day))
+
+    now = datetime(2026, 11, 25, 10, 0)
+    kw = dict(read_records=read, send_group=send_group, claim=claim, release=release)
+    assert await gf.run_daily_group_digest(now, **kw) is True
+    assert len(sent) == 1
+    assert "Toʻldirilishi kerak" in sent[0] and "Hisobot oyi" in sent[0] and "Loyiha" in sent[0]
+    assert "https://airtable.com/" in sent[0] and "recT1" in sent[0] and "recT2" not in sent[0]
+    assert "Fakt saldo" not in sent[0]
+
+    assert await gf.run_daily_group_digest(now, **kw) is True
+    assert len(sent) == 1  # takror yuborilmaydi
+
+    assert await gf.run_daily_group_digest(datetime(2026, 11, 25, 23, 30), **kw) is False
+
+
+@pytest.mark.asyncio
+async def test_group_digest_releases_claims_on_send_failure():
+    from datetime import datetime
+
+    claimed: set = set()
+
+    async def read():
+        return [{"id": "recT1", "fields": {"Tranzaksiya": "X", "Sana": "2026-11-20"}}], True
+
+    async def send_group(text):
+        return False
+
+    async def claim(key, day):
+        claimed.add(key)
+        return True
+
+    async def release(key, day):
+        claimed.discard(key)
+
+    ok = await gf.run_daily_group_digest(
+        datetime(2026, 11, 25, 10, 0), read_records=read, send_group=send_group, claim=claim, release=release
+    )
+    assert ok is False and not claimed

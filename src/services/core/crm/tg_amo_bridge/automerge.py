@@ -30,6 +30,7 @@ from .executor import (
     execute_pair_decision,
     note_text,
 )
+from .phone_enrichment import _matches_username as _contact_matches_username, enrich_contact_phone_from_context
 from .store import MessageStore
 
 logger = logging.getLogger("TgAmoBridge.automerge")
@@ -55,20 +56,6 @@ class LinkOutcome:
     target_lead_id: Optional[int] = None
     merged_source_lead_id: Optional[int] = None
     reason: str = ""
-
-
-def _contact_matches_username(contact: Dict[str, Any], username: str) -> bool:
-    needle = username.lstrip("@").strip().lower()
-    if len(needle) < 4:
-        return False
-    if needle in str(contact.get("name") or "").lower():
-        return True
-    for fld in contact.get("custom_fields_values") or []:
-        for val in fld.get("values") or []:
-            text = str(val.get("value") or "").lower()
-            if f"@{needle}" in text or f"t.me/{needle}" in text or text.strip("@ ") == needle:
-                return True
-    return False
 
 
 class TelegramDealAutoMerger:
@@ -343,6 +330,18 @@ class TelegramDealAutoMerger:
             return fast
         contacts = await self.crm.find_contacts_by_phone_async(phone)
         if not contacts:
+            enriched, ecid, elid = await enrich_contact_phone_from_context(
+                self.crm, self.store, peer_id=peer_id, phone=phone, phone_source=phone_source,
+                cached=cached, amo_chat_id=(cached or {}).get("amo_chat_id"),
+                username=username, client_name=client_name, dry_run=self.dry_run,
+            )
+            if enriched and ecid:
+                return LinkOutcome(
+                    "phone_enriched", phone=phone, phone_source=phone_source,
+                    amo_chat_id=(cached or {}).get("amo_chat_id"),
+                    target_contact_id=ecid, target_lead_id=elid,
+                    reason="contact_phone_added_from_context",
+                )
             await self.store.upsert_chat_link(peer_id, phone=phone, username=username)
             return LinkOutcome("not_resolved", phone=phone, phone_source=phone_source, reason="no_crm_contact")
         target_contact, target_lead, phone_profiles = await self._pick_target(contacts)

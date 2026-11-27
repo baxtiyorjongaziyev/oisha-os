@@ -40,6 +40,28 @@ class AmoCRMLeadsMutateMixin:
             logger.error(f"[AMOCRM UPDATE LEAD STATUS ERROR] ID {lead_id}: {e}")
             return False
 
+    async def patch_lead(self, lead_id: int, payload: Dict[str, Any]) -> bool:
+        """PATCH arbitrary lead fields (price, raw custom_fields_values, ...)."""
+        if not payload:
+            return True
+        self._load_token()
+        url = f"{self.base_url}/api/v4/leads/{lead_id}"
+        try:
+            response = await asyncio.to_thread(
+                requests.patch,
+                url,
+                headers=self._get_headers(),
+                json=payload,
+                timeout=30,
+            )
+            if response.status_code in [200, 204]:
+                return True
+            logger.warning(f"[AMOCRM PATCH LEAD] {lead_id} -> HTTP {response.status_code}")
+            return False
+        except Exception as e:
+            logger.error(f"[AMOCRM PATCH LEAD ERROR] ID {lead_id}: {type(e).__name__}")
+            return False
+
     async def update_lead_custom_fields(self, lead_id: int, fields_dict: dict):
         self._load_token()
         url = f"{self.base_url}/api/v4/leads/{lead_id}"

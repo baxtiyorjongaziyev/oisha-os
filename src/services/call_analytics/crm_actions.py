@@ -68,6 +68,7 @@ class CrmActionPlanner:
         self.terminal_outcomes = {str(o) for o in stage_rules.get("terminal_outcomes") or []}
         self.closed_statuses = {int(s) for s in stage_rules.get("closed_statuses") or []}
         self.min_confidence = _safe_float(stage_rules.get("min_confidence", 0.8))
+        self.min_field_confidence = _safe_float(stage_rules.get("min_field_confidence", 1.0))
 
     def plan(self, analysis: Mapping[str, Any], lead: Mapping[str, Any]) -> List[CrmAction]:
         if int(lead.get("status_id") or 0) in self.closed_statuses:
@@ -82,6 +83,8 @@ class CrmActionPlanner:
         current = _current_field_values(lead)
         actions: List[CrmAction] = []
         for key, field_id in self.field_map.items():
+            if _safe_float(analysis.get(f"{key}_ishonch")) < self.min_field_confidence:
+                continue
             proposed = str(analysis.get(key) or "").strip()
             if proposed.casefold() in _PLACEHOLDERS:
                 continue

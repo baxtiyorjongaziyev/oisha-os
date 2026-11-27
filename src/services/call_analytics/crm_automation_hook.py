@@ -23,7 +23,7 @@ _OFF_VALUES = {"0", "false", "no", "off", "disabled"}
 
 
 async def _is_dry_run(db: Any) -> bool:
-    raw = await _maybe_await(db.get_state(DRY_RUN_KEY, "true"))
+    raw = await _maybe_await(db.get_state(DRY_RUN_KEY, "false"))
     return str(raw or "").strip().lower() not in _OFF_VALUES
 
 

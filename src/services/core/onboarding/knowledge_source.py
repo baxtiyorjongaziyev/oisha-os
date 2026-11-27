@@ -141,7 +141,7 @@ def get_core_team(config_path: Optional[Path] = None) -> Dict[str, TeamMember]:
             None,
             "Sotuv menejeri (Setter / Closing)",
         ),
-        "xayrullayevna006@gmail.com": (
+        "shahnoza@jonbranding.uz": (
             "shahnoza",
             "Shahnoza",
             None,

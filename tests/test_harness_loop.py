@@ -78,6 +78,14 @@ class HarnessLoopTests(unittest.TestCase):
         code, audits, _ = self.run_loop([(0, "")], [], safe=False)
         self.assertEqual((code, audits), (2, 0))
 
+    def test_handoff_distinguishes_focused_and_full_suite(self):
+        focused = self.loop.format_handoff_entry("test", "task", ["file.py"], "tests/x.py")
+        full = self.loop.format_handoff_entry("test", "task", ["file.py"])
+        self.assertIn("focused pytest target: tests/x.py", focused)
+        self.assertIn("full pytest suite", full)
+        self.assertIn("CI and deployment evidence are separate", focused)
+        self.assertNotIn("full pytest suite", focused)
+
     def test_default_target_is_full_suite(self):
         self.assertIsNone(self.loop.parse_args([]).test_target)
         config = self.loop.parse_args(["tests/x.py", "--agent-cmd", "claude -p fix"])

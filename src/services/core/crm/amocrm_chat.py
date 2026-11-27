@@ -99,7 +99,11 @@ class AmoCRMChatClient:
         }
         
         if phone:
-            payload["message"]["sender"]["profile"] = {"phone": phone}
+            from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
+
+            formatted_phone = normalize_amocrm_phone(phone)
+            if formatted_phone:
+                payload["message"]["sender"]["profile"] = {"phone": formatted_phone}
 
         url = self.base_url
         path = f"/v2/origin/custom/{self.channel_id}"

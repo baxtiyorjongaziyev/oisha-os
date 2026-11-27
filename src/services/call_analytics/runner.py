@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from src.services.call_analytics.recruitment import route_call_crm
 from src.services.call_analytics.helpers import (
     ANALYSIS_MARKER,
     _clip,
@@ -18,7 +19,6 @@ from src.services.call_analytics.normalizer import (
     _normalise_mood,
 )
 from src.services.core.call_events import CallEventLog
-from src.services.call_analytics.crm_automation_hook import run_crm_automation
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         return call_notes, (notes or [])
 
     async def _handle_audio_pipeline(
-        self, audio_url: str, duration: int, phone: str, lead_id: int, call_id: str
+        self, audio_url: str, duration: int, phone: str, lead_id: int, call_id: str, manager_name: str = ""
     ) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
         fetch_result = await self._fetch_audio_bytes(audio_url)
         if not fetch_result:
@@ -105,7 +105,7 @@ class CallRunnerMixin(NoteExtractorMixin):
 
         self._queue_salescoach_voice(audio_bytes, phone, mime_type)
 
-        transcript = await self._transcribe_inline(audio_bytes, mime_type)
+        transcript = await self._transcribe_inline(audio_bytes, mime_type, caller_phone=phone, manager_name=manager_name)
         if not transcript or _transcript_impossible_for_duration(transcript, duration):
             return None, None
 
@@ -178,7 +178,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
             conversion_advice=analysis.get("konversiya_tavsiyalari"),
         )
-        await run_crm_automation(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
+        await route_call_crm(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
         try:
             await self.approval_service.send_for_approval(
                 lead_id=lead_id, lead_name=lead_name, phone=phone, call_id=call_id,
@@ -210,7 +210,7 @@ class CallRunnerMixin(NoteExtractorMixin):
             agreed_datetime=analysis.get("kelishilgan_vaqt"),
             conversion_advice=analysis.get("konversiya_tavsiyalari"),
         )
-        await run_crm_automation(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
+        await route_call_crm(self.db, self.amocrm, lead_id, analysis, responsible_user_id)
         await self._log_call_analysis(
             call_id=call_id, lead_id=lead_id, category=category, summary=summary,
             client_mood=client_mood, next_steps=next_steps, transcript=transcript,
@@ -299,7 +299,7 @@ class CallRunnerMixin(NoteExtractorMixin):
         if min_call_duration_seconds and duration and duration < min_call_duration_seconds:
             return False
 
-        transcript, analysis = await self._handle_audio_pipeline(audio_url, duration, phone, lead_id, call_id)
+        transcript, analysis = await self._handle_audio_pipeline(audio_url, duration, phone, lead_id, call_id, manager_name=manager_name)
         if not transcript or not analysis:
             return False
 
@@ -335,18 +335,9 @@ class CallRunnerMixin(NoteExtractorMixin):
 
     def _is_excluded_phone(self, phone: str) -> bool:
         """Check whether the given phone number is excluded from call analysis."""
-        if not phone:
-            return False
-        raw = getattr(self._settings, "AMOCRM_CALL_ANALYSIS_EXCLUDED_PHONES", "") or ""
-        excluded = {
-            "".join(ch for ch in p if ch.isdigit())
-            for p in raw.split(",")
-            if p.strip()
-        }
-        if not excluded:
-            return False
-        normalized_phone = "".join(ch for ch in phone if ch.isdigit())
-        return normalized_phone in excluded
+        from src.services.core.crm.phone_blacklist import is_excluded_phone
+
+        return is_excluded_phone(phone, self._settings)
 
     async def process_call_recordings_for_lead(
         self,

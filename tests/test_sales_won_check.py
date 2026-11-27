@@ -160,3 +160,53 @@ def test_strict_fetch_raises_when_pages_incomplete():
         pass
     else:
         raise AssertionError("strict fetch must raise when pages are incomplete")
+
+
+def test_non_crm_seller_hasanboy_asked_for_client_info_by_tg_id():
+    db = FakeDb()
+    send = AsyncMock()
+    with patch.object(swc, "is_quiet_hours", return_value=False):
+        asyncio.run(
+            swc.check_won_after_payment(
+                send, CHAT_ID, MSG_ID, "@hasan_yahyo",
+                sender_id=8090679294, card_seller="Hasan Gaziyev", db=db, delay=0,
+            )
+        )
+
+    send.assert_awaited_once()
+    chat_id, reply_to, text = send.await_args.args
+    assert (chat_id, reply_to) == (CHAT_ID, MSG_ID)
+    assert "@hasan_yahyo" in text
+    assert "Mijoz ismi" in text and "Davlat boji" in text
+    assert "amoCRM" not in text
+    assert db.state[STATE_KEY] == "asked_client_info"
+
+
+def test_non_crm_seller_hasanboy_matched_by_username_or_card_name():
+    db = FakeDb()
+    send = AsyncMock()
+    with patch.object(swc, "is_quiet_hours", return_value=False):
+        asyncio.run(
+            swc.check_won_after_payment(
+                send, CHAT_ID, MSG_ID, "@hasan_yahyo",
+                sender_id=None, card_seller="Hasan Gaziyev", db=db, delay=0,
+            )
+        )
+
+    send.assert_awaited_once()
+    assert db.state[STATE_KEY] == "asked_client_info"
+
+
+def test_non_crm_seller_respects_quiet_hours():
+    db = FakeDb()
+    send = AsyncMock()
+    with patch.object(swc, "is_quiet_hours", return_value=True):
+        asyncio.run(
+            swc.check_won_after_payment(
+                send, CHAT_ID, MSG_ID, "@hasan_yahyo",
+                sender_id=8090679294, card_seller="Hasan Gaziyev", db=db, delay=0,
+            )
+        )
+
+    send.assert_not_awaited()
+    assert db.state[STATE_KEY] == "quiet_hours"

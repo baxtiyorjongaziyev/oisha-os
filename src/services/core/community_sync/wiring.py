@@ -11,7 +11,9 @@ import os
 
 from src.settings import settings
 
+from .adapters.airtable import AirtableAdapter
 from .adapters.amocrm import AmoAdapter
+from .adapters.obsidian import ObsidianAdapter
 from .adapters.google import GoogleAdapter
 from .adapters.telegram import TelegramAdapter, drip
 from .approval import handle_callback
@@ -68,7 +70,23 @@ def _adapters(app_ctx, store) -> list:
         out.append(AmoAdapter(AmoCRMSync()))
     except Exception as exc:
         logger.error("[COMMUNITY_SYNC] amocrm adapter: %s", exc)
+    if _cfg("COMMUNITY_SYNC_AIRTABLE", True):
+        try:
+            from src.services.core.airtable.sync import AirtableSync
+
+            out.append(AirtableAdapter(AirtableSync()))
+        except Exception as exc:
+            logger.error("[COMMUNITY_SYNC] airtable adapter: %s", exc)
     out.append(TelegramAdapter(app_ctx.client, store))
+    if _cfg("COMMUNITY_SYNC_OBSIDIAN", True):
+        from src.services.core.brain.cross_channel_sync import _get_active_vault_path
+
+        vault = _get_active_vault_path()
+        if vault:
+            # Oxirida: boshqa adapterlar ext ID larini toʻldirgandan keyin karta yoziladi
+            out.append(ObsidianAdapter(vault))
+        else:
+            logger.warning("[COMMUNITY_SYNC] Obsidian vault topilmadi, ötkazildi")
     return out
 
 

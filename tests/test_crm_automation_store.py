@@ -25,9 +25,9 @@ def _store(enabled="true"):
     return store
 
 
-def test_kill_switch_defaults_off():
+def test_kill_switch_defaults_on():
     store = DbCrmAutomationStore(FakeDb())
-    assert asyncio.run(store.is_enabled()) is False
+    assert asyncio.run(store.is_enabled()) is True
     assert asyncio.run(_store("on").is_enabled()) is True
 
 

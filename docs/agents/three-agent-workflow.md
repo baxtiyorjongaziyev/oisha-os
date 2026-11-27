@@ -39,3 +39,7 @@ Antigravity: AGENTS.md va docs/agents/three-agent-workflow.md ni o'qi. Task: <va
 Workspace watcher/search node_modules, .venv, cache va build fayllarini chetlab o'tadi. Auto Save o'chirilgan; diffni tekshirish osonroq. Claude yangi chatlari Plan mode'da boshlaydi. Antigravity yangi xabar yuborilganda pending editlarni avtomatik qabul qilmaydi.
 
 Rasmiy extensionlar: openai.chatgpt, anthropic.claude-code, google.google-antigravity. Boshqa AI extensionlar o'chirilmagan. Account login va real chat javobi shu sozlash davomida tekshirilmagan.
+
+## Agent harness overlay
+
+For software planning, implementation, debugging, review and release QA, all three roles must first read `.agents/skills/harness-loop/SKILL.md` (mandatory lifecycle), then `.agents/skills/agent-harness-workflow/SKILL.md` (engineering overlay). Claude Code uses the identical canonical files under `.claude/skills/`. Fetch `origin/main` before the local gate, check both staged and committed changes, and rerun after committing the final patch. It adds selective ECC, Superpowers and GStack engineering practices while preserving the existing role boundaries, locks, approval policy and pre-flight gates. This is a native workflow, not an installed third-party plugin.

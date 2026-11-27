@@ -57,6 +57,11 @@ class LeadOrchestrator:
         intent = lead_details.get("intent", "WARM")
         summary = lead_details.get("summary", "No summary provided")
         extracted_phone = lead_details.get("phone") or phone
+        from src.services.core.crm.phone_blacklist import is_excluded_phone
+
+        if extracted_phone and is_excluded_phone(extracted_phone):
+            logger.info("[ORCHESTRATOR] Skipping amoCRM sync for blacklisted phone: %s", extracted_phone)
+            return None, False
         tg_link = f"https://t.me/{username}" if username else f"tg://user?id={user_id}"
 
         extra_fields = {}

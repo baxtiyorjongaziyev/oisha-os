@@ -63,7 +63,7 @@ class JumaRateConfig:
     batch_size: int = 15
     batch_pause_min_sec: float = 900.0
     batch_pause_max_sec: float = 1200.0
-    cold_daily_limit: Optional[int] = 50
+    cold_daily_limit: Optional[int] = None
     quiet_start: tuple[int, int] = (22, 30)
     quiet_end: tuple[int, int] = (6, 0)
     silent_until: tuple[int, int] = (8, 0)
@@ -125,7 +125,7 @@ def load_juma_rate_config(env: Optional[Mapping[str, str]] = None) -> JumaRateCo
         batch_size=max(0, int(src.get("JUMA_BATCH_SIZE") or 15)),
         batch_pause_min_sec=batch_min,
         batch_pause_max_sec=max(batch_min, float(src.get("JUMA_BATCH_PAUSE_MAX_SEC") or 1200.0)),
-        cold_daily_limit=_parse_optional_int(src.get("JUMA_COLD_DAILY_LIMIT"), 50),
+        cold_daily_limit=_parse_optional_int(src.get("JUMA_COLD_DAILY_LIMIT"), None),
         quiet_start=_parse_hhmm(src.get("JUMA_QUIET_START"), (22, 30)),
         quiet_end=_parse_hhmm(src.get("JUMA_QUIET_END"), (6, 0)),
         silent_until=_parse_hhmm(src.get("JUMA_SILENT_UNTIL"), (8, 0)),

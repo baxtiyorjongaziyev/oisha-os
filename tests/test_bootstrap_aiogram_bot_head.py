@@ -148,6 +148,10 @@ def patched(monkeypatch):
         "src.bootstrap.orchestration.bot_head.register_team_dm_handlers",
         lambda dp, *, msg_controller, is_admin: None,
     )
+    monkeypatch.setattr(
+        "src.bootstrap.orchestration.bot_head.register_group_lead_assign_handlers",
+        lambda dp, *, is_admin, get_amocrm_client: None,
+    )
     return SimpleNamespace(
         built=built,
         hisobchi_calls=hisobchi_calls,

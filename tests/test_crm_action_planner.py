@@ -35,7 +35,13 @@ def _of(actions, kind):
 
 def test_fills_only_empty_fields_and_suggests_for_filled():
     actions = _plan(
-        {"mijoz_kompaniya": "Acme", "mijoz_lavozimi": "CEO", "joylashuv": ""},
+        {
+            "mijoz_kompaniya": "Acme",
+            "mijoz_kompaniya_ishonch": 1.0,
+            "mijoz_lavozimi": "CEO",
+            "mijoz_lavozimi_ishonch": 1.0,
+            "joylashuv": "",
+        },
         _lead(fields={102: "Manager"}),
     )
     assert _of(actions, FieldFillAction) == [FieldFillAction(field_id=101, value="Acme")]
@@ -86,7 +92,12 @@ def test_production_config_is_consistent():
     assert set(cfg.STAGE_RULES["outcome_to_status"].values()) <= set(order)
     planner = CrmActionPlanner(cfg.FIELD_MAP, cfg.STAGE_RULES)
     actions = planner.plan(
-        {"natija": "uchrashuv_kelishildi", "natija_ishonch": 0.9, "mijoz_kompaniya": "Acme"},
+        {
+            "natija": "uchrashuv_kelishildi",
+            "natija_ishonch": 0.9,
+            "mijoz_kompaniya": "Acme",
+            "mijoz_kompaniya_ishonch": 1.0,
+        },
         _lead(status_id=cfg.STATUS_ALOQA),
     )
     assert StageAction(cfg.STATUS_ALOQA, cfg.STATUS_UCHRASHUV) in actions

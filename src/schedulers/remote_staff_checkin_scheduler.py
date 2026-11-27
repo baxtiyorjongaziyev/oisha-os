@@ -42,7 +42,7 @@ DEFAULT_REPS: List[Dict[str, Any]] = [
     {"key": "mumtozmaxal", "name": "Mumtozmaxal", "tg": "",
      "emails": ["mumtozmaxal@jonbranding.uz"], "topic": 120},
     {"key": "shahnoza", "name": "Shahnoza", "tg": "",
-     "emails": ["shahnoza@jonbranding.uz", "xayrullayevna006@gmail.com"], "topic": 122},
+     "emails": ["shahnoza@jonbranding.uz"], "topic": 122},
 ]
 
 
