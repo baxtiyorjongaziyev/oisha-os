@@ -11,15 +11,17 @@ function renderCustomFieldsForm() {
   (crmCatalog.custom_fields_schema || []).forEach((f) => {
     const row = document.createElement("div");
     row.className = "amo-field-row";
+    const key = _esc(f.key);
+    const label = _esc(f.label);
     let inputHtml = "";
     if (f.type === "select") {
-      const opts = [`<option value="">Tanlash</option>`].concat((f.options || []).map((o) => `<option value="${o}">${o}</option>`)).join("");
-      inputHtml = `<select data-cf-key="${f.key}" class="cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] focus:outline-none focus:bg-[#f8fafc] rounded py-1">${opts}</select>`;
+      const opts = [`<option value="">Tanlash</option>`].concat((f.options || []).map((o) => `<option value="${_esc(o)}">${_esc(o)}</option>`)).join("");
+      inputHtml = `<select data-cf-key="${key}" class="cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] focus:outline-none focus:bg-[#f8fafc] rounded py-1">${opts}</select>`;
     } else {
       const itype = f.type === "number" ? "number" : f.type === "date" ? "date" : "text";
-      inputHtml = `<input type="${itype}" data-cf-key="${f.key}" placeholder="..." class="cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] placeholder-[#b0b8c0] focus:outline-none border-b border-transparent focus:border-[#4c8bf7]">`;
+      inputHtml = `<input type="${itype}" data-cf-key="${key}" placeholder="..." class="cf-input w-full bg-transparent text-[15px] font-semibold text-[#2e3640] placeholder-[#b0b8c0] focus:outline-none border-b border-transparent focus:border-[#4c8bf7]">`;
     }
-    row.innerHTML = `<div class="amo-field-label" title="${f.label}">${f.label}</div><div class="amo-field-val">${inputHtml}</div>`;
+    row.innerHTML = `<div class="amo-field-label" title="${label}">${label}</div><div class="amo-field-val">${inputHtml}</div>`;
     container.appendChild(row);
   });
 }
@@ -38,18 +40,16 @@ function getAuthHeaders() {
 }
 
 async function openDealDrawer(leadIdOrObj) {
-  const drawerEl = document.getElementById("dealDrawer");
-  if (drawerEl) drawerEl.classList.remove("hidden");
   const isObj = typeof leadIdOrObj === "object" && leadIdOrObj !== null;
-  const leadId = isObj ? leadIdOrObj.id : leadIdOrObj;
+  const leadId = Number.parseInt(isObj ? leadIdOrObj.id : leadIdOrObj, 10);
+  if (!Number.isInteger(leadId) || leadId <= 0) return;
+  document.getElementById("dealDrawer")?.classList.remove("hidden");
 
-  // 1. OPTIMISTIC RENDER (0ms latency): render card data immediately on click
   if (isObj) {
-    activeDrawerLead = { ...leadIdOrObj };
+    activeDrawerLead = { ...leadIdOrObj, id: leadId };
     try { renderDrawer(activeDrawerLead); } catch (e) { console.warn("Drawer render warning:", e); }
   }
 
-  // 2. Non-blocking asynchronous background enrichment
   try {
     const res = await fetch(`/api/crm/dialer/lead/${leadId}`, { headers: getAuthHeaders() });
     if (res.ok) {
@@ -57,7 +57,7 @@ async function openDealDrawer(leadIdOrObj) {
       if (data?.lead) {
         activeDrawerLead = { ...(activeDrawerLead || {}), ...data.lead };
         renderDrawer(activeDrawerLead);
-        if (typeof loadLeadCallHistory === "function") loadLeadCallHistory(activeDrawerLead.id);
+        if (typeof loadLeadCallHistory === "function") loadLeadCallHistory(leadId);
       }
     }
   } catch (err) {
@@ -89,7 +89,7 @@ function renderDrawer(lead) {
   const stageSelect = document.getElementById("drawerStageSelect");
   const pipe = (crmCatalog?.pipelines || []).find((p) => p.id === lead.pipeline_id) || crmCatalog?.pipelines?.[0];
   if (pipe && stageSelect) {
-    stageSelect.innerHTML = (pipe.statuses || []).map((st) => `<option value="${st.slug}">${st.title}</option>`).join("");
+    stageSelect.innerHTML = (pipe.statuses || []).map((st) => `<option value="${_esc(st.slug)}">${_esc(st.title)}</option>`).join("");
     stageSelect.value = lead.status_slug || pipe.statuses?.[0]?.slug || "";
     const stIdx = Math.max(0, (pipe.statuses || []).findIndex((s) => s.slug === stageSelect.value));
     const pct = Math.min(100, Math.max(15, Math.round(((stIdx + 1) / Math.max(pipe.statuses.length, 1)) * 100)));
@@ -296,22 +296,18 @@ function setDrawerChatMode(mode) {
 function renderDrawerTimeline(lead) {
   const timeline = document.getElementById("drawerTimelineList");
   if (!timeline) return;
-  const items = [`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1 flex-wrap"><span class="text-[#92989b]">Bugun</span><strong class="text-[#2e3640]">amoCRM</strong><span>Bitim #${lead.id} ochildi</span>${(lead.tags || []).map((t) => `<span class="bg-[#dce1e7] text-[#475569] text-[11px] px-2 py-0.5 rounded font-semibold">${t}</span>`).join("")}</div>`];
-
-  const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-
+  const safeLeadId = Number.parseInt(lead.id, 10) || 0;
+  const items = [`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1 flex-wrap"><span class="text-[#92989b]">Bugun</span><strong class="text-[#2e3640]">amoCRM</strong><span>Bitim #${safeLeadId} ochildi</span>${(lead.tags || []).map((t) => `<span class="bg-[#dce1e7] text-[#475569] text-[11px] px-2 py-0.5 rounded font-semibold">${_esc(t)}</span>`).join("")}</div>`];
   (lead.call_logs || []).forEach((log) => {
-    items.push(`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1"><span class="text-[#92989b]">${esc((log.created_at || "Bugun").slice(11, 16) || "14:15")}</span><strong class="text-[#2e3640]">${esc(log.seller_name || "Sotuvchi")}</strong><span>Yangi bosqich:</span><span class="bg-[#dbeafe] text-[#1d4ed8] text-[12px] font-semibold px-2 py-0.5 rounded">${esc(log.new_status)}</span></div>`);
+    items.push(`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1"><span class="text-[#92989b]">${_esc((log.created_at || "Bugun").slice(11, 16) || "14:15")}</span><strong class="text-[#2e3640]">${_esc(log.seller_name || "Sotuvchi")}</strong><span>Yangi bosqich:</span><span class="bg-[#dbeafe] text-[#1d4ed8] text-[12px] font-semibold px-2 py-0.5 rounded">${_esc(log.new_status)}</span></div>`);
   });
-
   (lead.notes || []).slice().reverse().forEach((n, idx) => {
     const isTg = n.note_type === "telegram_out" || (n.text || "").includes("[Telegram]");
     const isIg = n.note_type === "instagram_out" || (n.text || "").includes("[Instagram]");
     const isIncoming = n.note_type === "chat_in" || (n.text || "").startsWith("Mijoz:");
     const isCallOrAudio = n.note_type === "call" || n.note_type === "audio" || !!n.audio_url || (n.text || "").includes("MoiZvonki");
-
     if (isCallOrAudio && typeof buildAudioPlayerHtml === "function") {
-      items.push(buildAudioPlayerHtml({ by: n.by || "Sotuvchi", time: n.time || "Bugun", duration: n.duration || 0, audio_url: n.audio_url || "", direction: (n.text || "").includes("Kiruvchi") ? "in" : "out" }, `timeline_call_${lead.id}_${idx}`));
+      items.push(buildAudioPlayerHtml({ by: n.by || "Sotuvchi", time: n.time || "Bugun", duration: n.duration || 0, audio_url: n.audio_url || "", direction: (n.text || "").includes("Kiruvchi") ? "in" : "out" }, `timeline_call_${safeLeadId}_${idx}`));
     } else if (isTg) {
       items.push(`<div class="bg-[#f0f9ff] border-l-4 border-[#0284c7] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#0284c7] font-bold"><span>Telegram • ${_esc(n.by || "Sotuvchi")}</span><span class="text-[#64748b] font-normal">${_esc(n.time || "Hozir")}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${_esc((n.text || "").replace(/^(?:\u1F4AC\s*)?\[Telegram\]\s*/, ""))}</div></div>`);
     } else if (isIg) {
@@ -333,18 +329,12 @@ function switchDrawerTab(tabName) {
   });
 }
 
-function closeDealDrawer() {
-  stopDrawerAutoRefresh();
-  document.getElementById("dealDrawer")?.classList.add("hidden");
-}
+function closeDealDrawer() { stopDrawerAutoRefresh(); document.getElementById("dealDrawer")?.classList.add("hidden"); }
 
 async function saveDrawerLeadChanges(closeAfter = true) {
   if (!activeDrawerLead) return;
   const cfValues = {};
-  document.querySelectorAll(".cf-input").forEach((el) => {
-    const val = el.value.trim();
-    if (val) cfValues[el.dataset.cfKey] = val;
-  });
+  document.querySelectorAll(".cf-input").forEach((el) => { const val = el.value.trim(); if (val) cfValues[el.dataset.cfKey] = val; });
   const stVal = document.getElementById("drawerStageSelect")?.value;
   if (stVal === "rad" && activeDrawerLead.status_slug !== "rad" && typeof openLossModal === "function") {
     openLossModal(activeDrawerLead.id, "rad", "Rad etildi", parseFloat(document.getElementById("drawerPriceInput")?.value) || activeDrawerLead.price, activeDrawerLead.name);
@@ -358,7 +348,7 @@ async function saveDrawerLeadChanges(closeAfter = true) {
     contact_name: document.getElementById("drawerContactName")?.value.trim() || "",
     phone: document.getElementById("drawerContactPhone")?.value.trim() || "",
     price: parseFloat(document.getElementById("drawerPriceInput")?.value) || 0,
-    status_slug: document.getElementById("drawerStageSelect")?.value || "yangi",
+    status_slug: stVal || "yangi",
     responsible_name: repSelect ? repSelect.options[repSelect.selectedIndex].text : "Shahnoza Abdijabborova",
     tags: activeDrawerLead.tags || [], custom_fields: cfValues,
   };
@@ -372,48 +362,37 @@ async function submitDrawerChat() {
   const input = document.getElementById("drawerChatInput");
   const text = (input?.value || "").trim();
   if (!text || !activeDrawerLead) return;
-
   const chan = currentDrawerChatMode === "telegram" ? "Telegram" : currentDrawerChatMode === "instagram" ? "Instagram Direct" : "note";
   input.value = "";
-
   const res = await fetch("/api/crm/dialer/inbox/send", {
     method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ lead_id: activeDrawerLead.id, text, channel: chan, sender_name: "Shahnoza Abdijabborova" }),
   });
   const data = await res.json();
-  if (data?.lead) {
-    activeDrawerLead = data.lead;
-    renderDrawerTimeline(activeDrawerLead);
-  }
-  if (typeof showToast === "function") {
-    showToast(chan === "Telegram" ? "Xabar mijozning Telegramiga yuborildi!" : chan === "Instagram Direct" ? "Xabar mijozning Instagramiga yuborildi!" : "Ichki izoh lentaga qo'shildi");
-  }
+  if (data?.lead) { activeDrawerLead = data.lead; renderDrawerTimeline(activeDrawerLead); }
+  if (typeof showToast === "function") showToast(chan === "Telegram" ? "Xabar mijozning Telegramiga yuborildi!" : chan === "Instagram Direct" ? "Xabar mijozning Instagramiga yuborildi!" : "Ichki izoh lentaga qoʻshildi");
 }
 
 function submitDrawerNote() { submitDrawerChat(); }
 
 function startDrawerAutoRefresh(leadId) {
   stopDrawerAutoRefresh();
+  const safeId = Number.parseInt(leadId, 10);
+  if (!Number.isInteger(safeId) || safeId <= 0) return;
   drawerRefreshTimer = setInterval(async () => {
-    if (!activeDrawerLead || activeDrawerLead.id !== leadId) { stopDrawerAutoRefresh(); return; }
+    if (!activeDrawerLead || Number.parseInt(activeDrawerLead.id, 10) !== safeId) { stopDrawerAutoRefresh(); return; }
     try {
-      const res = await fetch(`/api/crm/dialer/lead/${leadId}`, { headers: getAuthHeaders() });
+      const res = await fetch(`/api/crm/dialer/lead/${safeId}`, { headers: getAuthHeaders() });
       const data = await res.json();
       if (data?.lead && (data.lead.notes || []).length !== (activeDrawerLead.notes || []).length) {
         activeDrawerLead = data.lead;
         renderDrawerTimeline(activeDrawerLead);
       }
-    } catch (e) {}
+    } catch (_) {}
   }, 4000);
 }
-
-function stopDrawerAutoRefresh() {
-  if (drawerRefreshTimer) { clearInterval(drawerRefreshTimer); drawerRefreshTimer = null; }
-}
-
+function stopDrawerAutoRefresh() { if (drawerRefreshTimer) { clearInterval(drawerRefreshTimer); drawerRefreshTimer = null; } }
 function copyDrawerPhone() {
   const p = document.getElementById("drawerContactPhone")?.value;
-  if (!p) return;
-  navigator.clipboard.writeText(p);
-  if (typeof showToast === "function") showToast("Raqam nusxalandi!");
+  if (p) { navigator.clipboard.writeText(p); if (typeof showToast === "function") showToast("Raqam nusxalandi!"); }
 }

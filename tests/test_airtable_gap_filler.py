@@ -172,7 +172,12 @@ async def test_group_digest_sends_once_and_skips_hisoblar(monkeypatch):
     assert await gf.run_daily_group_digest(now, **kw) is True
     assert len(sent) == 1
     assert "Toʻldirilishi kerak" in sent[0] and "Hisobot oyi" in sent[0] and "Loyiha" in sent[0]
-    assert "https://airtable.com/" in sent[0] and "recT1" in sent[0] and "recT2" not in sent[0]
+    import re
+    from urllib.parse import urlparse
+
+    hrefs = [urlparse(u) for u in re.findall(r'href="([^"]+)"', sent[0])]
+    assert hrefs and all(u.scheme == "https" and u.hostname == "airtable.com" for u in hrefs)
+    assert any(u.path.endswith("/recT1") for u in hrefs) and "recT2" not in sent[0]
     assert "Fakt saldo" not in sent[0]
 
     assert await gf.run_daily_group_digest(now, **kw) is True

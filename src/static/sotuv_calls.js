@@ -50,11 +50,14 @@ async function trigger1ClickCall(leadId, clientPhone) {
       if (typeof showToast === "function") {
         showToast(data.message || `✅ Qo'ng'iroq ulandi! Telefoningizni kuting (${data.seller_phone})`);
       }
-      if (data.tel_url && window.innerWidth < 768) {
-        window.location.href = data.tel_url;
+      if (data.tel_url && /^tel:\+?\d{5,15}$/.test(String(data.tel_url)) && window.innerWidth < 768) {
+        window.location.href = String(data.tel_url);
       }
       if (typeof loadLeadCallHistory === "function") {
-        setTimeout(() => loadLeadCallHistory(leadId), 1500);
+        const safeCallbackLeadId = Number.parseInt(leadId, 10);
+        if (Number.isInteger(safeCallbackLeadId) && safeCallbackLeadId > 0) {
+          setTimeout(() => loadLeadCallHistory(safeCallbackLeadId), 1500);
+        }
       }
     } else {
       if (typeof showToast === "function") {
@@ -69,7 +72,8 @@ async function trigger1ClickCall(leadId, clientPhone) {
 
 async function loadLeadCallHistory(leadId) {
   const container = document.getElementById("drawerCallsHistoryBox");
-  if (!container) return;
+  const safeLeadId = Number.parseInt(leadId, 10);
+  if (!container || !Number.isInteger(safeLeadId) || safeLeadId <= 0) return;
 
   try {
     const token = getCrmAuthToken();
@@ -79,10 +83,10 @@ async function loadLeadCallHistory(leadId) {
       headers["X-CRM-Session-Token"] = token;
     }
 
-    const res = await fetch(`/api/crm/dialer/calls/history/${leadId}`, { headers: headers });
+    const res = await fetch(`/api/crm/dialer/calls/history/${safeLeadId}`, { headers: headers });
     if (!res.ok) return;
     const data = await res.json();
-    if (data.success && data.calls && data.calls.length > 0) {
+    if (data.success && Array.isArray(data.calls) && data.calls.length > 0) {
       container.classList.remove("hidden");
       container.innerHTML = `
         <div class="flex items-center justify-between pb-2 mb-2 border-b border-[#e2e8f0]">
@@ -93,13 +97,13 @@ async function loadLeadCallHistory(leadId) {
           <span class="text-[10px] text-[#64748b]">MoiZvonki + Whisper STT</span>
         </div>
         <div class="flex flex-col gap-2.5">
-          ${data.calls.map((c, i) => buildAudioPlayerHtml(c, `call_audio_${leadId}_${i}`)).join("")}
+          ${data.calls.map((c, i) => buildAudioPlayerHtml(c, `call_audio_${safeLeadId}_${i}`)).join("")}
         </div>
       `;
     } else {
       container.innerHTML = `
         <div class="text-[11px] text-[#94a3b8] italic text-center py-2">
-          Ushbu bitim bo'yicha audio yozuvlar hali mavjud emas
+          Ushbu bitim boʻyicha audio yozuvlar hali mavjud emas
         </div>
       `;
     }
@@ -110,8 +114,14 @@ async function loadLeadCallHistory(leadId) {
 
 function _safeAudioUrl(raw) {
   const s = String(raw || "").trim();
-  if (s.startsWith("https://") || s.startsWith("http://") || s.startsWith("/")) {
-    return _escCall(s);
+  if (!s) return "";
+  try {
+    const parsed = new URL(s, window.location.origin);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+      return _escCall(`${parsed.origin}${parsed.pathname}${parsed.search}`);
+    }
+  } catch (_) {
+    return "";
   }
   return "";
 }
@@ -122,14 +132,14 @@ function buildAudioPlayerHtml(call, uniqueId) {
     ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#dcfce7] text-[#15803d]">↙ Kiruvchi</span>'
     : '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#dbeafe] text-[#1d4ed8]">↗ Chiquvchi</span>';
 
-  const safeId = _escCall(uniqueId);
+  const safeId = String(uniqueId || "").replace(/[^A-Za-z0-9_-]/g, "");
   const audioUrl = _safeAudioUrl(call.audio_url);
-  const durStr = _escCall(call.duration_formatted || `${call.duration || 0}s`);
-  const leadId = call.lead_id || (window.activeDrawerLead ? window.activeDrawerLead.id : "");
+  const durStr = _escCall(call.duration_formatted || `${Number.parseInt(call.duration || 0, 10) || 0}s`);
+  const safeLeadId = Number.parseInt(call.lead_id || (window.activeDrawerLead ? window.activeDrawerLead.id : 0), 10) || 0;
 
   const transcript = call.transcript || "";
   const ai = call.ai_analysis || {};
-  const bantScore = ai.bant_score || 0;
+  const bantScore = Math.max(0, Math.min(100, Number.parseInt(ai.bant_score || 0, 10) || 0));
 
   return `
     <div class="p-2.5 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] flex flex-col gap-2 text-xs shadow-2xs">
@@ -143,7 +153,7 @@ function buildAudioPlayerHtml(call, uniqueId) {
 
       ${audioUrl ? `
         <div class="flex items-center gap-2 bg-white p-2 rounded border border-[#cbd5e1]">
-          <button type="button" onclick="togglePlayAudio('${safeId}', '${audioUrl}')" id="btn_${safeId}" class="w-8 h-8 rounded-full bg-[#3b82f6] text-white flex items-center justify-center hover:bg-[#2563eb] transition shrink-0 shadow-xs" title="Ijro etish / Toʼxtatish">
+          <button type="button" data-audio-url="${audioUrl}" onclick="togglePlayAudio('${safeId}', this.dataset.audioUrl)" id="btn_${safeId}" class="w-8 h-8 rounded-full bg-[#3b82f6] text-white flex items-center justify-center hover:bg-[#2563eb] transition shrink-0 shadow-xs" title="Ijro etish / Toʻxtatish">
             <svg id="icon_play_${safeId}" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             <svg id="icon_pause_${safeId}" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
           </button>
@@ -158,7 +168,7 @@ function buildAudioPlayerHtml(call, uniqueId) {
 
           <div class="flex items-center gap-1 shrink-0">
             <button type="button" onclick="cycleAudioSpeed('${safeId}')" id="speed_${safeId}" class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#f1f5f9] text-[#475569] hover:bg-[#e2e8f0]" title="Tezlik">1.0x</button>
-            <a href="${audioUrl}" target="_blank" download class="p-1 text-[#64748b] hover:text-[#1e293b]" title="Yuklab olish">
+            <a href="${audioUrl}" target="_blank" rel="noopener noreferrer" download class="p-1 text-[#64748b] hover:text-[#1e293b]" title="Yuklab olish">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             </a>
           </div>
@@ -174,22 +184,22 @@ function buildAudioPlayerHtml(call, uniqueId) {
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
               ${bantScore > 0 ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#eff6ff] text-[#1d4ed8]">BANT: ${bantScore}/100</span>` : ''}
-              ${ai.sentiment ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#ecfdf5] text-[#047857]">${ai.sentiment}</span>` : ''}
+              ${ai.sentiment ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#ecfdf5] text-[#047857]">${_escCall(ai.sentiment)}</span>` : ''}
             </div>
-            <button type="button" onclick="toggleTranscriptBox('${uniqueId}')" class="text-[11px] font-bold text-[#0284c7] hover:underline flex items-center gap-0.5">
-              <span id="txt_toggle_${uniqueId}">Transkripsiya matni ▼</span>
+            <button type="button" onclick="toggleTranscriptBox('${safeId}')" class="text-[11px] font-bold text-[#0284c7] hover:underline flex items-center gap-0.5">
+              <span id="txt_toggle_${safeId}">Transkripsiya matni ▼</span>
             </button>
           </div>
           ${ai.summary ? `<div class="text-[12px] text-[#334155] leading-relaxed"><b>Xulosa:</b> ${_escCall(ai.summary)}</div>` : ''}
           ${ai.pain_point ? `<div class="text-[11px] text-[#b45309] bg-[#fffbeb] p-1.5 rounded border border-[#fde68a]"><b>Mijoz ogʻrigʻi:</b> ${_escCall(ai.pain_point)}</div>` : ''}
-          <div id="transcript_box_${uniqueId}" class="hidden mt-1 p-2 bg-white rounded border border-[#e2e8f0] font-mono text-[11px] text-[#1e293b] leading-relaxed max-h-40 overflow-y-auto whitespace-pre-line custom-scrollbar">
+          <div id="transcript_box_${safeId}" class="hidden mt-1 p-2 bg-white rounded border border-[#e2e8f0] font-mono text-[11px] text-[#1e293b] leading-relaxed max-h-40 overflow-y-auto whitespace-pre-line custom-scrollbar">
             ${_escCall(transcript)}
           </div>
         </div>
       ` : audioUrl ? `
         <div class="mt-1 pt-1.5 border-t border-[#e2e8f0] flex items-center justify-between">
           <span class="text-[10px] text-[#94a3b8] italic">Transkripsiya olinmagan</span>
-          <button type="button" id="btn_stt_${uniqueId}" onclick="requestCallTranscription('${leadId}', '${audioUrl}', '${uniqueId}')" class="px-2 py-1 rounded text-[11px] font-bold bg-[#f0f9ff] text-[#0284c7] hover:bg-[#e0f2fe] border border-[#bae6fd] flex items-center gap-1 transition shadow-2xs">
+          <button type="button" id="btn_stt_${safeId}" data-audio-url="${audioUrl}" onclick="requestCallTranscription(${safeLeadId}, this.dataset.audioUrl, '${safeId}')" class="px-2 py-1 rounded text-[11px] font-bold bg-[#f0f9ff] text-[#0284c7] hover:bg-[#e0f2fe] border border-[#bae6fd] flex items-center gap-1 transition shadow-2xs">
             ✨ AI Transkripsiya & BANT
           </button>
         </div>
