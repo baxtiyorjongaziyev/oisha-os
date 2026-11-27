@@ -44,7 +44,12 @@ def sign_request(secret: str, method: str, path: str, body: bytes, date: Optiona
 
 
 def format_profile_phone(phone: Optional[str]) -> Optional[str]:
-    """E.164-style phone for amoJo profiles: digits with a leading "+"."""
+    """E.164-style phone for amoJo profiles: Uzbekistan -> +998..., else +{digits}."""
+    from src.services.core.crm.amocrm.phone_format import normalize_amocrm_phone
+
+    normalized = normalize_amocrm_phone(phone)
+    if normalized.startswith("+"):
+        return normalized
     digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
     return f"+{digits}" if digits else None
 

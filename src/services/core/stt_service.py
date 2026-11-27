@@ -20,10 +20,16 @@ class STTResult:
         self.source = source
 
 
+from src.services.call_analytics.stt_vocabulary import (
+    STT_PROPER_NOUNS_PROMPT,
+    normalize_name_spellings,
+)
+
 _PROMPT = (
-    "Audio yozuvni diqqat bilan eshiting va aynan eshitilganidek, toʼliq oʼzbek tilida "
-    "(lotin alifbosida) yozing. Hech narsa oʼylab topmang. Tushunarli nutq boʼlmasa "
-    "boʼsh javob qaytaring."
+    "Audio yozuvni diqqat bilan eshiting va aynan eshitilganidek, toʻliq oʻzbek tilida "
+    "(lotin alifbosida) yozing. Hech narsa oʻylab topmang. Tushunarli nutq boʻlmasa "
+    "boʻsh javob qaytaring.\n"
+    f"{STT_PROPER_NOUNS_PROMPT}"
 )
 
 
@@ -56,7 +62,7 @@ class STTService:
             )
             text = (getattr(resp, "text", "") or "").strip()
             if text:
-                return STTResult(transcript=text, source=f"gemini/{model}")
+                return STTResult(transcript=normalize_name_spellings(text), source=f"gemini/{model}")
         except Exception as exc:
             logger.warning("[STT] Gemini failed: %s", type(exc).__name__)
         return None

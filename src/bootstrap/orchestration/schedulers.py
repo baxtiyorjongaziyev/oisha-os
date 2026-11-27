@@ -182,6 +182,14 @@ def start_background_schedulers(bot_runtime: Any) -> None:
     except ImportError as exc:
         logger.warning("[DAILY] scheduler unavailable: %s", exc)
     try:
+        from src.context import app_ctx
+        from src.schedulers.community_sync_scheduler import community_sync_loop, register
+
+        register(app_ctx)
+        asyncio.create_task(community_sync_loop(app_ctx), name="community_sync_loop")
+    except ImportError as exc:
+        logger.warning("[COMMUNITY_SYNC] scheduler unavailable: %s", exc)
+    try:
         from src.schedulers.juma_greeting_scheduler import juma_greeting_loop
         asyncio.create_task(juma_greeting_loop(bot_runtime), name="juma_greeting_loop")
     except ImportError as exc:

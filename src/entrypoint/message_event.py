@@ -71,6 +71,7 @@ async def _sync_and_log_crm_channels(event: Any, sender: Any, sender_name: str, 
             user_id=getattr(sender, "id", None),
             name=sender_name,
             db=db_instance,
+            username=getattr(sender, "username", None),
         )
         if is_nc:
             logger.info(f"[AMOCRM CHAT FILTER] Sender {sender_name} is 'mijoz emas' ({nc_reason}). Skipping CRM chat sync.")

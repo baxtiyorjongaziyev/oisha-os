@@ -129,6 +129,16 @@ def init_domain_agents(
         m.session_manager = session_manager
     asyncio.create_task(session_manager.monitor_sessions())
 
+    app_ctx.lead_scraper = lead_scraper
+    app_ctx.action_parser = action_parser
+    app_ctx.meeting_scheduler = meeting_scheduler
+    app_ctx.advisor_agent = advisor_agent
+    app_ctx.auto_lead_agent = auto_lead_agent
+    app_ctx.surgical_integration = surgical_integration
+    app_ctx.audit_agent = audit_agent
+    app_ctx.evolution_scheduler = evolution_scheduler
+    app_ctx.admin_bot = admin_bot
+
     return {
         "juma_notifier": juma_notifier,
         "lead_scraper": lead_scraper,

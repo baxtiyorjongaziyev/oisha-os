@@ -23,7 +23,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
-from . import config
+from . import config, sticker_preview
 
 logger = logging.getLogger("TgAmoBridge.media")
 
@@ -224,13 +224,7 @@ class MediaRef:
     file_size: int
 
 
-def _sticker_emoji(message: Any) -> str:
-    doc = getattr(message, "sticker", None) or getattr(message, "document", None)
-    for attr in getattr(doc, "attributes", None) or []:
-        alt = getattr(attr, "alt", None)
-        if alt:
-            return alt
-    return ""
+_sticker_emoji = sticker_preview.sticker_emoji
 
 
 def describe_non_file(message: Any) -> str:
@@ -269,11 +263,10 @@ def classify(message: Any) -> Optional[Tuple[str, str, str]]:
     file = getattr(message, "file", None)
     mime = (getattr(file, "mime_type", None) or "").lower()
     if getattr(message, "sticker", None):
-        if mime == "image/webp":
-            return "picture", mime, ".webp"
-        if mime == "video/webm":
-            return "video", mime, ".webm"
-        return None  # animated .tgs: amoCRM cannot render it
+        static_exts = {"image/webp": ".webp", "image/png": ".png", "image/jpeg": ".jpg"}
+        if mime in static_exts:
+            return "picture", mime, static_exts[mime]
+        return None  # animated .tgs / video .webm -> handled via sticker_preview
     if getattr(message, "photo", None):
         return "picture", "image/jpeg", ".jpg"
     if getattr(message, "voice", None):
@@ -302,7 +295,15 @@ async def prepare_inbound(message: Any, peer_id: int) -> Tuple[Optional[MediaRef
     kind = classify(message)
     if kind is None:
         if getattr(message, "sticker", None):
-            return None, f"[stiker {_sticker_emoji(message)}]".replace(" ]", "]")
+            return await sticker_preview.prepare_inbound_sticker(
+                message,
+                peer_id,
+                enabled=media_enabled(),
+                max_bytes=max_bytes(),
+                uploader=upload,
+                url_builder=proxy_url,
+                ref_factory=MediaRef,
+            )
         return None, describe_non_file(message)
     amo_type, mime, ext = kind
     name = _file_name(message, ext)

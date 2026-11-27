@@ -1247,3 +1247,7 @@ File offload:   python src/services/debug/crm_file_offloader.py
 - **Deploy xatolari**: ko'pincha `--set-secrets` va `--update-env-vars` konflikti sabab
 - **CI token**: test bosqichida Turso token kerak bo'ladi → conftest.py'da mock qilish kerak
 - **Session**: GCS'da `oisha.session` fayli saqlanadi, u tugasa bot qayta ishga tushmaydi
+## 2026-11-26 — Airtable boʻshliqlar hisoboti loyihalar guruhiga (PR #1188 follow-up)
+- Oʻzgarish: `airtable_missing_fields_scheduler` endi `AIRTABLE_GAPS_GROUP_ID` > `settings.PROJECTS_GROUP_ID` (-1003114662117) ga yuboradi; topic faqat override guruh bilan.
+- Tekshiruv: `tests/test_airtable_missing_fields.py` (routing testi).
+- Qolgan: deploydan keyin ish kuni 10:00 da guruhga tushganini koʻrish.

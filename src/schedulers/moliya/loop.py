@@ -15,6 +15,7 @@ from typing import Optional
 
 from src.schedulers.moliya.balans import run_balans_eslatmasi, run_balans_report
 from src.schedulers.moliya.cashflow import run_cashflow_report
+from src.schedulers.moliya.haftalik import haftalik_target, run_haftalik_report
 from src.schedulers.moliya.helpers import run_once_per_day
 from src.schedulers.moliya.kuzatuv import run_kuzatuv_report
 from src.schedulers.moliya.pnl import run_pnl_report
@@ -33,6 +34,16 @@ def kuzatuv_target(now: datetime) -> Optional[datetime]:
     """09:00–09:04 da kechagi toʻliq kun uchun kuzatuv hisobotini qaytaradi."""
     if now.hour == KUZATUV_HOUR and now.minute < 5:
         return now - timedelta(days=1)
+    return None
+
+
+_last_reconcile_slot: list[Optional[str]] = [None]
+
+
+def reconcile_slot(now: datetime) -> Optional[str]:
+    """Yarim soatlik slot (5 daqiqalik oyna) — sikl siljisa ham oʻtkazib yuborilmaydi."""
+    if now.minute % 30 < 5:
+        return now.strftime("%Y-%m-%d %H:") + ("00" if now.minute < 30 else "30")
     return None
 
 
@@ -85,11 +96,28 @@ async def moliya_hisobotlari_loop() -> None:
                     "moliya_kuzatuv", day, lambda t=target: run_kuzatuv_report(t)
                 )
 
-            # Airtable boʻsh maydonlarni bittama-bitta soʻrash — 10:00
-            if now.hour == 10 and now.minute < 5:
-                from src.services.core.finance.airtable_gap_filler import run_daily_gap_prompt
+            # Haftalik moliya nazorati — egasiga, dushanba 09:00 (oʻtgan hafta)
+            week_start = haftalik_target(now)
+            if week_start is not None:
+                await run_once_per_day(
+                    "moliya_haftalik", day, lambda w=week_start: run_haftalik_report(w)
+                )
 
-                await run_once_per_day("airtable_gap_prompt", day, run_daily_gap_prompt)
+            # Airtable nazorati: boʻsh/xato yozuvlar — guruhga jamlangan eslatma, 10:00
+            if now.hour == 10 and now.minute < 5:
+                from src.services.core.finance.airtable_gap_filler import run_daily_group_digest
+
+                await run_once_per_day(
+                    "airtable_group_digest", day, lambda: run_daily_group_digest(now)
+                )
+
+            # Kunlik qoldiq rekonsiliatsiyasi — har 30 daqiqada (quiet-hours ichida jim)
+            slot = reconcile_slot(now)
+            if slot is not None and slot != _last_reconcile_slot[0]:
+                from src.services.core.finance.balance_reconcile import run_balance_reconcile
+
+                _last_reconcile_slot[0] = slot
+                await run_balance_reconcile(now)
 
             if hisobchi_active():
                 await _run_group_reports(now, day)
