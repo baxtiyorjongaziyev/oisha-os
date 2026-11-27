@@ -17,7 +17,10 @@ def test_pull_requests_never_run_on_production_oracle_runner():
 
     assert "pull-request-tests:" in workflow
     assert "runs-on: ubuntu-latest" in workflow
-    assert "if: github.event_name == 'pull_request'" in workflow
+    assert any(
+        line.strip().startswith("if: github.event_name == 'pull_request'")
+        for line in workflow.splitlines()
+    )
 
 
 def test_trusted_main_job_is_push_only_and_github_hosted():
