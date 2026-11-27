@@ -1,21 +1,18 @@
 """Idempotent, race-safe execution of Telegram <-> Phone PairDecision mutations."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, Dict, Optional, Tuple
 
 from .analyzer import PairDecision, format_merge_note
 from .store import MessageStore
+from .merge_locks import lead_locks
 
 logger = logging.getLogger("TgAmoBridge.executor")
 
 MERGED_TARGET_TAG = "TG_MERGED"
 MERGED_SOURCE_TAG = "AUTO_MERGED_TG"
 REVIEW_CONFLICT_TAG = "TG_MERGE_REVIEW"
-
-_LEAD_LOCKS: Dict[int, asyncio.Lock] = {}
-
 
 def note_text(note: Dict[str, Any]) -> str:
     params = note.get("params") or {}
@@ -43,6 +40,61 @@ async def _migrate_open_tasks(
         else:
             failed += 1
     return migrated, failed
+
+
+def _has_value(field: Dict[str, Any]) -> bool:
+    for v in field.get("values") or []:
+        val = v.get("value") if isinstance(v, dict) else v
+        if val not in (None, "", [], {}):
+            return True
+        if isinstance(v, dict) and v.get("enum_id"):
+            return True
+    return False
+
+
+def build_field_transfer(source: Dict[str, Any], target: Dict[str, Any]) -> Dict[str, Any]:
+    """Fill-only payload: copy source price/custom fields that target lacks. Never overwrites."""
+    payload: Dict[str, Any] = {}
+    if int(target.get("price") or 0) <= 0 and int(source.get("price") or 0) > 0:
+        payload["price"] = int(source["price"])
+    filled = {
+        int(f.get("field_id") or 0)
+        for f in (target.get("custom_fields_values") or [])
+        if _has_value(f)
+    }
+    cf_values = []
+    for f in source.get("custom_fields_values") or []:
+        fid = int(f.get("field_id") or 0)
+        if fid <= 0 or fid in filled or not _has_value(f):
+            continue
+        values = []
+        for v in f.get("values") or []:
+            if not isinstance(v, dict):
+                continue
+            item = {k: v[k] for k in ("value", "enum_id", "enum_code") if v.get(k) not in (None, "")}
+            if item:
+                values.append(item)
+        if values:
+            cf_values.append({"field_id": fid, "values": values})
+    if cf_values:
+        payload["custom_fields_values"] = cf_values
+    return payload
+
+
+async def _transfer_lead_fields(crm: Any, source_lead_id: int, target_lead_id: int) -> Tuple[bool, int]:
+    """Copy missing price/custom fields from source to target. Returns (ok, fields_copied)."""
+    if not (hasattr(crm, "get_lead") and hasattr(crm, "patch_lead")):
+        return True, 0
+    source = await crm.get_lead(source_lead_id)
+    target = await crm.get_lead(target_lead_id)
+    if not source or not target:
+        return False, 0
+    payload = build_field_transfer(source, target)
+    if not payload:
+        return True, 0
+    ok = bool(await crm.patch_lead(target_lead_id, payload))
+    copied = len(payload.get("custom_fields_values") or []) + (1 if "price" in payload else 0)
+    return ok, copied if ok else 0
 
 
 async def _record_audit(
@@ -162,6 +214,10 @@ async def _apply_merge(
         crm, decision.source_lead_id, decision.target_lead_id
     )
 
+    fields_ok, fields_copied = await _transfer_lead_fields(
+        crm, decision.source_lead_id, decision.target_lead_id
+    )
+
     marker = f"#{decision.source_lead_id} -> #{decision.target_lead_id}"
     if await _target_already_noted(crm, decision.target_lead_id, marker):
         note_ok = True
@@ -173,8 +229,11 @@ async def _apply_merge(
         note_ok = bool(await crm.add_lead_note_async(decision.target_lead_id, target_note))
 
     # Never close the source deal unless every required link, task move, and note succeeded.
-    if not (chat_ok and contact_ok and failed_tasks == 0 and note_ok):
-        fail_reason = f"transfer_failed(chat={chat_ok},contact={contact_ok},failed_tasks={failed_tasks},note={note_ok})"
+    if not (chat_ok and contact_ok and failed_tasks == 0 and note_ok and fields_ok):
+        fail_reason = (
+            f"transfer_failed(chat={chat_ok},contact={contact_ok},failed_tasks={failed_tasks},"
+            f"note={note_ok},fields={fields_ok})"
+        )
         await _record_audit(store, decision, phone=phone, tg_user_id=tg_user_id, status="incomplete", reason=fail_reason)
         logger.warning("[TG-MERGE] Incomplete #%s -> #%s: %s", decision.source_lead_id, decision.target_lead_id, fail_reason)
         return "incomplete"
@@ -189,7 +248,10 @@ async def _apply_merge(
     closed = bool(await crm.close_duplicate_lead(decision.source_lead_id, loss_reason_id=loss_reason_id))
     final_status = "merged" if closed else "incomplete"
     await _record_audit(store, decision, phone=phone, tg_user_id=tg_user_id, status=final_status)
-    logger.info("[TG-MERGE] %s: #%s -> #%s (phone=+%s, tasks=%s)", final_status, decision.source_lead_id, decision.target_lead_id, phone, migrated_tasks)
+    logger.info(
+        "[TG-MERGE] %s: #%s -> #%s (phone=+%s, tasks=%s, fields=%s)",
+        final_status, decision.source_lead_id, decision.target_lead_id, phone, migrated_tasks, fields_copied,
+    )
     return final_status
 
 
@@ -209,8 +271,7 @@ async def execute_pair_decision(
     if decision.action not in {"merge", "link_only", "conflict"}:
         return "skipped"
 
-    lock = _LEAD_LOCKS.setdefault(int(decision.source_lead_id), asyncio.Lock())
-    async with lock:
+    async with lead_locks(decision.source_lead_id, decision.target_lead_id):
         if dry_run:
             prev = await store.get_merge_record(decision.source_lead_id)
             if prev and prev.get("status") in {"merged", "linked_only", "conflict"}:

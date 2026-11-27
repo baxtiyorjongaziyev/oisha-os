@@ -275,3 +275,47 @@ class AmoCRMChatsMixin:
         """Async wrapper around add_lead_note so callers stay non-blocking."""
         result = await asyncio.to_thread(self.add_lead_note, int(lead_id), text)
         return bool(result)
+
+    async def add_phone_to_contact_async(self, contact_id: int, phone: str) -> bool:
+        """Safely append a phone number to an amoCRM contact without overwriting existing ones."""
+        cid = int(contact_id or 0)
+        target_tail = _digits_tail9(phone)
+        if cid <= 0 or not target_tail:
+            return False
+
+        digits = re.sub(r"\D+", "", str(phone or ""))
+        formatted = f"+{digits}" if digits and not str(phone).strip().startswith("+") else str(phone).strip()
+
+        existing_values: List[Dict[str, Any]] = []
+        details = await self.get_contact_details_async(cid, cache_ttl_seconds=0) if hasattr(self, "get_contact_details_async") else None
+        if details:
+            if target_tail in _contact_phone_tails(details):
+                return True
+            for field in details.get("custom_fields_values") or []:
+                if str(field.get("field_code") or "").upper() != "PHONE":
+                    continue
+                for item in field.get("values") or []:
+                    val = str(item.get("value") or "").strip()
+                    if val:
+                        entry: Dict[str, Any] = {"value": val}
+                        if item.get("enum_code"):
+                            entry["enum_code"] = item["enum_code"]
+                        existing_values.append(entry)
+
+        existing_values.append({"value": formatted, "enum_code": "MOB"})
+        url = f"{self.base_url}/api/v4/contacts/{cid}"
+        payload = {
+            "custom_fields_values": [
+                {"field_code": "PHONE", "values": existing_values}
+            ]
+        }
+        resp = await self._authed_request(requests.patch, url, json=payload, timeout=30)
+        if resp is not None and resp.status_code in (200, 204):
+            cache = getattr(self, "_contact_details_cache", None)
+            if isinstance(cache, dict):
+                cache.pop(cid, None)
+            logger.info("[AMOCRM CHATS] Added phone to contact %s", cid)
+            return True
+        code = getattr(resp, "status_code", "err")
+        logger.warning("[AMOCRM CHATS] add_phone_to_contact failed (%s): contact=%s", code, cid)
+        return False

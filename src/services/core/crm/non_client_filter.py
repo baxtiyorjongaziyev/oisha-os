@@ -188,17 +188,29 @@ async def is_sender_marked_as_non_client(
     user_id: Optional[int] = None,
     name: Optional[str] = None,
     db: Optional[Any] = None,
+    username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Checks if an incoming sender is marked as non-client.
     Prevents opening new CRM deals and pushing messages into CRM chat.
     """
+    # 0. Check team roster (internal staff / assistant must never be treated as inbound leads)
+    try:
+        from src.services.core.crm.team_roster import find_staff
+        for ident in (phone, user_id, username, name):
+            if ident:
+                staff_member = find_staff(ident)
+                if staff_member:
+                    return True, f"team_staff ({staff_member.slug})"
+    except Exception as exc:
+        logger.debug("[NON_CLIENT] Team roster check skipped: %s", exc)
+
     if name:
         matched, reason = is_text_marked_as_non_client(name)
         if matched:
             return True, f"sender_name ({reason})"
 
-    cache_key = f"sender_{user_id or phone}"
+    cache_key = f"sender_{user_id or phone or username}"
     cached = _check_cache(cache_key)
     if cached is not None:
         return cached

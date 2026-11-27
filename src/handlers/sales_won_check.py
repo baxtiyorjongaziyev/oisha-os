@@ -13,6 +13,8 @@ from typing import Any, Awaitable, Callable, Optional
 import structlog
 
 from src.context import app_ctx
+from src.handlers.non_crm_payment_intake import save_pending_intake
+from src.services.core.crm.team_roster import find_staff
 from src.services.core.rop.fetchers import RopFetcher, RopFetchError
 from src.services.core.rop.targets import load_roster
 from src.settings import settings
@@ -21,14 +23,37 @@ from src.time_utils import is_quiet_hours
 logger = structlog.get_logger()
 
 _WON_LOOKBACK_SECONDS = 86400
+_NON_CRM_ASK_DELAY_SECONDS = 5
+_NON_CRM_SELLER_SLUGS = frozenset({"hasanboy"})
 _background_tasks: set = set()
 
-SendFn = Callable[[int, int, str], Awaitable[None]]
+SendFn = Callable[[int, int, str], Awaitable[Optional[int]]]
 
 REMINDER_TEMPLATE = (
     "{seller}, amoCRMda bu bitim hali «Sotuv boʻldi» bosqichiga oʻtkazilmagan. "
     "Iltimos, bitimni yopib qoʻying."
 )
+
+CLIENT_INFO_REQUEST_TEMPLATE = (
+    "{seller}, bu toʻlov boʻyicha mijoz maʼlumotlarini shu yerga yozib qoldiring, iltimos:\n"
+    "1. Mijoz ismi va telefon raqami\n"
+    "2. Qaysi xizmat(lar) uchun\n"
+    "3. Manba (target, tavsiya va h.k.)\n"
+    "4. Davlat boji bormi (boʻlsa — summasi)"
+)
+
+
+def _is_non_crm_seller(
+    sender_id: Optional[int], seller_label: Optional[str], card_seller: Optional[str]
+) -> bool:
+    """CRM bilan ishlamaydigan sotuvchini (masalan, Hasanboy) aniqlaydi."""
+    for identifier in (sender_id, seller_label, card_seller):
+        if not identifier:
+            continue
+        member = find_staff(identifier)
+        if member and member.slug in _NON_CRM_SELLER_SLUGS:
+            return True
+    return False
 
 
 def _find_seller(roster: list, sender_id: Optional[int], card_seller: Optional[str]) -> Any:
@@ -65,13 +90,27 @@ async def check_won_after_payment(
     sender_id: Optional[int],
     card_seller: Optional[str],
     db: Any,
+    card: Optional[dict] = None,
     delay: Optional[int] = None,
 ) -> None:
     """Kutadi, amoCRM ni tekshiradi va kerak boʻlsa sotuvchiga eslatadi. Xato koʻtarmaydi."""
-    if delay is None:
-        delay = int(settings.SALES_WON_CHECK_DELAY_SECONDS)
     state_key = f"sales_won_check:{chat_id}:{message_id}"
     try:
+        if _is_non_crm_seller(sender_id, seller_label, card_seller):
+            ask_delay = _NON_CRM_ASK_DELAY_SECONDS if delay is None else delay
+            if ask_delay > 0:
+                await asyncio.sleep(ask_delay)
+            if is_quiet_hours():
+                logger.info(f"[SALES_WON_CHECK] Quiet hours; mijoz maʼlumoti soʻralmadi msg={message_id}")
+                await db.set_state(state_key, "quiet_hours")
+                return
+            ask_msg_id = await send(chat_id, message_id, CLIENT_INFO_REQUEST_TEMPLATE.format(seller=seller_label))
+            await save_pending_intake(db, chat_id, message_id, ask_msg_id, seller_label, card)
+            await db.set_state(state_key, "asked_client_info")
+            return
+
+        if delay is None:
+            delay = int(settings.SALES_WON_CHECK_DELAY_SECONDS)
         await asyncio.sleep(delay)
         seller = _find_seller(await load_roster(db.rop), sender_id, card_seller)
         if seller is None:

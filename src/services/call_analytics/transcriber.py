@@ -229,11 +229,22 @@ class CallTranscriberMixin:
                 ) from exc
             raise
 
-    async def _transcribe_inline(self, audio_bytes: bytes, mime_type: str) -> Optional[str]:
+    async def _transcribe_inline(
+        self,
+        audio_bytes: bytes,
+        mime_type: str,
+        caller_phone: str = "",
+        manager_name: str = "",
+    ) -> Optional[str]:
         """Transcribe audio using Gemini only (best Uzbek accuracy)."""
         from google.genai import types
+        from src.services.call_analytics.stt_vocabulary import (
+            STT_PROPER_NOUNS_PROMPT,
+            build_caller_stt_context,
+        )
 
         self._last_stt_source = None
+        caller_ctx = build_caller_stt_context(caller_phone, manager_name)
         # 1. Try Gemini first — Groq/Whisper is unreliable on Uzbek speech.
         prompt = (
             "Siz professional qo'ng'iroq transkripsiya mutaxassisisiz. "
@@ -251,10 +262,12 @@ class CallTranscriberMixin:
             "- Rolni aniqlab bo'lmasa ham, taxmin qiling — nutq mazmuni, savol-javob "
             "yo'nalishi va ohangdan kelib chiqib eng ehtimoliy rolni tanlang.\n"
             "- Har bir gapni to'liq dialog shaklida, gapiruvchi nomi bilan alohida qatorda yozing:\n"
-            "  [00:05] Menejer: Assalomu alaykum, Jon Branding agentligidan...\n"
+            "  [00:05] Menejer: Assalomu alaykum, Jon Branding Agentligidan...\n"
             "  [00:12] Mijoz: Vaalaykum assalom, brending xizmati kerak edi...\n"
             "- Ingliz yoki rus so'zlari eshitilsa ham, ularni asl holicha (o'zgartirmasdan) yozing, "
-            "lekin qolgan matnni O'zbek tilida saqlang."
+            "lekin qolgan matnni Oʻzbek tilida saqlang.\n"
+            f"{STT_PROPER_NOUNS_PROMPT}"
+            f"{caller_ctx}"
         )
         try:
             audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
@@ -266,7 +279,7 @@ class CallTranscriberMixin:
             if text and NO_SPEECH_SENTINEL not in text:
                 if not _looks_like_stt_hallucination(text):
                     self._last_stt_source = f"gemini/{getattr(self, '_last_gemini_model', None) or self.model_name}"
-                    return text
+                    return normalize_name_spellings(text)
                 logger.info(
                     "[CALL] Gemini transcript rejected as likely hallucination: %r",
                     text[:80],

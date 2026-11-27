@@ -37,17 +37,21 @@ def share_calendar():
 
     service = build("calendar", "v3", credentials=creds)
 
+    target_email = os.getenv(
+        "GOOGLE_CALENDAR_SHARE_EMAIL", "baxtiyorjongaziyev@jonbranding.uz"
+    ).strip()
+
     rule = {
         'scope': {
             'type': 'user',
-            'value': 'xayrullayevna006@gmail.com',
+            'value': target_email,
         },
         'role': 'writer'
     }
 
     try:
         created_rule = service.acl().insert(calendarId='primary', body=rule).execute()
-        print(f"MUVAFFAQIYATLI: Kalendar xayrullayevna006@gmail.com manziliga ulashildi. (Rule ID: {created_rule['id']})")
+        print(f"MUVAFFAQIYATLI: Kalendar {target_email} manziliga ulashildi. (Rule ID: {created_rule['id']})")
     except Exception as e:
         print(f"XATOLIK: {e}")
 

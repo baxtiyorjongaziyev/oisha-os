@@ -36,7 +36,17 @@ def _display_name(user: Any) -> str:
 
 
 def _text_of(message: Any) -> str:
-    return getattr(message, "text", None) or getattr(message, "caption", None) or ""
+    text = getattr(message, "text", None) or getattr(message, "caption", None) or ""
+    if text:
+        return text
+    contact = getattr(message, "contact", None)
+    if contact is not None:
+        parts = [getattr(contact, "first_name", "") or "", getattr(contact, "last_name", "") or ""]
+        full_name = " ".join(p.strip() for p in parts if p and p.strip())
+        phone = getattr(contact, "phone_number", "") or ""
+        if full_name or phone:
+            return f"[Kontakt: {full_name} {phone}]".strip()
+    return ""
 
 
 def _default_quiet_check() -> bool:
@@ -129,7 +139,7 @@ def register_jamoa_hamroh_handlers(
 ) -> Optional[HamrohService]:
     """Legacy catch-all (``AiogramTelethonCompatClient.attach``) dan OLDIN chaqirilishi kerak."""
     cfg = config_loader()
-    if not cfg.hamroh_active:
+    if not cfg.hamroh_active or getattr(dispatcher, "message", None) is None:
         logger.info("[HAMROH] O'chiq (JAMOA_GROUP_ID yo'q yoki JAMOA_HAMROH_ENABLED=0).")
         return None
     service = HamrohService(cfg, store or JamoaStore(), brain or HamrohBrain())

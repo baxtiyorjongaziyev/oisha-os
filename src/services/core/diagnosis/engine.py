@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from src.services.core.diagnosis.conversation_insights import ConversationInsightsMixin
 from src.services.core.diagnosis.error_diagnosis import ErrorDiagnosisMixin
 from src.services.core.diagnosis.health_quality import HealthQualityMixin
 from src.services.core.diagnosis.models import (
@@ -22,7 +23,12 @@ from src.services.core.diagnosis.reporting import ReportingMixin
 logger = logging.getLogger("OishaSelfDiagnosis")
 
 
-class OishaSelfDiagnosis(ErrorDiagnosisMixin, HealthQualityMixin, ReportingMixin):
+class OishaSelfDiagnosis(
+    ErrorDiagnosisMixin,
+    HealthQualityMixin,
+    ConversationInsightsMixin,
+    ReportingMixin,
+):
     """
     Oisha-OS o'z-o'zini tashxislash va takomillashtirish tizimi.
     """
@@ -53,6 +59,7 @@ class OishaSelfDiagnosis(ErrorDiagnosisMixin, HealthQualityMixin, ReportingMixin
             ("code_quality", self.diagnose_code_quality),
             ("feature_gaps", self.diagnose_feature_gaps),
             ("performance", self.diagnose_performance),
+            ("conversation_insights", self.diagnose_conversation_insights),
         ]
 
         for name, method in diagnostics:

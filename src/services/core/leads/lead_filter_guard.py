@@ -1,17 +1,30 @@
 """
-Lead Filter Guard — Ichki jamoa, aloqa provayderlari va soxta bitimlarni filtrlash.
+Lead Filter Guard — Rolni aniqlash (Entity Resolution) va saralash himoyasi.
 
-Nol-galutsinatsiya (Zero Hallucination) va Zero Fabrication talablarini taʼminlaydi.
-Oʻz xodimlarimiz, Uztelecom kabi operatorlar yoki 'Menejer' deb saqlangan
-kontaktlarning 'mijoz' sifatida tahlil qilinishi va ularga xabar generatsiya
-qilinishini 100% bloklaydi.
+Kontaktlarni toʻgʻri toifalarga ajratadi:
+1. TEAM_MEMBER (Jamoa aʼzosi) — Mumtozmaxal, Shahnoza, Rayxona, Baxtiyorjon va h.k.
+2. SERVICE_PROVIDER (Xizmat provayderi) — Uztelecom, Ucell, Beeline, botlar.
+3. DUMMY_RECORD (Log/Qoʻngʻiroq yozuvi) — "Не дозвонился", "Пропущен".
+4. CLIENT (Mijoz) — Haqiqiy xarid niyatiga ega potensial xaridor.
+
+Nol-galutsinatsiya (Zero Hallucination) va Zero Fabrication talablarini toʻliq taʼminlaydi.
 """
 from __future__ import annotations
 
 import re
+from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 
-# 1. Jon Branding ichki jamoa aʼzolari va kalit soʻzlari
+
+class EntityRole(str, Enum):
+    """Kontakt va foydalanuvchilarning operatsion rollari."""
+    TEAM_MEMBER = "team_member"          # Jon Branding ichki jamoasi (oʻzimizning xodimlar)
+    SERVICE_PROVIDER = "service_provider" # Aloqa operatorlari, tizim botlari
+    DUMMY_RECORD = "dummy_record"        # Qoʻngʻiroq logi, "Не дозвонился"
+    CLIENT = "client"                    # Haqiqiy mijoz (buying intent bilan)
+
+
+# 1. Jon Branding ichki jamoa aʼzolari va kalit soʻzlari (Team Members)
 INTERNAL_TEAM_KEYWORDS = {
     "jon branding",
     "jonbranding",
@@ -64,8 +77,59 @@ DUMMY_LEAD_PATTERNS = [
 HALLUCINATED_CLAIM_PATTERNS = [
     re.compile(r"\bkecha\s+aytgan\b", re.I),
     re.compile(r"\bkecha\s+gaplashgan\b", re.I),
-    re.compile(r"\bvчера\s+(?:вы|мы|говорили)\b", re.I),
+    re.compile(r"\bвчера\s+(?:вы|мы|говорили)\b", re.I),
 ]
+
+
+def resolve_entity_role(
+    name: Optional[str] = None,
+    phone: Optional[str] = None,
+    username: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> Tuple[EntityRole, str]:
+    """
+    Kontaktning kimligini (rolini) aniqlash.
+    
+    Qaytaradi:
+        (EntityRole.TEAM_MEMBER, sabab) — agar Jon Branding xodimi boʻlsa.
+        (EntityRole.SERVICE_PROVIDER, sabab) — aloqa operatori yoki provayder boʻlsa.
+        (EntityRole.DUMMY_RECORD, sabab) — avtomatlashtirilgan log yozuvi boʻlsa.
+        (EntityRole.CLIENT, "mijoz") — haqiqiy mijoz boʻlsa.
+    """
+    name_clean = (name or "").strip().lower()
+    username_clean = (username or "").strip().lower().lstrip("@")
+
+    # A) Ichki jamoa tekshiruvi (Team Member)
+    for kw in INTERNAL_TEAM_KEYWORDS:
+        if kw in name_clean or kw in username_clean:
+            return EntityRole.TEAM_MEMBER, f"jamoa_azosi:{kw}"
+
+    # B) Servis provayderlar va botlar (Service Provider)
+    for kw in SERVICE_PROVIDER_KEYWORDS:
+        if kw in name_clean or kw in username_clean:
+            if kw in ("menejer", "menejeri", "manager") and (
+                "menejer" in name_clean or "menejeri" in name_clean or "manager" in name_clean
+            ):
+                return EntityRole.SERVICE_PROVIDER, "service_provider:menejer_title"
+            if kw not in ("menejer", "menejeri", "manager"):
+                return EntityRole.SERVICE_PROVIDER, f"service_provider:{kw}"
+
+    # C) Yaroqsiz / log sdelkalar (Dummy Record)
+    for pat in DUMMY_LEAD_PATTERNS:
+        if pat.search(name_clean):
+            return EntityRole.DUMMY_RECORD, f"dummy_deal_marker:{pat.pattern}"
+
+    return EntityRole.CLIENT, "mijoz"
+
+
+def is_team_member(
+    name: Optional[str] = None,
+    phone: Optional[str] = None,
+    username: Optional[str] = None,
+) -> bool:
+    """Kontakt Jon Branding jamoa aʼzosi (Team Member) ekanini tekshirish."""
+    role, _ = resolve_entity_role(name=name, phone=phone, username=username)
+    return role == EntityRole.TEAM_MEMBER
 
 
 def is_excluded_contact(
@@ -75,35 +139,12 @@ def is_excluded_contact(
     notes: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
-    Kontakt yoki bitim ichki xodim, provayder yoki yaroqsiz kontakt ekanini aniqlash.
-    
-    Qaytaradi:
-        (True, sabab) — agar chiqarib tashlanishi shart boʻlsa.
-        (False, "") — agar haqiqiy mijoz boʻlishi mumkin boʻlsa.
+    Mijozlar voronkasiga aralashmasligi kerak boʻlgan shaxslarni tekshirish.
+    Jamoa aʼzolari va provayderlarni sotuv roʻyxatiga tiqmaslik uchun xizmat qiladi.
     """
-    name_clean = (name or "").strip().lower()
-    username_clean = (username or "").strip().lower().lstrip("@")
-    notes_clean = (notes or "").strip().lower()
-
-    # A) Ichki jamoa tekshiruvi
-    for kw in INTERNAL_TEAM_KEYWORDS:
-        if kw in name_clean or kw in username_clean:
-            return True, f"internal_team_member:{kw}"
-
-    # B) Servis provayderlar va botlar
-    for kw in SERVICE_PROVIDER_KEYWORDS:
-        if kw in name_clean or kw in username_clean:
-            # Masalan, 'Dilnoza Uztelecom' yoki 'Ifora Menejer'
-            if kw == "menejer" and ("menejer" in name_clean or "menejeri" in name_clean):
-                return True, "service_provider:menejer_title"
-            if kw != "menejer":
-                return True, f"service_provider:{kw}"
-
-    # C) Yaroqsiz / log sdelkalar
-    for pat in DUMMY_LEAD_PATTERNS:
-        if pat.search(name_clean):
-            return True, f"dummy_deal_marker:{pat.pattern}"
-
+    role, detail = resolve_entity_role(name=name, phone=phone, username=username, notes=notes)
+    if role != EntityRole.CLIENT:
+        return True, f"{role.value}:{detail}"
     return False, ""
 
 
@@ -117,8 +158,8 @@ def validate_lead_qualification(
     Zero Hallucination qoidasiga koʻra soha, lavozim va byudjetni tekshirish.
     Dalilsiz shablon ('Tadbirkorlik / Ishlab chiqarish', 'LPR') yopishtirishni taqiqlaydi.
     """
-    evidence_text = (evidence or "").strip().lower()
-    
+    evidence_text = re.sub(r"['\u2018\u2019\u02bb\u02bc`]", "ʻ", (evidence or "").strip().lower())
+
     # 1. Soha (Industry)
     industry = "Nomaʼlum"
     if raw_industry and raw_industry != "Tadbirkorlik / Ishlab chiqarish":

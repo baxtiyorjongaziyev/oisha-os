@@ -174,7 +174,13 @@ def seller_rows(start_date: str, end_date: str) -> List[Dict[str, Any]]:
             SELECT responsible_user_id, responsible_name, lead_created_ts, first_touch_ts, lead_won
             FROM lead_attribution
             WHERE responsible_user_id IS NOT NULL
-              AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+              AND (
+                CASE
+                  WHEN created_at LIKE '%+__:__' OR created_at LIKE '%-__:__' OR created_at LIKE '%Z'
+                  THEN date(created_at, '+5 hours')
+                  ELSE date(created_at)
+                END
+              ) BETWEEN date(?) AND date(?)
             """,
             (start_date, end_date),
         ).fetchall()
@@ -189,7 +195,14 @@ def loss_breakdown(start_date: str, end_date: str) -> Dict[str, Any]:
         rows = conn.execute(
             """
             SELECT campaign_id, campaign_name, loss_reason_id FROM lead_attribution
-            WHERE lead_won = 0 AND date(created_at) >= date(?) AND date(created_at) <= date(?)
+            WHERE lead_won = 0
+              AND (
+                CASE
+                  WHEN created_at LIKE '%+__:__' OR created_at LIKE '%-__:__' OR created_at LIKE '%Z'
+                  THEN date(created_at, '+5 hours')
+                  ELSE date(created_at)
+                END
+              ) BETWEEN date(?) AND date(?)
             """,
             (start_date, end_date),
         ).fetchall()

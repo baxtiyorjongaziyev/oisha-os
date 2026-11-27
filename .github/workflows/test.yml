@@ -26,20 +26,9 @@ on:
     # bosilganda ready_for_review hodisasi tekshiruvni ishga tushiradi.
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [ main, master ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'apps/**'
-      - 'packages/**'
-      - 'salescoach-ai/**'
-      - 'requirements*.txt'
-      - 'pyproject.toml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'turbo.json'
-      - 'deploy/**'
-      - 'marketing-os/**'
-      - '.github/workflows/test.yml'
+    # No workflow-level paths filter for PRs: the required `pull-request-tests`
+    # check must always report. The `changes` job decides whether tests run;
+    # a skipped job counts as passing for branch protection.
 
 concurrency:
   group: ci-test-${{ github.workflow }}-${{ github.ref }}
@@ -59,6 +48,7 @@ jobs:
       salescoach: ${{ steps.filter.outputs.salescoach }}
       marketing_frontend: ${{ steps.filter.outputs.marketing_frontend }}
       marketing_backend: ${{ steps.filter.outputs.marketing_backend }}
+      python: ${{ steps.filter.outputs.python }}
     steps:
       - uses: actions/checkout@v7
 
@@ -80,9 +70,21 @@ jobs:
               - 'marketing-os/frontend/**'
             marketing_backend:
               - 'marketing-os/backend/**'
+            python:
+              - 'src/**'
+              - 'tests/**'
+              - 'requirements*.txt'
+              - 'pyproject.toml'
+              - 'deploy/**'
+              - '.github/workflows/test.yml'
 
   pull-request-tests:
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    needs: changes
+    # Run when Python files changed, and also when change detection itself
+    # failed/timed out (fail closed: never let a broken filter skip tests).
+    if: >-
+      github.event_name == 'pull_request' && github.event.pull_request.draft == false && !cancelled() &&
+      (needs.changes.result != 'success' || needs.changes.outputs.python == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:

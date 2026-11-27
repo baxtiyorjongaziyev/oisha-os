@@ -100,7 +100,9 @@ class VoiceProcessor:
             )
 
             if response.text:
-                text = response.text.strip()
+                from src.services.call_analytics.stt_vocabulary import normalize_name_spellings
+
+                text = normalize_name_spellings(response.text.strip())
                 logger.info(f"[VOICE] Transcription successful: {text[:80]}...")
                 return text
 
@@ -124,6 +126,8 @@ class VoiceProcessor:
 
     def _call_recording_prompt(self) -> str:
         """Prompt optimized for Uzbek phone call recordings with two speakers."""
+        from src.services.call_analytics.stt_vocabulary import STT_PROPER_NOUNS_PROMPT
+
         return (
             "Siz O'zbek tili mutaxassisi va qo'ng'iroq tahlilchisisiz. "
             "Ushbu telefon qo'ng'irog'ini diqqat bilan eshiting va quyidagilarni bajaring:\n\n"
@@ -133,6 +137,7 @@ class VoiceProcessor:
             "   B: [ikkinchi shaxs so'zlari]\n"
             "   (Agar tilni aniqlay olmasangiz, eng yaqin ma'noni yozing)\n\n"
             "2. **AGAR SUS ESHITILSA**: To'liq eshita olmasangiz ham, eshitgan so'zlaringizni yozing.\n\n"
+            f"{STT_PROPER_NOUNS_PROMPT}\n\n"
             "Faqat transkripsiyani yozing. Boshqa izohlar shart emas.\n"
             "Muhim: O'zbek tilida bo'lsa O'zbekcha, Ruscha bo'lsa Ruscha yozing."
         )
