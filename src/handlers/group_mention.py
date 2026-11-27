@@ -147,11 +147,28 @@ def register_group_mention_handler(dispatcher: Any, *, msg_controller: Any) -> N
         logger.info(
             "[GROUP-CALL] chat=%s user=%s replied_to_bot=%s", chat.id, user.id, replied_to_bot
         )
+        roster_lines = []
+        try:
+            from src.services.core.crm.team_roster import get_active_staff
+
+            for member in get_active_staff():
+                handle = f"@{member.tg_username.lstrip('@')}" if member.tg_username else "username yoʻq"
+                roster_lines.append(f"- {member.name} ({member.role}): {handle}")
+        except Exception:
+            logger.debug("team_roster_load_failed", exc_info=True)
+
+        roster_block = "\n".join(roster_lines) if roster_lines else "Roʻyxat yuklanmadi"
+        guarded_question = (
+            "[QATʻIY QOIDA: Toʻqima suhbat, vaqt, ism yoki @username yozma. "
+            "Faqat quyidagi haqiqiy jamoa aʻzolarini va ularning @username larini ishlat:]\n"
+            f"{roster_block}\n\n"
+            f"Savol: {question}"
+        )
         try:
             answer = await msg_controller.get_response(
                 user_id=user.id,
                 user_name=user.first_name or "Jamoa a'zosi",
-                message=question,
+                message=guarded_question,
                 context={
                     "username": user.username or "yoq",
                     "chat_title": chat.title,
@@ -159,6 +176,7 @@ def register_group_mention_handler(dispatcher: Any, *, msg_controller: Any) -> N
                     "is_bot": False,
                     "is_team_group": True,
                     "directly_addressed": True,
+                    "team_roster": roster_lines,
                 },
             )
         except Exception:
