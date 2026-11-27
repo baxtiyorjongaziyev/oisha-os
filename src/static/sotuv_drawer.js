@@ -82,8 +82,8 @@ function renderDrawer(lead) {
 
   const callBtn = document.getElementById("drawerCallBtn");
   if (callBtn) {
-    const digits = (String(lead.phone || "").replace(/[^\d]/g, "").match(/^\d+$/) || [""])[0];
-    callBtn.setAttribute("href", digits ? `tel:+${encodeURIComponent(digits)}` : "#");
+    const digits = String(lead.phone || "").replace(/\D/g, "");
+    callBtn.setAttribute("href", /^\d{5,15}$/.test(digits) ? `tel:+${digits}` : "#");
   }
 
   const stageSelect = document.getElementById("drawerStageSelect");
@@ -152,8 +152,8 @@ function triggerDrawer1ClickCall() {
   const phone = document.getElementById("drawerContactPhone")?.value || activeDrawerLead.phone;
   if (typeof trigger1ClickCall === "function") trigger1ClickCall(activeDrawerLead.id, phone);
   else {
-    const digits = (String(phone || "").replace(/[^\d]/g, "").match(/^\d+$/) || [""])[0];
-    if (digits) window.open(`tel:+${encodeURIComponent(digits)}`, "_self");
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (/^\d{5,15}$/.test(digits)) window.open(`tel:+${digits}`, "_self");
   }
 }
 
@@ -311,13 +311,13 @@ function renderDrawerTimeline(lead) {
     if (isCallOrAudio && typeof buildAudioPlayerHtml === "function") {
       items.push(buildAudioPlayerHtml({ by: n.by || "Sotuvchi", time: n.time || "Bugun", duration: n.duration || 0, audio_url: n.audio_url || "", direction: (n.text || "").includes("Kiruvchi") ? "in" : "out" }, `timeline_call_${lead.id}_${idx}`));
     } else if (isTg) {
-      items.push(`<div class="bg-[#f0f9ff] border-l-4 border-[#0284c7] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#0284c7] font-bold"><span>Telegram • ${n.by || "Sotuvchi"}</span><span class="text-[#64748b] font-normal">${n.time || "Hozir"}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${(n.text || "").replace(/^(?:\u1F4AC\s*)?\[Telegram\]\s*/, "")}</div></div>`);
+      items.push(`<div class="bg-[#f0f9ff] border-l-4 border-[#0284c7] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#0284c7] font-bold"><span>Telegram • ${_esc(n.by || "Sotuvchi")}</span><span class="text-[#64748b] font-normal">${_esc(n.time || "Hozir")}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${_esc((n.text || "").replace(/^(?:\u1F4AC\s*)?\[Telegram\]\s*/, ""))}</div></div>`);
     } else if (isIg) {
-      items.push(`<div class="bg-[#fdf2f8] border-l-4 border-[#ec4899] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#ec4899] font-bold"><span>Instagram Direct • ${n.by || "Sotuvchi"}</span><span class="text-[#64748b] font-normal">${n.time || "Hozir"}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${(n.text || "").replace(/^(?:\u1F4AC\s*)?\[Instagram Direct\]\s*/, "")}</div></div>`);
+      items.push(`<div class="bg-[#fdf2f8] border-l-4 border-[#ec4899] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#ec4899] font-bold"><span>Instagram Direct • ${_esc(n.by || "Sotuvchi")}</span><span class="text-[#64748b] font-normal">${_esc(n.time || "Hozir")}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${_esc((n.text || "").replace(/^(?:\u1F4AC\s*)?\[Instagram Direct\]\s*/, ""))}</div></div>`);
     } else if (isIncoming) {
-      items.push(`<div class="bg-white border-l-4 border-[#22c55e] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#16a34a] font-bold"><span>Mijoz javobi</span><span class="text-[#64748b] font-normal">${n.time || "Hozir"}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${n.text}</div></div>`);
+      items.push(`<div class="bg-white border-l-4 border-[#22c55e] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#16a34a] font-bold"><span>Mijoz javobi</span><span class="text-[#64748b] font-normal">${_esc(n.time || "Hozir")}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${_esc(n.text || "")}</div></div>`);
     } else {
-      items.push(`<div class="bg-white p-3 rounded border border-[#e5e7eb] text-[14px] shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-[#92989b] text-xs"><b>${n.by || "Jon Branding"}</b><span>${n.time || "Bugun"}</span></div><div class="text-[#2e3640] whitespace-pre-line">${n.text || ""}</div></div>`);
+      items.push(`<div class="bg-white p-3 rounded border border-[#e5e7eb] text-[14px] shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-[#92989b] text-xs"><b>${_esc(n.by || "Jon Branding")}</b><span>${_esc(n.time || "Bugun")}</span></div><div class="text-[#2e3640] whitespace-pre-line">${_esc(n.text || "")}</div></div>`);
     }
   });
   timeline.innerHTML = items.join("");

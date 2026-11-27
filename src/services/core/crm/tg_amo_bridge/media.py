@@ -349,16 +349,47 @@ def extract_outbound_media(data: dict) -> Optional[dict]:
     return {"type": mtype, "url": url, "name": name, "size": int(size) if str(size or "").isdigit() else 0}
 
 
+def _validate_outbound_url(url: str) -> str:
+    """Validate that an outbound media URL is public HTTPS (SSRF guard)."""
+    from urllib.parse import urlparse
+    import ipaddress
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").strip().lower()
+    if parsed.scheme != "https" or not host:
+        raise ValueError("invalid outbound media url")
+    if host in {"localhost", "localhost.localdomain"} or host.endswith((".local", ".internal")):
+        raise ValueError("blocked internal host")
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            raise ValueError("blocked non-public ip")
+    except ValueError as exc:
+        if "blocked" in str(exc):
+            raise
+    return url
+
+
 async def fetch_to_temp(url: str, name: Optional[str]) -> str:
     """Stream an amoCRM media URL into a temp dir; returns the file path."""
+    import re
+
+    safe_url = _validate_outbound_url(url)
     limit = max_bytes()
-    tmpdir = tempfile.mkdtemp(prefix="amoout_")
+    tmpdir = os.path.abspath(tempfile.mkdtemp(prefix="amoout_"))
     suffix = os.path.splitext(name or "")[1] or mimetypes.guess_extension("application/octet-stream") or ""
-    path = os.path.join(tmpdir, os.path.basename(name or f"file{suffix}"))
+    raw_name = os.path.basename(name or f"file{suffix}")
+    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", raw_name) or f"file{suffix}"
+    if safe_name in {".", ".."}:
+        safe_name = f"file{suffix}"
+    path = os.path.abspath(os.path.join(tmpdir, safe_name))
+    if not path.startswith(tmpdir + os.sep):
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise ValueError("invalid media path")
     total = 0
     try:
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-            async with client.stream("GET", url) as resp:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
+            async with client.stream("GET", safe_url) as resp:
                 resp.raise_for_status()
                 with open(path, "wb") as fh:
                     async for chunk in resp.aiter_bytes():
@@ -374,7 +405,9 @@ async def fetch_to_temp(url: str, name: Optional[str]) -> str:
 
 def cleanup(path: Optional[str]) -> None:
     if path:
-        shutil.rmtree(os.path.dirname(path), ignore_errors=True)
+        tmpdir = os.path.abspath(os.path.dirname(path))
+        if os.path.basename(tmpdir).startswith("amoout_"):
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 async def archive_outbound(path: str, peer_id: int) -> None:
