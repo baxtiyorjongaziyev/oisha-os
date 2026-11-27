@@ -15,7 +15,7 @@ import shutil
 import socket
 import tempfile
 from collections.abc import Awaitable, Callable
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
 
@@ -24,10 +24,14 @@ logger = logging.getLogger("TgAmoBridge.outbound_media")
 _OUT_TYPES = {"picture", "file", "voice", "video", "sticker", "audio"}
 _REDIRECT_CODES = {301, 302, 303, 307, 308}
 _MAX_REDIRECTS = 3
+_DNS_TIMEOUT_SECONDS = 5.0
 _LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _SAFE_HOST_CHARS: dict[str, str] = {c: c for c in "abcdefghijklmnopqrstuvwxyz0123456789-."}
 _SAFE_REL_CHARS: dict[str, str] = {
     c: c for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~/?!$&'()*+,;=:%"
+}
+_SAFE_FILENAME_CHARS: dict[str, str] = {
+    c: c for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
 }
 
 _EXACT_AMO_HOSTS: dict[str, str] = {
@@ -82,7 +86,7 @@ def _configured_extra_hosts() -> set[str]:
     }
     base_raw = os.getenv("TG_AMO_MEDIA_BASE_URL", "").strip()
     if base_raw:
-        base_host = (urlparse(base_raw).hostname or "").strip().lower()
+        base_host = (urlsplit(base_raw).hostname or "").strip().lower()
         if base_host:
             extra.add(base_host)
     return extra
@@ -117,7 +121,7 @@ def _canonicalize_trusted_host(raw_host: str) -> str:
 
 
 def _sanitize_relative_target(path: str, query: str) -> str:
-    """Validate URL path/query and return untainted RFC-3986 relative target."""
+    """Validate URL path/query (preserving semicolons) and return untainted target."""
     norm_path = path if path else "/"
     if not norm_path.startswith("/") or norm_path.startswith("//") or "\\" in norm_path:
         raise ValueError("invalid outbound media path")
@@ -125,8 +129,8 @@ def _sanitize_relative_target(path: str, query: str) -> str:
         raise ValueError("path traversal in outbound media URL")
     if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in norm_path + query):
         raise ValueError("control characters in outbound media URL")
-    enc_path = quote(norm_path.lstrip("/"), safe="/-._~%!$&'()*+,;=:")
-    enc_query = quote(query, safe="/?-._~%!$&'()*+,;=:") if query else ""
+    enc_path = quote(norm_path.lstrip("/"), safe="/;-._~%!$&'()*+,=:")
+    enc_query = quote(query, safe="/?;-._~%!$&'()*+,=:") if query else ""
     raw_rel = f"{enc_path}?{enc_query}" if enc_query else enc_path
     try:
         return "".join(_SAFE_REL_CHARS[ch] for ch in raw_rel)
@@ -135,8 +139,8 @@ def _sanitize_relative_target(path: str, query: str) -> str:
 
 
 def _parse_and_allowlist_url(url: str) -> str:
-    """Parse URL, enforce HTTPS + trusted host allowlist, and rebuild canonical URL."""
-    parsed = urlparse(url)
+    """Parse URL via urlsplit, enforce HTTPS + allowlist, and rebuild canonical URL."""
+    parsed = urlsplit(url)
     if parsed.scheme != "https" or parsed.username or parsed.password or parsed.fragment:
         raise ValueError("invalid outbound media URL")
     if parsed.port not in (None, 443):
@@ -144,6 +148,19 @@ def _parse_and_allowlist_url(url: str) -> str:
     safe_host = _canonicalize_trusted_host(parsed.hostname or "")
     clean_rel = _sanitize_relative_target(parsed.path, parsed.query)
     return f"https://{safe_host}/{clean_rel}"
+
+
+def _assert_public_ip(raw_ip: str) -> None:
+    ip = ipaddress.ip_address(raw_ip)
+    if (
+        not ip.is_global
+        or ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+    ):
+        raise ValueError("blocked non-public outbound IP")
 
 
 def _verify_public_ips_sync(host: str) -> None:
@@ -154,43 +171,52 @@ def _verify_public_ips_sync(host: str) -> None:
     if not infos:
         raise ValueError("unresolvable outbound host")
     for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if (
-            not ip.is_global
-            or ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-        ):
-            raise ValueError("blocked non-public outbound IP")
+        _assert_public_ip(info[4][0])
+
+
+def _verify_connected_peer(resp: httpx.Response) -> None:
+    """Verify the connected socket's peer IP is public (prevents DNS-rebinding TOCTOU)."""
+    stream = resp.extensions.get("network_stream")
+    if stream is None or not hasattr(stream, "get_extra_info"):
+        return
+    peer = stream.get_extra_info("peername")
+    if isinstance(peer, tuple) and peer and isinstance(peer[0], str):
+        _assert_public_ip(peer[0].split("%", 1)[0])
 
 
 def validate_outbound_url(url: str) -> str:
     """Synchronous allowlist + DNS public-IP check returning canonical HTTPS URL."""
     canonical = _parse_and_allowlist_url(url)
-    host = urlparse(canonical).hostname or ""
+    host = urlsplit(canonical).hostname or ""
     _verify_public_ips_sync(host)
     return canonical
 
 
 async def _validate_outbound_url_async(url: str) -> str:
     canonical = _parse_and_allowlist_url(url)
-    host = urlparse(canonical).hostname or ""
-    await asyncio.to_thread(_verify_public_ips_sync, host)
+    host = urlsplit(canonical).hostname or ""
+    try:
+        await asyncio.wait_for(
+            asyncio.to_thread(_verify_public_ips_sync, host),
+            timeout=_DNS_TIMEOUT_SECONDS,
+        )
+    except TimeoutError as exc:
+        raise ValueError("DNS lookup timed out for outbound media host") from exc
     return canonical
 
 
 def _prepare_temp_target(name: str | None) -> tuple[str, str]:
-    tmpdir = os.path.abspath(tempfile.mkdtemp(prefix="amoout_"))
-    ext = os.path.splitext(name or "")[1]
-    suffix = ext if re.fullmatch(r"\.[A-Za-z0-9]{1,10}", ext or "") else (
+    tmpdir = os.path.realpath(tempfile.mkdtemp(prefix="amoout_"))
+    raw_leaf = (name or "").replace("\\", "/").split("/")[-1]
+    raw_stem, raw_ext = os.path.splitext(raw_leaf)
+    suffix = raw_ext if re.fullmatch(r"\.[A-Za-z0-9]{1,10}", raw_ext or "") else (
         mimetypes.guess_extension("application/octet-stream") or ".bin"
     )
-    raw_name = os.path.basename(name or f"file{suffix}")
-    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", raw_name).strip("._") or f"file{suffix}"
-    path = os.path.abspath(os.path.join(tmpdir, safe_name))
-    if os.path.commonpath([tmpdir, path]) != tmpdir or path == tmpdir:
+    clean_stem = re.sub(r"[^A-Za-z0-9_-]", "_", raw_stem).strip("_-")[:120] or "file"
+    candidate = f"{clean_stem}{suffix}"
+    safe_name = "".join(_SAFE_FILENAME_CHARS[ch] for ch in candidate)
+    path = os.path.realpath(os.path.join(tmpdir, safe_name))
+    if not path.startswith(tmpdir + os.sep) or path == tmpdir:
         shutil.rmtree(tmpdir, ignore_errors=True)
         raise ValueError("invalid media path")
     return tmpdir, path
@@ -206,10 +232,12 @@ async def fetch_to_temp(url: str, name: str | None, *, limit_bytes: int) -> str:
     current_url = await _validate_outbound_url_async(url)
     tmpdir, path = _prepare_temp_target(name)
     total = 0
+    completed = False
     try:
         async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
             for _ in range(_MAX_REDIRECTS + 1):
                 async with client.stream("GET", current_url) as resp:
+                    _verify_connected_peer(resp)
                     if resp.status_code in _REDIRECT_CODES:
                         loc = (resp.headers.get("location") or "").strip()
                         if not loc:
@@ -223,19 +251,23 @@ async def fetch_to_temp(url: str, name: str | None, *, limit_bytes: int) -> str:
                         if total > limit_bytes:
                             raise ValueError("media too large")
                         await asyncio.to_thread(_append_chunk_sync, path, chunk)
+                    completed = True
                     return path
             raise ValueError("too many outbound media redirects")
-    except Exception:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        raise
+    finally:
+        if not completed:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def cleanup(path: str | None) -> None:
     if not path:
         return
-    tmpdir = os.path.abspath(os.path.dirname(path))
-    temp_root = os.path.abspath(tempfile.gettempdir())
-    if os.path.basename(tmpdir).startswith("amoout_") and os.path.commonpath([temp_root, tmpdir]) == temp_root:
+    temp_root = os.path.realpath(tempfile.gettempdir())
+    tmpdir = os.path.realpath(os.path.dirname(path))
+    if not tmpdir.startswith(temp_root + os.sep):
+        return
+    rel = os.path.relpath(tmpdir, temp_root)
+    if os.sep not in rel and rel.startswith("amoout_"):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
