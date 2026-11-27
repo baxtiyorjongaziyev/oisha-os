@@ -5,7 +5,12 @@ from src.services.call_analytics.crm_automation_hook import run_crm_automation
 from tests.test_crm_automation_store import FakeDb
 from tests.test_crm_executor import FakeAmo
 
-ANALYSIS = {"natija": "uchrashuv_kelishildi", "natija_ishonch": 0.9, "mijoz_kompaniya": "Acme"}
+ANALYSIS = {
+    "natija": "uchrashuv_kelishildi",
+    "natija_ishonch": 0.9,
+    "mijoz_kompaniya": "Acme",
+    "mijoz_kompaniya_ishonch": 1.0,
+}
 
 
 class LeadAmo(FakeAmo):
@@ -21,22 +26,22 @@ def _run(state, amo):
     return asyncio.run(run_crm_automation(FakeDb(state), amo, 5, ANALYSIS))
 
 
-def test_disabled_by_default_does_nothing():
+def test_can_be_disabled_via_state():
     amo = LeadAmo()
-    assert _run({}, amo) is None
+    assert _run({"crm_automation:enabled": "off"}, amo) is None
     assert amo.calls == []
 
 
-def test_enabled_defaults_to_dry_run():
+def test_dry_run_via_state_skips_amocrm_writes():
     amo = LeadAmo()
-    result = _run({"crm_automation:enabled": "on"}, amo)
+    result = _run({"crm_automation:enabled": "on", "crm_automation:dry_run": "on"}, amo)
     assert amo.calls == []
     assert len(result.audit_ids) == 2
 
 
-def test_live_mode_writes_to_amocrm():
+def test_default_live_mode_writes_to_amocrm():
     amo = LeadAmo()
-    _run({"crm_automation:enabled": "on", "crm_automation:dry_run": "off"}, amo)
+    _run({}, amo)
     assert ("status", 5, cfg.STATUS_UCHRASHUV) in amo.calls
     assert ("fields", 5, {cfg.FIELD_BRAND_NAME: "Acme"}) in amo.calls
 
@@ -63,3 +68,13 @@ def test_normalizer_emits_clamped_outcome_confidence():
     assert _normalise_outcome_confidence(-1) == 0.0
     assert _normalise_outcome_confidence("abc") == 0.0
     assert _normalise_outcome_confidence(None) == 0.0
+
+
+def test_low_field_confidence_skips_card_fill():
+    from src.services.call_analytics.crm_actions import CrmActionPlanner, FieldFillAction
+
+    planner = CrmActionPlanner(cfg.FIELD_MAP, cfg.STAGE_RULES)
+    lead = {"id": 5, "status_id": cfg.STATUS_ALOQA, "custom_fields_values": []}
+    uncertain = {**ANALYSIS, "mijoz_kompaniya_ishonch": 0.85}
+    actions = planner.plan(uncertain, lead)
+    assert not any(isinstance(a, FieldFillAction) for a in actions)

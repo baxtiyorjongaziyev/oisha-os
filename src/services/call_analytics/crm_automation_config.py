@@ -53,4 +53,5 @@ STAGE_RULES = {
     "terminal_outcomes": [OUTCOME_REFUSED],
     "closed_statuses": [STATUS_WON, STATUS_LOST],
     "min_confidence": 0.8,
+    "min_field_confidence": 1.0,
 }

@@ -152,6 +152,7 @@ class CallNormalizerMixin:
             "servis_yonalishi": str(data.get("servis_yonalishi") or "Boshqa"),
             "mijoz_lavozimi": str(data.get("mijoz_lavozimi") or "N/A"),
             "mijoz_kompaniya": normalize_name_spellings(str(data.get("mijoz_kompaniya") or "N/A")),
+            "mijoz_kompaniya_ishonch": _normalise_outcome_confidence(data.get("mijoz_kompaniya_ishonch")),
             "qaror_qabul_qiluvchi": str(data.get("qaror_qabul_qiluvchi") or "Noaniq"),
             "joylashuv": str(data.get("joylashuv") or "N/A"),
             "mijoz_malumotlari": list(mijoz_info),
