@@ -196,6 +196,11 @@ def _prepare_temp_target(name: str | None) -> tuple[str, str]:
     return tmpdir, path
 
 
+def _append_chunk_sync(path: str, chunk: bytes) -> None:
+    with open(path, "ab") as fh:
+        fh.write(chunk)
+
+
 async def fetch_to_temp(url: str, name: str | None, *, limit_bytes: int) -> str:
     """Stream a validated amoCRM media URL into a temp dir; returns the file path."""
     current_url = await _validate_outbound_url_async(url)
@@ -212,12 +217,12 @@ async def fetch_to_temp(url: str, name: str | None, *, limit_bytes: int) -> str:
                         current_url = await _validate_outbound_url_async(urljoin(current_url, loc))
                         continue
                     resp.raise_for_status()
-                    with open(path, "wb") as fh:
-                        async for chunk in resp.aiter_bytes():
-                            total += len(chunk)
-                            if total > limit_bytes:
-                                raise ValueError("media too large")
-                            fh.write(chunk)
+                    await asyncio.to_thread(_append_chunk_sync, path, b"")
+                    async for chunk in resp.aiter_bytes():
+                        total += len(chunk)
+                        if total > limit_bytes:
+                            raise ValueError("media too large")
+                        await asyncio.to_thread(_append_chunk_sync, path, chunk)
                     return path
             raise ValueError("too many outbound media redirects")
     except Exception:
@@ -248,5 +253,5 @@ async def archive_outbound(
         name = os.path.basename(path)
         mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
         await uploader(path, name, mime, peer_id)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("[TG-AMO] drive archive failed: %s", type(exc).__name__)

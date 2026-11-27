@@ -74,9 +74,10 @@ async def test_fetch_to_temp_follows_trusted_redirect_and_sanitizes_filename(mon
 
     path = await media.fetch_to_temp("https://drive-b.amocrm.ru/v1/get/123", "../../bad\\name.ogg")
     try:
+        from pathlib import Path
+
         assert os.path.isfile(path)
-        with open(path, "rb") as fh:
-            assert fh.read() == b"OGG_DATA"
+        assert Path(path).read_bytes() == b"OGG_DATA"
         assert os.path.basename(os.path.dirname(path)).startswith("amoout_")
         assert seen == [
             "https://drive-b.amocrm.ru/v1/get/123",
