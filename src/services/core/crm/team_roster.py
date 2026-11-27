@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 import os
+import re
 import sqlite3
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
@@ -228,6 +229,7 @@ def find_staff(identifier: Optional[str | int], db_path: str = DEFAULT_DB_PATH) 
     if not raw:
         return None
     clean = raw.lstrip("@").lower()
+    clean_digits = re.sub(r"\D", "", raw)
     if clean in EXCLUDED_NON_STAFF_SLUGS or "dilnoza" in clean:
         return None
 
@@ -240,6 +242,10 @@ def find_staff(identifier: Optional[str | int], db_path: str = DEFAULT_DB_PATH) 
             return m
         if m.tg_username and clean == m.tg_username.lstrip("@").lower():
             return m
+        if m.phone:
+            m_digits = re.sub(r"\D", "", m.phone)
+            if clean_digits and (clean_digits == m_digits or (len(clean_digits) >= 9 and m_digits.endswith(clean_digits))):
+                return m
         if any(clean == em.lower() or clean == em.split("@")[0].lower() for em in m.moizvonki_emails):
             return m
         if any(clean == al.lower() for al in m.aliases):
