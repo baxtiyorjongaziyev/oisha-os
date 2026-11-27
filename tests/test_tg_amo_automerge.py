@@ -707,12 +707,12 @@ async def test_sabina_live_scenario_talks_lead_call_notes_and_unlinked_channel_f
 async def test_staff_tg_user_id_blocked_even_without_phone_in_roster():
     from src.services.core.crm.team_roster import CANONICAL_STAFF
 
-    # Canonical staff member (Dilbar) has tg_user_id set and phone=None.
-    dilbar_peer = 8611068511
-    assert any(m.tg_user_id == dilbar_peer and not m.phone for m in CANONICAL_STAFF)
+    # Canonical staff member (Ahroriy) has tg_user_id set and phone=None/empty.
+    ahroriy_peer = 1704424936
+    assert any(m.tg_user_id == ahroriy_peer and not m.phone for m in CANONICAL_STAFF)
     merger = TelegramDealAutoMerger(crm=FakeCRM(), amojo=_amojo_mock(), store=MessageStore(FakePool()))
     outcome = await merger.ensure_chat_linked_before_send(
-        peer_id=dilbar_peer, client_name="Dilbar", sender_phone="+998777411297"
+        peer_id=ahroriy_peer, client_name="Ahroriy", sender_phone="+998901234567"
     )
     assert outcome.status == "not_resolved" and outcome.reason == "internal_staff"
 
