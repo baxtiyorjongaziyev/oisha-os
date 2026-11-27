@@ -3249,3 +3249,9 @@ ext (Alerts #280, #279, #278 - critical/high): pnpm-workspace.yaml va salescoach
 - **Oʻzgargan fayllar:** `src/api/routes/tg_media.py`, `src/services/core/crm/tg_amo_bridge/{media.py,inbound.py,outbound.py}`, `src/api/security.py`, `src/services/core/crm/drive_oauth_onboarding.py`, `deploy/nginx-oisha.conf`, `docs/agents/state-and-history.md`, `tests/test_tg_amo_media.py`, `docs/agents/handoff-log.md`.
 - **Hetzner jonli tekshiruvi:** `oisha.jonbranding.uz` A-record → `2.29.198.0`, Letʻs Encrypt ECDSA TLS (2027-02-14 gacha), `/etc/nginx/sites-available/oisha.conf` da `client_max_body_size 55m` va alohida `location ^~ /tg-media/` (`proxy_buffering off`, `proxy_read_timeout 300s`) qoʻshildi va `nginx -t && systemctl reload nginx` oʻtdi; `/readyz` `200 OK` (`ready: true`).
 - **Qolgan ish / Owner harakati:** Google Drive 5 TB shaxsiy akkaunt OAuth ruxsatini bir marta tasdiqlash (`gdrive_oauth_token.json` Hetzner `/home/deploy/oisha-os/data/` ga oʻrnatish), keyin `GDRIVE_AUTH_MODE=oauth` + `TG_AMO_MEDIA_ENABLED=1` yoqib amoCRMʻdan bitta sinov fayl yuborish va `journalctl` da `[TG-AMO] outbound shape` ni tasdiqlash.
+
+### 2026-11-27 | Antigravity
+- Bajarildi: networking lidlar avval Shahnozaga ketmaydi (owner, 2026-11-27). ROUTES[NETWORKING] endi yangi lid bilan bir xil (Mumtozmaxal/Rayxon).
+- Fayllar: src/services/core/leads/assignment.py, tests/test_lead_assignment.py.
+- Tekshiruv: tests/test_lead_assignment.py 20 passed; uzbek-text guard toza.
+- Ochiq: 'kim birinchi javob bersa o'shaniki' qoidasi kodda hali joriy etilmagan (SOP 10-MODUL faqat hujjat); avtomatik biriktirish o'zgarmagan.
