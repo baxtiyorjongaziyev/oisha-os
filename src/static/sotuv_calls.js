@@ -108,14 +108,23 @@ async function loadLeadCallHistory(leadId) {
   }
 }
 
+function _safeAudioUrl(raw) {
+  const s = String(raw || "").trim();
+  if (s.startsWith("https://") || s.startsWith("http://") || s.startsWith("/")) {
+    return _escCall(s);
+  }
+  return "";
+}
+
 function buildAudioPlayerHtml(call, uniqueId) {
   const isIncoming = call.direction === "in" || call.direction === "incoming";
   const dirBadge = isIncoming
     ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#dcfce7] text-[#15803d]">↙ Kiruvchi</span>'
     : '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#dbeafe] text-[#1d4ed8]">↗ Chiquvchi</span>';
 
-  const audioUrl = call.audio_url || "";
-  const durStr = call.duration_formatted || `${call.duration || 0}s`;
+  const safeId = _escCall(uniqueId);
+  const audioUrl = _safeAudioUrl(call.audio_url);
+  const durStr = _escCall(call.duration_formatted || `${call.duration || 0}s`);
   const leadId = call.lead_id || (window.activeDrawerLead ? window.activeDrawerLead.id : "");
 
   const transcript = call.transcript || "";
@@ -134,26 +143,26 @@ function buildAudioPlayerHtml(call, uniqueId) {
 
       ${audioUrl ? `
         <div class="flex items-center gap-2 bg-white p-2 rounded border border-[#cbd5e1]">
-          <button type="button" onclick="togglePlayAudio('${uniqueId}', '${audioUrl}')" id="btn_${uniqueId}" class="w-8 h-8 rounded-full bg-[#3b82f6] text-white flex items-center justify-center hover:bg-[#2563eb] transition shrink-0 shadow-xs" title="Ijro etish / To'xtatish">
-            <svg id="icon_play_${uniqueId}" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            <svg id="icon_pause_${uniqueId}" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          <button type="button" onclick="togglePlayAudio('${safeId}', '${audioUrl}')" id="btn_${safeId}" class="w-8 h-8 rounded-full bg-[#3b82f6] text-white flex items-center justify-center hover:bg-[#2563eb] transition shrink-0 shadow-xs" title="Ijro etish / Toʼxtatish">
+            <svg id="icon_play_${safeId}" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="icon_pause_${safeId}" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
           </button>
 
           <div class="flex flex-col flex-1 min-w-0">
-            <input type="range" id="seek_${uniqueId}" min="0" max="100" value="0" oninput="seekAudio('${uniqueId}')" class="w-full h-1 bg-[#e2e8f0] rounded-lg appearance-none cursor-pointer accent-[#3b82f6]">
+            <input type="range" id="seek_${safeId}" min="0" max="100" value="0" oninput="seekAudio('${safeId}')" class="w-full h-1 bg-[#e2e8f0] rounded-lg appearance-none cursor-pointer accent-[#3b82f6]">
             <div class="flex items-center justify-between text-[10px] text-[#64748b] mt-1 font-mono">
-              <span id="time_${uniqueId}">0:00</span>
+              <span id="time_${safeId}">0:00</span>
               <span>${durStr}</span>
             </div>
           </div>
 
           <div class="flex items-center gap-1 shrink-0">
-            <button type="button" onclick="cycleAudioSpeed('${uniqueId}')" id="speed_${uniqueId}" class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#f1f5f9] text-[#475569] hover:bg-[#e2e8f0]" title="Tezlik">1.0x</button>
+            <button type="button" onclick="cycleAudioSpeed('${safeId}')" id="speed_${safeId}" class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#f1f5f9] text-[#475569] hover:bg-[#e2e8f0]" title="Tezlik">1.0x</button>
             <a href="${audioUrl}" target="_blank" download class="p-1 text-[#64748b] hover:text-[#1e293b]" title="Yuklab olish">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             </a>
           </div>
-          <audio id="audio_${uniqueId}" preload="metadata" src="${audioUrl}" ontimeupdate="updateAudioProgress('${uniqueId}')" onended="onAudioEnded('${uniqueId}')"></audio>
+          <audio id="audio_${safeId}" preload="metadata" src="${audioUrl}" ontimeupdate="updateAudioProgress('${safeId}')" onended="onAudioEnded('${safeId}')"></audio>
         </div>
       ` : `
         <div class="text-[11px] text-[#94a3b8] italic">Audio yozuv mavjud emas (MoiZvonki telefonda saqlangan)</div>

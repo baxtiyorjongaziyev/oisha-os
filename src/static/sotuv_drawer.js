@@ -298,8 +298,10 @@ function renderDrawerTimeline(lead) {
   if (!timeline) return;
   const items = [`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1 flex-wrap"><span class="text-[#92989b]">Bugun</span><strong class="text-[#2e3640]">amoCRM</strong><span>Bitim #${lead.id} ochildi</span>${(lead.tags || []).map((t) => `<span class="bg-[#dce1e7] text-[#475569] text-[11px] px-2 py-0.5 rounded font-semibold">${t}</span>`).join("")}</div>`];
 
+  const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
   (lead.call_logs || []).forEach((log) => {
-    items.push(`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1"><span class="text-[#92989b]">${(log.created_at || "Bugun").slice(11, 16) || "14:15"}</span><strong class="text-[#2e3640]">${log.seller_name || "Sotuvchi"}</strong><span>Yangi bosqich:</span><span class="bg-[#dbeafe] text-[#1d4ed8] text-[12px] font-semibold px-2 py-0.5 rounded">${log.new_status}</span></div>`);
+    items.push(`<div class="text-[13px] text-[#64748b] flex items-center gap-2 py-1"><span class="text-[#92989b]">${esc((log.created_at || "Bugun").slice(11, 16) || "14:15")}</span><strong class="text-[#2e3640]">${esc(log.seller_name || "Sotuvchi")}</strong><span>Yangi bosqich:</span><span class="bg-[#dbeafe] text-[#1d4ed8] text-[12px] font-semibold px-2 py-0.5 rounded">${esc(log.new_status)}</span></div>`);
   });
 
   (lead.notes || []).slice().reverse().forEach((n, idx) => {
@@ -311,13 +313,13 @@ function renderDrawerTimeline(lead) {
     if (isCallOrAudio && typeof buildAudioPlayerHtml === "function") {
       items.push(buildAudioPlayerHtml({ by: n.by || "Sotuvchi", time: n.time || "Bugun", duration: n.duration || 0, audio_url: n.audio_url || "", direction: (n.text || "").includes("Kiruvchi") ? "in" : "out" }, `timeline_call_${lead.id}_${idx}`));
     } else if (isTg) {
-      items.push(`<div class="bg-[#f0f9ff] border-l-4 border-[#0284c7] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#0284c7] font-bold"><span>Telegram • ${n.by || "Sotuvchi"}</span><span class="text-[#64748b] font-normal">${n.time || "Hozir"}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${(n.text || "").replace(/^(?:\u1F4AC\s*)?\[Telegram\]\s*/, "")}</div></div>`);
+      items.push(`<div class="bg-[#f0f9ff] border-l-4 border-[#0284c7] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#0284c7] font-bold"><span>Telegram • ${esc(n.by || "Sotuvchi")}</span><span class="text-[#64748b] font-normal">${esc(n.time || "Hozir")}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${esc((n.text || "").replace(/^(?:\u1F4AC\s*)?\[Telegram\]\s*/, ""))}</div></div>`);
     } else if (isIg) {
-      items.push(`<div class="bg-[#fdf2f8] border-l-4 border-[#ec4899] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#ec4899] font-bold"><span>Instagram Direct • ${n.by || "Sotuvchi"}</span><span class="text-[#64748b] font-normal">${n.time || "Hozir"}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${(n.text || "").replace(/^(?:\u1F4AC\s*)?\[Instagram Direct\]\s*/, "")}</div></div>`);
+      items.push(`<div class="bg-[#fdf2f8] border-l-4 border-[#ec4899] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#ec4899] font-bold"><span>Instagram Direct • ${esc(n.by || "Sotuvchi")}</span><span class="text-[#64748b] font-normal">${esc(n.time || "Hozir")}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${esc((n.text || "").replace(/^(?:\u1F4AC\s*)?\[Instagram Direct\]\s*/, ""))}</div></div>`);
     } else if (isIncoming) {
-      items.push(`<div class="bg-white border-l-4 border-[#22c55e] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#16a34a] font-bold"><span>Mijoz javobi</span><span class="text-[#64748b] font-normal">${n.time || "Hozir"}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${n.text}</div></div>`);
+      items.push(`<div class="bg-white border-l-4 border-[#22c55e] p-3 rounded-r shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-xs text-[#16a34a] font-bold"><span>Mijoz javobi</span><span class="text-[#64748b] font-normal">${esc(n.time || "Hozir")}</span></div><div class="text-[#0f172a] text-[14px] leading-relaxed whitespace-pre-line">${esc(n.text)}</div></div>`);
     } else {
-      items.push(`<div class="bg-white p-3 rounded border border-[#e5e7eb] text-[14px] shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-[#92989b] text-xs"><b>${n.by || "Jon Branding"}</b><span>${n.time || "Bugun"}</span></div><div class="text-[#2e3640] whitespace-pre-line">${n.text || ""}</div></div>`);
+      items.push(`<div class="bg-white p-3 rounded border border-[#e5e7eb] text-[14px] shadow-xs flex flex-col gap-1"><div class="flex items-center justify-between text-[#92989b] text-xs"><b>${esc(n.by || "Jon Branding")}</b><span>${esc(n.time || "Bugun")}</span></div><div class="text-[#2e3640] whitespace-pre-line">${esc(n.text || "")}</div></div>`);
     }
   });
   timeline.innerHTML = items.join("");
