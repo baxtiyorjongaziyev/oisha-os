@@ -109,12 +109,13 @@ async def test_balances_by_today_load(env):
     assert sorted(got) == ["Mumtozmaxal", "Mumtozmaxal", "Rayxona", "Rayxona"]
 
 
-async def test_networking_prefers_shahnoza_then_falls_back(env):
+async def test_networking_does_not_go_to_shahnoza_first(env):
     pool, amo, sent, a, _ = env
+    pool.check(3, "check_in", "09:50")  # Shahnoza ishda, lekin birinchi emas
     pool.check(1, "check_in", "10:00")
     assert await a.assign_new(1, "Trening", "telegram_group_tn5") == "Mumtozmaxal"
-    pool.check(3, "check_in", "11:00")
-    assert await a.assign_new(2, "Trening2", "telegram_group_tn5") == "Shahnoza"
+    pool.check(2, "check_in", "10:05")
+    assert await a.assign_new(2, "Trening2", "telegram_group_tn5") == "Rayxona"
 
 
 async def test_nobody_on_duty_then_first_arrival_gets_it(env):

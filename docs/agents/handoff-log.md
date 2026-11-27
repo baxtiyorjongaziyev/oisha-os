@@ -3130,3 +3130,9 @@ Owner requested immediate full comparison. Read12 Meta forms/795 submissions,281
 - **Oʻzgargan fayllar:** `src/handlers/group_lead_assign.py`, `src/bootstrap/orchestration/bot_head.py`, `src/bootstrap/orchestration/domain_agents.py`, `src/handlers/jamoa_hamroh.py`, `src/services/core/jamoa_ritm/config.py`, `src/handlers/msg_pipeline/lead_intake.py`, `src/services/core/crm/enrichment/enricher.py`, `src/services/core/crm/team_roster.py`, `scripts/hermes_env_guard.py`, `scripts/sync_agents_runtime.py`, `deploy/hermes/SOUL.md`, `tests/test_group_lead_assign_and_guards.py`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:** `pytest` (99/99 passed fokus testlarda), `bandit -r src/ -ll` 0 xato, `ruff check` 0 xato, `check_uzbek_text.py --base origin/main` toza (0 fayl), barcha fayllar <= 400 qator.
 - **Qolgan ish/Bloker:** PR merge va Hetzner `oisha.service` deploy + `/readyz` tekshiruvi.
+
+### 2026-11-27 | Antigravity
+- Bajarildi: networking lidlar avval Shahnozaga ketmaydi (owner, 2026-11-27). ROUTES[NETWORKING] endi yangi lid bilan bir xil (Mumtozmaxal/Rayxon).
+- Fayllar: src/services/core/leads/assignment.py, tests/test_lead_assignment.py.
+- Tekshiruv: tests/test_lead_assignment.py 20 passed; uzbek-text guard toza.
+- Ochiq: 'kim birinchi javob bersa o'shaniki' qoidasi kodda hali joriy etilmagan (SOP 10-MODUL faqat hujjat); avtomatik biriktirish o'zgarmagan.
