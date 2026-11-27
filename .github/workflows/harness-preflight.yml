@@ -1,0 +1,58 @@
+name: Harness preflight
+
+# Read-only preflight for harness changes, including draft PRs.
+# Runs on an isolated GitHub-hosted runner, with no production secrets.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'scripts/harness/**'
+      - 'tests/test_harness*.py'
+      - '.agents/skills/**'
+      - '.claude/skills/**'
+      - 'docs/agents/three-agent-workflow.md'
+      - '.github/workflows/harness-preflight.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: Full harness preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SKIP_LIVE: "1"
+      ALLOW_LOCAL_RUN: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install test dependencies
+        run: uv pip install --system -r requirements.txt -r requirements-dev.txt
+
+      - name: Verify base and exact head
+        run: |
+          git rev-parse --verify origin/main
+          test "$(git rev-parse HEAD)" = "$PR_HEAD"
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+
+      - name: Full local-equivalent preflight
+        run: python scripts/harness/run_harness.py
