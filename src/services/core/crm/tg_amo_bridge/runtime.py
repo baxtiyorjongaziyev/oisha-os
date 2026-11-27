@@ -138,9 +138,9 @@ async def start_from_app_ctx() -> bool:
         crm_client = getattr(getattr(controller, "crm", None), "amocrm", None)
         db = getattr(controller, "db", None)
 
-        async def _is_non_client(phone=None, user_id=None, name=None):
+        async def _is_non_client(phone=None, user_id=None, name=None, username=None):
             return await is_sender_marked_as_non_client(
-                crm_client, phone=phone, user_id=user_id, name=name, db=db
+                crm_client, phone=phone, user_id=user_id, name=name, db=db, username=username
             )
 
         return await start(is_non_client=_is_non_client, crm_client=crm_client, db=db)

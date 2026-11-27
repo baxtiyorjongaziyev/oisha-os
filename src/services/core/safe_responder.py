@@ -40,12 +40,14 @@ class SafeResponder:
         # Jamoa a'zolari (Whitelist)
         self.team_whitelist = [
             1774538344630,  # Baxtiyor aka (Owner)
+            8802892610,  # Shahnoza Abdijabborova
             "@E_Oydinn",  # Oydin opa
             "@Oydin_JonBranding",  # Oydin opa (alt)
             "@baxtiyorgaziyev",  # Baxtiyor aka (username)
             "@baxtiyorjongaziyev",  # Baxtiyor aka (eski username)
             "@YahyoNamer",  # Hasan aka (Yahyo Namer)
             "@JonBranding_PM",  # Inomjon aka (JonBranding PM)
+            "@jonbranding_assistant",  # Shahnoza Abdijabborova
         ]
 
     async def is_team_member(self, user_id: int, username: str = None) -> bool:

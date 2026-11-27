@@ -44,6 +44,7 @@
 12. **O'zbekcha matn va apostrof (owner, 2026-10-29):** kodda o'zbekcha matn faqat **ikki tirnoq** ichida yoziladi. `oʻ`/`gʻ` → `ö`/`ğ` (yangi alifbo) yoki `ʻ` (U+02BB); tutuq belgisi → `ʼ` (U+02BC). ASCII `'` so'z ichida **taqiqlanadi**: `'qo'ng'iroq'` SyntaxError beradi, `"qo'ng'iroq"` esa keyingi tahrirda kodni buzadi. Identifikator, email, teg, username — ASCII, ularga tegilmaydi. Tekshiruv: `python scripts/check_uzbek_text.py --staged`; batafsil: `.agents/skills/uzbek-text/SKILL.md`.
 
 13. **Code Mode (kontekstni asrash — Cloudflare pattern):** koʻp bosqichli API/MCP operatsiyalarida yoki katta maʼlumotlarni tahlil qilishda barcha agentlar (Claude, Codex, Antigravity) xom JSON bilan kontekstni toʻldirmasdan, ixcham skript yozib (`execute`) lokal filtrlaydi va faqat yakuniy natijani oladi. Batafsil: `docs/agents/code-mode.md` va `.agents/skills/code-mode/SKILL.md`.
+14. **24/7 Online Full Automation (hech narsa lokalda qolmasin):** lokalda qolib ketgan kod — ishlamayotgan kod. Har bir yakunlangan oʻzgarish `commit → push → PR → CI yashil → merge → Contabo VPS deploy` zanjiridan oʻtib, online 24/7 ishlashi shart; faqat lokalda qoldirib "tayyor" deyish taqiqlanadi.
 
 ## Dalil va tekshiruv (owner, 2026-10-10)
 
