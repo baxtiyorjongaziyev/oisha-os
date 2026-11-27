@@ -239,6 +239,9 @@ def sync_hermes_agent(hermes_dir: pathlib.Path | None = None, *, restart: bool =
         return
 
     logger.info("[Hermes] Hermes agent sozlanmoqda: %s", hermes_home)
+    from scripts.hermes_env_guard import enforce_hermes_telegram_guards
+
+    enforce_hermes_telegram_guards(hermes_home / ".env")
     soul_src = HERMES_DEPLOY_DIR / "SOUL.md"
     if soul_src.is_file():
         soul_dst = hermes_home / "SOUL.md"

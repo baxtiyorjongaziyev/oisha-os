@@ -59,9 +59,17 @@ def load_config(settings_obj: Any = None) -> JamoaConfig:
         from src.settings import settings as settings_obj
     owner = _env_int("JAMOA_OWNER_ID") or int(getattr(settings_obj, "OWNER_ID", 0) or 0) or None
     unsolicited_off = (os.getenv("DISABLE_UNSOLICITED_REPORTS") or "").strip() == "1"
+    raw_jamoa = (os.getenv("JAMOA_GROUP_ID") or "").strip()
+    if raw_jamoa:
+        group_id = _env_int("JAMOA_GROUP_ID")
+        ritm_default = True
+    else:
+        fallback_gid = getattr(settings_obj, "TEAM_GROUP_ID", None) or getattr(settings_obj, "CRM_GROUP_ID", None)
+        group_id = int(fallback_gid) if fallback_gid is not None else None
+        ritm_default = False
     return JamoaConfig(
-        group_id=_env_int("JAMOA_GROUP_ID"),
+        group_id=group_id,
         owner_id=owner,
-        ritm_enabled=_env_flag("JAMOA_RITM_ENABLED", True) and not unsolicited_off,
+        ritm_enabled=_env_flag("JAMOA_RITM_ENABLED", ritm_default) and not unsolicited_off,
         hamroh_enabled=_env_flag("JAMOA_HAMROH_ENABLED", True),
     )

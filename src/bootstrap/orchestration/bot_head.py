@@ -156,6 +156,13 @@ async def init_aiogram_bot_head(
     register_team_dm_handlers(
         dispatcher, msg_controller=msg_controller, is_admin=access_manager.is_admin
     )
+    from src.handlers.group_lead_assign import register_group_lead_assign_handlers
+
+    register_group_lead_assign_handlers(
+        dispatcher,
+        is_admin=access_manager.is_admin,
+        get_amocrm_client=_get_amocrm_client,
+    )
     # Hamroh legacy catch-all'dan oldin ulanadi, aks holda guruh mention'lari unga yetmaydi.
     register_jamoa_hamroh_handlers(dispatcher)
 

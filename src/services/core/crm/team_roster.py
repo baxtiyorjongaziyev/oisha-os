@@ -98,7 +98,7 @@ CANONICAL_STAFF: Tuple[StaffMember, ...] = (
         amocrm_user_id=9000001,
         moizvonki_emails=("rayxona@jonbranding.uz",),
         airtable_record_id="recDbMupPcviBctAd",
-        aliases=("rayxona", "rayxon", "rayhona", "rayxonjonbranding"),
+        aliases=("rayxona", "rayxon", "rayhona", "rayxonjonbranding", "rayxonmenejer"),
     ),
     StaffMember(
         slug="mumtozmaxal",
@@ -156,7 +156,8 @@ CANONICAL_STAFF: Tuple[StaffMember, ...] = (
         role="finance",
         title="Moliyachi (Hisobchi)",
         tg_user_id=8611068511,
-        aliases=("dilbar", "dilbar akbarovna"),
+        tg_username="@jonbranding_finansist",
+        aliases=("dilbar", "dilbar akbarovna", "jonbranding_finansist"),
     ),
 )
 
