@@ -135,11 +135,42 @@ def test_scheduler_loop_registers_both_jobs():
     from src.schedulers import background_monitor
 
     src = inspect.getsource(background_monitor.BackgroundMonitor.run)
+    cls_src = inspect.getsource(background_monitor.BackgroundMonitor)
 
     assert "_job_call_quality_daily" in src
     assert "_job_call_quality_weekly" in src
+    assert "_job_hisobchi_daily_roast" not in cls_src
+    assert not hasattr(background_monitor.BackgroundMonitor, "_job_hisobchi_daily_roast")
     assert "now.hour == 20" in src  # kunlik 20:00
     assert "now.weekday() == 0" in src  # haftalik dushanba
+
+
+@pytest.mark.asyncio
+async def test_scheduler_loop_sends_no_roast_at_2030(monitor, monkeypatch):
+    """20:30 siklida hech qanday roast xabari yuborilmasligini runtime da tekshiramiz."""
+    import asyncio
+
+    monkeypatch.setattr(
+        "src.time_utils.get_local_now", lambda: datetime(2026, 11, 27, 20, 30)
+    )
+    monkeypatch.setattr("src.time_utils.is_quiet_hours", lambda _now: False)
+    monitor._job_check_stagnation_and_deadlines = AsyncMock()
+    monitor._job_check_amocrm_due_tasks = AsyncMock()
+    monitor._job_lead_os_cycle = AsyncMock()
+    monitor._job_heartbeat = AsyncMock()
+
+    async def _stop_after_one_tick(_seconds):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(
+        "src.schedulers.bg_monitor.monitor.asyncio.sleep", _stop_after_one_tick
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await monitor.run()
+
+    monitor._send_to_group_or_admin.assert_not_awaited()
+    monitor._notify_admin.assert_not_awaited()
 
 
 @pytest.mark.asyncio

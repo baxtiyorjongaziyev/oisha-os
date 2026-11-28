@@ -163,28 +163,6 @@ class JobsCrmMixin:
                 logger.error("[SCHEDULE][REPORT] Error: %s", exc)
             self._mark_sent(key)
 
-    async def _job_hisobchi_daily_roast(self, now: datetime) -> None:
-        key = self._job_key("hisobchi_daily_roast", now)
-        if not self._already_sent(key):
-            try:
-                if self.hisobchi_analyst:
-                    period = now.strftime("%Y-%m")
-                    roast_text = await self.hisobchi_analyst.analyze_month(period)
-                    
-                    send_kwargs = {}
-                    if self.settings and getattr(self.settings, "TOPIC_REPORTS_ID", None):
-                        send_kwargs["reply_to"] = self.settings.TOPIC_REPORTS_ID
-                    
-                    # Alternatively, if there is a finance group, it could be sent there.
-                    # But reports topic is standard for BackgroundMonitor.
-                    await self._send_to_group_or_admin(roast_text, **send_kwargs)
-                    logger.info("[SCHEDULE] Hisobchi daily roast sent.")
-                else:
-                    logger.warning("[SCHEDULE] hisobchi_analyst not available for daily roast.")
-            except Exception as exc:
-                logger.error("[SCHEDULE][HISOBCHI_ROAST] Error: %s", exc)
-            self._mark_sent(key)
-
     async def _job_stagnation_alert(self, now: datetime) -> None:
         key = self._hour_key("stagnation_alert", now)
         if not self._already_sent(key):

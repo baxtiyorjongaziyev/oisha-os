@@ -159,7 +159,6 @@ async def background_monitor_task() -> None:
         settings=settings,
         get_surgical_integration=getattr(app_ctx, "get_surgical_integration", None),
         TN5_GROUP_ID=TN5_GROUP_ID,
-        hisobchi_analyst=app_ctx.hisobchi_analyst,
     )
     await monitor.run()
 
