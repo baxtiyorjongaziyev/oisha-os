@@ -3161,3 +3161,13 @@ Owner requested immediate full comparison. Read12 Meta forms/795 submissions,281
 - **Oʻzgargan fayllar:** `src/services/core/crm/tg_amo_bridge/outbound_media.py`, `tests/test_tg_amo_outbound_ssrf.py`, `src/static/sotuv_app.js`, `src/static/sotuv_drawer.js`, `src/static/sotuv_calls.js`, `docs/agents/handoff-log.md`.
 - **Tekshiruv dalillari:** testlar, `ruff`, `bandit -r src/ -ll`, `node --check`, `check_uzbek_text.py` va `<=400` qator standarti tekshirildi.
 - **Qolgan ish/Bloker:** PR merge va `main` da 0 open CodeQL alert tasdigʻi.
+
+## 2026-11-28 — Antigravity — Eski 20:30 `_job_hisobchi_daily_roast` cron-jobni olib tashlash (`fix/remove-hisobchi-daily-roast`)
+- **Sabab:** PR #1153 bilan shaxsiy hisobchi va karta avto-kiritish oʻchirilgan (haqiqiy moliya Airtable va `src/schedulers/moliya/` orqali yuritiladi), ammo `BackgroundMonitor` ichidagi eski soat 20:30 dagi `_job_hisobchi_daily_roast` (Cleo Roast Mode) oʻchirilmay qolib, boʻsh `HisobchiEngine` jadvalidan `0` oʻqib, har oqshom `Sotuv Bolim - Sales | Jon Agency` (`-1003854308552`, xabar `#18008`) guruhiga keraksiz kesatiqli xabar yuborayotgan edi.
+- **Bajarilgan ish:**
+  1. `src/schedulers/bg_monitor/monitor.py` va `src/schedulers/bg_monitor/jobs_crm.py` dan `_job_hisobchi_daily_roast` va `hisobchi_analyst` bogʻliqligi olib tashlandi; `monitor.py` dagi `run()` funksiyasi `<=60` qator standartiga keltirildi (`_run_daytime_jobs` yordamchi metodiga ajratildi).
+  2. `src/entrypoint/daemon_tasks.py` va `src/schedulers/main_loop/periodic_reports.py` dagi eskirgan parametrlash/izoh tozalandi.
+  3. `tests/test_coach_scheduling.py` ga `_job_hisobchi_daily_roast` qaytmasligini tekshiruvchi regressiya testi qoʻshildi.
+- **Oʻzgargan fayllar:** `src/schedulers/bg_monitor/monitor.py`, `src/schedulers/bg_monitor/jobs_crm.py`, `src/entrypoint/daemon_tasks.py`, `src/schedulers/main_loop/periodic_reports.py`, `tests/test_coach_scheduling.py`, `docs/agents/handoff-log.md`.
+- **Tekshiruv dalillari:** fokus testlar (`1261 passed`), toʻliq `pytest` (`4940 passed, 19 skipped`; Windows muhitidagi `jq` yoʻqligi va NTFS `0666` sababli maʼlum 8 ta Linux-only test Linux CI da tekshiriladi), `verify_standards.py` (4/4 fayl `0` ogohlantirish bilan oʻtdi), `ruff` (`0` xato), `bandit -r src/ -ll` (`0` muammo), `check_uzbek_text.py` toza (`0` fayl), `sync_agent_skills.py --check` toza.
+- **Qolgan ish/Bloker:** PR CI yashil oʻtgach `main` ga squash-merge qilish va Hetzner VPS deploy (`oracle-deploy.yml`) sogʻlom yakunlanishini tasdiqlash.

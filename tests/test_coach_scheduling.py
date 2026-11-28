@@ -135,9 +135,12 @@ def test_scheduler_loop_registers_both_jobs():
     from src.schedulers import background_monitor
 
     src = inspect.getsource(background_monitor.BackgroundMonitor.run)
+    cls_src = inspect.getsource(background_monitor.BackgroundMonitor)
 
     assert "_job_call_quality_daily" in src
     assert "_job_call_quality_weekly" in src
+    assert "_job_hisobchi_daily_roast" not in cls_src
+    assert not hasattr(background_monitor.BackgroundMonitor, "_job_hisobchi_daily_roast")
     assert "now.hour == 20" in src  # kunlik 20:00
     assert "now.weekday() == 0" in src  # haftalik dushanba
 
