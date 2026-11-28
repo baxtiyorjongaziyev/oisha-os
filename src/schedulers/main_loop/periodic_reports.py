@@ -1,5 +1,5 @@
 """
-Daily and weekly scheduled reporting jobs (CRM report, hisobchi roast, stagnation).
+Daily and weekly scheduled reporting jobs (CRM report, stagnation).
 """
 from __future__ import annotations
 
