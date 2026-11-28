@@ -30,7 +30,7 @@ class _FakeResponse:
 
 
 class _FakeAmoCRM:
-    """Deterministic multi-page amoCRM v4 stub (>200 active deals, today vs yesterday)."""
+    """Deterministic multi-page amoCRM v4 stub enforcing query filters and bounds."""
 
     base_url = "https://jonbranding.amocrm.ru"
     access_token = "fake-token"
@@ -43,47 +43,76 @@ class _FakeAmoCRM:
         new_leads: list[dict[str, Any]],
         events: list[dict[str, Any]],
         tasks: list[dict[str, Any]],
+        extra_leads_by_id: dict[int, dict[str, Any]] | None = None,
+        fail_events: bool = False,
+        force_next_on_active: bool = False,
     ) -> None:
         self.closed_leads = closed_leads
         self.active_leads = active_leads
         self.new_leads = new_leads
         self.events = events
         self.tasks = tasks
+        self.extra_leads_by_id = extra_leads_by_id or {}
+        self.fail_events = fail_events
+        self.force_next_on_active = force_next_on_active
 
     async def _request_with_auth(
         self, _method: Any, url: str, params: list[tuple[str, Any]] | None = None, timeout: int = 30
     ) -> _FakeResponse:
         del timeout
-        p = dict(params or [])
+        raw_params = params or []
+        p = dict(raw_params)
         page = int(p.get("page", 1))
         limit = int(p.get("limit", 250))
 
         if url.endswith("/api/v4/leads"):
+            id_filters = [int(v) for k, v in raw_params if k == "filter[id][]"]
+            if id_filters:
+                found = [self.extra_leads_by_id[i] for i in id_filters if i in self.extra_leads_by_id]
+                return self._paginate(found, "leads", page, limit)
             if "filter[closed_at][from]" in p:
-                source = self.closed_leads
-            elif "filter[created_at][from]" in p:
-                source = self.new_leads
-            else:
-                source = self.active_leads
-            return self._paginate(source, "leads", page, limit)
+                lo, hi = int(p["filter[closed_at][from]"]), int(p["filter[closed_at][to]"])
+                filtered = [ld for ld in self.closed_leads if lo <= int(ld.get("closed_at") or 0) <= hi]
+                return self._paginate(filtered, "leads", page, limit)
+            if "filter[created_at][from]" in p:
+                lo, hi = int(p["filter[created_at][from]"]), int(p["filter[created_at][to]"])
+                filtered = [ld for ld in self.new_leads if lo <= int(ld.get("created_at") or 0) <= hi]
+                return self._paginate(filtered, "leads", page, limit)
+            return self._paginate(
+                self.active_leads, "leads", page, limit, force_next=self.force_next_on_active
+            )
 
         if url.endswith("/api/v4/events"):
-            return self._paginate(self.events, "events", page, limit)
+            if self.fail_events:
+                return _FakeResponse(503)
+            lo, hi = int(p["filter[created_at][from]"]), int(p["filter[created_at][to]"])
+            filtered = [ev for ev in self.events if lo <= int(ev.get("created_at") or 0) <= hi]
+            return self._paginate(filtered, "events", page, limit)
 
         if url.endswith("/api/v4/tasks"):
-            return self._paginate(self.tasks, "tasks", page, limit)
+            want_completed = int(p.get("filter[is_completed]", 0))
+            filtered = [
+                t for t in self.tasks if int(bool(t.get("is_completed", False))) == want_completed
+            ]
+            return self._paginate(filtered, "tasks", page, limit)
 
         return _FakeResponse(404)
 
     @staticmethod
     def _paginate(
-        items: list[dict[str, Any]], key: str, page: int, limit: int
+        items: list[dict[str, Any]],
+        key: str,
+        page: int,
+        limit: int,
+        *,
+        force_next: bool = False,
     ) -> _FakeResponse:
         start = (page - 1) * limit
         chunk = items[start : start + limit]
-        if not chunk and page == 1:
+        if not chunk and page == 1 and not force_next:
             return _FakeResponse(204)
-        links = {"next": {"href": f"?page={page + 1}"}} if (start + limit) < len(items) else {}
+        has_more = force_next or ((start + limit) < len(items))
+        links = {"next": {"href": f"?page={page + 1}"}} if has_more else {}
         return _FakeResponse(200, {"_embedded": {key: chunk}, "_links": links})
 
 
@@ -91,12 +120,23 @@ class _FakeAmoCRM:
 async def test_evening_wrapup_uses_live_amocrm_today_uncapped_and_overdue():
     now_local = datetime(2026, 11, 28, 19, 30, tzinfo=TZ)
     day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    morning_10 = int((day_start + timedelta(hours=10)).timestamp())
-    morning_10_12 = int((day_start + timedelta(hours=10, minutes=12)).timestamp())
+    yesterday_close = int((day_start - timedelta(hours=5)).timestamp())
+    # Lead 701 arrives at 07:30 (before 09:00 work start) and is answered at 09:20:
+    # raw elapsed = 110 min (>30m), business_minutes = 20 min (<=30m)!
+    pre_work_07_30 = int((day_start + timedelta(hours=7, minutes=30)).timestamp())
+    work_09_20 = int((day_start + timedelta(hours=9, minutes=20)).timestamp())
     morning_11 = int((day_start + timedelta(hours=11)).timestamp())
     morning_12_15 = int((day_start + timedelta(hours=12, minutes=15)).timestamp())
 
     closed_leads = [
+        {
+            "id": 500,
+            "name": "Kechagi Sotuv",
+            "pipeline_id": SALES_PIPELINE_ID,
+            "status_id": STATUS_WON,
+            "price": 90_000_000,
+            "closed_at": yesterday_close,
+        },
         {
             "id": 501,
             "name": "B2B Korporativ Brending",
@@ -131,7 +171,7 @@ async def test_evening_wrapup_uses_live_amocrm_today_uncapped_and_overdue():
         },
     ]
 
-    # 347 active sales deals (> 200 old SQL cap) + 3 closed deals + 2 HR deals
+    # 347 active sales deals (> 200 old SQL cap) + closed + HR deals
     active_leads = [
         {"id": 1000 + i, "name": f"Bitim #{i}", "pipeline_id": SALES_PIPELINE_ID, "status_id": 89067962}
         for i in range(347)
@@ -140,22 +180,27 @@ async def test_evening_wrapup_uses_live_amocrm_today_uncapped_and_overdue():
         {"id": 9001, "name": "HR Nomzod", "pipeline_id": HR_PIPELINE_ID, "status_id": 111},
     ]
 
-    # 2 new leads today: 701 answered in 12m (<=30m SLA), 702 answered in 75m (>30m SLA)
     new_leads = [
-        {"id": 701, "name": "Yangi Lid 1", "pipeline_id": SALES_PIPELINE_ID, "status_id": 87609518, "created_at": morning_10},
-        {"id": 702, "name": "Yangi Lid 2", "pipeline_id": SALES_PIPELINE_ID, "status_id": 87609518, "created_at": morning_11},
+        {"id": 701, "name": "Erta Tong Lid", "pipeline_id": SALES_PIPELINE_ID, "status_id": 87609518, "created_at": pre_work_07_30},
+        {"id": 702, "name": "Kechikkan Lid", "pipeline_id": SALES_PIPELINE_ID, "status_id": 87609518, "created_at": morning_11},
+        # Closed quickly without any human first-touch event -> must NOT count as SLA met!
+        {"id": 703, "name": "Avto Yopilgan Lid", "pipeline_id": SALES_PIPELINE_ID, "status_id": STATUS_WON, "created_at": morning_11, "closed_at": morning_11 + 60},
     ]
     events = [
-        {"entity_id": 701, "type": "outgoing_call", "created_by": 991, "created_at": morning_10_12},
+        {"entity_id": 701, "type": "outgoing_call", "created_by": 991, "created_at": work_09_20},
         {"entity_id": 702, "type": "outgoing_chat_message", "created_by": 992, "created_at": morning_12_15},
-        {"entity_id": 888, "type": "common_note_added", "created_by": 992, "created_at": morning_11},
-        # Bot event (created_by=13021974) must NOT count as human seller work
-        {"entity_id": 999, "type": "lead_status_changed", "created_by": 13021974, "created_at": morning_10},
+        {"entity_id": 1005, "type": "common_note_added", "created_by": 992, "created_at": morning_11},
+        # Note on HR lead 9001 -> must NOT inflate sales worked leads!
+        {"entity_id": 9001, "type": "common_note_added", "created_by": 992, "created_at": morning_11},
+        # Bot event (created_by=13021974) -> must NOT count as human seller work
+        {"entity_id": 1006, "type": "lead_status_changed", "created_by": 13021974, "created_at": morning_11},
     ]
     tasks = [
-        {"id": 1, "complete_till": int((now_local - timedelta(hours=3)).timestamp())},
-        {"id": 2, "complete_till": int((now_local - timedelta(days=1)).timestamp())},
-        {"id": 3, "complete_till": int((now_local + timedelta(days=1)).timestamp())},
+        {"id": 1, "is_completed": False, "complete_till": int((now_local - timedelta(hours=3)).timestamp())},
+        {"id": 2, "is_completed": False, "complete_till": int((now_local - timedelta(days=1)).timestamp())},
+        # Completed overdue task -> must NOT be counted!
+        {"id": 3, "is_completed": True, "complete_till": int((now_local - timedelta(days=2)).timestamp())},
+        {"id": 4, "is_completed": False, "complete_till": int((now_local + timedelta(days=1)).timestamp())},
     ]
 
     amo = _FakeAmoCRM(
@@ -166,15 +211,14 @@ async def test_evening_wrapup_uses_live_amocrm_today_uncapped_and_overdue():
         tasks=tasks,
     )
     bridge = LiveDataBridge(db_connection=None, amocrm=amo, use_local_files=False)
-    engine = AutonomousCockpitEngine(bridge=bridge)
-
-    text = await engine.build_evening_closing_card(now=now_local)
+    text = await AutonomousCockpitEngine(bridge=bridge).build_evening_closing_card(now=now_local)
 
     assert "28.11.2026 (00:00–19:30)" in text
     assert "2 ta (50.0 mln soʻm)" in text
+    assert "90.0 mln" not in text
     assert "347 ta" in text
-    assert "50.0% (1/2 ta ≤30 daq)" in text
-    # Worked leads: 701, 702, 888 (human events) + 501, 502, 504 (closed sales today) = 6
+    assert "33.3% (1/3 ta ≤30 daq)" in text
+    # Worked sales leads: 701, 702, 1005 (sales human events) + 501, 502, 504 (closed sales today) = 6
     assert "Qayta ishlangan lidlar (bugun):</b> 6 ta" in text
     assert "Muddati oʻtgan ochiq vazifalar:</b> 2 ta" in text
     assert "muddati oʻtgan 2 ta ochiq vazifa bor" in text
@@ -182,31 +226,79 @@ async def test_evening_wrapup_uses_live_amocrm_today_uncapped_and_overdue():
 
 
 @pytest.mark.asyncio
-async def test_evening_wrapup_db_fallback_ignores_7day_history_and_200_limit(tmp_path):
+async def test_evening_wrapup_partial_failure_and_pagination_cap_mark_only_affected_metrics():
     now_local = datetime(2026, 11, 28, 19, 30, tzinfo=TZ)
-    today_11_utc = datetime(2026, 11, 28, 11, 0, tzinfo=TZ).astimezone(ZoneInfo("UTC"))
-    today_11_10_utc = today_11_utc + timedelta(minutes=10)
-    three_days_ago_utc = today_11_utc - timedelta(days=3)
+    day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    morning_10 = int((day_start + timedelta(hours=10)).timestamp())
+
+    amo = _FakeAmoCRM(
+        closed_leads=[
+            {"id": 1, "name": "Sotuv", "pipeline_id": SALES_PIPELINE_ID, "status_id": STATUS_WON, "price": 10_000_000, "closed_at": morning_10}
+        ],
+        active_leads=[{"id": 2, "name": "Faol", "pipeline_id": SALES_PIPELINE_ID, "status_id": 89067962}],
+        new_leads=[{"id": 3, "name": "Yangi", "pipeline_id": SALES_PIPELINE_ID, "status_id": 89067962, "created_at": morning_10}],
+        events=[],
+        tasks=[],
+        fail_events=True,
+        force_next_on_active=True,
+    )
+    bridge = LiveDataBridge(db_connection=None, amocrm=amo, use_local_files=False)
+    text = await AutonomousCockpitEngine(bridge=bridge).build_evening_closing_card(now=now_local)
+
+    assert "1 ta (10.0 mln soʻm)" in text
+    assert "Qayta ishlangan lidlar (bugun):</b> nomaʼlum" in text
+    assert "bugun yangi lid tushmadi" not in text
+    assert "javob hodisalari oʻqilmadi" in text
+    assert "Faol bitimlar soni:</b> nomaʼlum" in text
+    assert "Muddati oʻtgan ochiq vazifalar:</b> 0 ta" in text
+
+
+@pytest.mark.asyncio
+async def test_evening_wrapup_db_fallback_verified_close_callbacks_and_mixed_timestamps(tmp_path):
+    now_local = datetime(2026, 11, 28, 19, 30, tzinfo=TZ)
+    # 08:00 Tashkent (03:00 UTC) -> reply at 09:15 Tashkent (04:15 UTC):
+    # elapsed = 75m (>30m), business_minutes = 15m (<=30m)!
+    t_08_00_utc = datetime(2026, 11, 28, 8, 0, tzinfo=TZ).astimezone(ZoneInfo("UTC"))
+    t_09_15_utc = datetime(2026, 11, 28, 9, 15, tzinfo=TZ).astimezone(ZoneInfo("UTC"))
+    t_11_00_utc = datetime(2026, 11, 28, 11, 0, tzinfo=TZ).astimezone(ZoneInfo("UTC"))
+    three_days_ago_utc = t_11_00_utc - timedelta(days=3)
 
     dialer_db = tmp_path / "crm_dialer.db"
     with sqlite3.connect(dialer_db) as conn:
         conn.execute(
-            "CREATE TABLE dialer_leads (id INTEGER PRIMARY KEY, name TEXT, status_slug TEXT, "
-            "price REAL, responsible_user_id INTEGER, responsible_name TEXT, "
+            "CREATE TABLE dialer_leads (id INTEGER PRIMARY KEY, pipeline_id INTEGER, name TEXT, "
+            "status_slug TEXT, price REAL, responsible_user_id INTEGER, responsible_name TEXT, "
             "last_called_at TEXT, updated_at TEXT, is_active INTEGER)"
         )
-        # Insert 265 open active deals -> must report 265, NOT 200!
+        # 265 active sales deals + 3 HR active deals (HR must be excluded!)
         conn.executemany(
-            "INSERT INTO dialer_leads VALUES (?, ?, 'jarayonda', 10000000, 1, 'Sardor', NULL, ?, 1)",
-            [(i, f"Faol Bitim {i}", three_days_ago_utc.strftime("%Y-%m-%d %H:%M:%S")) for i in range(1, 266)],
+            "INSERT INTO dialer_leads VALUES (?, ?, ?, 'jarayonda', 10000000, 1, 'Sardor', NULL, ?, 1)",
+            [(i, SALES_PIPELINE_ID, f"Faol Bitim {i}", three_days_ago_utc.strftime("%Y-%m-%d %H:%M:%S")) for i in range(1, 266)],
         )
-        # 1 deal won TODAY (12 mln), 1 deal won 3 DAYS AGO (80 mln — must be excluded from today!)
+        conn.executemany(
+            "INSERT INTO dialer_leads VALUES (?, ?, 'HR Nomzod', 'jarayonda', 0, 1, 'HR', NULL, ?, 1)",
+            [(800 + i, HR_PIPELINE_ID, three_days_ago_utc.strftime("%Y-%m-%d %H:%M:%S")) for i in range(3)],
+        )
+
+        # 901 won TODAY via dialer_call_logs transition; 902 won 3 days ago but edited today (must NOT count!)
         conn.execute(
-            "INSERT INTO dialer_leads VALUES (901, 'Bugungi Sotuv', 'sotuv', 12000000, 1, 'Sardor', NULL, ?, 0)",
-            (today_11_utc.strftime("%Y-%m-%d %H:%M:%S"),),
+            "INSERT INTO dialer_leads VALUES (901, ?, 'Bugungi Sotuv', 'sotuv', 12000000, 1, 'Sardor', NULL, ?, 0)",
+            (SALES_PIPELINE_ID, t_11_00_utc.strftime("%Y-%m-%d %H:%M:%S")),
         )
         conn.execute(
-            "INSERT INTO dialer_leads VALUES (902, 'Eski Sotuv', 'sotuv', 80000000, 1, 'Sardor', NULL, ?, 0)",
+            "INSERT INTO dialer_leads VALUES (902, ?, 'Eski Sotuv Tahrirlangan', 'sotuv', 80000000, 1, 'Sardor', NULL, ?, 0)",
+            (SALES_PIPELINE_ID, t_11_00_utc.strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        conn.execute(
+            "CREATE TABLE dialer_call_logs (id INTEGER PRIMARY KEY, lead_id INTEGER, "
+            "seller_name TEXT, old_status TEXT, new_status TEXT, created_at TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO dialer_call_logs VALUES (1, 901, 'Sardor', 'muzokara', 'sotuv', ?)",
+            (t_11_00_utc.strftime("%Y-%m-%d %H:%M:%S"),),
+        )
+        conn.execute(
+            "INSERT INTO dialer_call_logs VALUES (2, 902, 'Sardor', 'muzokara', 'sotuv', ?)",
             (three_days_ago_utc.strftime("%Y-%m-%d %H:%M:%S"),),
         )
 
@@ -218,40 +310,38 @@ async def test_evening_wrapup_db_fallback_ignores_7day_history_and_200_limit(tmp
             "CREATE TABLE crm_chat_messages (id INTEGER PRIMARY KEY, thread_id INTEGER, "
             "direction TEXT, sender_name TEXT, text TEXT, created_at TEXT)"
         )
-        # Thread 1: TODAY with real outgoing reply after 10 min
-        t_in = today_11_utc.strftime("%Y-%m-%d %H:%M:%S")
-        t_out = today_11_10_utc.strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute(
-            "INSERT INTO crm_chat_threads VALUES (1, 55, 'telegram', 'Mijoz Bugun', 0, 'Sardor', ?, ?)",
-            (t_in, t_out),
-        )
-        conn.execute("INSERT INTO crm_chat_messages VALUES (1, 1, 'in', 'Mijoz', 'Salom', ?)", (t_in,))
-        conn.execute("INSERT INTO crm_chat_messages VALUES (2, 1, 'out', 'Sardor', 'Javob', ?)", (t_out,))
-
-        # Thread 2: TODAY with unread_count=0 but ZERO outgoing reply -> must NOT count as answered SLA!
-        conn.execute(
-            "INSERT INTO crm_chat_threads VALUES (2, 56, 'instagram', 'Javobsiz Mijoz', 0, 'Sardor', ?, ?)",
-            (t_in, t_in),
-        )
-        conn.execute("INSERT INTO crm_chat_messages VALUES (3, 2, 'in', 'Mijoz2', 'Narx?', ?)", (t_in,))
-
-        # Thread 3: 3 DAYS AGO -> must NOT leak into today's count!
+        in_s = t_08_00_utc.strftime("%Y-%m-%d %H:%M:%S")
+        out_s = t_09_15_utc.strftime("%Y-%m-%d %H:%M:%S")
         old_s = three_days_ago_utc.strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute(
-            "INSERT INTO crm_chat_threads VALUES (3, 57, 'telegram', 'Eski Chat', 0, 'Sardor', ?, ?)",
-            (old_s, old_s),
-        )
-        conn.execute("INSERT INTO crm_chat_messages VALUES (4, 3, 'in', 'Eski', 'Salom', ?)", (old_s,))
-        conn.execute("INSERT INTO crm_chat_messages VALUES (5, 3, 'out', 'Sardor', 'Ok', ?)", (old_s,))
+        today_11_s = t_11_00_utc.strftime("%Y-%m-%d %H:%M:%S")
 
+        # Thread 1: New today (08:00), replied at 09:15 -> 15 business mins (<=30m SLA!)
+        conn.execute("INSERT INTO crm_chat_threads VALUES (1, 55, 'telegram', 'Mijoz 1', 0, 'Sardor', ?, ?)", (in_s, out_s))
+        conn.execute("INSERT INTO crm_chat_messages VALUES (1, 1, 'in', 'Mijoz', 'Salom', ?)", (in_s,))
+        conn.execute("INSERT INTO crm_chat_messages VALUES (2, 1, 'out', 'Sardor', 'Javob', ?)", (out_s,))
+
+        # Thread 2: New today (11:00), unread_count=0 but NO reply -> SLA miss
+        conn.execute("INSERT INTO crm_chat_threads VALUES (2, 56, 'instagram', 'Mijoz 2', 0, 'Sardor', ?, ?)", (today_11_s, today_11_s))
+        conn.execute("INSERT INTO crm_chat_messages VALUES (3, 2, 'in', 'Mijoz2', 'Narx?', ?)", (today_11_s,))
+
+        # Thread 3: Existing thread from 3 days ago with a follow-up reply TODAY -> counts in worked leads, NOT new-lead SLA!
+        conn.execute("INSERT INTO crm_chat_threads VALUES (3, 57, 'telegram', 'Eski Mijoz', 0, 'Sardor', ?, ?)", (old_s, today_11_s))
+        conn.execute("INSERT INTO crm_chat_messages VALUES (4, 3, 'in', 'Eski', 'Salom', ?)", (old_s,))
+        conn.execute("INSERT INTO crm_chat_messages VALUES (5, 3, 'out', 'Sardor', 'Oldingi javob', ?)", (old_s,))
+        conn.execute("INSERT INTO crm_chat_messages VALUES (6, 3, 'out', 'Sardor', 'Bugungi follow-up', ?)", (today_11_s,))
+
+        # Thread 4: Seller-initiated outbound chat today (no inbound message) -> worked lead, NOT inbound SLA!
+        conn.execute("INSERT INTO crm_chat_threads VALUES (4, 58, 'telegram', 'Sotuvchi Yozdi', 0, 'Sardor', ?, ?)", (today_11_s, today_11_s))
+        conn.execute("INSERT INTO crm_chat_messages VALUES (7, 4, 'out', 'Sardor', 'Assalomu alaykum', ?)", (today_11_s,))
+
+        # Tasks: 1 Tashkent-naive overdue today ("2026-11-28 15:00"), 1 completed overdue (ignored), 1 future (ignored)
         conn.execute(
             "CREATE TABLE crm_tasks (id INTEGER PRIMARY KEY, lead_id INTEGER, lead_name TEXT, "
             "contact_name TEXT, title TEXT, responsible_name TEXT, due_at TEXT, is_completed INTEGER)"
         )
-        conn.execute(
-            "INSERT INTO crm_tasks VALUES (1, 55, 'Bitim', 'Mijoz', 'Qayta aloqa', 'Sardor', ?, 0)",
-            (old_s,),
-        )
+        conn.execute("INSERT INTO crm_tasks VALUES (1, 55, 'B', 'M', 'Aloqa', 'Sardor', '2026-11-28 15:00', 0)")
+        conn.execute("INSERT INTO crm_tasks VALUES (2, 56, 'B', 'M', 'Yopilgan', 'Sardor', '2026-11-27 10:00', 1)")
+        conn.execute("INSERT INTO crm_tasks VALUES (3, 57, 'B', 'M', 'Ertaga', 'Sardor', '2026-11-29 10:00', 0)")
 
     bridge = LiveDataBridge(
         db_connection=None,
@@ -261,35 +351,41 @@ async def test_evening_wrapup_db_fallback_ignores_7day_history_and_200_limit(tmp
         attribution_db_path=str(tmp_path / "no_attr.db"),
         use_local_files=True,
     )
-    # Prevent _resolve_conn() from picking up global repo singleton DB during isolated test
     bridge._resolve_conn = lambda: None  # type: ignore[method-assign]
 
-    engine = AutonomousCockpitEngine(bridge=bridge)
-    text = await engine.build_evening_closing_card(now=now_local)
+    text = await AutonomousCockpitEngine(bridge=bridge).build_evening_closing_card(now=now_local)
 
     assert "1 ta (12.0 mln soʻm)" in text
     assert "80.0 mln" not in text
     assert "265 ta" in text
-    assert "200 ta" not in text
     assert "50.0% (1/2 ta ≤30 daq)" in text
-    assert "Qayta ishlangan lidlar (bugun):</b> 2 ta" in text  # lead_901 (won) + lead_55 (replied)
+    # Worked sales leads today: 901 (won), 55 (replied), 57 (follow-up today), 58 (outbound today) = 4
+    assert "Qayta ishlangan lidlar (bugun):</b> 4 ta" in text
     assert "Muddati oʻtgan ochiq vazifalar:</b> 1 ta" in text
     assert "trijaj navbatiga biriktirildi" not in text
 
 
 @pytest.mark.asyncio
-async def test_evening_wrapup_reports_unknown_when_no_sources_connected(tmp_path):
+async def test_evening_wrapup_db_only_tasks_marks_revenue_and_activity_unknown(tmp_path):
     now_local = datetime(2026, 11, 28, 19, 30, tzinfo=TZ)
+    dialer_db = tmp_path / "tasks_only.db"
+    with sqlite3.connect(dialer_db) as conn:
+        conn.execute("CREATE TABLE crm_tasks (id INTEGER PRIMARY KEY, due_at TEXT, is_completed INTEGER)")
+        conn.execute("INSERT INTO crm_tasks VALUES (1, '2026-11-28T12:00:00+05:00', 0)")
+
     bridge = LiveDataBridge(
         db_connection=None,
         amocrm=None,
-        dialer_db_path=str(tmp_path / "missing.db"),
+        dialer_db_path=str(dialer_db),
         ad_spend_db_path=str(tmp_path / "missing2.db"),
         attribution_db_path=str(tmp_path / "missing3.db"),
-        use_local_files=False,
+        use_local_files=True,
     )
+    bridge._resolve_conn = lambda: None  # type: ignore[method-assign]
     text = await AutonomousCockpitEngine(bridge=bridge).build_evening_closing_card(now=now_local)
 
-    assert "nomaʼlum" in text
-    assert "0 mln" not in text
-    assert "trijaj navbatiga biriktirildi" not in text
+    assert "Kunlik Tushum / Yopilgan Bitimlar:</b> nomaʼlum" in text
+    assert "Qayta ishlangan lidlar (bugun):</b> nomaʼlum" in text
+    assert "Kunlik SLA foizi:</b> nomaʼlum" in text
+    assert "Faol bitimlar soni:</b> nomaʼlum" in text
+    assert "Muddati oʻtgan ochiq vazifalar:</b> 1 ta" in text

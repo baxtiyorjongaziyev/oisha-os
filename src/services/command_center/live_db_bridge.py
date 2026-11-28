@@ -148,38 +148,25 @@ class LiveDataBridge:
         return [parse_deal_row(r) for r in rows] if rows else []
 
     async def fetch_active_deals_count(self) -> int | None:
-        """Return full uncapped count of active deals without LIMIT 200 truncation."""
-        q_dialer_cnt = (
-            "SELECT COUNT(*) AS cnt FROM dialer_leads "
-            "WHERE is_active = 1 "
-            "AND status_slug NOT IN ('won', 'lost', 'closed', 'sotuv', 'rad', 'yopilgan') "
-            "AND LOWER(COALESCE(name, '')) NOT LIKE 'synthetic test%'"
+        """Return full uncapped count of active sales deals across DB tables."""
+        from src.services.command_center.daily_closing_db import (
+            fetch_active_deals_from_db,
         )
-        q_deals_cnt = "SELECT COUNT(*) AS cnt FROM crm_active_deals WHERE status = 'open'"
-        rows = (await self._execute_on_conn(q_dialer_cnt)) or (await self._execute_on_conn(q_deals_cnt))
-        if not rows:
-            rows = self._query_local_sqlite(self.dialer_db_path, q_dialer_cnt)
-        if not rows:
-            return None
-        first = rows[0]
-        if isinstance(first, dict):
-            return int(first.get("cnt") or 0)
-        return int(first[0] or 0) if isinstance(first, (tuple, list)) and first else None
+
+        return await fetch_active_deals_from_db(self)
 
     async def fetch_overdue_tasks_count(self, now_utc: datetime | None = None) -> int | None:
-        """Return count of open overdue CRM tasks, or None if crm_tasks is unavailable."""
-        anchor = (now_utc or datetime.now(UTC)).strftime("%Y-%m-%d %H:%M:%S")
-        q_overdue = (
-            "SELECT COUNT(*) AS cnt FROM crm_tasks "
-            "WHERE COALESCE(is_completed, 0) = 0 AND due_at IS NOT NULL AND due_at < ?"
+        """Return count of open overdue CRM tasks using normalized deadline timestamps."""
+        from src.services.command_center.daily_closing_db import (
+            fetch_overdue_tasks_from_db,
         )
-        rows = await self._execute_on_conn(q_overdue, (anchor,))
-        if not rows:
-            rows = self._query_local_sqlite(self.dialer_db_path, q_overdue, (anchor,))
-        if not rows:
-            return None
-        first = rows[0]
-        return int(first.get("cnt") or 0) if isinstance(first, dict) else int(first[0] or 0)
+
+        anchor = (
+            now_utc.astimezone(UTC)
+            if (now_utc and now_utc.tzinfo)
+            else (now_utc or datetime.now(UTC)).replace(tzinfo=UTC)
+        )
+        return await fetch_overdue_tasks_from_db(self, anchor)
 
     async def fetch_daily_closing_snapshot(self, now: datetime | None = None) -> Any:
         """Fetch strictly single-day closing metrics from amoCRM or DB fallback."""
@@ -193,7 +180,10 @@ class LiveDataBridge:
         day_start, local_now = day_bounds_tashkent(now)
         amo = resolve_live_amocrm(self.amocrm, allow_auto=self.use_local_files)
         if amo is not None:
-            snap = await collect_from_amocrm(amo, day_start, local_now)
+            local_overdue = await self.fetch_overdue_tasks_count(now_utc=local_now.astimezone(UTC))
+            snap = await collect_from_amocrm(
+                amo, day_start, local_now, extra_overdue=local_overdue
+            )
             if snap is not None:
                 return snap
         return await collect_from_db(self, day_start, local_now)
