@@ -7,6 +7,7 @@ without requiring any manual slash command or button press.
 from __future__ import annotations
 
 import html
+import inspect
 import json
 import logging
 from dataclasses import dataclass, field
@@ -15,6 +16,10 @@ from pathlib import Path
 from typing import Any
 
 from src.services.command_center.ad_attribution import AdAttributionEngine
+from src.services.command_center.daily_closing import (
+    collect_from_legacy_mock_bridge,
+    format_evening_closing_card,
+)
 from src.services.command_center.live_db_bridge import LiveDataBridge
 from src.services.command_center.speed_to_lead import SpeedToLeadCalculator
 from src.services.command_center.stuck_deals import StuckDealsRadar
@@ -335,27 +340,14 @@ class AutonomousCockpitEngine:
             self.save_state()
         return alerts
 
-    async def build_evening_closing_card(self) -> str:
-        """Construct end-of-day wrapup card with achieved sales metrics."""
-        interactions = await self.bridge.fetch_recent_lead_interactions()
-        deals = await self.bridge.fetch_active_deal_records()
-        camps, ad_leads = await self.bridge.fetch_ad_attribution_data()
-
-        stl_metrics = SpeedToLeadCalculator().calculate(interactions)
-        ad_summary = AdAttributionEngine().calculate(camps, ad_leads)
-
-        won_str = f"{ad_summary.total_revenue / 1_000_000:.1f} mln" if ad_summary.total_revenue else "0 mln"
-        answered_cnt = len([i for i in interactions if i.first_response_at is not None])
-
-        return (
-            "🌆 <b>Oisha-OS — Kunlik Savdo Sarhisobi (19:30)</b>\n\n"
-            f"🏆 <b>Kunlik Tushum / Yopilgan Bitimlar:</b> {won_str} soʻm\n"
-            f"📞 <b>Qayta ishlangan lidlar:</b> {answered_cnt} ta\n"
-            f"⚡ <b>Kunlik SLA foizi:</b> {stl_metrics.sla_rate_pct}%\n"
-            f"🎯 <b>Faol bitimlar soni:</b> {len(deals)} ta\n\n"
-            "Barcha kechiktirilgan masalalar ertangi trijaj navbatiga biriktirildi. "
-            "Rahmat, jamoa!"
-        )
+    async def build_evening_closing_card(self, now: datetime | None = None) -> str:
+        """Construct honest single-day wrapup card with real sales and overdue task counts."""
+        fetch_snap = getattr(self.bridge, "fetch_daily_closing_snapshot", None)
+        if inspect.iscoroutinefunction(fetch_snap):
+            snap = await fetch_snap(now=now)
+        else:
+            snap = await collect_from_legacy_mock_bridge(self.bridge, now=now)
+        return format_evening_closing_card(snap)
 
     def _create_webapp_markup(self, url: str) -> Any | None:
         """Safely build aiogram InlineKeyboardMarkup with WebApp button."""

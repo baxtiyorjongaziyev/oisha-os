@@ -173,7 +173,10 @@ class CockpitAutopilotScheduler:
         if current.hour == 19 and current.minute >= 30:
             group_id = str(getattr(settings, "TEAM_GROUP_ID", "") or getattr(settings, "OWNER_ID", ""))
             if group_id:
-                wrapup_text = await self.engine.build_evening_closing_card()
+                try:
+                    wrapup_text = await self.engine.build_evening_closing_card(now=current)
+                except TypeError:
+                    wrapup_text = await self.engine.build_evening_closing_card()
                 alert = AutonomousAlert(
                     alert_type="evening_wrapup",
                     recipient_chat_id=group_id,

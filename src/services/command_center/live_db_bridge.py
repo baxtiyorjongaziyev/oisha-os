@@ -39,13 +39,15 @@ class LiveDataBridge:
         self,
         db_connection: Any | None = None,
         *,
+        amocrm: Any | None = None,
         dialer_db_path: str = "data/crm_dialer.db",
         ad_spend_db_path: str = "data/meta_ad_spend.db",
         attribution_db_path: str = "data/meta_ad_attribution.db",
         use_local_files: bool | None = None,
     ) -> None:
-        """Initialize data bridge with optional DB handle and local SQLite paths."""
+        """Initialize data bridge with optional DB/amoCRM handles and SQLite paths."""
         self.conn = db_connection
+        self.amocrm = amocrm
         self.dialer_db_path = dialer_db_path
         self.ad_spend_db_path = ad_spend_db_path
         self.attribution_db_path = attribution_db_path
@@ -145,9 +147,65 @@ class LiveDataBridge:
 
         return [parse_deal_row(r) for r in rows] if rows else []
 
-    async def fetch_recent_lead_interactions(self, since_days: int = 7) -> list[LeadInteraction]:
+    async def fetch_active_deals_count(self) -> int | None:
+        """Return full uncapped count of active deals without LIMIT 200 truncation."""
+        q_dialer_cnt = (
+            "SELECT COUNT(*) AS cnt FROM dialer_leads "
+            "WHERE is_active = 1 "
+            "AND status_slug NOT IN ('won', 'lost', 'closed', 'sotuv', 'rad', 'yopilgan') "
+            "AND LOWER(COALESCE(name, '')) NOT LIKE 'synthetic test%'"
+        )
+        q_deals_cnt = "SELECT COUNT(*) AS cnt FROM crm_active_deals WHERE status = 'open'"
+        rows = (await self._execute_on_conn(q_dialer_cnt)) or (await self._execute_on_conn(q_deals_cnt))
+        if not rows:
+            rows = self._query_local_sqlite(self.dialer_db_path, q_dialer_cnt)
+        if not rows:
+            return None
+        first = rows[0]
+        if isinstance(first, dict):
+            return int(first.get("cnt") or 0)
+        return int(first[0] or 0) if isinstance(first, (tuple, list)) and first else None
+
+    async def fetch_overdue_tasks_count(self, now_utc: datetime | None = None) -> int | None:
+        """Return count of open overdue CRM tasks, or None if crm_tasks is unavailable."""
+        anchor = (now_utc or datetime.now(UTC)).strftime("%Y-%m-%d %H:%M:%S")
+        q_overdue = (
+            "SELECT COUNT(*) AS cnt FROM crm_tasks "
+            "WHERE COALESCE(is_completed, 0) = 0 AND due_at IS NOT NULL AND due_at < ?"
+        )
+        rows = await self._execute_on_conn(q_overdue, (anchor,))
+        if not rows:
+            rows = self._query_local_sqlite(self.dialer_db_path, q_overdue, (anchor,))
+        if not rows:
+            return None
+        first = rows[0]
+        return int(first.get("cnt") or 0) if isinstance(first, dict) else int(first[0] or 0)
+
+    async def fetch_daily_closing_snapshot(self, now: datetime | None = None) -> Any:
+        """Fetch strictly single-day closing metrics from amoCRM or DB fallback."""
+        from src.services.command_center.daily_closing import (
+            collect_from_amocrm,
+            collect_from_db,
+            day_bounds_tashkent,
+            resolve_live_amocrm,
+        )
+
+        day_start, local_now = day_bounds_tashkent(now)
+        amo = resolve_live_amocrm(self.amocrm, allow_auto=self.use_local_files)
+        if amo is not None:
+            snap = await collect_from_amocrm(amo, day_start, local_now)
+            if snap is not None:
+                return snap
+        return await collect_from_db(self, day_start, local_now)
+
+    async def fetch_recent_lead_interactions(
+        self, since_days: int = 7, *, since: datetime | None = None
+    ) -> list[LeadInteraction]:
         """Fetch recent inbound calls and omnichannel chats without synthetic fallback."""
-        cutoff_dt = datetime.now(UTC) - timedelta(days=max(1, since_days))
+        if since is not None:
+            cutoff_dt = since.astimezone(UTC) if since.tzinfo else since.replace(tzinfo=UTC)
+        else:
+            cutoff_dt = datetime.now(UTC) - timedelta(days=max(1, since_days))
         cutoff_iso = cutoff_dt.isoformat()
         cutoff_sql = cutoff_dt.strftime("%Y-%m-%d %H:%M:%S")
 

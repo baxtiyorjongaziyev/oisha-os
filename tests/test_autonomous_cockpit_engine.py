@@ -176,6 +176,8 @@ async def test_build_evening_closing_card(mock_bridge):
     assert "Kunlik Savdo Sarhisobi (19:30)" in wrapup_text
     assert "Qayta ishlangan lidlar" in wrapup_text
     assert "Kunlik SLA foizi" in wrapup_text
+    assert "Muddati oʻtgan ochiq vazifalar" in wrapup_text
+    assert "trijaj navbatiga biriktirildi" not in wrapup_text
 
 
 @pytest.mark.asyncio
