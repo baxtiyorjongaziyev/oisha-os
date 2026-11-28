@@ -30,6 +30,17 @@ from src.services.core.metasell.diagnostics import (
     _most_common,
 )
 from src.services.core.metasell.engine import MetaSellConversionEngine
+from src.services.core.metasell.checklist import (
+    CRITERIA_SPECS,
+    STRENGTH_THRESHOLD_PCT,
+    CriterionSpec,
+    evaluate_manager_checklist,
+)
+from src.services.core.metasell.leaderboard import (
+    build_manager_leaderboard,
+    export_leaderboard_csv,
+)
+from src.services.core.metasell.sales_chat import MetasellSalesChatEngine
 
 __all__ = [
     "MIN_CALLS_FOR_DIAGNOSIS",

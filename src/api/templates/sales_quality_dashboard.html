@@ -3,262 +3,209 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oisha — Savdo sifati</title>
+<title>Oisha-OS — Savdo Sifati, Reyting va AI Chat</title>
 <style>
   :root {
-    --bg: #060b16; --panel: #0d1526; --line: #1b2740;
+    --bg: #060b16; --panel: #0d1526; --panel-soft: #111c33; --line: #1b2740;
     --text: #e8eefc; --muted: #8ba0c4; --accent: #2f6bff;
     --good: #22c55e; --warn: #f59e0b; --bad: #ef4444;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px; }
+         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+            gap: 12px; padding: 14px 24px; background: #091020; border-bottom: 1px solid var(--line);
+            position: sticky; top: 0; z-index: 20; }
+  .brand { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand span { color: var(--accent); margin-right: 6px; }
+  .nav-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pill-toggle { display: inline-flex; background: var(--panel); border: 1px solid var(--line);
+                 border-radius: 9px; padding: 3px; gap: 3px; }
+  .pill-btn { background: transparent; color: var(--muted); border: 0; padding: 6px 13px;
+              border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .pill-btn.active { background: var(--accent); color: #fff; }
+  select.ctrl-select, .csv-btn, .mini-btn {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+  }
+  .csv-btn:hover, .mini-btn:hover { border-color: var(--accent); color: #fff; }
+  .mini-btn { margin-left: 8px; padding: 4px 9px; font-size: 12px; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 24px; }
+  .view-pane { display: none; }
+  .view-pane.active { display: block; }
   h1 { font-size: 22px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin-bottom: 24px; font-size: 13px; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-  .card { background: var(--panel); border: 1px solid var(--line);
-          border-radius: 14px; padding: 18px; }
-  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
-             color: var(--muted); margin: 0 0 14px; font-weight: 600; }
-  .big { font-size: 34px; font-weight: 700; line-height: 1; }
-  .unit { font-size: 14px; color: var(--muted); font-weight: 400; }
-  .row { display: flex; justify-content: space-between; padding: 7px 0;
-         border-bottom: 1px solid var(--line); font-size: 14px; }
+  .sub { color: var(--muted); margin-bottom: 18px; font-size: 13px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-bottom: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 20px; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  .section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .big { font-size: 32px; font-weight: 800; line-height: 1.1; }
+  .row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); }
   .row:last-child { border-bottom: 0; }
   .row span:last-child { font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th { text-align: left; font-size: 11px; text-transform: uppercase;
-       letter-spacing: .06em; color: var(--muted); padding: 8px 10px; font-weight: 600; }
-  td { padding: 11px 10px; border-top: 1px solid var(--line); font-size: 14px; }
-  .score { display: inline-block; min-width: 62px; text-align: center;
-           padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 13px; }
-  .s-good { background: rgba(34,197,94,.13); color: var(--good); border: 1px solid rgba(34,197,94,.3); }
-  .s-mid  { background: rgba(245,158,11,.13); color: var(--warn); border: 1px solid rgba(245,158,11,.3); }
-  .s-bad  { background: rgba(239,68,68,.15); color: var(--bad); border: 1px solid rgba(239,68,68,.4); }
-  .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
+  .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 8px; }
   .bar > i { display: block; height: 100%; background: var(--accent); }
-  .flag { margin-top: 16px; padding: 13px 15px; border-radius: 11px; font-size: 14px;
-          background: rgba(239,68,68,.09); border: 1px solid rgba(239,68,68,.28); }
-  .flag b { color: var(--bad); }
-  .flag ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
-  .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
-  .empty { color: var(--muted); padding: 40px; text-align: center; }
-  .delta-up { color: var(--good); } .delta-down { color: var(--bad); }
-  .wide { grid-column: 1 / -1; }
-  .mgr-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 12px; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .empty { color: var(--muted); padding: 28px; text-align: center; }
+
+  /* Leaderboard Table */
+  .lb-table { width: 100%; border-collapse: collapse; }
+  .lb-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+                 color: var(--muted); padding: 10px; border-bottom: 1px solid var(--line); }
+  .lb-table td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .lb-row:hover { background: rgba(47, 107, 255, 0.05); }
+  .mgr-inline { display: flex; align-items: center; gap: 10px; }
+  .mgr-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+                display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+  .mgr-name { font-weight: 700; }
+  .num-strong { font-weight: 800; font-size: 15px; }
+  .qual-cell { display: flex; align-items: center; gap: 10px; }
+  .qual-track { width: 80px; height: 7px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .qual-fill { height: 100%; border-radius: 4px; }
+  .bar-good { background: var(--good); }
+  .bar-mid { background: var(--warn); }
+  .bar-bad { background: var(--bad); }
+  .qual-num { font-weight: 700; font-size: 13px; }
+  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .pill-good { background: rgba(34,197,94,.14); color: var(--good); }
+  .pill-warn { background: rgba(245,158,11,.15); color: var(--warn); }
+  .pill-bad { background: rgba(239,68,68,.16); color: var(--bad); }
+  .pill-muted { background: rgba(139,160,196,.12); color: var(--muted); }
+
+  /* Checklist */
+  .chk-cols { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .chk-box { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .chk-good-h { margin: 0 0 10px; font-size: 14px; color: var(--good); }
+  .chk-bad-h { margin: 0 0 10px; font-size: 14px; color: #fca5a5; }
+  .chk-item { padding: 10px 0; border-top: 1px solid var(--line); }
+  .chk-item:first-of-type { border-top: 0; }
+  .chk-item-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .chk-desc { font-size: 13px; color: var(--muted); }
+
+  /* Manager Radar Cards */
+  .mgr-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
   .mgr-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
   .mgr-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .mgr-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent);
-                display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: 0 0 auto; }
-  .mgr-name { font-weight: 700; font-size: 15px; }
-  .mgr-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 14px; }
-  .mgr-stat b { display: block; font-size: 19px; }
-  .mgr-stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .mgr-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 12px; }
+  .mgr-stat b { display: block; font-size: 18px; }
+  .mgr-stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; }
   .radar-wrap { display: flex; justify-content: center; margin: 6px 0; }
-  .audio-link { display: inline-block; margin-top: 10px; padding: 8px 12px; border-radius: 9px;
+  .audio-link { display: inline-block; margin-top: 8px; padding: 7px 12px; border-radius: 8px;
                 background: rgba(47,107,255,.14); border: 1px solid rgba(47,107,255,.35);
                 color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
-  .audio-link.disabled { opacity: .4; pointer-events: none; border-color: var(--line); color: var(--muted); }
+
+  /* AI Sales Chat */
+  .chat-shell { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+                display: flex; flex-direction: column; min-height: 560px; overflow: hidden; }
+  .chat-top { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px;
+              border-bottom: 1px solid var(--line); background: var(--panel-soft); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .chip { background: rgba(47,107,255,.1); border: 1px solid rgba(47,107,255,.3); color: #bcd3ff;
+          border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  .chip:hover { background: rgba(47,107,255,.22); color: #fff; }
+  .chat-stream { flex: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; max-height: 520px; }
+  .chat-user { align-self: flex-end; background: var(--accent); color: #fff; padding: 10px 15px;
+               border-radius: 12px 12px 2px 12px; font-weight: 600; max-width: 78%; }
+  .chat-assistant { align-self: flex-start; background: var(--panel-soft); border: 1px solid var(--line);
+                    padding: 14px 18px; border-radius: 12px 12px 12px 2px; max-width: 88%; }
+  .chat-actions { margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+  .chat-actions summary { cursor: pointer; font-weight: 600; color: #93c5fd; }
+  .chat-actions-list { margin: 6px 0 0; padding-left: 18px; }
+  .chat-line { margin: 6px 0; line-height: 1.55; }
+  .chat-bar { display: flex; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); background: #091020; }
+  .chat-input { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+                color: var(--text); padding: 10px 14px; font-size: 14px; }
+  .chat-input:focus { outline: none; border-color: var(--accent); }
+  .mic-btn.recording { border-color: var(--bad); color: var(--bad); }
 </style>
 </head>
-<body>
-<h1>Savdo sifati va konversiya</h1>
-<div class="sub" id="period">Yuklanmoqda…</div>
-<div id="app"><div class="empty">Yuklanmoqda…</div></div>
+<body data-conversion-endpoint="/api/sales-quality/conversion-overview">
 
-<h1 style="margin-top:32px">Sotuvchilar bo'yicha kartochkalar</h1>
-<div class="sub" id="mgr-sub"></div>
-<div id="mgr-app"><div class="empty">Yuklanmoqda…</div></div>
+<header class="topbar">
+  <div class="brand"><span>OISHA-OS</span> Jon Branding Sotuv Analitikasi</div>
+  <div class="nav-group">
+    <div class="pill-toggle">
+      <button type="button" class="pill-btn active" data-view-btn="view-dashboard">📊 Reyting va Sifat</button>
+      <button type="button" class="pill-btn" data-view-btn="view-chat">💬 AI Sotuv Chat</button>
+    </div>
+    <select id="daysSelect" class="ctrl-select" aria-label="Davr">
+      <option value="7">Oxirgi 7 kun</option>
+      <option value="30" selected>Oxirgi 30 kun</option>
+      <option value="90">Oxirgi 90 kun</option>
+    </select>
+  </div>
+</header>
 
-<script>
-const $ = (s) => document.querySelector(s);
-const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c =>
-  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const money = (n) => (Number(n) || 0).toLocaleString("ru-RU").replace(/,/g, " ") + " so'm";
-const scoreClass = (s) => s >= 75 ? "s-good" : s >= 40 ? "s-mid" : "s-bad";
+<main class="wrap">
+  <section id="view-dashboard" class="view-pane active">
+    <h1>Kim sotyapti, kim faqat gaplashyapti</h1>
+    <div class="sub" id="leaderboardMeta">Sotuv, lid konversiyasi, suhbat sifati va davomiylik har soatda yangilanadi</div>
 
-function radarSvg(axes) {
-  const n = axes.length;
-  const cx = 100, cy = 100, R = 78;
-  const pt = (i, r) => {
-    const a = (Math.PI * 2 * i) / n - Math.PI / 2;
-    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-  };
-  let rings = "";
-  [0.25, 0.5, 0.75, 1].forEach(f => {
-    const pts = axes.map((_, i) => pt(i, R * f).join(",")).join(" ");
-    rings += `<polygon points="${pts}" fill="none" stroke="#1b2740" stroke-width="1"/>`;
-  });
-  let spokes = "";
-  let labels = "";
-  axes.forEach((ax, i) => {
-    const [x, y] = pt(i, R);
-    spokes += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#1b2740" stroke-width="1"/>`;
-    const [lx, ly] = pt(i, R + 16);
-    labels += `<text x="${lx}" y="${ly}" fill="#8ba0c4" font-size="10" text-anchor="middle" dominant-baseline="middle">${esc(ax.label)}</text>`;
-  });
-  const dataPts = axes.map((ax, i) => pt(i, R * ((ax.score ?? 0) / 100)).join(",")).join(" ");
-  return `<svg width="220" height="220" viewBox="0 0 200 200">
-    ${rings}${spokes}
-    <polygon points="${dataPts}" fill="rgba(47,107,255,.35)" stroke="#2f6bff" stroke-width="2"/>
-    ${labels}
-  </svg>`;
-}
-
-async function loadManagerCards() {
-  let data;
-  try {
-    const res = await fetch("/api/sales-quality/manager-cards", {
-      headers: { "Accept": "application/json" }, credentials: "same-origin",
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    data = await res.json();
-  } catch (err) {
-    $("#mgr-app").innerHTML =
-      '<div class="card"><div class="empty">Ma\'lumot olinmadi: ' + esc(err.message) + '</div></div>';
-    return;
-  }
-  renderManagerCards(data);
-}
-
-function renderManagerCards(d) {
-  const managers = d.managers || [];
-  if (!d.real_data || !managers.length) {
-    $("#mgr-sub").textContent = "";
-    $("#mgr-app").innerHTML =
-      '<div class="card"><div class="empty">Hali baholangan real qo\'ng\'iroq yo\'q — kartochkalar shu yerda paydo bo\'ladi.</div></div>';
-    return;
-  }
-  $("#mgr-sub").textContent = managers.length + " ta sotuvchi";
-
-  let html = '<div class="mgr-grid">';
-  managers.forEach(m => {
-    const lastCall = (m.recent_calls || [])[0];
-    const audioHref = lastCall && lastCall.audio_url ? lastCall.audio_url : null;
-    html += `<div class="mgr-card">
-      <div class="mgr-head">
-        <div class="mgr-avatar">${esc(m.avatar)}</div>
-        <div class="mgr-name">${esc(m.name)}</div>
+    <div class="card">
+      <div class="section-head">
+        <div>
+          <b style="font-size:16px">Menejerlar reytingi</b>
+          <div class="note" style="margin-top:2px">Yopilgan savdolar va suhbat sifati kesimida real koʻrsatkichlar</div>
+        </div>
+        <div class="nav-group">
+          <div class="pill-toggle">
+            <button type="button" class="pill-btn active" data-sort-btn="natija">Natija</button>
+            <button type="button" class="pill-btn" data-sort-btn="sifat">Sifat</button>
+          </div>
+          <a id="csvExportBtn" class="csv-btn" href="/api/sales-quality/leaderboard.csv?days=30&amp;sort_by=natija">↓ CSV</a>
+        </div>
       </div>
-      <div class="mgr-stats">
-        <div class="mgr-stat"><b>${m.qualified_leads}</b><span>Qual lid</span></div>
-        <div class="mgr-stat"><b>${m.conversion_rate}%</b><span>Konv</span></div>
-        <div class="mgr-stat"><b>${m.sales_count}</b><span>Sotuv</span></div>
-        <div class="mgr-stat"><b>${money(m.total_sum)}</b><span>Summa</span></div>
+      <div id="leaderboardApp"><div class="empty">Yuklanmoqda…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
+        <b id="checklistTitle" style="font-size:16px">Jon Branding Mikro-Mezonlar Tahlili (%): Jamoa</b>
+        <button type="button" id="resetTeamChecklistBtn" class="mini-btn">Butun jamoa</button>
       </div>
-      ${m.has_radar_data
-        ? `<div class="radar-wrap">${radarSvg(m.radar)}</div>`
-        : '<div class="empty" style="padding:16px">Mezonlar bo\'yicha tahlil hali yo\'q</div>'}
-      ${audioHref
-        ? `<a class="audio-link" href="${esc(audioHref)}" target="_blank" rel="noopener">🎧 Tahlil audio</a>`
-        : '<span class="audio-link disabled">🎧 Audio yo\'q</span>'}
-    </div>`;
-  });
-  html += '</div>';
-  $("#mgr-app").innerHTML = html;
-}
+      <div id="checklistApp"><div class="empty">Yuklanmoqda…</div></div>
+    </div>
 
-loadManagerCards();
+    <h1 style="margin-top:28px">Umumiy konversiya koʻrsatkichlari</h1>
+    <div class="sub">Real qoʻngʻiroqlar va tushum dinamikasi</div>
+    <div id="overviewApp"><div class="empty">Yuklanmoqda…</div></div>
 
-async function load() {
-  let data;
-  try {
-    // DASHBOARD_READ huquqi bilan, brauzer sessiyasi orqali. `/api/ai/...`
-    // yo'li `OISHA_API_SECRET` header'ini talab qiladi — sahifa uni
-    // bilolmaydi, shuning uchun bu yerda panelga mos endpoint ishlatiladi.
-    const res = await fetch("/api/sales-quality/conversion-overview?days=30", {
-      headers: { "Accept": "application/json" }, credentials: "same-origin",
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    data = await res.json();
-  } catch (err) {
-    // Xatoni yashirmaymiz — bo'sh panel "ma'lumot yo'q" degani emas.
-    $("#app").innerHTML =
-      '<div class="card"><div class="empty">Ma\'lumot olinmadi: ' +
-      esc(err.message) + '</div></div>';
-    $("#period").textContent = "";
-    return;
-  }
-  render(data);
-}
+    <h1 style="margin-top:28px">Sotuvchilar boʻyicha radar kartochkalar</h1>
+    <div class="sub">7 mezon boʻyicha individual profil</div>
+    <div id="mgrCardsApp"><div class="empty">Yuklanmoqda…</div></div>
+  </section>
 
-function render(d) {
-  $("#period").textContent = "Oxirgi " + (d.days ?? 30) + " kun";
-  if (!d.has_data) {
-    $("#app").innerHTML =
-      '<div class="card"><div class="empty">Bu davrda baholangan qo\'ng\'iroq yo\'q.</div></div>';
-    return;
-  }
+  <section id="view-chat" class="view-pane">
+    <div class="chat-shell">
+      <div class="chat-top">
+        <div>
+          <b style="font-size:16px">Oisha AI Sotuv Tahlilchisi</b>
+          <div class="note" style="margin-top:2px">Real call_analyses bazasi ustida tool-calling suhbat (uydirma raqamsiz)</div>
+        </div>
+        <button type="button" id="newChatBtn" class="mini-btn">+ Yangi suhbat</button>
+      </div>
+      <div class="chips">
+        <button type="button" class="chip" data-prompt-chip="Oʻtgan oyni eng yaxshi sotuvchisi kim?">Oʻtgan oyni eng yaxshi sotuvchisi kim?</button>
+        <button type="button" class="chip" data-prompt-chip="Kim faqat gaplashyapti, lekin sotmayapti?">Kim faqat gaplashyapti, lekin sotmayapti?</button>
+        <button type="button" class="chip" data-prompt-chip="Jamoaning kuchli va kuchsiz skript tomonlari qanday?">Jamoaning kuchli va kuchsiz tomonlari</button>
+      </div>
+      <div id="chatStream" class="chat-stream">
+        <div class="chat-assistant">
+          <p class="chat-line">Savolingizni yozing yoki mikrofon orqali soʻrang. Har bir javob bazadagi real qoʻngʻiroq tahlillaridan hisoblanadi.</p>
+        </div>
+      </div>
+      <div id="chatStatus" class="note" style="padding:0 18px 8px"></div>
+      <div class="chat-bar">
+        <input id="chatQuestionInput" type="text" class="chat-input" placeholder="Xabar yozing... (masalan: Eng yaxshi sotuvchining kuchsiz tomonlari nima?)">
+        <button type="button" id="chatMicBtn" class="mini-btn mic-btn" title="Ovozli soʻrash">🎙️</button>
+        <button type="button" id="chatSendBtn" class="pill-btn active">↵ Yuborish</button>
+      </div>
+    </div>
+  </section>
+</main>
 
-  const vol = d.volume || {};
-  const trend = d.trend || {};
-  const sellers = d.sellers || [];
-  const volBy = {};
-  (d.seller_volume || []).forEach(v => { volBy[v.manager_name] = v; });
-
-  const deltaHtml = trend.reliable
-    ? `<span class="${trend.delta_pp >= 0 ? "delta-up" : "delta-down"}">` +
-      `${trend.delta_pp >= 0 ? "+" : ""}${trend.delta_pp} pp ` +
-      `${trend.delta_pp >= 0 ? "↗" : "↘"}</span>`
-    : `<span class="unit">${esc(trend.reason || "trend yo'q")}</span>`;
-
-  let html = '<div class="grid">';
-
-  html += `<div class="card"><h2>Umumiy samaradorlik</h2>
-    <div class="big">${d.true_efficiency ?? 0}<span class="unit">%</span></div>
-    <div class="bar"><i style="width:${Math.min(100, d.true_efficiency ?? 0)}%"></i></div>
-    <div class="note">Konvertirlangan / JAMI qo'ng'iroq (javobsizlar ham hisobda)</div>
-  </div>`;
-
-  html += `<div class="card"><h2>Qo'ng'iroqlar tahlili</h2>
-    <div class="row"><span>Jami</span><span>${vol.total ?? 0}</span></div>
-    <div class="row"><span>Samarali</span><span>${vol.answered ?? 0}</span></div>
-    <div class="row"><span>O'tkazib yuborilgan</span><span>${vol.missed ?? 0}</span></div>
-    <div class="row"><span>O'rtacha davomiylik</span><span>${esc(vol.avg_duration || "00:00")}</span></div>
-  </div>`;
-
-  html += `<div class="card"><h2>Konversiya</h2>
-    <div class="big">${trend.current_rate ?? d.conversion_rate ?? 0}<span class="unit">%</span></div>
-    <div class="note">${deltaHtml}</div>
-    <div class="row" style="margin-top:12px"><span>Yutilgan</span><span>${money(d.revenue_won)}</span></div>
-    <div class="row"><span>Yutqazilgan</span><span>${money(d.revenue_at_risk)}</span></div>
-  </div>`;
-
-  html += '<div class="card wide"><h2>Sotuvchilar</h2><table><thead><tr>' +
-    '<th>Sotuvchi</th><th>Ball</th><th>Konversiya</th><th>Javob berish</th>' +
-    '<th>O\'sish nuqtasi</th></tr></thead><tbody>';
-  sellers.forEach(s => {
-    const v = volBy[s.manager_name] || {};
-    const ans = v.answer_rate;
-    const ansCell = ans === undefined ? "—"
-      : `<span class="score ${ans >= 80 ? "s-good" : ans >= 50 ? "s-mid" : "s-bad"}">${ans}%</span>`;
-    html += `<tr>
-      <td>${esc(s.manager_name)}</td>
-      <td><span class="score ${scoreClass(s.avg_score)}">${s.avg_score}</span></td>
-      <td>${s.conversion_rate}%</td>
-      <td>${ansCell}</td>
-      <td>${esc(s.growth_stage_label || "—")}</td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-
-  const lowAnswer = sellers
-    .map(s => [s, volBy[s.manager_name]])
-    .filter(([, v]) => v && v.total >= 5 && v.answer_rate < 80);
-  if (lowAnswer.length) {
-    html += '<div class="flag"><b>📵 Javob berish foizi past</b> — bu qo\'ng\'iroqlar ' +
-      'ballarda umuman ko\'rinmaydi, chunki baholanmagan qo\'ng\'iroq ball olmaydi.<ul>';
-    lowAnswer.forEach(([s, v]) => {
-      html += `<li>${esc(s.manager_name)} — ${v.answer_rate}% (${v.missed} ta javobsiz / ${v.total} ta)</li>`;
-    });
-    html += '</ul></div>';
-  }
-  html += '</div></div>';
-
-  $("#app").innerHTML = html;
-}
-
-load();
-</script>
+<script src="/static/sales_quality_render.js" defer></script>
+<script src="/static/sales_quality_app.js" defer></script>
 </body>
 </html>

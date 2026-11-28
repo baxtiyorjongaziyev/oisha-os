@@ -24,10 +24,12 @@ from src.services.sales_quality.helpers import (
 )
 from src.services.sales_quality.weak_stages import _compute_weak_stages
 from src.services.sales_quality.schemas import SalesQualityAnalysisRequest
+from src.services.sales_quality.console_routes import router as console_router
 from src.api.routes.state import api_state
 from src.time_utils import get_local_now
 
 router = APIRouter(tags=["sales-quality"])
+router.include_router(console_router)
 logger = logging.getLogger(__name__)
 
 

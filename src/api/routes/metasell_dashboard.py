@@ -331,3 +331,26 @@ async def webhook_onlinepbx(payload: dict[str, Any]) -> dict[str, Any]:
     event = _telephony_gateway.process_incoming_call_webhook(provider="onlinepbx", payload=payload)
     return {"status": "ok", "call_id": event.call_id, "event": event.event_type}
 
+
+class CockpitChatRequest(BaseModel):
+    """Payload for real-data Cockpit AI Sales Chat."""
+
+    question: str = Field(..., min_length=1, max_length=1000)
+    days: int | None = Field(default=None, ge=1, le=365)
+    history: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/sales-chat/ask")
+async def ask_cockpit_sales_chat(req: CockpitChatRequest) -> dict[str, Any]:
+    """Answer sales questions over real call_analyses data without demo fallbacks."""
+    from src.api.routes.state import api_state
+    from src.services.core.metasell.sales_chat import MetasellSalesChatEngine
+    from src.services.utils.free_ai_router import get_free_ai_router
+
+    db_handle = getattr(api_state, "db_instance", None) or _bridge._resolve_conn()
+    engine = MetasellSalesChatEngine(db=db_handle, ai_router=get_free_ai_router())
+    return await engine.ask(
+        req.question,
+        days=req.days,
+        history=list(req.history or [])[-8:],
+    )

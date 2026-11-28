@@ -29,3 +29,16 @@ class SalesQualityAnalysisRequest(BaseModel):
     audio_url: Optional[str] = None
     source: str = "external"
     analyzed_at: Optional[str] = None
+
+
+class SalesChatAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    days: Optional[int] = Field(default=None, ge=1, le=365)
+    history: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class SalesChatVoiceRequest(BaseModel):
+    audio_base64: str = Field(..., min_length=8, max_length=14_000_000)
+    mime_type: str = Field(default="audio/webm", max_length=64)
+    days: Optional[int] = Field(default=None, ge=1, le=365)
+    history: List[Dict[str, Any]] = Field(default_factory=list)

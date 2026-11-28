@@ -586,15 +586,45 @@
     }
   }
 
-  function handleAskQuestion() {
-    const q = document.getElementById('askInput').value.trim();
+  let cockpitChatHistory = [];
+
+  async function handleAskQuestion() {
+    const input = document.getElementById('askInput');
+    const q = input.value.trim();
     if (!q) return;
     const ans = document.getElementById('askAnswer');
     ans.style.display = 'block';
-    ans.innerHTML = '🤖 <i>Oisha AI javob bermoqda...</i>';
-    setTimeout(() => {
-      ans.innerHTML = `🤖 <b>Tahlil natijasi:</b> Bugungi umumiy yutilgan tushum <b>27,000,000 soʻm</b>. Konversiya 50%. Aziz Karimov yetakchi oʻrinda (5 ta sotuv). Asosiy rad sababi: arzonroq taklifni tanlashgan.`;
-    }, 600);
+    ans.textContent = '🤖 Oisha AI bazadan tekshirmoqda...';
+
+    try {
+      const res = await fetch('/api/dashboard/sales-chat/ask', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: q, history: cockpitChatHistory})
+      });
+      const data = await res.json();
+      while (ans.firstChild) ans.removeChild(ans.firstChild);
+
+      if (Array.isArray(data.actions) && data.actions.length > 0) {
+        const meta = document.createElement('div');
+        meta.style.fontSize = '12px';
+        meta.style.color = '#93c5fd';
+        meta.style.marginBottom = '6px';
+        meta.textContent = '▸ ' + data.actions.length + ' ta amal bajarildi (' + (data.window_label || '') + ')';
+        ans.appendChild(meta);
+      }
+
+      const body = document.createElement('div');
+      body.style.whiteSpace = 'pre-line';
+      body.textContent = String(data.answer || 'Maʼlumot topilmadi.').replace(/\*\*/g, '');
+      ans.appendChild(body);
+
+      cockpitChatHistory.push({role: 'user', content: q});
+      cockpitChatHistory.push({role: 'assistant', content: data.answer || '', focus_manager: data.focus_manager || ''});
+      if (cockpitChatHistory.length > 8) cockpitChatHistory = cockpitChatHistory.slice(-8);
+    } catch (_e) {
+      ans.textContent = '❌ Tahlil xizmatiga ulanishda xatolik yuz berdi.';
+    }
   }
 
   window.addEventListener('DOMContentLoaded', () => {
