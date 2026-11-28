@@ -59,6 +59,7 @@ class CockpitAutopilotScheduler:
         self.engine = engine or AutonomousCockpitEngine(state_path=_DEFAULT_STATE_PATH)
         self.last_pulse_date: str | None = getattr(self.engine, "last_pulse_date", None)
         self.last_wrapup_date: str | None = getattr(self.engine, "last_wrapup_date", None)
+        self._wrapup_lock = asyncio.Lock()
         self.seller_map = parse_seller_map(os.getenv("SELLER_TELEGRAM_MAP", ""))
 
     async def send_alert(self, alert: AutonomousAlert) -> bool:
@@ -167,29 +168,35 @@ class CockpitAutopilotScheduler:
         current = now or get_local_now()
         today = current.strftime("%Y-%m-%d")
 
-        if is_sunday(current) or self.last_wrapup_date == today:
+        if is_sunday(current) or not (current.hour == 19 and current.minute >= 30):
             return False
 
-        if current.hour == 19 and current.minute >= 30:
+        async with self._wrapup_lock:
+            if self.last_wrapup_date == today:
+                return False
+            self.last_wrapup_date = today
+
             group_id = str(getattr(settings, "TEAM_GROUP_ID", "") or getattr(settings, "OWNER_ID", ""))
             if group_id:
-                wrapup_text = await self.engine.build_evening_closing_card()
+                try:
+                    wrapup_text = await self.engine.build_evening_closing_card(now=current)
+                except TypeError:
+                    wrapup_text = await self.engine.build_evening_closing_card()
                 alert = AutonomousAlert(
                     alert_type="evening_wrapup",
                     recipient_chat_id=group_id,
                     message_text=wrapup_text,
                 )
-                await self.send_alert(alert)
+                if not await self.send_alert(alert):
+                    self.last_wrapup_date = getattr(self.engine, "last_wrapup_date", None)
+                    return False
 
-            self.last_wrapup_date = today
             if hasattr(self.engine, "last_wrapup_date"):
                 self.engine.last_wrapup_date = today
             if hasattr(self.engine, "save_state"):
                 self.engine.save_state()
             logger.info("[AUTOPILOT] Evening wrapup completed for %s", today)
             return True
-
-        return False
 
     async def run_autopilot_loop(self) -> None:
         """Master background loop running 24/7 on Hetzner prod VPS."""
