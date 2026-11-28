@@ -146,6 +146,34 @@ def test_scheduler_loop_registers_both_jobs():
 
 
 @pytest.mark.asyncio
+async def test_scheduler_loop_sends_no_roast_at_2030(monitor, monkeypatch):
+    """20:30 siklida hech qanday roast xabari yuborilmasligini runtime da tekshiramiz."""
+    import asyncio
+
+    monkeypatch.setattr(
+        "src.time_utils.get_local_now", lambda: datetime(2026, 11, 27, 20, 30)
+    )
+    monkeypatch.setattr("src.time_utils.is_quiet_hours", lambda _now: False)
+    monitor._job_check_stagnation_and_deadlines = AsyncMock()
+    monitor._job_check_amocrm_due_tasks = AsyncMock()
+    monitor._job_lead_os_cycle = AsyncMock()
+    monitor._job_heartbeat = AsyncMock()
+
+    async def _stop_after_one_tick(_seconds):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(
+        "src.schedulers.bg_monitor.monitor.asyncio.sleep", _stop_after_one_tick
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await monitor.run()
+
+    monitor._send_to_group_or_admin.assert_not_awaited()
+    monitor._notify_admin.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_send_to_group_uses_bot_client_when_available():
     bot_client = SimpleNamespace(send_message=AsyncMock())
     user_client = SimpleNamespace(send_message=AsyncMock())

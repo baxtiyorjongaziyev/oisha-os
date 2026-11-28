@@ -69,7 +69,10 @@ class BackgroundMonitor(BaseMonitorHelpersMixin, JobsCrmMixin, JobsAnalyticsMixi
         if now.hour in [11, 15] and 25 <= now.minute < 35:
             await self._job_sales_reluctance_automation(now)
 
-        if (now.hour == 11 and 40 <= now.minute < 50) or (now.hour == 16 and 25 <= now.minute < 35):
+        is_pm_window = (now.hour == 11 and 40 <= now.minute < 50) or (
+            now.hour == 16 and 25 <= now.minute < 35
+        )
+        if is_pm_window:
             await self._job_pm_conflict_automation(now)
 
         if now.hour == 18 and now.minute == 0:
@@ -86,7 +89,9 @@ class BackgroundMonitor(BaseMonitorHelpersMixin, JobsCrmMixin, JobsAnalyticsMixi
                 now = get_local_now()
 
                 if is_quiet_hours(now):
-                    logger.debug("[MONITOR] Quiet hours active. Automatic notifications are paused.")
+                    logger.debug(
+                        "[MONITOR] Quiet hours active. Automatic notifications paused."
+                    )
                     await asyncio.sleep(300)
                     continue
 
